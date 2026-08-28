@@ -55,11 +55,12 @@ typedef struct {
 } MEMORY_MAP;
 
 typedef struct {
-    VIDEO_CONFIG              VideoConfig;
-    MEMORY_MAP                MemoryMap;
-    EFI_PHYSICAL_ADDRESS      KernelEntry;
-    EFI_PHYSICAL_ADDRESS      RsdpAddress;
-    EFI_SYSTEM_TABLE          *SystemTable;
+    VIDEO_CONFIG         VideoConfig;
+    MEMORY_MAP           MemoryMap;
+    EFI_PHYSICAL_ADDRESS KernelEntry;
+    EFI_PHYSICAL_ADDRESS RsdpAddress;
+    EFI_SYSTEM_TABLE     *SystemTable;
+    UINT64               XhciBaseAddress;
 } BOOT_CONFIG;
 
 #endif

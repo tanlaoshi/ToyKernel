@@ -46,7 +46,7 @@ void DrawString(UINT32 X, UINT32 Y, const char *str, UINT32 Color) {
     UINT32 cursor_x = X;
     UINT32 cursor_y = Y;
     UINT32 CharWidth = 8;
-    UINT32 CharSpacing = 2;
+    UINT32 CharSpacing = 4;
     UINT32 LineHeight = 18;
 
     while (*str) {

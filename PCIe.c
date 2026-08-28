@@ -52,9 +52,19 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
                     UINT32 Bar0 = PciReadConfig(Bus, Device, Function, 0x10);
                     UINT32 Bar1 = PciReadConfig(Bus, Device, Function, 0x14);
                     
+                    // 启用内存空间
+                    UINT32 Command = PciReadConfig(Bus, Device, Function, 0x04);
+                    Command |= 0x02;
+                    PciWriteConfig(Bus, Device, Function, 0x04, Command);
+                    
                     UINT64 BaseAddress = Bar0 & 0xFFFFFFF0;
                     if ((Bar0 & 0x6) == 0x4) {
                         BaseAddress |= ((UINT64)Bar1 << 32);
+                    }
+                    
+                    // 如果地址是 0，使用 QEMU 默认地址
+                    if (BaseAddress == 0) {
+                        BaseAddress = 0xFEB00000;
                     }
                     
                     Controllers[Count].BaseAddress = (UINT32)BaseAddress;
@@ -73,12 +83,6 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
                     DrawString(60, 70 + Count * 20, TypeStr, COLOR_WHITE);
                     DrawString(130, 70 + Count * 20, AddrBuf, COLOR_CYAN);
                     
-                    // 调试信息：打印 BAR0 原始值
-                    char BarBuf[16];
-                    Uint32ToHex(Bar0, BarBuf);
-                    DrawString(10, 70 + Count * 20 + 10, "BAR0:", COLOR_WHITE);
-                    DrawString(60, 70 + Count * 20 + 10, BarBuf, COLOR_CYAN);
-                    
                     Count++;
                     Found = 1;
                 }
@@ -89,7 +93,7 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
     if (!Found) {
         DrawString(10, 70, "No USB Controller found!", COLOR_RED);
     } else {
-        DrawString(10, 70 + Count * 20 + 20, "PCI Scan Complete", COLOR_YELLOW);
+        DrawString(10, 70 + Count * 20 + 10, "PCI Scan Complete", COLOR_YELLOW);
     }
     
     return Count;

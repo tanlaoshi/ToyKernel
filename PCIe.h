@@ -3,7 +3,6 @@
 
 #include "BootConfig.h"
 
-// USB 控制器信息
 typedef struct {
     UINT32 BaseAddress;
     UINT32 Length;
@@ -23,5 +22,6 @@ static inline void outl(UINT16 Port, UINT32 Value) {
 UINT32 PciReadConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset);
 void PciWriteConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset, UINT32 Value);
 int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers);
+void Uint32ToHex(UINT32 Value, char *Buf);  // 添加这行
 
 #endif
