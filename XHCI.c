@@ -13,92 +13,148 @@ static inline void mmio_write32(UINT64 addr, UINT32 value) {
 
 int XHCIInit64(UINT64 BaseAddress) {
     char buf[32];
+    int row = 130;
 
     Uint32ToHex((UINT32)(BaseAddress >> 32), buf);
-    DrawString(10, 130, "[XHCI] High:", COLOR_YELLOW);
-    DrawString(200, 130, buf, COLOR_WHITE);
+    DrawString(10, row, "[XHCI] High:", COLOR_YELLOW);
+    DrawString(200, row, buf, COLOR_WHITE);
+    row += 20;
 
     Uint32ToHex((UINT32)BaseAddress, buf);
-    DrawString(10, 150, "[XHCI] Low:", COLOR_YELLOW);
-    DrawString(200, 150, buf, COLOR_WHITE);
+    DrawString(10, row, "[XHCI] Low:", COLOR_YELLOW);
+    DrawString(200, row, buf, COLOR_WHITE);
+    row += 20;
 
     UINT32 CapLength = mmio_read32(BaseAddress) & 0xFF;
     Uint32ToHex(CapLength, buf);
-    DrawString(10, 170, "CapLength:", COLOR_YELLOW);
-    DrawString(200, 170, buf, COLOR_WHITE);
+    DrawString(10, row, "CapLength:", COLOR_YELLOW);
+    DrawString(200, row, buf, COLOR_WHITE);
+    row += 20;
 
     if (CapLength < 0x20) {
-        DrawString(10, 190, "XHCI Init FAILED!", COLOR_RED);
+        DrawString(10, row, "XHCI Init FAILED!", COLOR_RED);
         return 0;
     }
 
     UINT32 HCSParams1 = mmio_read32(BaseAddress + 0x04);
     UINT32 MaxPorts = HCSParams1 & 0xFF;
     Uint32ToHex(MaxPorts, buf);
-    DrawString(10, 190, "MaxPorts:", COLOR_YELLOW);
-    DrawString(200, 190, buf, COLOR_WHITE);
+    DrawString(10, row, "MaxPorts:", COLOR_YELLOW);
+    DrawString(200, row, buf, COLOR_WHITE);
+    row += 20;
 
     UINT64 OpBase = BaseAddress + CapLength;
 
     UINT32 UsbSts = mmio_read32(OpBase + 0x04);
     Uint32ToHex(UsbSts, buf);
-    DrawString(10, 210, "USBSTS:", COLOR_YELLOW);
-    DrawString(200, 210, buf, COLOR_WHITE);
+    DrawString(10, row, "USBSTS:", COLOR_YELLOW);
+    DrawString(200, row, buf, COLOR_WHITE);
+    row += 20;
 
     if (UsbSts & 0x01) {
-        DrawString(10, 230, "Starting controller...", COLOR_YELLOW);
+        DrawString(10, row, "Starting controller...", COLOR_YELLOW);
+        row += 20;
         UINT32 UsbCmd = mmio_read32(OpBase + 0x00);
         mmio_write32(OpBase + 0x00, UsbCmd | 0x02);
 
         int timeout = 1000000;
         while (timeout--) {
             if (!(mmio_read32(OpBase + 0x04) & 0x01)) {
-                DrawString(10, 250, "Controller started!", COLOR_GREEN);
+                DrawString(10, row, "Controller started!", COLOR_GREEN);
+                row += 20;
                 break;
             }
         }
     }
 
-    // 端口状态
-    for (UINT32 i = 0; i < MaxPorts && i < 4; i++) {
+    // 端口状态 - 检测并初始化端口
+    int deviceFound = 0;
+
+    for (UINT32 i = 0; i < MaxPorts && i < 16; i++) {
         UINT32 PortOffset = 0x400 + i * 0x10;
         UINT32 PortSC = mmio_read32(OpBase + PortOffset);
 
         Uint32ToHex(PortSC, buf);
-        DrawString(10, 270 + i * 20, "PORTSC", COLOR_YELLOW);
-        DrawString(120, 270 + i * 20, buf, COLOR_WHITE);
+        DrawString(10, row, "PORTSC", COLOR_YELLOW);
+        DrawString(120, row, buf, COLOR_WHITE);
+        row += 20;
 
         if (PortSC & 0x01) {
-            DrawString(10, 270 + i * 20 + 10, "Device Connected!", COLOR_GREEN);
-        }
-    }
-
-    DrawString(10, 350, "XHCI Init SUCCESS!", COLOR_GREEN);
-    DrawString(10, 370, "Polling for USB keyboard...", COLOR_YELLOW);
-
-    // 轮询检测键盘连接
-    int found = 0;
-    for (int loop = 0; loop < 1000000; loop++) {
-        for (UINT32 i = 0; i < 4; i++) {
-            UINT32 PortOffset = 0x400 + i * 0x10;
-            UINT32 PortSC = mmio_read32(OpBase + PortOffset);
+            DrawString(10, row, "Device on port", COLOR_GREEN);
+            char portNum[4];
+            portNum[0] = '0' + i;
+            portNum[1] = '\0';
+            DrawString(200, row, portNum, COLOR_WHITE);
+            row += 20;
+            deviceFound = 1;
             
-            if (PortSC & 0x01) {
-                found = 1;
-                char buf2[32];
-                Uint32ToHex(PortSC, buf2);
-                DrawString(10, 390 + i * 20, "Keyboard on port", COLOR_GREEN);
-                DrawString(250, 390 + i * 20, buf2, COLOR_WHITE);
-                break;
+            // 启用端口 (PED = Bit 2)
+            if (!(PortSC & 0x04)) {
+                mmio_write32(OpBase + PortOffset, PortSC | 0x04);
+                DrawString(10, row, "Port enabled", COLOR_YELLOW);
+                row += 20;
             }
+            
+            // 复位端口 (PR = Bit 4)
+            mmio_write32(OpBase + PortOffset, PortSC | 0x10);
+            int wait = 100000;
+            while (wait-- && (mmio_read32(OpBase + PortOffset) & 0x10));
+            DrawString(10, row, "Port reset done", COLOR_YELLOW);
+            row += 20;
+            
+            // 再次读取端口状态
+            UINT32 PortSC2 = mmio_read32(OpBase + PortOffset);
+            Uint32ToHex(PortSC2, buf);
+            DrawString(10, row, "PORTSC after reset:", COLOR_YELLOW);
+            DrawString(200, row, buf, COLOR_WHITE);
+            row += 20;
+            
+            break;
         }
-        if (found) break;
     }
 
-    if (!found) {
-        DrawString(10, 390, "No keyboard detected!", COLOR_RED);
-        DrawString(10, 410, "Check QEMU: -device usb-kbd", COLOR_YELLOW);
+    if (!deviceFound) {
+        DrawString(10, row, "No device connected!", COLOR_RED);
+        row += 20;
+        DrawString(10, row, "Waiting for device...", COLOR_YELLOW);
+        row += 20;
+        
+        // 持续等待设备连接
+        while (1) {
+            for (UINT32 i = 0; i < MaxPorts && i < 16; i++) {
+                UINT32 PortOffset = 0x400 + i * 0x10;
+                UINT32 PortSC = mmio_read32(OpBase + PortOffset);
+                if (PortSC & 0x01) {
+                    DrawString(10, row, "Device now connected!", COLOR_GREEN);
+                    row += 20;
+                    deviceFound = 1;
+                    
+                    // 启用端口
+                    if (!(PortSC & 0x04)) {
+                        mmio_write32(OpBase + PortOffset, PortSC | 0x04);
+                        DrawString(10, row, "Port enabled", COLOR_YELLOW);
+                        row += 20;
+                    }
+                    
+                    // 复位端口
+                    mmio_write32(OpBase + PortOffset, PortSC | 0x10);
+                    int wait = 100000;
+                    while (wait-- && (mmio_read32(OpBase + PortOffset) & 0x10));
+                    DrawString(10, row, "Port reset done", COLOR_YELLOW);
+                    row += 20;
+                    
+                    break;
+                }
+            }
+            if (deviceFound) break;
+            // 延时等待
+            for (int delay = 0; delay < 1000000; delay++);
+        }
     }
+
+    DrawString(10, row, "XHCI Init SUCCESS!", COLOR_GREEN);
+    row += 20;
+    DrawString(10, row, "Polling for USB keyboard...", COLOR_YELLOW);
 
     return 1;
 }
