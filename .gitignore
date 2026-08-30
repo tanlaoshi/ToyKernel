@@ -1,3 +1,6 @@
+Build/
+
+# 遗留根目录产物（旧 Makefile）
 *.o
 *.elf
 *.elf~

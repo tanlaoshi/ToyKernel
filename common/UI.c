@@ -1,12 +1,17 @@
+/*
+ * UI.c — 帧缓冲图形与 UI 控件
+ *
+ * 提供直线、矩形、圆、三角形及按钮、进度条等绘制函数，供演示或扩展界面使用。
+ */
 #include "UI.h"
 #include "Video.h"
 
-// 自定义 abs 函数
+/* 整数绝对值 */
 static int Abs(int x) {
     return (x < 0) ? -x : x;
 }
 
-// 自定义整数平方根（牛顿迭代法）
+/* 整数平方根（牛顿迭代） */
 static int ISqrt(int n) {
     if (n <= 0) return 0;
     int x = n;
@@ -18,10 +23,7 @@ static int ISqrt(int n) {
     return x;
 }
 
-// ============================================================
-//  直线绘制（Bresenham 算法）
-// ============================================================
-
+/* 绘制直线（Bresenham 步进） */
 void DrawLine(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 Color) {
     int dx = (int)X2 - (int)X1;
     int dy = (int)Y2 - (int)Y1;
@@ -44,10 +46,7 @@ void DrawLine(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 Color) {
     }
 }
 
-// ============================================================
-//  矩形
-// ============================================================
-
+/* 绘制空心矩形边框 */
 void DrawRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color) {
     if (Width < 2 || Height < 2) return;
     
@@ -57,20 +56,12 @@ void DrawRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color
     DrawLine(X + Width - 1, Y, X + Width - 1, Y + Height - 1, Color);
 }
 
+/* 填充实心矩形 */
 void FillRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color) {
-    if (Width == 0 || Height == 0) return;
-    
-    for (UINT32 i = 0; i < Height; i++) {
-        for (UINT32 j = 0; j < Width; j++) {
-            DrawPixel(X + j, Y + i, Color);
-        }
-    }
+    VideoFillRect(X, Y, Width, Height, Color);
 }
 
-// ============================================================
-//  圆角矩形（简化可靠版本）
-// ============================================================
-
+/* 绘制圆角空心矩形 */
 void DrawRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Radius, UINT32 Color) {
     if (Radius > Width / 2) Radius = Width / 2;
     if (Radius > Height / 2) Radius = Height / 2;
@@ -124,6 +115,7 @@ void DrawRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 
     }
 }
 
+/* 填充实心圆角矩形 */
 void FillRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Radius, UINT32 Color) {
     if (Radius > Width / 2) Radius = Width / 2;
     if (Radius > Height / 2) Radius = Height / 2;
@@ -148,25 +140,25 @@ void FillRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 
             
             // 左上角
             if (col < Radius && row < Radius) {
-                if (dx_left * dx_left + dy_top * dy_top > Radius * Radius) {
+                if (dx_left * dx_left + dy_top * dy_top > (int)(Radius * Radius)) {
                     inside = 0;
                 }
             }
             // 右上角
             if (col > Width - 1 - Radius && row < Radius) {
-                if (dx_right * dx_right + dy_top * dy_top > Radius * Radius) {
+                if (dx_right * dx_right + dy_top * dy_top > (int)(Radius * Radius)) {
                     inside = 0;
                 }
             }
             // 左下角
             if (col < Radius && row > Height - 1 - Radius) {
-                if (dx_left * dx_left + dy_bottom * dy_bottom > Radius * Radius) {
+                if (dx_left * dx_left + dy_bottom * dy_bottom > (int)(Radius * Radius)) {
                     inside = 0;
                 }
             }
             // 右下角
             if (col > Width - 1 - Radius && row > Height - 1 - Radius) {
-                if (dx_right * dx_right + dy_bottom * dy_bottom > Radius * Radius) {
+                if (dx_right * dx_right + dy_bottom * dy_bottom > (int)(Radius * Radius)) {
                     inside = 0;
                 }
             }
@@ -182,6 +174,7 @@ void FillRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 
 //  圆形
 // ============================================================
 
+/* 绘制空心圆（中点圆算法） */
 void DrawCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
     if (Radius == 0) {
         DrawPixel(CenterX, CenterY, Color);
@@ -212,6 +205,7 @@ void DrawCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
     }
 }
 
+/* 填充实心圆 */
 void FillCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
     if (Radius == 0) {
         DrawPixel(CenterX, CenterY, Color);
@@ -230,12 +224,14 @@ void FillCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
 //  三角形（简化版）
 // ============================================================
 
+/* 绘制三角形边框（三条边） */
 void DrawTriangle(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 X3, UINT32 Y3, UINT32 Color) {
     DrawLine(X1, Y1, X2, Y2, Color);
     DrawLine(X2, Y2, X3, Y3, Color);
     DrawLine(X3, Y3, X1, Y1, Color);
 }
 
+/* 填充实心三角形（扫描线） */
 void FillTriangle(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 X3, UINT32 Y3, UINT32 Color) {
     DrawTriangle(X1, Y1, X2, Y2, X3, Y3, Color);
 }
@@ -244,6 +240,7 @@ void FillTriangle(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 X3, UINT32 
 //  UI 元素
 // ============================================================
 
+/* 绘制圆角按钮（背景 + 居中文字） */
 void DrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text, UINT32 TextColor, UINT32 BgColor) {
     FillRoundRectangle(X, Y, Width, Height, 5, BgColor);
     DrawRoundRectangle(X, Y, Width, Height, 5, COLOR_WHITE);
@@ -251,11 +248,13 @@ void DrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Tex
     
     UINT32 textLen = 0;
     while (Text[textLen]) textLen++;
-    UINT32 textX = X + (Width - textLen * 10) / 2;
-    UINT32 textY = Y + (Height - 16) / 2;
-    DrawString(textX, textY, Text, TextColor);
+    // Calculate text position for centered alignment (for future implementation)
+    // UINT32 textX = X + (Width - textLen * 10) / 2;
+    // UINT32 textY = Y + (Height - 16) / 2;
+    DrawString(Text, TextColor);
 }
 
+/* 绘制水平进度条 */
 void DrawProgressBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Progress, UINT32 MaxProgress, UINT32 Color, UINT32 BgColor) {
     FillRoundRectangle(X, Y, Width, Height, 3, BgColor);
     DrawRoundRectangle(X, Y, Width, Height, 3, COLOR_GRAY);

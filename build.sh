@@ -1,20 +1,27 @@
 #!/bin/bash
+set -e
+cd "$(dirname "$0")"
 
-rm -f *.o Kernel.elf
+ARCH=${1:-x86_64}
+echo "Building ToyKernel for ARCH=$ARCH"
 
-gcc -ffreestanding -nostdlib -fno-stack-protector -fno-builtin -c Kernel.c -o Kernel.o
-gcc -ffreestanding -nostdlib -fno-stack-protector -fno-builtin -c Video.c -o Video.o
-gcc -ffreestanding -nostdlib -fno-stack-protector -fno-builtin -c UI.c -o UI.o
-gcc -ffreestanding -nostdlib -fno-stack-protector -fno-builtin -c PCIe.c -o PCIe.o
-gcc -ffreestanding -nostdlib -fno-stack-protector -fno-builtin -c XHCI.c -o XHCI.o
+make clean ARCH="$ARCH"
+make ARCH="$ARCH"
 
-ld -T link.ld -e KernelEntry -o Kernel.elf Kernel.o Video.o UI.o PCIe.o XHCI.o
-
-if [ -f Kernel.elf ]; then
-    echo "Build successful!"
-    ls -lh Kernel.elf
-    cp Kernel.elf ../ToyImage/
-else
+if [ ! -f Build/Kernel.elf ]; then
     echo "Build failed!"
     exit 1
 fi
+
+echo "Build successful: Build/Kernel.elf"
+cp Build/Kernel.elf ../ToyImage/
+
+if [ "$ARCH" = "x86_64" ]; then
+    cp user/hello.elf ../ToyImage/HELLO.ELF
+    cp user/count.elf ../ToyImage/COUNT.ELF
+    echo "Copied user/hello.elf -> ../ToyImage/HELLO.ELF"
+    echo "Copied user/count.elf -> ../ToyImage/COUNT.ELF"
+fi
+
+echo "Copied Build/Kernel.elf -> ../ToyImage/"
+ls -lh Build/Kernel.elf

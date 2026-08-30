@@ -1,3 +1,8 @@
+/*
+ * UI.h — 高级图形绘制接口
+ *
+ * 在 Video 帧缓冲上绘制几何图形与 UI 控件。颜色为 0x00RRGGBB 格式。
+ */
 #ifndef UI_H
 #define UI_H
 

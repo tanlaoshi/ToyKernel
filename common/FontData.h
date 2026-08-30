@@ -1,8 +1,18 @@
+/*
+ * FontData.h — 8×16 点阵字体数据
+ *
+ * ASCII 可打印字符 32–126，共 95 个字形，每字符 16 字节行位图。
+ * 供 Video.c DrawChar 使用。
+ */
 #ifndef FONT_DATA_H
 #define FONT_DATA_H
 
 #include "BootConfig.h"
 
+#define FONT_WIDTH          8
+#define FONT_HEIGHT         16
+#define FONT_CHAR_SPACING   2
+#define FONT_LINE_SPACING   2
 // 8x16 VGA 字体，ASCII 32~126，共 95 个字符
 // 每个字符 16 字节（8 位宽 × 16 行高）
 static const UINT8 FontData[95][16] = {
