@@ -1,12 +1,14 @@
 ARCH ?= x86_64
+DEBUG ?= 0
 
 CC = gcc
 LD = ld
 
-INCLUDES = -Icommon -Ihal -Ihal/$(ARCH)
+INCLUDES = -ICommon -IHal -IHal/$(ARCH)
 
 CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra \
          -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
+         -DTOY_DEBUG=$(DEBUG) \
          $(INCLUDES)
 
 ifeq ($(ARCH),x86_64)
@@ -23,24 +25,24 @@ CFLAGS += -mgeneral-regs-only
 LDFLAGS_ARCH =
 endif
 
-LDFLAGS = -nostdlib -static -T hal/$(ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
+LDFLAGS = -nostdlib -static -T Hal/$(ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 
 BUILDDIR = Build
-COMMON_SRCS := $(wildcard common/*.c)
-ARCH_SRCS := $(wildcard hal/$(ARCH)/*.c)
-ARCH_ASM := $(wildcard hal/$(ARCH)/*.S)
+COMMON_SRCS := $(wildcard Common/*.c)
+ARCH_SRCS := $(wildcard Hal/$(ARCH)/*.c)
+ARCH_ASM := $(wildcard Hal/$(ARCH)/*.S)
 
-COMMON_OBJS := $(patsubst common/%.c,$(BUILDDIR)/common/%.o,$(COMMON_SRCS))
-ARCH_OBJS := $(patsubst hal/$(ARCH)/%.c,$(BUILDDIR)/hal/$(ARCH)/%.o,$(ARCH_SRCS))
-ARCH_ASM_OBJS := $(patsubst hal/$(ARCH)/%.S,$(BUILDDIR)/hal/$(ARCH)/%.o,$(ARCH_ASM))
+COMMON_OBJS := $(patsubst Common/%.c,$(BUILDDIR)/Common/%.o,$(COMMON_SRCS))
+ARCH_OBJS := $(patsubst Hal/$(ARCH)/%.c,$(BUILDDIR)/Hal/$(ARCH)/%.o,$(ARCH_SRCS))
+ARCH_ASM_OBJS := $(patsubst Hal/$(ARCH)/%.S,$(BUILDDIR)/Hal/$(ARCH)/%.o,$(ARCH_ASM))
 
 ifeq ($(ARCH),x86_64)
-EXTRA_OBJS = $(BUILDDIR)/user_hello_blob.o
-USER_HELLO_ELF = user/hello.elf
-USER_COUNT_ELF = user/count.elf
-USER_HELLO_OBJ = user/hello.o
-USER_COUNT_OBJ = user/count.o
-USER_LD = user/user.ld
+EXTRA_OBJS = $(BUILDDIR)/User_hello_blob.o
+USER_HELLO_ELF = User/hello.elf
+USER_COUNT_ELF = User/count.elf
+USER_HELLO_OBJ = User/hello.o
+USER_COUNT_OBJ = User/count.o
+USER_LD = User/user.ld
 endif
 
 OBJS = $(COMMON_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS)
@@ -59,23 +61,23 @@ $(BUILDDIR):
 $(TARGET): $(OBJS) | $(BUILDDIR)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(BUILDDIR)/common/%.o: common/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/%.o: Common/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/hal/$(ARCH)/%.o: hal/$(ARCH)/%.c | $(BUILDDIR)
+$(BUILDDIR)/Hal/$(ARCH)/%.o: Hal/$(ARCH)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/hal/$(ARCH)/%.o: hal/$(ARCH)/%.S | $(BUILDDIR)
+$(BUILDDIR)/Hal/$(ARCH)/%.o: Hal/$(ARCH)/%.S | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
-$(USER_HELLO_OBJ): user/hello.S
+$(USER_HELLO_OBJ): User/hello.S
 	$(CC) -c $< -o $@
 
-$(USER_COUNT_OBJ): user/count.S
+$(USER_COUNT_OBJ): User/count.S
 	$(CC) -c $< -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_LD)
@@ -84,8 +86,8 @@ $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_LD)
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
 
-$(BUILDDIR)/user_hello_blob.o: $(USER_HELLO_ELF) | $(BUILDDIR)
-	objcopy -I binary -O $(USER_BLOB_FMT) user/hello.elf $@
+$(BUILDDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(BUILDDIR)
+	objcopy -I binary -O $(USER_BLOB_FMT) User/hello.elf $@
 endif
 
 clean:
