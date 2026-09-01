@@ -1,12 +1,16 @@
 /*
- * Block.c — 块设备读抽象，后端为 ATA Primary Master/Slave
+ * Block.c — 块设备抽象（后端由 HAL 注册）
  */
 #include "Block.h"
-#include "Ata.h"
 #include "Debug.h"
 
+static const BLOCK_BACKEND *gBackend;
 static UINT32 gDrive;
 static UINT8  gReady[BLOCK_MAX_DRIVES];
+
+void BlockRegisterBackend(const BLOCK_BACKEND *Backend) {
+    gBackend = Backend;
+}
 
 int BlockSelect(UINT32 Drive) {
     if (Drive >= BLOCK_MAX_DRIVES || !gReady[Drive]) {
@@ -24,9 +28,14 @@ int BlockInit(void) {
     UINT32 n = 0;
     UINT32 d;
 
+    if (!gBackend) {
+        DebugWrite("block: no backend registered\n");
+        return 0;
+    }
+
     for (d = 0; d < BLOCK_MAX_DRIVES; d++) {
         gReady[d] = 0;
-        if (AtaProbe(d)) {
+        if (gBackend->Probe(d)) {
             gReady[d] = 1;
             n++;
             DebugWrite("block: drive ");
@@ -51,9 +60,15 @@ int BlockInit(void) {
 }
 
 int BlockReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
-    return AtaReadSectors(gDrive, Lba, Count, Buffer);
+    if (!gBackend) {
+        return 0;
+    }
+    return gBackend->ReadSectors(gDrive, Lba, Count, Buffer);
 }
 
 int BlockWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {
-    return AtaWriteSectors(gDrive, Lba, Count, Buffer);
+    if (!gBackend) {
+        return 0;
+    }
+    return gBackend->WriteSectors(gDrive, Lba, Count, Buffer);
 }

@@ -7,6 +7,7 @@
 #include "Fat.h"
 #include "Console.h"
 #include "Debug.h"
+#include "Hal.h"
 
 /* Shell 命令 ls：列出 FAT 根目录 */
 static void CommandLs(int Argc, char **Argv) {
@@ -141,7 +142,7 @@ static int MountBestFat(void) {
 
 /* 初始化完整文件系统栈 */
 int FileSystemInit(void) {
-    if (BlockInit() <= 0) {
+    if (HalBlockInit() <= 0) {
         return -1;
     }
     if (!MountBestFat()) {

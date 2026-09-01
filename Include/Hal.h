@@ -15,6 +15,8 @@
 void HalPlatformMapMmio(void);
 UINT64 HalPlatformXhciFallback(void);
 
+int HalBlockInit(void);
+
 typedef void *(*HalPageAllocateFunction)(void *Ctx);
 
 int HalInit(void);
