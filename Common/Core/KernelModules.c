@@ -1,0 +1,154 @@
+/*
+ * KernelModules.c — 子系统模块初始化表
+ */
+#include "KernelModules.h"
+#include "Module.h"
+#include "BootInfo.h"
+#include "Hal.h"
+#include "Video.h"
+#include "UI.h"
+#include "Serial.h"
+#include "PCIe.h"
+#include "XHCI.h"
+#include "Console.h"
+#include "FileSystem.h"
+#include "Scheduler.h"
+#include "PhysicalMemory.h"
+#include "VirtualMemory.h"
+#include "Gui.h"
+#include "Net.h"
+#include "Udp.h"
+#include "Tcp.h"
+#include "ShellCommands.h"
+#include "Debug.h"
+
+static USB_CONTROLLER gXhciDev;
+
+static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
+    if (Size == 0) {
+        return;
+    }
+    UINT64 Start = Phys & ~(UINT64)(PAGE_SIZE - 1);
+    UINT64 End = Phys + Size;
+    while (Start < End) {
+        VirtualMemoryMapPage(Start, Start, PTE_PRESENT | PTE_WRITABLE);
+        Start += PAGE_SIZE;
+    }
+}
+
+static int InitSerial(void) {
+    SerialInit();
+    return 0;
+}
+
+static int InitMem(void) {
+    return PhysicalMemoryInit();
+}
+
+static int InitVmm(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+
+    if (VirtualMemoryInit() != 0) {
+        return -1;
+    }
+    if (Info && Info->FrameBufferSize != 0) {
+        VirtualMemoryMapIdentity(Info->FrameBufferBase, Info->FrameBufferSize);
+    }
+    HalPlatformMapMmio();
+    VirtualMemoryEnable();
+    return 0;
+}
+
+static int InitVideo(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+    VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
+
+    VideoSet(&V);
+    VideoClearScreen(COLOR_DARK_GRAY);
+    return 0;
+}
+
+static int InitCpu(void) {
+    if (HalInit() != 0) {
+        return -1;
+    }
+    HalSyscallInit();
+    return 0;
+}
+
+static int InitUsb(void) {
+    USB_CONTROLLER Controllers[8];
+    int Count = PciScanUSBControllers(Controllers, 8);
+    int Found = 0;
+    for (int i = 0; i < Count; i++) {
+        if (Controllers[i].Type == 0x30) {
+            gXhciDev = Controllers[i];
+            Found = 1;
+            break;
+        }
+    }
+    if (!Found) {
+        UINT64 Fallback = HalPlatformXhciFallback();
+        if (Fallback == 0) {
+            return -1;
+        }
+        gXhciDev.BaseAddress = Fallback;
+        gXhciDev.Bar[0] = Fallback;
+        gXhciDev.Type = 0x30;
+    }
+    if (!XhciInit(gXhciDev.BaseAddress)) {
+        return -1;
+    }
+    if (!XhciEnableIrq(&gXhciDev)) {
+        DebugWrite("XHCI: IRQ not enabled\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int InitFileSystemModule(void) {
+    return FileSystemInit();
+}
+
+static int InitGuiModule(void) {
+    GuiInit();
+    return 0;
+}
+
+static int InitNetModule(void) {
+    if (NetInit() != 0) {
+        return -1;
+    }
+    UdpInit();
+    TcpInit();
+    return 0;
+}
+
+static int InitSched(void) {
+    SchedulerInit();
+    return 0;
+}
+
+static int InitConsole(void) {
+    ShellCommandsRegister();
+    ConsoleInit();
+    return 0;
+}
+
+static const MODULE gModules[] = {
+    { "serial",  InitSerial },
+    { "mem",     InitMem },
+    { "vmm",     InitVmm },
+    { "video",   InitVideo },
+    { "cpu",     InitCpu },
+    { "fs",      InitFileSystemModule },
+    { "usb",     InitUsb },
+    { "net",     InitNetModule },
+    { "gui",     InitGuiModule },
+    { "sched",   InitSched },
+    { "console", InitConsole },
+};
+
+int KernelModulesRun(void) {
+    return ModulesRun(gModules, (int)(sizeof(gModules) / sizeof(gModules[0])));
+}
