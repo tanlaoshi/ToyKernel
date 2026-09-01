@@ -2,8 +2,7 @@
 #define SYSCALL_H
 
 #include "BootTypes.h"
-
-struct HAL_FRAME;
+#include "Hal.h"
 
 #define SYS_EXIT  0
 #define SYS_WRITE 1
