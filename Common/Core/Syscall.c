@@ -21,21 +21,47 @@ void SyscallInit(void) {
 static int SysWrite(int Fd, UINT64 UserBuf, UINTN Len) {
     char Buf[COPY_BUF_MAX + 1];
     UINTN Done = 0;
+    TASK *T = SchedulerCurrent();
 
-    (void)Fd;
+    if (Fd == 1 || Fd == 2) {
+        while (Done < Len) {
+            UINTN Chunk = Len - Done;
+            if (Chunk > COPY_BUF_MAX) {
+                Chunk = COPY_BUF_MAX;
+            }
+            if (VirtualMemoryCopyFromUser(Buf, UserBuf + Done, Chunk) < 0) {
+                return Done > 0 ? (int)Done : -1;
+            }
+            Buf[Chunk] = '\0';
+            ConsoleWrite(Buf);
+            Done += Chunk;
+        }
+        return (int)Len;
+    }
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
     while (Done < Len) {
         UINTN Chunk = Len - Done;
+        int N;
+
         if (Chunk > COPY_BUF_MAX) {
             Chunk = COPY_BUF_MAX;
         }
         if (VirtualMemoryCopyFromUser(Buf, UserBuf + Done, Chunk) < 0) {
             return Done > 0 ? (int)Done : -1;
         }
-        Buf[Chunk] = '\0';
-        ConsoleWrite(Buf);
-        Done += Chunk;
+        N = SchedulerFdWrite(T, Fd, Buf, Chunk);
+        if (N < 0) {
+            return Done > 0 ? (int)Done : -1;
+        }
+        if (N == 0) {
+            break;
+        }
+        Done += (UINTN)N;
     }
-    return (int)Len;
+    return (int)Done;
 }
 
 static int SysOpen(UINT64 UserPath) {

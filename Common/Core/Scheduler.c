@@ -32,7 +32,24 @@ static void TaskClearFds(TASK *T) {
         T->Fds[i].Size = 0;
         T->Fds[i].Pos = 0;
         T->Fds[i].Pages = 0;
+        T->Fds[i].Path[0] = 0;
+        T->Fds[i].Dirty = 0;
     }
+}
+
+static void FdFlush(TASK_FD *F) {
+    if (F->Used && F->Dirty && F->Path[0] && F->Data) {
+        FatWriteFile(F->Path, F->Data, F->Size);
+        F->Dirty = 0;
+    }
+}
+
+static void FdCopyPath(TASK_FD *F, const char *Path) {
+    int i;
+    for (i = 0; i < 15 && Path[i]; i++) {
+        F->Path[i] = Path[i];
+    }
+    F->Path[i] = 0;
 }
 
 void SchedulerFdCloseAll(TASK *T) {
@@ -41,14 +58,19 @@ void SchedulerFdCloseAll(TASK *T) {
         return;
     }
     for (i = 0; i < MAX_FDS; i++) {
-        if (T->Fds[i].Used && T->Fds[i].Data) {
-            PhysicalMemoryFreePages(T->Fds[i].Data, T->Fds[i].Pages);
+        if (T->Fds[i].Used) {
+            FdFlush(&T->Fds[i]);
+            if (T->Fds[i].Data) {
+                PhysicalMemoryFreePages(T->Fds[i].Data, T->Fds[i].Pages);
+            }
+            T->Fds[i].Used = 0;
+            T->Fds[i].Data = 0;
+            T->Fds[i].Size = 0;
+            T->Fds[i].Pos = 0;
+            T->Fds[i].Pages = 0;
+            T->Fds[i].Path[0] = 0;
+            T->Fds[i].Dirty = 0;
         }
-        T->Fds[i].Used = 0;
-        T->Fds[i].Data = 0;
-        T->Fds[i].Size = 0;
-        T->Fds[i].Pos = 0;
-        T->Fds[i].Pages = 0;
     }
 }
 
@@ -76,15 +98,16 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     if (!Buf) {
         return -1;
     }
-    if (!FatReadFile(Path, Buf, FD_MAX_BYTES, &Size) || Size == 0) {
-        PhysicalMemoryFreePages(Buf, Pages);
-        return -1;
+    if (!FatReadFile(Path, Buf, FD_MAX_BYTES, &Size)) {
+        Size = 0;
     }
     T->Fds[Slot].Used = 1;
     T->Fds[Slot].Data = (UINT8 *)Buf;
     T->Fds[Slot].Size = Size;
     T->Fds[Slot].Pos = 0;
     T->Fds[Slot].Pages = Pages;
+    FdCopyPath(&T->Fds[Slot], Path);
+    T->Fds[Slot].Dirty = 0;
     return Slot;
 }
 
@@ -111,10 +134,39 @@ int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
     return (int)N;
 }
 
+int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len) {
+    TASK_FD *F;
+    UINTN i;
+
+    if (!T || !Buf || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
+        return -1;
+    }
+    F = &T->Fds[Fd];
+    if (F->Pos > FD_MAX_BYTES) {
+        return -1;
+    }
+    if (F->Pos + Len > FD_MAX_BYTES) {
+        Len = FD_MAX_BYTES - F->Pos;
+    }
+    if (Len == 0) {
+        return 0;
+    }
+    for (i = 0; i < Len; i++) {
+        F->Data[F->Pos + i] = ((const UINT8 *)Buf)[i];
+    }
+    F->Pos += Len;
+    if (F->Pos > F->Size) {
+        F->Size = F->Pos;
+    }
+    F->Dirty = 1;
+    return (int)Len;
+}
+
 int SchedulerFdClose(TASK *T, int Fd) {
     if (!T || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
         return -1;
     }
+    FdFlush(&T->Fds[Fd]);
     if (T->Fds[Fd].Data) {
         PhysicalMemoryFreePages(T->Fds[Fd].Data, T->Fds[Fd].Pages);
     }
@@ -123,6 +175,8 @@ int SchedulerFdClose(TASK *T, int Fd) {
     T->Fds[Fd].Size = 0;
     T->Fds[Fd].Pos = 0;
     T->Fds[Fd].Pages = 0;
+    T->Fds[Fd].Path[0] = 0;
+    T->Fds[Fd].Dirty = 0;
     return 0;
 }
 

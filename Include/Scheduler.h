@@ -26,6 +26,8 @@ typedef struct {
     UINTN   Size;
     UINTN   Pos;
     UINT32  Pages;
+    char    Path[16];
+    int     Dirty;
 } TASK_FD;
 
 typedef struct TASK {
@@ -59,6 +61,7 @@ void SchedulerStart(void);
 void SchedulerFdCloseAll(TASK *T);
 int SchedulerFdOpen(TASK *T, const char *Path);
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len);
+int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len);
 int SchedulerFdClose(TASK *T, int Fd);
 
 void SchedulerReapOrphanZombies(void);

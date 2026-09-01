@@ -55,10 +55,12 @@ USER_HELLO_ELF = User/hello.elf
 USER_COUNT_ELF = User/count.elf
 USER_FORK_ELF = User/fork.elf
 USER_CAT_ELF = User/catfile.elf
+USER_WRITE_ELF = User/writefile.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
 USER_CAT_OBJ = User/catfile.o
+USER_WRITE_OBJ = User/writefile.o
 USER_LD = User/user.ld
 endif
 
@@ -69,7 +71,7 @@ TARGET = $(BUILDDIR)/Kernel.elf
 
 all: $(TARGET)
 ifeq ($(ARCH),x86_64)
-all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_CAT_ELF)
+all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 endif
 
 $(BUILDDIR):
@@ -121,11 +123,17 @@ $(USER_FORK_OBJ): User/fork.S
 $(USER_CAT_OBJ): User/catfile.S
 	$(CC) -c $< -o $@
 
+$(USER_WRITE_OBJ): User/writefile.S
+	$(CC) -c $< -o $@
+
 $(USER_FORK_ELF): $(USER_FORK_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_FORK_OBJ)
 
 $(USER_CAT_ELF): $(USER_CAT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_CAT_OBJ)
+
+$(USER_WRITE_ELF): $(USER_WRITE_OBJ) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WRITE_OBJ)
 
 $(BUILDDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(BUILDDIR)
 	objcopy -I binary -O $(USER_BLOB_FMT) User/hello.elf $@
@@ -134,6 +142,6 @@ endif
 clean:
 	rm -rf $(BUILDDIR)
 ifeq ($(ARCH),x86_64)
-	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_CAT_OBJ)
-	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_CAT_ELF)
+	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
+	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 endif
