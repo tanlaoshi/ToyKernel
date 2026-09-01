@@ -392,11 +392,11 @@ UINT64 SchedulerExitUser(struct INT_FRAME *Frame) {
 
     Exiting = gCurrent;
     Code = (INT32)Frame->Rdi;
-    ConsoleWrite("syscall: exit ");
-    ConsoleWrite(Exiting->Name);
-    ConsoleWrite(" code=");
-    ConsoleHex32((UINT32)Code);
-    ConsoleWrite("\n");
+    DebugWrite("syscall: exit ");
+    DebugWrite(Exiting->Name);
+    DebugWrite(" code=");
+    DebugHex32((UINT32)Code);
+    DebugWrite("\n");
 
     SchedulerFdCloseAll(Exiting);
     if (Exiting->UserSpace) {
