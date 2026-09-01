@@ -46,8 +46,8 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ### 架构与工程
 
-- **HAL 分层**：端口 I/O 为 `HalIoRead/Write*`；设备驱动在 `HAL/<arch>/drivers/`
-- **目录重构（PR-1）**：`Common/{core,services,lib}`、`HAL/<arch>/drivers/`、`Include/`
+- **HAL 分层**：端口 I/O 为 `HalIoRead/Write*`；设备驱动在 `HAL/<Arch>/Drivers/`
+- **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
 - **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
 
 ---
@@ -56,22 +56,22 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ```
 ToyKernel/
-├── Include/             # BootConfig.h、hal.h、Debug.h
+├── Include/             # 公共 API 头（Hal.h、Scheduler.h、Console.h…）
 ├── Common/
-│   ├── core/            # 内核、调度、内存、进程、系统调用
-│   ├── services/        # Console、Gui、FileSystem、网络服务
-│   └── lib/             # Elf、Block、Gpt、Fat、UI 等
+│   ├── Core/            # 内核、调度、内存、进程、系统调用（仅 .c）
+│   ├── Services/        # Console、Gui、FileSystem、网络服务
+│   └── Library/         # Elf、Block、Gpt、Fat、UI 等（FontData.h 内部用）
 ├── HAL/
-│   ├── x86_64/          # CPU/中断/分页 + PCIe
-│   │   └── drivers/     # Ata、Serial、XHCI、Net、Video
-│   ├── riscv/           # 占位
-│   └── arm64/           # 占位
+│   ├── X86_64/          # CPU/中断/分页 + PCIe + HalPort.h
+│   │   └── Drivers/     # Ata、Serial、XHCI、Net、Video
+│   ├── RiscV/           # 占位
+│   └── Arm64/           # 占位
 ├── User/                # Ring 3 示例程序
 ├── Makefile
 └── build.sh
 ```
 
-上层经 `Include/hal.h` 访问硬件；`hal_port.h` 留在 `HAL/<arch>/`。
+上层经 `Include/Hal.h` 访问硬件；`HalPort.h` 与驱动头留在 `HAL/<Arch>/`。
 
 ---
 
@@ -157,7 +157,7 @@ echo hello | nc -u 127.0.0.1 5555
 | 6 | wait | 阻塞等待子进程，返回子 pid |
 | 7 | yield | 主动让出 CPU |
 
-详见 `Common/core/Syscall.h`。
+详见 `Include/Syscall.h`。
 
 ---
 
@@ -175,7 +175,7 @@ echo hello | nc -u 127.0.0.1 5555
 
 - [`结构说明.md`](结构说明.md) — 启动流程、源文件职责、阅读顺序
 - [`路线图.md`](路线图.md) — 阶段规划与待办
-- 计划中的后续重构（PR-2～4）：头文件统一进 `Include/`、Block/PCIe 接口分层、文档收尾
+- 计划中的后续重构（PR-3～4）：Block/PCIe 接口分层、文档收尾
 
 ---
 

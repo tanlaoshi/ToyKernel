@@ -4,7 +4,7 @@
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
 #include "Console.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Debug.h"
 
 #define IDENTITY_MB 512

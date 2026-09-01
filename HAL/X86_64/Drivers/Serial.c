@@ -2,7 +2,7 @@
  * Serial.c — COM1 串口驱动（经 HalIo，无直接 asm）
  */
 #include "Serial.h"
-#include "hal.h"
+#include "Hal.h"
 
 #define COM1 0x3F8
 

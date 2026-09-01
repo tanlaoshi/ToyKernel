@@ -9,7 +9,7 @@
 #include "UI.h"
 #include "Video.h"
 #include "XHCI.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Debug.h"
 
 #define DRAG_MIN_STEP 3

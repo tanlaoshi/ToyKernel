@@ -1,7 +1,7 @@
 /*
- * Hal/riscv/Io.c — 无传统端口 I/O；占位实现
+ * Hal/arm64/Io.c — 无传统端口 I/O；占位实现
  */
-#include "hal.h"
+#include "Hal.h"
 
 UINT8 HalIoRead8(UINT16 Port) {
     (void)Port;

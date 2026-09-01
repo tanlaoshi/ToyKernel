@@ -12,7 +12,7 @@
 #include "VirtualMemory.h"
 #include "Serial.h"
 #include "Debug.h"
-#include "hal.h"
+#include "Hal.h"
 
 #define VIRTIO_VENDOR_ID      0x1AF4
 #define VIRTIO_DEV_NET        0x1000

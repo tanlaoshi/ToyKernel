@@ -1,7 +1,7 @@
 /*
  * HAL/x86_64/Hal.c — x86-64 HAL 实现（委托给 Arch / VirtualMemory / Serial）
  */
-#include "hal.h"
+#include "Hal.h"
 #include "Arch.h"
 #include "Serial.h"
 #include "Syscall.h"

@@ -6,7 +6,7 @@
 #include "Fat.h"
 #include "Scheduler.h"
 #include "VirtualMemory.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Console.h"
 #include "Debug.h"
 #include "PhysicalMemory.h"

@@ -7,6 +7,6 @@
 #ifndef ARCH_H
 #define ARCH_H
 
-#include "hal_port.h"
+#include "HalPort.h"
 
 #endif

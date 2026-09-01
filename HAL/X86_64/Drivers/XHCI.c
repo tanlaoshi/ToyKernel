@@ -20,7 +20,7 @@
  */
 #include "XHCI.h"
 #include "Console.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Debug.h"
 
 #define RING_SIZE           32

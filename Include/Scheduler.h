@@ -6,7 +6,7 @@
 
 #include "BootConfig.h"
 #include "VirtualMemory.h"
-#include "hal.h"
+#include "Hal.h"
 
 #define MAX_TASKS 8
 #define MAX_FDS   4

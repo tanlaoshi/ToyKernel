@@ -6,7 +6,7 @@
  */
 #include "Kernel.h"
 #include "Module.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Video.h"
 #include "UI.h"
 #include "Serial.h"

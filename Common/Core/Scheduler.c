@@ -3,7 +3,7 @@
  */
 #include "Scheduler.h"
 #include "Fat.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Console.h"
 #include "Debug.h"
 #include "VirtualMemory.h"

@@ -3,7 +3,7 @@
  */
 #include "Ata.h"
 #include "Debug.h"
-#include "hal.h"
+#include "Hal.h"
 
 #define ATA_DATA   0x1F0
 #define ATA_SECCNT 0x1F2

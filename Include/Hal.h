@@ -1,11 +1,11 @@
 /*
- * Include/hal.h — 硬件抽象层统一接口
+ * Include/Hal.h — 硬件抽象层统一接口
  */
 #ifndef HAL_H
 #define HAL_H
 
 #include "BootConfig.h"
-#include "hal_port.h"
+#include "HalPort.h"
 
 /* 页表权限（架构无关语义，x86 位布局见 Page.c） */
 #define HAL_PAGE_PRESENT  (1ULL << 0)

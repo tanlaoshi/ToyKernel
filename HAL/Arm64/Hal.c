@@ -1,7 +1,7 @@
 /*
- * HAL/riscv/Hal.c — RISC-V HAL 占位（未链接进当前内核）
+ * HAL/arm64/Hal.c — ARM64 HAL 占位（未链接进当前内核）
  */
-#include "hal.h"
+#include "Hal.h"
 
 int HalInit(BOOT_CONFIG *Config) {
     (void)Config;
@@ -69,5 +69,5 @@ void HalConsolePutChar(char C) { (void)C; }
 char HalConsoleGetChar(void) { return 0; }
 int HalConsoleHasChar(void) { return 0; }
 
-const char *HalArchName(void) { return "riscv64"; }
-const char *HalCpuInfo(void) { return "RISC-V (stub)"; }
+const char *HalArchName(void) { return "aarch64"; }
+const char *HalCpuInfo(void) { return "ARM64 (stub)"; }

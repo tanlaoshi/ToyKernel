@@ -4,46 +4,50 @@ DEBUG ?= 0
 CC = gcc
 LD = ld
 
+ifeq ($(ARCH),x86_64)
+HAL_ARCH = X86_64
+ARCH_CFLAGS = -m64 -mno-red-zone
+USER_BLOB_FMT = elf64-x86-64
+LDFLAGS_ARCH =
+endif
+ifeq ($(ARCH),riscv)
+HAL_ARCH = RiscV
+ARCH_CFLAGS = -march=rv64gc -mabi=lp64d
+LDFLAGS_ARCH =
+endif
+ifeq ($(ARCH),arm64)
+HAL_ARCH = Arm64
+ARCH_CFLAGS = -mgeneral-regs-only
+LDFLAGS_ARCH =
+endif
+
 INCLUDES = -IInclude \
-           -ICommon/core -ICommon/services -ICommon/lib \
-           -IHAL -IHAL/$(ARCH) -IHAL/$(ARCH)/drivers
+           -ICommon/Library \
+           -IHAL/$(HAL_ARCH) -IHAL/$(HAL_ARCH)/Drivers
 
 CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra \
          -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
          -DTOY_DEBUG=$(DEBUG) \
+         $(ARCH_CFLAGS) \
          $(INCLUDES)
 
-ifeq ($(ARCH),x86_64)
-CFLAGS += -m64 -mno-red-zone
-LDFLAGS_ARCH =
-USER_BLOB_FMT = elf64-x86-64
-endif
-ifeq ($(ARCH),riscv)
-CFLAGS += -march=rv64gc -mabi=lp64d
-LDFLAGS_ARCH =
-endif
-ifeq ($(ARCH),arm64)
-CFLAGS += -mgeneral-regs-only
-LDFLAGS_ARCH =
-endif
-
-LDFLAGS = -nostdlib -static -T HAL/$(ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
+LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 
 BUILDDIR = Build
 
-CORE_SRCS     := $(wildcard Common/core/*.c)
-SERVICES_SRCS := $(wildcard Common/services/*.c)
-LIB_SRCS      := $(wildcard Common/lib/*.c)
-DRIVER_SRCS   := $(wildcard HAL/$(ARCH)/drivers/*.c)
-ARCH_SRCS     := $(wildcard HAL/$(ARCH)/*.c)
-ARCH_ASM      := $(wildcard HAL/$(ARCH)/*.S)
+CORE_SRCS     := $(wildcard Common/Core/*.c)
+SERVICES_SRCS := $(wildcard Common/Services/*.c)
+LIB_SRCS      := $(wildcard Common/Library/*.c)
+DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
+ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
+ARCH_ASM      := $(wildcard HAL/$(HAL_ARCH)/*.S)
 
-CORE_OBJS     := $(patsubst Common/core/%.c,$(BUILDDIR)/Common/core/%.o,$(CORE_SRCS))
-SERVICES_OBJS := $(patsubst Common/services/%.c,$(BUILDDIR)/Common/services/%.o,$(SERVICES_SRCS))
-LIB_OBJS      := $(patsubst Common/lib/%.c,$(BUILDDIR)/Common/lib/%.o,$(LIB_SRCS))
-DRIVER_OBJS   := $(patsubst HAL/$(ARCH)/drivers/%.c,$(BUILDDIR)/HAL/$(ARCH)/drivers/%.o,$(DRIVER_SRCS))
-ARCH_OBJS     := $(patsubst HAL/$(ARCH)/%.c,$(BUILDDIR)/HAL/$(ARCH)/%.o,$(ARCH_SRCS))
-ARCH_ASM_OBJS := $(patsubst HAL/$(ARCH)/%.S,$(BUILDDIR)/HAL/$(ARCH)/%.o,$(ARCH_ASM))
+CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_SRCS))
+SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
+LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
+DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o,$(DRIVER_SRCS))
+ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_SRCS))
+ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_ASM))
 
 ifeq ($(ARCH),x86_64)
 EXTRA_OBJS = $(BUILDDIR)/User_hello_blob.o
@@ -74,27 +78,27 @@ $(BUILDDIR):
 $(TARGET): $(OBJS) | $(BUILDDIR)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(BUILDDIR)/Common/core/%.o: Common/core/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/Common/services/%.o: Common/services/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/Common/lib/%.o: Common/lib/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/HAL/$(ARCH)/drivers/%.o: HAL/$(ARCH)/drivers/%.c | $(BUILDDIR)
+$(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/HAL/$(ARCH)/%.o: HAL/$(ARCH)/%.c | $(BUILDDIR)
+$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/HAL/$(ARCH)/%.o: HAL/$(ARCH)/%.S | $(BUILDDIR)
+$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.S | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 

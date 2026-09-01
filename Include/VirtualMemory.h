@@ -5,7 +5,7 @@
 #define VIRTUAL_MEMORY_H
 
 #include "BootConfig.h"
-#include "hal.h"
+#include "Hal.h"
 
 #define PTE_PRESENT  HAL_PAGE_PRESENT
 #define PTE_WRITABLE HAL_PAGE_WRITABLE

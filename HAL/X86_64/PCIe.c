@@ -7,7 +7,7 @@
 #include "PCIe.h"
 #include "Console.h"
 #include "Debug.h"
-#include "hal.h"
+#include "Hal.h"
 
 #define PCI_CONFIG_ADDRESS  0xCF8
 #define PCI_CONFIG_DATA     0xCFC

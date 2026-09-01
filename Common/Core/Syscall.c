@@ -2,7 +2,7 @@
  * Syscall.c — int 0x80 系统调用（用户 Ring 3 可触发）
  */
 #include "Syscall.h"
-#include "hal.h"
+#include "Hal.h"
 #include "Console.h"
 #include "Scheduler.h"
 #include "Debug.h"
