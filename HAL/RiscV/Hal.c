@@ -3,8 +3,7 @@
  */
 #include "Hal.h"
 
-int HalInit(BOOT_CONFIG *Config) {
-    (void)Config;
+int HalInit(void) {
     return -1;
 }
 

@@ -7,8 +7,7 @@
 #include "Syscall.h"
 #include "Debug.h"
 
-int HalInit(BOOT_CONFIG *Config) {
-    (void)Config;
+int HalInit(void) {
     return ArchInit();
 }
 

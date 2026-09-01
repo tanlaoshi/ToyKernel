@@ -7,7 +7,7 @@
 #ifndef SERIAL_H
 #define SERIAL_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 void SerialInit(void);
 void SerialWrite(const char *Text);

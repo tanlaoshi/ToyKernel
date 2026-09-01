@@ -6,7 +6,7 @@
 #ifndef XHCI_H
 #define XHCI_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 #include "PCIe.h"
 
 /* USB 控制传输 SETUP 阶段数据包 */

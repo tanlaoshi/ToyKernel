@@ -6,7 +6,7 @@
 #ifndef FAT_H
 #define FAT_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 int FatInit(UINT32 StartLba);
 int FatListRoot(void);

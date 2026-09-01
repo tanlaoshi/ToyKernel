@@ -6,7 +6,7 @@
 #ifndef HID_KEYBOARD_H
 #define HID_KEYBOARD_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 #define HID_KEY_A           0x04
 #define HID_KEY_Z           0x1D

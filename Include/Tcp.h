@@ -4,7 +4,7 @@
 #ifndef TCP_H
 #define TCP_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 typedef enum {
     TCP_CLOSED = 0,

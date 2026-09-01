@@ -6,7 +6,7 @@
 #ifndef PCIE_H
 #define PCIE_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 typedef struct {
     UINT8  Bus;

@@ -4,7 +4,7 @@
 #ifndef HAL_H
 #define HAL_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 #include "HalPort.h"
 
 /* 页表权限（架构无关语义，x86 位布局见 Page.c） */
@@ -12,9 +12,12 @@
 #define HAL_PAGE_WRITABLE (1ULL << 1)
 #define HAL_PAGE_USER     (1ULL << 2)
 
+void HalPlatformMapMmio(void);
+UINT64 HalPlatformXhciFallback(void);
+
 typedef void *(*HalPageAllocateFunction)(void *Ctx);
 
-int HalInit(BOOT_CONFIG *Config);
+int HalInit(void);
 
 void HalCpuHalt(void);
 void HalCpuPark(void);

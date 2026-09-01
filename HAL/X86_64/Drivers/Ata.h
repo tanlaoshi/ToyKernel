@@ -6,7 +6,7 @@
 #ifndef ATA_H
 #define ATA_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 int AtaProbe(UINT32 Drive);
 int AtaInit(void);

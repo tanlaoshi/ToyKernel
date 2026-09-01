@@ -4,7 +4,7 @@
 #ifndef NET_H
 #define NET_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 #define NET_IP_DEFAULT  0x0A00020FULL  /* 10.0.2.15 (QEMU user netdev) */
 #define NET_IP_PROTO_ICMP 1

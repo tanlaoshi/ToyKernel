@@ -10,7 +10,7 @@
 #include "Debug.h"
 #include "XHCI.h"
 #include "Scheduler.h"
-#include "BootConfig.h"
+#include "BootTypes.h"
 #include "Syscall.h"
 
 extern void Isr128(void);

@@ -4,7 +4,7 @@
 #ifndef UDP_H
 #define UDP_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 #define UDP_PAYLOAD_MAX 512
 

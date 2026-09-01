@@ -6,7 +6,7 @@
 #ifndef UI_H
 #define UI_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 // 颜色定义
 #define COLOR_BLACK       0x00000000

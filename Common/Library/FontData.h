@@ -7,7 +7,7 @@
 #ifndef FONT_DATA_H
 #define FONT_DATA_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 #define FONT_WIDTH          16
 #define FONT_HEIGHT         32

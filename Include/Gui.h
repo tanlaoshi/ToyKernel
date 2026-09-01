@@ -4,7 +4,7 @@
 #ifndef GUI_H
 #define GUI_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 typedef struct {
     UINT32 X;

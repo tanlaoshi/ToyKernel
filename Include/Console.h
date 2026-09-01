@@ -7,7 +7,7 @@
 #ifndef CONSOLE_H
 #define CONSOLE_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 void ConsoleInit(void);
 void ConsoleRegister(const char *Name, const char *Help,

@@ -4,7 +4,7 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 #include "VirtualMemory.h"
 #include "Hal.h"
 

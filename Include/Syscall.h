@@ -1,7 +1,7 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 struct INT_FRAME;
 

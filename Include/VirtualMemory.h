@@ -4,7 +4,7 @@
 #ifndef VIRTUAL_MEMORY_H
 #define VIRTUAL_MEMORY_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 #include "Hal.h"
 
 #define PTE_PRESENT  HAL_PAGE_PRESENT

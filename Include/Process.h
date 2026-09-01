@@ -1,7 +1,7 @@
 #ifndef PROCESS_H
 #define PROCESS_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 int ProcessExec(const char *Path);
 int ProcessRunDemo(void);

@@ -6,7 +6,7 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 #define BLOCK_SECTOR_SIZE 512
 #define BLOCK_MAX_DRIVES  2

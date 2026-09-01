@@ -1,7 +1,7 @@
 #ifndef ELF_H
 #define ELF_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 #include "VirtualMemory.h"
 
 #define ELF_MAGIC   0x464C457FULL

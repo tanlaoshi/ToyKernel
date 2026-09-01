@@ -6,7 +6,7 @@
 #ifndef GPT_H
 #define GPT_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 int GptFindFatStart(UINT32 *OutLba);
 

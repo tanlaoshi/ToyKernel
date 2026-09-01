@@ -4,7 +4,7 @@
 #ifndef HAL_PORT_H
 #define HAL_PORT_H
 
-#include "BootConfig.h"
+#include "BootTypes.h"
 
 #define HAL_VEC_XHCI   0x40
 #define HAL_VEC_TIMER  0x41

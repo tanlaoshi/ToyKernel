@@ -4,8 +4,7 @@
  * 职责：保存启动配置、按模块表初始化子系统、创建 Shell/Worker 任务并启动调度器。
  * Shell 任务处理 USB 键盘输入；Worker 为抢占调度演示用的后台循环。
  */
-#include "Kernel.h"
-#include "Module.h"
+#include "BootInfo.h"
 #include "Hal.h"
 #include "Video.h"
 #include "UI.h"
@@ -25,9 +24,8 @@
 #include "Udp.h"
 #include "Tcp.h"
 #include "Debug.h"
+#include "Module.h"
 
-static BOOT_CONFIG gBootConfig;
-static BOOT_CONFIG *gBootConfigPtr;
 static USB_CONTROLLER gXhciDev;
 static volatile UINT32 gWorkerCount;
 
@@ -35,14 +33,19 @@ extern char __kernel_end[];
 
 /* Shell 命令 info：打印 GOP 分辨率与帧缓冲物理地址 */
 static void CommandInfo(int Argc, char **Argv) {
+    const BOOT_INFO *Info = BootInfoGet();
     (void)Argc;
     (void)Argv;
+    if (!Info) {
+        ConsoleWrite("video (no boot info)\n");
+        return;
+    }
     ConsoleWrite("video ");
-    ConsoleWrite(Uint32ToHex(gBootConfig.VideoConfig.HorizontalResolution));
+    ConsoleWrite(Uint32ToHex(Info->HorizontalResolution));
     ConsoleWrite(" x ");
-    ConsoleWrite(Uint32ToHex(gBootConfig.VideoConfig.VerticalResolution));
+    ConsoleWrite(Uint32ToHex(Info->VerticalResolution));
     ConsoleWrite(" fb=");
-    ConsoleWrite(Uint64ToHex(gBootConfig.VideoConfig.FrameBufferBase));
+    ConsoleWrite(Uint64ToHex(Info->FrameBufferBase));
     ConsoleWrite("\n");
 }
 
@@ -306,15 +309,7 @@ static int InitSerial(void) {
 
 /* 模块初始化：物理内存分配器 PMM */
 static int InitMem(void) {
-    PHYSICAL_MEMORY_BOOT_INFO Info = {
-        .Map = &gBootConfig.MemoryMap,
-        .KernelStart = 0x100000,
-        .KernelEnd = (UINT64)(UINTN)__kernel_end,
-        .BootConfigPhys = (UINT64)(UINTN)gBootConfigPtr,
-        .FrameBufferBase = gBootConfig.VideoConfig.FrameBufferBase,
-        .FrameBufferSize = gBootConfig.VideoConfig.FrameBufferSize,
-    };
-    return PhysicalMemoryInit(&Info);
+    return PhysicalMemoryInit();
 }
 
 /* 映射 MMIO / 帧缓冲等高位区域（恒等映射） */
@@ -332,31 +327,32 @@ static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
 
 /* 模块初始化：四级页表与恒等映射，启用 CR0.PG */
 static int InitVmm(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+
     if (VirtualMemoryInit() != 0) {
         return -1;
     }
-    if (gBootConfig.VideoConfig.FrameBufferSize != 0) {
-        VirtualMemoryMapIdentity(gBootConfig.VideoConfig.FrameBufferBase,
-                       gBootConfig.VideoConfig.FrameBufferSize);
+    if (Info && Info->FrameBufferSize != 0) {
+        VirtualMemoryMapIdentity(Info->FrameBufferBase, Info->FrameBufferSize);
     }
-    VirtualMemoryMapIdentity(0xFEE00000ULL, 0x100000ULL);
-    if (gBootConfig.XhciBaseAddress != 0) {
-        VirtualMemoryMapIdentity(gBootConfig.XhciBaseAddress, 0x1000000ULL);
-    }
+    HalPlatformMapMmio();
     VirtualMemoryEnable();
     return 0;
 }
 
 /* 模块初始化：帧缓冲与清屏 */
 static int InitVideo(void) {
-    VideoSet(&gBootConfig.VideoConfig);
+    const BOOT_INFO *Info = BootInfoGet();
+    VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
+
+    VideoSet(&V);
     VideoClearScreen(COLOR_DARK_GRAY);
     return 0;
 }
 
 /* 模块初始化：GDT/IDT/LAPIC/中断 + 系统调用门 */
 static int InitCpu(void) {
-    if (HalInit(&gBootConfig) != 0) {
+    if (HalInit() != 0) {
         return -1;
     }
     HalSyscallInit();
@@ -376,11 +372,12 @@ static int InitUsb(void) {
         }
     }
     if (!Found) {
-        if (gBootConfig.XhciBaseAddress == 0) {
+        UINT64 Fallback = HalPlatformXhciFallback();
+        if (Fallback == 0) {
             return -1;
         }
-        gXhciDev.BaseAddress = gBootConfig.XhciBaseAddress;
-        gXhciDev.Bar[0] = gBootConfig.XhciBaseAddress;
+        gXhciDev.BaseAddress = Fallback;
+        gXhciDev.Bar[0] = Fallback;
         gXhciDev.Type = 0x30;
     }
     if (!XhciInit(gXhciDev.BaseAddress)) {
@@ -556,13 +553,13 @@ static void WorkerTask(void) {
     }
 }
 
-/* 内核 C 入口：由 ToyBoot 在 ExitBootServices 后跳转至此 */
-void KernelEntry(BOOT_CONFIG *BootConfig) {
-    gBootConfigPtr = BootConfig;
-    gBootConfig = *BootConfig;
+/* 内核 Common 入口：由 HAL Startup 在 SetBootInfo 之后调用 */
+void KernelMain(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+    VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
     /* 尽早挂上帧缓冲，避免 mem 等模块 ConsoleWrite 时 Width=0 死循环 */
-    VideoSet(&gBootConfig.VideoConfig);
+    VideoSet(&V);
 
     if (ModulesRun(gModules, (int)(sizeof(gModules) / sizeof(gModules[0]))) != 0) {
         for (;;) {
