@@ -15,6 +15,8 @@
 
 #define MAX_WINS     4
 #define TITLE_HEIGHT GUI_TITLE_HEIGHT
+#define CLOSE_SIZE   24
+#define CLOSE_MARGIN 6
 #define CURSOR_HALF  6
 #define CURSOR_BOX   (CURSOR_HALF * 2 + 1)
 
@@ -70,8 +72,145 @@ static void GfxIrqLeave(void) {
     }
 }
 
-static void DrawWindowChrome(const GUI_WINDOW *W);
+static void DrawWindowChromeAt(int Idx);
+static void DrawWindowAt(int Idx);
+static void RedrawWindowChrome(void);
+static void RefreshOtherChrome(int SkipIdx);
+static void CursorRestore(void);
+static void CursorPaint(void);
+static void SyncWindowVisuals(void);
 void GuiFocusApply(void);
+void GuiRedraw(void);
+
+static UINT32 TitleBarColor(int Idx) {
+    if (Idx == gFocusWin && gWins[Idx].Active) {
+        return COLOR_BLUE;
+    }
+    return COLOR_GRAY;
+}
+
+static void CloseButtonRect(const GUI_WINDOW *W, UINT32 *Bx, UINT32 *By,
+                            UINT32 *Bw, UINT32 *Bh) {
+    *Bw = CLOSE_SIZE;
+    *Bh = CLOSE_SIZE;
+    *Bx = W->X + W->Width - *Bw - CLOSE_MARGIN;
+    *By = W->Y + (TITLE_HEIGHT - *Bh) / 2;
+}
+
+static int PointInClose(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
+    UINT32 Bx;
+    UINT32 By;
+    UINT32 Bw;
+    UINT32 Bh;
+
+    if (!W->Active) {
+        return 0;
+    }
+    CloseButtonRect(W, &Bx, &By, &Bw, &Bh);
+    return X >= Bx && X < Bx + Bw && Y >= By && Y < By + Bh;
+}
+
+static void DrawCloseButton(const GUI_WINDOW *W) {
+    UINT32 Bx;
+    UINT32 By;
+    UINT32 Bw;
+    UINT32 Bh;
+    UINT32 Pad;
+
+    CloseButtonRect(W, &Bx, &By, &Bw, &Bh);
+    UiFillRectangle(Bx, By, Bw, Bh, COLOR_RED);
+    UiDrawRectangle(Bx, By, Bw, Bh, COLOR_WHITE);
+    /* 字体为 16×32，24×24 按钮内放不下；用对角线画居中 × */
+    Pad = 7;
+    if (Bw > Pad * 2 + 2 && Bh > Pad * 2 + 2) {
+        UiDrawLine(Bx + Pad, By + Pad, Bx + Bw - 1 - Pad, By + Bh - 1 - Pad,
+                   COLOR_WHITE);
+        UiDrawLine(Bx + Bw - 1 - Pad, By + Pad, Bx + Pad, By + Bh - 1 - Pad,
+                   COLOR_WHITE);
+    }
+}
+
+static int RectsOverlap(const GUI_WINDOW *A, const GUI_WINDOW *B) {
+    if (!A->Active || !B->Active) {
+        return 0;
+    }
+    return A->X < B->X + B->Width && B->X < A->X + A->Width &&
+           A->Y < B->Y + B->Height && B->Y < A->Y + A->Height;
+}
+
+static int RectOverlapsAnyWindow(UINT32 X, UINT32 Y, UINT32 Ww, UINT32 Wh,
+                                 int SkipIdx) {
+    GUI_WINDOW Probe;
+    int j;
+
+    Probe.Active = 1;
+    Probe.X = X;
+    Probe.Y = Y;
+    Probe.Width = Ww;
+    Probe.Height = Wh;
+    for (j = 0; j < MAX_WINS; j++) {
+        if (j != SkipIdx && RectsOverlap(&Probe, &gWins[j])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void RefreshOtherChrome(int SkipIdx) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active && i != SkipIdx) {
+            DrawWindowChromeAt(i);
+        }
+    }
+}
+
+static void SyncWindowVisuals(void) {
+    RedrawWindowChrome();
+}
+
+static void CloseWindow(int Idx) {
+    UINT32 X;
+    UINT32 Y;
+    UINT32 Ww;
+    UINT32 Wh;
+    int i;
+
+    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+        return;
+    }
+    X = gWins[Idx].X;
+    Y = gWins[Idx].Y;
+    Ww = gWins[Idx].Width;
+    Wh = gWins[Idx].Height;
+    gWins[Idx].Active = 0;
+    gWins[Idx].TermSet = 0;
+    if (gDragWin == Idx) {
+        gDragWin = -1;
+    }
+    if (gFocusWin == Idx) {
+        gFocusWin = -1;
+        for (i = MAX_WINS - 1; i >= 0; i--) {
+            if (gWins[i].Active) {
+                gFocusWin = i;
+                break;
+            }
+        }
+    }
+    HalIrqDisable();
+    CursorRestore();
+    UiFillRectangle(X, Y, Ww, Wh, COLOR_DARK_GRAY);
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active) {
+            DrawWindowChromeAt(i);
+        }
+    }
+    CursorPaint();
+    HalIrqEnable();
+    GuiFocusApply();
+    DebugWrite("gui: closed window\n");
+}
 
 static void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
                       UINT32 *Sw, UINT32 *Sh) {
@@ -162,33 +301,46 @@ static void CursorMove(UINT32 X, UINT32 Y) {
     HalIrqEnable();
 }
 
-static void DrawWindow(const GUI_WINDOW *W) {
+static void DrawWindowAt(int Idx) {
+    const GUI_WINDOW *W = &gWins[Idx];
+
     if (!W->Active) {
         return;
     }
-    UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, COLOR_BLUE);
+    UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
     UiDrawRectangle(W->X, W->Y, W->Width, W->Height, COLOR_WHITE);
-    UiFillRectangle(W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4, W->Height - TITLE_HEIGHT - 2, W->Background);
+    UiFillRectangle(W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
+                    W->Height - TITLE_HEIGHT - 2, W->Background);
     VideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    DrawCloseButton(W);
 }
 
 /* 仅重绘标题栏与边框，保留客户区已有文字 */
-static void DrawWindowChrome(const GUI_WINDOW *W) {
+static void DrawWindowChromeAt(int Idx) {
+    const GUI_WINDOW *W = &gWins[Idx];
+
     if (!W->Active) {
         return;
     }
-    UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, COLOR_BLUE);
+    UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
     UiDrawRectangle(W->X, W->Y, W->Width, W->Height, COLOR_WHITE);
     VideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    DrawCloseButton(W);
 }
 
 static void RedrawWindowChrome(void) {
     int i;
+    int Last = gFocusWin;
 
     HalIrqDisable();
     CursorRestore();
     for (i = 0; i < MAX_WINS; i++) {
-        DrawWindowChrome(&gWins[i]);
+        if (gWins[i].Active && i != Last) {
+            DrawWindowChromeAt(i);
+        }
+    }
+    if (Last >= 0 && Last < MAX_WINS && gWins[Last].Active) {
+        DrawWindowChromeAt(Last);
     }
     CursorPaint();
     HalIrqEnable();
@@ -261,10 +413,17 @@ static void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y) {
     }
 }
 
-/*
- * 平移窗口：重叠安全拷贝 + 只擦旧区露出条带。
- * 不整块刷灰（会闪屏）；拖动时光标已隐藏，不会把十字拷进窗口。
- */
+static int PointOnAnyClose(UINT32 X, UINT32 Y) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active && PointInClose(&gWins[i], X, Y)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     GUI_WINDOW *W;
     UINT32 Ox;
@@ -292,19 +451,36 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         return;
     }
 
-    HalIrqDisable();
-    VideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
-    FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
-                  (INT32)Ww, (INT32)Wh);
-
     Dx = (INT32)NewX - (INT32)Ox;
     Dy = (INT32)NewY - (INT32)Oy;
-    W->X = NewX;
-    W->Y = NewY;
-    if (W->TermSet) {
-        W->TermX = (UINT32)((INT32)W->TermX + Dx);
-        W->TermY = (UINT32)((INT32)W->TermY + Dy);
+
+    HalIrqDisable();
+    CursorRestore();
+    if (RectOverlapsAnyWindow(NewX, NewY, Ww, Wh, Idx)) {
+        FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
+                      (INT32)Ww, (INT32)Wh);
+        W->X = NewX;
+        W->Y = NewY;
+        if (W->TermSet) {
+            W->TermX = (UINT32)((INT32)W->TermX + Dx);
+            W->TermY = (UINT32)((INT32)W->TermY + Dy);
+        }
+        RefreshOtherChrome(Idx);
+        DrawWindowAt(Idx);
+    } else {
+        VideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
+        FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
+                      (INT32)Ww, (INT32)Wh);
+        W->X = NewX;
+        W->Y = NewY;
+        if (W->TermSet) {
+            W->TermX = (UINT32)((INT32)W->TermX + Dx);
+            W->TermY = (UINT32)((INT32)W->TermY + Dy);
+        }
+        RefreshOtherChrome(Idx);
+        DrawWindowChromeAt(Idx);
     }
+    CursorPaint();
     HalIrqEnable();
 }
 
@@ -421,7 +597,7 @@ void GuiRedraw(void) {
     CursorRestore();
     UiFillRectangle(0, 0, gScreenW, gScreenH, COLOR_DARK_GRAY);
     for (i = 0; i < MAX_WINS; i++) {
-        DrawWindow(&gWins[i]);
+        DrawWindowAt(i);
     }
     CursorPaint();
     GfxIrqLeave();
@@ -447,22 +623,34 @@ void GuiInit(void) {
         UINT32 ShellH = gScreenH > Margin * 2 + 120 ?
                         gScreenH - Margin * 2 : gScreenH - 32;
 
+        UINT32 Gap = 32;
+        UINT32 HalfW = (ShellW > Gap) ? (ShellW - Gap) / 2 : ShellW / 2;
+
         gWins[0].Active = 1;
         gWins[0].X = Margin;
         gWins[0].Y = Margin;
-        gWins[0].Width = ShellW;
+        gWins[0].Width = HalfW;
         gWins[0].Height = ShellH;
         gWins[0].Background = COLOR_LIGHT_GRAY;
         gWins[0].Title = "ToyOS Shell";
         gWins[0].TermSet = 0;
 
-        gWins[1].Active = 0;
+        gWins[1].Active = 1;
+        gWins[1].X = Margin + HalfW + Gap;
+        gWins[1].Y = Margin;
+        gWins[1].Width = HalfW;
+        gWins[1].Height = ShellH * 2 / 3;
+        gWins[1].Background = COLOR_LIGHT_GRAY;
+        gWins[1].Title = "Shell 2";
+        gWins[1].TermSet = 0;
+
         gWins[2].Active = 0;
         gWins[3].Active = 0;
     }
 
+    gFocusWin = 0;
     GuiRedraw();
-    DebugWrite("gui: desktop ready (shell window)\n");
+    DebugWrite("gui: desktop ready (2 shell windows)\n");
 }
 
 void GuiOnArrowKey(UINT8 Key) {
@@ -496,22 +684,32 @@ void GuiOnArrowKey(UINT8 Key) {
 int GuiHandleClick(UINT32 X, UINT32 Y) {
     int i;
 
+    /* 关闭钮可能被其它窗口挡住；先扫一遍所有窗口的 × 区域 */
+    for (i = MAX_WINS - 1; i >= 0; i--) {
+        if (gWins[i].Active && PointInClose(&gWins[i], X, Y)) {
+            CloseWindow(i);
+            return 1;
+        }
+    }
+
     for (i = MAX_WINS - 1; i >= 0; i--) {
         if (!PointInWindow(&gWins[i], X, Y)) {
             continue;
         }
         GuiFocusSave();
         RaiseWindow(i);
-        RedrawWindowChrome();
+        SyncWindowVisuals();
         GuiFocusApply();
         DebugWrite("gui: focus ");
         DebugWrite(gWins[gFocusWin].Title);
         DebugWrite("\n");
 
-        if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+        if (PointInTitle(&gWins[gFocusWin], X, Y) &&
+            !PointOnAnyClose(X, Y)) {
             HalIrqDisable();
             CursorRestore();
             HalIrqEnable();
+            RaiseWindow(gFocusWin);
             gDragWin = gFocusWin;
             gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
             gDragOffY = (INT32)Y - (INT32)gWins[gFocusWin].Y;
@@ -551,13 +749,17 @@ static void GuiDragUpdate(UINT32 X, UINT32 Y) {
 }
 
 static void GuiDragEnd(void) {
-    if (gDragWin >= 0 && gWins[gDragWin].Active) {
+    int DragIdx = gDragWin;
+
+    if (DragIdx >= 0 && gWins[DragIdx].Active) {
         INT32 Nx = (INT32)gCursorX - gDragOffX;
         INT32 Ny = (INT32)gCursorY - gDragOffY;
 
-        ClampWindowPos(&gWins[gDragWin], &Nx, &Ny);
-        MoveWindowTo(gDragWin, (UINT32)Nx, (UINT32)Ny);
-        if (gDragWin == gFocusWin) {
+        ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
+        MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
+        RaiseWindow(DragIdx);
+        RedrawWindowChrome();
+        if (gFocusWin >= 0) {
             GuiFocusApply();
         }
         HalIrqDisable();
