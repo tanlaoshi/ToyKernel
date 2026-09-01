@@ -49,6 +49,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 - **HAL 分层**：端口 I/O 为 `HalIoRead/Write*`；设备驱动在 `HAL/<Arch>/Drivers/`
 - **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
 - **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X86_64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
+- **HAL 设备门面（PR-4）**：`Block` 后端注册 + `HalDevices.h`（USB 输入 / virtio-net）；Common 不再 `#include` ATA/PCIe/XHCI/Net 驱动头
 - **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
 
 ---
@@ -176,7 +177,7 @@ echo hello | nc -u 127.0.0.1 5555
 
 - [`结构说明.md`](结构说明.md) — 启动流程、源文件职责、阅读顺序
 - [`路线图.md`](路线图.md) — 阶段规划与待办
-- 计划中的后续重构（PR-4）：Block/PCIe 接口分层、文档收尾
+- 计划中的后续：NVMe/virtio-blk Block 后端、真机安装器
 
 ---
 

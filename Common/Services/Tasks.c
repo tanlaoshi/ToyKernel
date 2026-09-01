@@ -4,11 +4,9 @@
 #include "Tasks.h"
 #include "Hal.h"
 #include "Serial.h"
-#include "XHCI.h"
 #include "HIDKeyboard.h"
 #include "Console.h"
 #include "Gui.h"
-#include "Net.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "Debug.h"
@@ -19,7 +17,7 @@ UINT32 WorkerLoopCount(void) {
     return gWorkerCount;
 }
 
-static void FeedHid(USB_KEYBOARD_REPORT *Report, USB_KEYBOARD_REPORT *Previous) {
+static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
     for (int i = 0; i < 6; i++) {
         UINT8 Key = Report->KeyCode[i];
         if (Key == 0) {
@@ -65,8 +63,8 @@ void GuiTask(void) {
 }
 
 void ShellTask(void) {
-    USB_KEYBOARD_REPORT Report = {0};
-    USB_KEYBOARD_REPORT Previous = {0};
+    HAL_KEYBOARD_REPORT Report = {0};
+    HAL_KEYBOARD_REPORT Previous = {0};
     DebugWrite("shell task running (preemptive)\n");
     for (;;) {
         while (SerialDataReady()) {
@@ -80,18 +78,18 @@ void ShellTask(void) {
             }
         }
         HalCpuHalt();
-        while (XhciDequeueKeyboard(&Report)) {
+        while (HalKeyboardDequeue(&Report)) {
             FeedHid(&Report, &Previous);
             Previous = Report;
         }
-        NetPoll();
+        HalNetPoll();
         TcpPoll();
         {
             UDP_DATAGRAM Dg;
             while (UdpRecv(&Dg)) {
                 char IpBuf[20];
                 UINTN i;
-                NetFormatIp(Dg.SrcIp, IpBuf, sizeof(IpBuf));
+                HalNetFormatIp(Dg.SrcIp, IpBuf, sizeof(IpBuf));
                 ConsoleWrite("udp from ");
                 ConsoleWrite(IpBuf);
                 ConsoleWrite(":");

@@ -2,7 +2,7 @@
  * Udp.c — 极简 UDP
  */
 #include "Udp.h"
-#include "Net.h"
+#include "Hal.h"
 #include "Serial.h"
 
 #define UDP_HDR_LEN 8
@@ -41,7 +41,7 @@ int UdpSend(UINT32 DstIp, UINT16 DstPort, const void *Data, UINTN Len) {
     UDP_HDR *Hdr;
     UINT16 SrcPort;
 
-    if (!NetReady() || Data == 0 || Len > UDP_PAYLOAD_MAX) {
+    if (!HalNetReady() || Data == 0 || Len > UDP_PAYLOAD_MAX) {
         return -1;
     }
     SrcPort = gBindPort != 0 ? gBindPort : 40000;
@@ -58,7 +58,7 @@ int UdpSend(UINT32 DstIp, UINT16 DstPort, const void *Data, UINTN Len) {
             P[i] = S[i];
         }
     }
-    return NetSendIp(DstIp, NET_IP_PROTO_UDP, Buf, UDP_HDR_LEN + Len);
+    return HalNetSendIp(DstIp, HAL_IP_PROTO_UDP, Buf, UDP_HDR_LEN + Len);
 }
 
 int UdpRecv(UDP_DATAGRAM *Out) {

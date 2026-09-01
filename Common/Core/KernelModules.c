@@ -8,21 +8,16 @@
 #include "Video.h"
 #include "UI.h"
 #include "Serial.h"
-#include "PCIe.h"
-#include "XHCI.h"
 #include "Console.h"
 #include "FileSystem.h"
 #include "Scheduler.h"
 #include "PhysicalMemory.h"
 #include "VirtualMemory.h"
 #include "Gui.h"
-#include "Net.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "ShellCommands.h"
 #include "Debug.h"
-
-static USB_CONTROLLER gXhciDev;
 
 static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
@@ -77,33 +72,7 @@ static int InitCpu(void) {
 }
 
 static int InitUsb(void) {
-    USB_CONTROLLER Controllers[8];
-    int Count = PciScanUSBControllers(Controllers, 8);
-    int Found = 0;
-    for (int i = 0; i < Count; i++) {
-        if (Controllers[i].Type == 0x30) {
-            gXhciDev = Controllers[i];
-            Found = 1;
-            break;
-        }
-    }
-    if (!Found) {
-        UINT64 Fallback = HalPlatformXhciFallback();
-        if (Fallback == 0) {
-            return -1;
-        }
-        gXhciDev.BaseAddress = Fallback;
-        gXhciDev.Bar[0] = Fallback;
-        gXhciDev.Type = 0x30;
-    }
-    if (!XhciInit(gXhciDev.BaseAddress)) {
-        return -1;
-    }
-    if (!XhciEnableIrq(&gXhciDev)) {
-        DebugWrite("XHCI: IRQ not enabled\n");
-        return -1;
-    }
-    return 0;
+    return HalUsbInit();
 }
 
 static int InitFileSystemModule(void) {
@@ -116,7 +85,7 @@ static int InitGuiModule(void) {
 }
 
 static int InitNetModule(void) {
-    if (NetInit() != 0) {
+    if (HalNetInit() != 0) {
         return -1;
     }
     UdpInit();

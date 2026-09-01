@@ -8,7 +8,7 @@
 #include "Process.h"
 #include "Scheduler.h"
 #include "Tasks.h"
-#include "Net.h"
+#include "Hal.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "VirtualMemory.h"
@@ -134,12 +134,12 @@ static void CommandNet(int Argc, char **Argv) {
 
     (void)Argc;
     (void)Argv;
-    if (!NetReady()) {
+    if (!HalNetReady()) {
         ConsoleWrite("net: not available (no virtio-net)\n");
         return;
     }
-    NetGetMac(Mac);
-    NetFormatIp(NetGetIp(), IpBuf, sizeof(IpBuf));
+    HalNetGetMac(Mac);
+    HalNetFormatIp(HalNetGetIp(), IpBuf, sizeof(IpBuf));
     ConsoleWrite("mac ");
     for (i = 0; i < 6; i++) {
         Hex[0] = Digits[(Mac[i] >> 4) & 0xF];
@@ -156,7 +156,7 @@ static void CommandNet(int Argc, char **Argv) {
     {
         UINT32 TxDone = 0;
         UINT32 RxFrames = 0;
-        NetGetStats(&TxDone, &RxFrames);
+        HalNetGetStats(&TxDone, &RxFrames);
         ConsoleWrite("stats tx_done=");
         ConsoleHex32(TxDone);
         ConsoleWrite(" rx_frames=");
@@ -170,14 +170,14 @@ static void CommandPing(int Argc, char **Argv) {
         ConsoleWrite("usage: ping <ip>\n");
         return;
     }
-    if (!NetReady()) {
+    if (!HalNetReady()) {
         ConsoleWrite("net: not available\n");
         return;
     }
     ConsoleWrite("ping ");
     ConsoleWrite(Argv[1]);
     ConsoleWrite(" ...\n");
-    if (NetPing(Argv[1], 3000) == 0) {
+    if (HalNetPing(Argv[1], 3000) == 0) {
         ConsoleWrite("reply from ");
         ConsoleWrite(Argv[1]);
         ConsoleWrite("\n");
@@ -216,7 +216,7 @@ static void CommandUdpSend(int Argc, char **Argv) {
         ConsoleWrite("usage: udpsend <ip> <port> <text>\n");
         return;
     }
-    if (NetParseIp(Argv[1], &Ip) != 0) {
+    if (HalNetParseIp(Argv[1], &Ip) != 0) {
         ConsoleWrite("bad ip\n");
         return;
     }
@@ -268,7 +268,7 @@ static void CommandTcpStatus(int Argc, char **Argv) {
     ConsoleWrite(" local=");
     ConsoleHex32(TcpLocalPort());
     ConsoleWrite(" peer=");
-    NetFormatIp(TcpPeerIp(), IpBuf, sizeof(IpBuf));
+    HalNetFormatIp(TcpPeerIp(), IpBuf, sizeof(IpBuf));
     ConsoleWrite(IpBuf);
     ConsoleWrite(":");
     ConsoleHex32(TcpPeerPort());

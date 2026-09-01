@@ -6,6 +6,7 @@
 
 #include "BootTypes.h"
 #include "HalPort.h"
+#include "HalDevices.h"
 
 /* 页表权限（架构无关语义，x86 位布局见 Page.c） */
 #define HAL_PAGE_PRESENT  (1ULL << 0)
@@ -14,8 +15,6 @@
 
 void HalPlatformMapMmio(void);
 UINT64 HalPlatformXhciFallback(void);
-
-int HalBlockInit(void);
 
 typedef void *(*HalPageAllocateFunction)(void *Ctx);
 

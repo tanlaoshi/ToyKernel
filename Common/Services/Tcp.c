@@ -4,7 +4,7 @@
  * 不做窗口探测/重传/拥塞控制；适合 QEMU user 网联调。
  */
 #include "Tcp.h"
-#include "Net.h"
+#include "Hal.h"
 #include "Serial.h"
 #include "Debug.h"
 
@@ -68,13 +68,13 @@ static UINT16 TcpChecksum(UINT32 SrcIp, UINT32 DstIp, const UINT8 *TcpSeg, UINTN
     Pseudo[6] = (UINT8)(DstIp >> 8);
     Pseudo[7] = (UINT8)DstIp;
     Pseudo[8] = 0;
-    Pseudo[9] = NET_IP_PROTO_TCP;
+    Pseudo[9] = HAL_IP_PROTO_TCP;
     Pseudo[10] = (UINT8)(TcpLen >> 8);
     Pseudo[11] = (UINT8)TcpLen;
     for (i = 0; i < TcpLen; i++) {
         Pseudo[12 + i] = TcpSeg[i];
     }
-    return HostToNet16(NetChecksum(Pseudo, 12 + TcpLen));
+    return HostToNet16(HalNetChecksum(Pseudo, 12 + TcpLen));
 }
 
 static int TcpSendSegment(UINT8 Flags, const void *Data, UINTN Len, UINT32 Seq, UINT32 Ack) {
@@ -98,8 +98,8 @@ static int TcpSendSegment(UINT8 Flags, const void *Data, UINTN Len, UINT32 Seq, 
     for (i = 0; i < Len; i++) {
         Buf[TCP_HDR_LEN + i] = ((const UINT8 *)Data)[i];
     }
-    Hdr->Checksum = TcpChecksum(NetGetIp(), gPeerIp, Buf, TCP_HDR_LEN + Len);
-    return NetSendIp(gPeerIp, NET_IP_PROTO_TCP, Buf, TCP_HDR_LEN + Len);
+    Hdr->Checksum = TcpChecksum(HalNetGetIp(), gPeerIp, Buf, TCP_HDR_LEN + Len);
+    return HalNetSendIp(gPeerIp, HAL_IP_PROTO_TCP, Buf, TCP_HDR_LEN + Len);
 }
 
 void TcpInit(void) {

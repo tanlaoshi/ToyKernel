@@ -8,7 +8,6 @@
 #include "Serial.h"
 #include "UI.h"
 #include "Video.h"
-#include "XHCI.h"
 #include "Hal.h"
 #include "Debug.h"
 
@@ -623,12 +622,12 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
 
 /* 从 XHCI 鼠标队列取报告并更新光标（Shell/Gui 任务均可调用） */
 void GuiPollMouse(void) {
-    USB_MOUSE_REPORT Raw;
+    HAL_MOUSE_REPORT Raw;
     UINT32 Sw;
     UINT32 Sh;
     static UINT8 PrevBtn;
 
-    if (!XhciMousePresent()) {
+    if (!HalMousePresent()) {
         return;
     }
 
@@ -640,11 +639,9 @@ void GuiPollMouse(void) {
         Sh = gScreenH ? gScreenH : 768;
     }
 
-    if (XhciUsesIrq()) {
-        XhciDrainEvents();
-    }
+    HalInputPoll();
 
-    while (XhciDequeueMouse(&Raw)) {
+    while (HalMouseDequeue(&Raw)) {
         UINT32 X;
         UINT32 Y;
 
