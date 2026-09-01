@@ -12,6 +12,7 @@ typedef struct {
     UINT8  Buttons;
 } GUI_MOUSE_STATE;
 
+#define GUI_MAX_WINS        4
 #define GUI_TITLE_HEIGHT    40
 #define GUI_CLIENT_PAD 8
 #define GUI_INPUT_LINE_MAX  128
@@ -32,10 +33,13 @@ void GuiFocusSave(void);
 void GuiFocusApply(void);
 void GuiFocusApplyClip(void);
 void GuiFocusSyncCursor(void);
+void GuiBackupSyncRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void GuiFocusClearClient(void);
 int GuiShellAcceptsInput(void);
 void GuiFocusHome(void);
 void GuiPollMouse(void);
+int GuiShellWindowActive(int Idx);
+void GuiSetFocusWin(int Idx);
 
 /* PR-G2：每窗 Shell 输入行与提示符状态（随 GUI_WINDOW 移动） */
 void GuiConsolePull(char *Line, int *Len, int *WaitPrompt);

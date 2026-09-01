@@ -9,6 +9,7 @@
 #include "UI.h"
 #include "Serial.h"
 #include "Gui.h"
+#include "FontData.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -40,17 +41,40 @@ static int StrEq(const char *A, const char *B) {
 
 /* 帧缓冲绘制：先擦掉光标 → 写字 → 再画回光标 */
 static void ConsoleDrawString(const char *Text, UINT32 Color) {
+    UINT32 X0;
+    UINT32 Y0;
+    UINT32 X1;
+    UINT32 Y1;
+    UINT32 L;
+    UINT32 T;
+    UINT32 R;
+    UINT32 B;
+
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
+    VideoGetTextCursor(&X0, &Y0);
     VideoDrawString(Text, Color);
+    VideoGetTextCursor(&X1, &Y1);
+    L = X0 < X1 ? X0 : X1;
+    T = Y0 < Y1 ? Y0 : Y1;
+    R = (X0 > X1 ? X0 : X1) + FONT_ADVANCE_X;
+    B = (Y0 > Y1 ? Y0 : Y1) + FONT_ADVANCE_Y;
+    if (R > L && B > T) {
+        GuiBackupSyncRect(L, T, R - L, B - T);
+    }
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
 }
 
 static void ConsoleDrawChar(char C, UINT32 Color) {
+    UINT32 X;
+    UINT32 Y;
+
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
+    VideoGetTextCursor(&X, &Y);
     VideoDrawChar(C, Color);
+    GuiBackupSyncRect(X, Y, FONT_CELL_W, FONT_CELL_H);
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
 }
@@ -199,13 +223,12 @@ void ConsoleFocusSave(void) {
 
 void ConsoleFocusLoad(void) {
     GuiConsolePull(gLine, &gLen, &gWaitPrompt);
-    /* 客户区已有终端输出时只恢复输入行，不重画提示符（避免 toyos> toyos>） */
     if (GuiConsoleHasDisplay()) {
+        GuiFocusApplyClip();
         GuiConsoleMarkPrompt();
         return;
     }
     if (GuiConsoleNeedsPrompt()) {
-        SerialWrite("\n");
         GuiFocusHome();
         Prompt();
         GuiConsoleMarkPrompt();
@@ -226,12 +249,25 @@ void ConsoleBindFocus(void) {
 
 /* 初始化 Shell：打印欢迎语、显示提示符（内置命令须先由 InitConsole 注册） */
 void ConsoleInit(void) {
+    int i;
+
     gLen = 0;
     gWaitPrompt = 0;
     GuiFocusHome();
     ConsoleWrite("ToyOS console. Type help.\n");
     Prompt();
     GuiConsoleMarkPrompt();
+
+    for (i = 1; i < GUI_MAX_WINS; i++) {
+        if (GuiShellWindowActive(i)) {
+            GuiFocusSave();
+            GuiSetFocusWin(i);
+            GuiFocusApply();
+        }
+    }
+    GuiFocusSave();
+    GuiSetFocusWin(0);
+    GuiFocusApply();
 }
 
 /* 处理可打印字符输入 */
@@ -263,6 +299,13 @@ void ConsoleOnBackspace(void) {
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
     VideoEraseLastChar();
+    {
+        UINT32 X;
+        UINT32 Y;
+
+        VideoGetTextCursor(&X, &Y);
+        GuiBackupSyncRect(X, Y, FONT_ADVANCE_X, FONT_CELL_H);
+    }
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
     SerialWrite("\b \b");
