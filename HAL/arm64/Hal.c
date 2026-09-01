@@ -1,5 +1,5 @@
 /*
- * hal/arm64/Hal.c — ARM64 HAL 占位（未链接进当前内核）
+ * HAL/arm64/Hal.c — ARM64 HAL 占位（未链接进当前内核）
  */
 #include "hal.h"
 

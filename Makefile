@@ -4,7 +4,9 @@ DEBUG ?= 0
 CC = gcc
 LD = ld
 
-INCLUDES = -ICommon -IHal -IHal/$(ARCH)
+INCLUDES = -IInclude \
+           -ICommon/core -ICommon/services -ICommon/lib \
+           -IHAL -IHAL/$(ARCH) -IHAL/$(ARCH)/drivers
 
 CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra \
          -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
@@ -25,16 +27,23 @@ CFLAGS += -mgeneral-regs-only
 LDFLAGS_ARCH =
 endif
 
-LDFLAGS = -nostdlib -static -T Hal/$(ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
+LDFLAGS = -nostdlib -static -T HAL/$(ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 
 BUILDDIR = Build
-COMMON_SRCS := $(wildcard Common/*.c)
-ARCH_SRCS := $(wildcard Hal/$(ARCH)/*.c)
-ARCH_ASM := $(wildcard Hal/$(ARCH)/*.S)
 
-COMMON_OBJS := $(patsubst Common/%.c,$(BUILDDIR)/Common/%.o,$(COMMON_SRCS))
-ARCH_OBJS := $(patsubst Hal/$(ARCH)/%.c,$(BUILDDIR)/Hal/$(ARCH)/%.o,$(ARCH_SRCS))
-ARCH_ASM_OBJS := $(patsubst Hal/$(ARCH)/%.S,$(BUILDDIR)/Hal/$(ARCH)/%.o,$(ARCH_ASM))
+CORE_SRCS     := $(wildcard Common/core/*.c)
+SERVICES_SRCS := $(wildcard Common/services/*.c)
+LIB_SRCS      := $(wildcard Common/lib/*.c)
+DRIVER_SRCS   := $(wildcard HAL/$(ARCH)/drivers/*.c)
+ARCH_SRCS     := $(wildcard HAL/$(ARCH)/*.c)
+ARCH_ASM      := $(wildcard HAL/$(ARCH)/*.S)
+
+CORE_OBJS     := $(patsubst Common/core/%.c,$(BUILDDIR)/Common/core/%.o,$(CORE_SRCS))
+SERVICES_OBJS := $(patsubst Common/services/%.c,$(BUILDDIR)/Common/services/%.o,$(SERVICES_SRCS))
+LIB_OBJS      := $(patsubst Common/lib/%.c,$(BUILDDIR)/Common/lib/%.o,$(LIB_SRCS))
+DRIVER_OBJS   := $(patsubst HAL/$(ARCH)/drivers/%.c,$(BUILDDIR)/HAL/$(ARCH)/drivers/%.o,$(DRIVER_SRCS))
+ARCH_OBJS     := $(patsubst HAL/$(ARCH)/%.c,$(BUILDDIR)/HAL/$(ARCH)/%.o,$(ARCH_SRCS))
+ARCH_ASM_OBJS := $(patsubst HAL/$(ARCH)/%.S,$(BUILDDIR)/HAL/$(ARCH)/%.o,$(ARCH_ASM))
 
 ifeq ($(ARCH),x86_64)
 EXTRA_OBJS = $(BUILDDIR)/User_hello_blob.o
@@ -49,7 +58,7 @@ USER_CAT_OBJ = User/catfile.o
 USER_LD = User/user.ld
 endif
 
-OBJS = $(COMMON_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS)
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS)
 TARGET = $(BUILDDIR)/Kernel.elf
 
 .PHONY: all clean
@@ -65,15 +74,27 @@ $(BUILDDIR):
 $(TARGET): $(OBJS) | $(BUILDDIR)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(BUILDDIR)/Common/%.o: Common/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/core/%.o: Common/core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/Hal/$(ARCH)/%.o: Hal/$(ARCH)/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/services/%.o: Common/services/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/Hal/$(ARCH)/%.o: Hal/$(ARCH)/%.S | $(BUILDDIR)
+$(BUILDDIR)/Common/lib/%.o: Common/lib/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/HAL/$(ARCH)/drivers/%.o: HAL/$(ARCH)/drivers/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/HAL/$(ARCH)/%.o: HAL/$(ARCH)/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/HAL/$(ARCH)/%.o: HAL/$(ARCH)/%.S | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 

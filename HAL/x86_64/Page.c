@@ -1,5 +1,5 @@
 /*
- * hal/x86_64/Page.c — x86-64 四级页表与 CPU 分页操作
+ * HAL/x86_64/Page.c — x86-64 四级页表与 CPU 分页操作
  */
 #include "hal.h"
 #include "PhysicalMemory.h"

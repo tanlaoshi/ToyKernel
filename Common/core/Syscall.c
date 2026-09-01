@@ -4,10 +4,7 @@
 #include "Syscall.h"
 #include "hal.h"
 #include "Console.h"
-#include "UI.h"
-#include "Video.h"
 #include "Scheduler.h"
-#include "Serial.h"
 #include "Debug.h"
 #include "VirtualMemory.h"
 
@@ -22,7 +19,7 @@ void SyscallInit(void) {
 }
 
 static int SysWrite(int Fd, UINT64 UserBuf, UINTN Len) {
-    char Buf[COPY_BUF_MAX];
+    char Buf[COPY_BUF_MAX + 1];
     UINTN Done = 0;
 
     (void)Fd;
@@ -34,11 +31,8 @@ static int SysWrite(int Fd, UINT64 UserBuf, UINTN Len) {
         if (VirtualMemoryCopyFromUser(Buf, UserBuf + Done, Chunk) < 0) {
             return Done > 0 ? (int)Done : -1;
         }
-        for (UINTN i = 0; i < Chunk; i++) {
-            char C[2] = {Buf[i], 0};
-            SerialWrite(C);
-            VideoDrawChar(C[0], COLOR_WHITE);
-        }
+        Buf[Chunk] = '\0';
+        ConsoleWrite(Buf);
         Done += Chunk;
     }
     return (int)Len;

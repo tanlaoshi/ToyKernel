@@ -1,5 +1,5 @@
 /*
- * hal/riscv/Hal.c — RISC-V HAL 占位（未链接进当前内核）
+ * HAL/riscv/Hal.c — RISC-V HAL 占位（未链接进当前内核）
  */
 #include "hal.h"
 

@@ -1,5 +1,5 @@
 /*
- * hal/hal.h — 硬件抽象层统一接口
+ * Include/hal.h — 硬件抽象层统一接口
  */
 #ifndef HAL_H
 #define HAL_H

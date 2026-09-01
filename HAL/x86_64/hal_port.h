@@ -1,5 +1,5 @@
 /*
- * hal/x86_64/hal_port.h — x86-64 架构常量与 HAL_FRAME 布局
+ * HAL/x86_64/hal_port.h — x86-64 架构常量与 HAL_FRAME 布局
  */
 #ifndef HAL_PORT_H
 #define HAL_PORT_H

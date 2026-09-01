@@ -1,5 +1,5 @@
 /*
- * hal/x86_64/Hal.c — x86-64 HAL 实现（委托给 Arch / VirtualMemory / Serial）
+ * HAL/x86_64/Hal.c — x86-64 HAL 实现（委托给 Arch / VirtualMemory / Serial）
  */
 #include "hal.h"
 #include "Arch.h"

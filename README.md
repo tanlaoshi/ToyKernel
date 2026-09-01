@@ -46,8 +46,8 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ### 架构与工程
 
-- **HAL 分层**：端口 I/O 下沉为 `HalIoRead/Write*`（`Hal/*/Io.c`）；`HalPagePrivatizePml4Slot` 支持安全 fork
-- **目录规范**：`Common/`、`Hal/`、`User/`（`riscv` / `arm64` 为占位骨架）
+- **HAL 分层**：端口 I/O 为 `HalIoRead/Write*`；设备驱动在 `HAL/<arch>/drivers/`
+- **目录重构（PR-1）**：`Common/{core,services,lib}`、`HAL/<arch>/drivers/`、`Include/`
 - **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
 
 ---
@@ -56,20 +56,22 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ```
 ToyKernel/
-├── Common/          # 调度、内存、FS、Console、GUI、网络协议等
-├── Hal/
-│   ├── hal.h        # HAL 统一接口（上层只 include 此文件）
-│   ├── x86_64/      # Arch.c、Isr.S、Page.c、Io.c、link.ld
-│   ├── riscv/       # 占位
-│   └── arm64/       # 占位
-├── User/            # Ring 3 示例（hello / count / fork / catfile）
+├── Include/             # BootConfig.h、hal.h、Debug.h
+├── Common/
+│   ├── core/            # 内核、调度、内存、进程、系统调用
+│   ├── services/        # Console、Gui、FileSystem、网络服务
+│   └── lib/             # Elf、Block、Gpt、Fat、UI 等
+├── HAL/
+│   ├── x86_64/          # CPU/中断/分页 + PCIe
+│   │   └── drivers/     # Ata、Serial、XHCI、Net、Video
+│   ├── riscv/           # 占位
+│   └── arm64/           # 占位
+├── User/                # Ring 3 示例程序
 ├── Makefile
-├── build.sh
-├── 结构说明.md
-└── 路线图.md
+└── build.sh
 ```
 
-上层经 `hal.h` 访问 CPU/中断/分页，不直接 `#include` 架构私有头文件。
+上层经 `Include/hal.h` 访问硬件；`hal_port.h` 留在 `HAL/<arch>/`。
 
 ---
 
@@ -88,6 +90,7 @@ cd ToyKernel
 产物：
 
 - `Build/Kernel.elf` — 内核
+- `Build/User/*.elf` — 用户程序（hello / count / fork / catfile）
 - 自动复制到 `../ToyImage/Kernel.elf`
 - x86_64 下同时复制 `HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`
 
@@ -154,7 +157,7 @@ echo hello | nc -u 127.0.0.1 5555
 | 6 | wait | 阻塞等待子进程，返回子 pid |
 | 7 | yield | 主动让出 CPU |
 
-详见 `Common/Syscall.h`。
+详见 `Common/core/Syscall.h`。
 
 ---
 
@@ -172,7 +175,7 @@ echo hello | nc -u 127.0.0.1 5555
 
 - [`结构说明.md`](结构说明.md) — 启动流程、源文件职责、阅读顺序
 - [`路线图.md`](路线图.md) — 阶段规划与待办
-- 计划中的目录重构（PR-1）：`common/core`、`hal/<arch>/drivers/`、`include/` 等，见讨论记录；**行为不变，仅搬家**
+- 计划中的后续重构（PR-2～4）：头文件统一进 `Include/`、Block/PCIe 接口分层、文档收尾
 
 ---
 
