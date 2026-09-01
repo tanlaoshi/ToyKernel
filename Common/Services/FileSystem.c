@@ -9,14 +9,13 @@
 #include "Debug.h"
 #include "Hal.h"
 
-/* Shell 命令 ls：列出 FAT 根目录 */
+/* Shell 命令 ls：列出 FAT 目录（可选路径） */
 static void CommandLs(int Argc, char **Argv) {
-    (void)Argc;
-    (void)Argv;
-    FatListRoot();
+    const char *Path = (Argc >= 2) ? Argv[1] : 0;
+    FatListDir(Path);
 }
 
-/* Shell 命令 cat：读取根目录文件内容并打印 */
+/* Shell 命令 cat：读取文件内容并打印（支持 DIR/FILE） */
 static void CommandCat(int Argc, char **Argv) {
     if (Argc < 2) {
         ConsoleWrite("usage: cat <file>\n");
@@ -35,7 +34,7 @@ static void CommandCat(int Argc, char **Argv) {
     }
 }
 
-/* Shell 命令 write：write <file> <text...> 写入/覆盖根目录文件 */
+/* Shell 命令 write：write <file> <text...> 写入/覆盖文件（支持 DIR/FILE） */
 static void CommandWrite(int Argc, char **Argv) {
     static char Buf[512];
     UINTN Len = 0;
@@ -70,6 +69,19 @@ static void CommandWrite(int Argc, char **Argv) {
     ConsoleWrite("write: ok ");
     ConsoleHex32((UINT32)Len);
     ConsoleWrite(" bytes\n");
+}
+
+/* Shell 命令 rm：删除文件或空目录 */
+static void CommandRm(int Argc, char **Argv) {
+    if (Argc < 2) {
+        ConsoleWrite("usage: rm <file>\n");
+        return;
+    }
+    if (!FatDeleteFile(Argv[1])) {
+        ConsoleWrite("rm: failed\n");
+        return;
+    }
+    ConsoleWrite("rm: ok\n");
 }
 
 /* 在当前 Block 盘上挂载 FAT；成功返回 1 */
@@ -148,9 +160,10 @@ int FileSystemInit(void) {
     if (!MountBestFat()) {
         return -1;
     }
-    ConsoleRegister("ls", "list root directory", CommandLs);
+    ConsoleRegister("ls", "list directory", CommandLs);
     ConsoleRegister("cat", "print file", CommandCat);
     ConsoleRegister("write", "write file text", CommandWrite);
-    DebugWrite("FS ready (ls, cat, write)\n");
+    ConsoleRegister("rm", "remove file or empty dir", CommandRm);
+    DebugWrite("FS ready (ls, cat, write, rm)\n");
     return 0;
 }

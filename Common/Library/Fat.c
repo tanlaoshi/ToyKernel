@@ -1,5 +1,5 @@
 /*
- * Fat.c — FAT16/FAT32 根目录读写（8.3 短文件名）
+ * Fat.c — FAT16/FAT32 目录读写（8.3 短文件名，支持子路径）
  */
 #include "Fat.h"
 #include "Block.h"
@@ -27,6 +27,23 @@ static UINT32 gFatStart;
 static UINT32 gDataStart;
 static UINT32 gFatType;
 static UINT32 gMaxCluster;
+
+typedef struct {
+    int      IsFat16Root;
+    UINT32   Cluster;
+} FAT_DIR_CTX;
+
+static FAT_DIR_CTX FatRootCtx(void) {
+    FAT_DIR_CTX C;
+    if (gFatType == 16) {
+        C.IsFat16Root = 1;
+        C.Cluster = 0;
+    } else {
+        C.IsFat16Root = 0;
+        C.Cluster = gRootCluster;
+    }
+    return C;
+}
 
 static UINT16 Read16(const UINT8 *P) {
     return (UINT16)P[0] | ((UINT16)P[1] << 8);
@@ -245,7 +262,8 @@ static void PrintEntry(UINT8 *E) {
 }
 
 static int ScanDirBuffer(UINT8 *Buf, UINT32 Bytes, const char *Name,
-                         UINT32 *OutCluster, UINT32 *OutSize, int ListOnly) {
+                         UINT32 *OutCluster, UINT32 *OutSize, int ListOnly,
+                         UINT8 *OutAttr) {
     UINT32 Entries = Bytes / 32;
     for (UINT32 i = 0; i < Entries; i++) {
         UINT8 *E = Buf + i * 32;
@@ -266,46 +284,296 @@ static int ScanDirBuffer(UINT8 *Buf, UINT32 Bytes, const char *Name,
             }
             *OutCluster = Cl;
             *OutSize = Read32(E + 28);
+            if (OutAttr) {
+                *OutAttr = E[11];
+            }
             return 1;
         }
     }
     return ListOnly ? 1 : 0;
 }
 
-static int ForEachRoot(int ListOnly, const char *Name,
-                       UINT32 *OutCluster, UINT32 *OutSize) {
-    if (gFatType == 32) {
-        UINT32 Cluster = gRootCluster;
-        while (!ClusterEnd(Cluster) && Cluster >= 2) {
-            if (!LoadCluster(Cluster)) {
+static int ForEachDir(FAT_DIR_CTX Dir, int ListOnly, const char *Name,
+                      UINT32 *OutCluster, UINT32 *OutSize, UINT8 *OutAttr) {
+    if (Dir.IsFat16Root) {
+        for (UINT32 s = 0; s < gRootSectors; s++) {
+            if (!BlockReadSectors(gRootLba + s, 1, gSector)) {
                 return 0;
             }
-            UINT32 Bytes = ClusterBytes();
             if (!ListOnly) {
-                if (ScanDirBuffer(gCluster, Bytes, Name, OutCluster, OutSize, 0)) {
+                if (ScanDirBuffer(gSector, SECTOR, Name, OutCluster, OutSize, 0, OutAttr)) {
                     return 1;
                 }
-            } else if (!ScanDirBuffer(gCluster, Bytes, 0, 0, 0, 1)) {
+            } else if (!ScanDirBuffer(gSector, SECTOR, 0, 0, 0, 1, 0)) {
                 return 0;
             }
-            Cluster = FatNext(Cluster);
         }
         return ListOnly;
     }
 
-    for (UINT32 s = 0; s < gRootSectors; s++) {
-        if (!BlockReadSectors(gRootLba + s, 1, gSector)) {
-            return 0;
-        }
-        if (!ListOnly) {
-            if (ScanDirBuffer(gSector, SECTOR, Name, OutCluster, OutSize, 0)) {
-                return 1;
+    {
+        UINT32 Cluster = Dir.Cluster;
+        while (!ClusterEnd(Cluster) && Cluster >= 2) {
+            if (!LoadCluster(Cluster)) {
+                return 0;
             }
-        } else if (!ScanDirBuffer(gSector, SECTOR, 0, 0, 0, 1)) {
-            return 0;
+            {
+                UINT32 Bytes = ClusterBytes();
+                if (!ListOnly) {
+                    if (ScanDirBuffer(gCluster, Bytes, Name, OutCluster, OutSize, 0, OutAttr)) {
+                        return 1;
+                    }
+                } else if (!ScanDirBuffer(gCluster, Bytes, 0, 0, 0, 1, 0)) {
+                    return 0;
+                }
+            }
+            Cluster = FatNext(Cluster);
         }
     }
     return ListOnly;
+}
+
+
+static int CopyPathComponent(const char **Path, char *Out, int OutMax) {
+    const char *S = *Path;
+    int n = 0;
+
+    while (*S == '/') {
+        S++;
+    }
+    if (!*S) {
+        return 0;
+    }
+    while (*S && *S != '/') {
+        char C;
+        if (n + 1 >= OutMax) {
+            return 0;
+        }
+        C = *S++;
+        if (C >= 'a' && C <= 'z') {
+            C = (char)(C - 'a' + 'A');
+        }
+        Out[n++] = C;
+    }
+    Out[n] = 0;
+    *Path = S;
+    return n > 0;
+}
+
+static int LookupInDir(FAT_DIR_CTX Dir, const char *Name,
+                       UINT32 *OutCluster, UINT32 *OutSize, UINT8 *OutAttr) {
+    return ForEachDir(Dir, 0, Name, OutCluster, OutSize, OutAttr);
+}
+
+static int ResolvePathAsDir(const char *Path, FAT_DIR_CTX *OutDir) {
+    FAT_DIR_CTX Cur = FatRootCtx();
+    char Comp[13];
+    const char *P = Path;
+
+    if (!Path || !Path[0]) {
+        *OutDir = Cur;
+        return 1;
+    }
+    while (CopyPathComponent(&P, Comp, sizeof(Comp))) {
+        UINT32 SubCluster = 0;
+        UINT32 SubSize = 0;
+        UINT8 Attr = 0;
+
+        if (!LookupInDir(Cur, Comp, &SubCluster, &SubSize, &Attr)) {
+            return 0;
+        }
+        if (!(Attr & 0x10)) {
+            return 0;
+        }
+        Cur.IsFat16Root = 0;
+        Cur.Cluster = SubCluster;
+        if (!*P || (*P == '/' && P[1] == 0)) {
+            *OutDir = Cur;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int ResolvePathParentLeaf(const char *Path, FAT_DIR_CTX *OutParent, char *Leaf) {
+    FAT_DIR_CTX Cur = FatRootCtx();
+    char Comp[13];
+    const char *P = Path;
+    char Last[13];
+    int HasLast = 0;
+
+    if (!Path || !Path[0]) {
+        return 0;
+    }
+    while (CopyPathComponent(&P, Comp, sizeof(Comp))) {
+        if (!*P || (*P == '/' && P[1] == 0)) {
+            for (int i = 0; i < 13; i++) {
+                Last[i] = Comp[i];
+            }
+            HasLast = 1;
+            break;
+        }
+        {
+            UINT32 SubCluster = 0;
+            UINT32 SubSize = 0;
+            UINT8 Attr = 0;
+            if (!LookupInDir(Cur, Comp, &SubCluster, &SubSize, &Attr)) {
+                return 0;
+            }
+            if (!(Attr & 0x10)) {
+                return 0;
+            }
+            Cur.IsFat16Root = 0;
+            Cur.Cluster = SubCluster;
+        }
+    }
+    if (!HasLast) {
+        return 0;
+    }
+    for (int i = 0; i < 13; i++) {
+        Leaf[i] = Last[i];
+    }
+    *OutParent = Cur;
+    return 1;
+}
+
+static int DirBufferHasEntries(UINT8 *Buf, UINT32 Bytes) {
+    UINT32 Entries = Bytes / 32;
+    for (UINT32 i = 0; i < Entries; i++) {
+        UINT8 *E = Buf + i * 32;
+        if (E[0] == 0x00) {
+            return 0;
+        }
+        if (E[0] == 0xE5 || (E[11] & 0x08)) {
+            continue;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static int DirIsEmpty(FAT_DIR_CTX Dir) {
+    if (Dir.IsFat16Root) {
+        for (UINT32 s = 0; s < gRootSectors; s++) {
+            if (!BlockReadSectors(gRootLba + s, 1, gSector)) {
+                return 0;
+            }
+            if (DirBufferHasEntries(gSector, SECTOR)) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    {
+        UINT32 Cluster = Dir.Cluster;
+        while (!ClusterEnd(Cluster) && Cluster >= 2) {
+            if (!LoadCluster(Cluster)) {
+                return 0;
+            }
+            if (DirBufferHasEntries(gCluster, ClusterBytes())) {
+                return 0;
+            }
+            Cluster = FatNext(Cluster);
+        }
+    }
+    return 1;
+}
+
+/*
+ * 在目录 Dir 中找 Name 的目录项，或空闲槽。
+ * 找到后 gSector 含该扇区；写出 DirLba 与 EntryOff。
+ */
+static int FindDirSlot(FAT_DIR_CTX Dir, const char *Name, UINT8 Name83[11],
+                       UINT32 *DirLba, UINT32 *EntryOff, int *FoundExisting,
+                       UINT32 *OldCluster, UINT8 *OldAttr) {
+    *FoundExisting = 0;
+    *OldCluster = 0;
+    if (OldAttr) {
+        *OldAttr = 0;
+    }
+
+    if (Dir.IsFat16Root) {
+        for (UINT32 s = 0; s < gRootSectors; s++) {
+            UINT32 i;
+            if (!LoadSector(gRootLba + s)) {
+                return 0;
+            }
+            for (i = 0; i < SECTOR / 32; i++) {
+                UINT8 *E = gSector + i * 32;
+                if (E[0] == 0x00 || E[0] == 0xE5) {
+                    *DirLba = gRootLba + s;
+                    *EntryOff = i * 32;
+                    return 1;
+                }
+                if ((E[11] & 0x08) || (E[11] & 0x10)) {
+                    continue;
+                }
+                if (NameEq(E, Name)) {
+                    *FoundExisting = 1;
+                    *OldCluster = Read16(E + 26);
+                    if (OldAttr) {
+                        *OldAttr = E[11];
+                    }
+                    *DirLba = gRootLba + s;
+                    *EntryOff = i * 32;
+                    return 1;
+                }
+            }
+        }
+        (void)Name83;
+        return 0;
+    }
+
+    {
+        UINT32 Cluster = Dir.Cluster;
+        while (!ClusterEnd(Cluster) && Cluster >= 2) {
+            UINT32 Bytes;
+            UINT32 Entries;
+            UINT32 i;
+            if (!LoadCluster(Cluster)) {
+                return 0;
+            }
+            Bytes = ClusterBytes();
+            Entries = Bytes / 32;
+            for (i = 0; i < Entries; i++) {
+                UINT8 *E = gCluster + i * 32;
+                if (E[0] == 0x00 || E[0] == 0xE5) {
+                    *DirLba = gDataStart + (Cluster - 2) * gSectorsPerCluster +
+                              (i * 32) / SECTOR;
+                    *EntryOff = (i * 32) % SECTOR;
+                    if (!LoadSector(*DirLba)) {
+                        return 0;
+                    }
+                    return 1;
+                }
+                if ((E[11] & 0x08) || (E[11] & 0x10)) {
+                    continue;
+                }
+                if (NameEq(E, Name)) {
+                    UINT32 Cl = Read16(E + 26);
+                    if (gFatType == 32) {
+                        Cl |= (UINT32)Read16(E + 20) << 16;
+                    }
+                    *FoundExisting = 1;
+                    *OldCluster = Cl;
+                    if (OldAttr) {
+                        *OldAttr = E[11];
+                    }
+                    *DirLba = gDataStart + (Cluster - 2) * gSectorsPerCluster +
+                              (i * 32) / SECTOR;
+                    *EntryOff = (i * 32) % SECTOR;
+                    if (!LoadSector(*DirLba)) {
+                        return 0;
+                    }
+                    return 1;
+                }
+                (void)Name83;
+            }
+            Cluster = FatNext(Cluster);
+        }
+    }
+    return 0;
 }
 
 static int FatFreeChain(UINT32 Cluster) {
@@ -336,91 +604,98 @@ static UINT32 FatAllocCluster(void) {
     return 0;
 }
 
-/*
- * 在根目录找 Name 的目录项，或空闲槽。
- * 找到后 gSector/gCluster 含该扇区/簇；写出 DirLba 与 EntryOff。
- * FoundExisting=1 表示命中文件名。
- */
-static int FindRootDirSlot(const char *Name, UINT8 Name83[11],
-                           UINT32 *DirLba, UINT32 *EntryOff, int *FoundExisting,
-                           UINT32 *OldCluster) {
-    *FoundExisting = 0;
-    *OldCluster = 0;
-
-    if (gFatType == 32) {
-        UINT32 Cluster = gRootCluster;
-        while (!ClusterEnd(Cluster) && Cluster >= 2) {
-            UINT32 Bytes;
-            UINT32 Entries;
-            UINT32 i;
-            if (!LoadCluster(Cluster)) {
+static int FindDirEntry(FAT_DIR_CTX Dir, const char *Name,
+                        UINT32 *DirLba, UINT32 *EntryOff,
+                        UINT32 *OutCluster, UINT8 *OutAttr) {
+    if (Dir.IsFat16Root) {
+        for (UINT32 s = 0; s < gRootSectors; s++) {
+            if (!LoadSector(gRootLba + s)) {
                 return 0;
             }
-            Bytes = ClusterBytes();
-            Entries = Bytes / 32;
-            for (i = 0; i < Entries; i++) {
-                UINT8 *E = gCluster + i * 32;
-                if (E[0] == 0x00 || E[0] == 0xE5) {
-                    *DirLba = gDataStart + (Cluster - 2) * gSectorsPerCluster +
-                              (i * 32) / SECTOR;
-                    *EntryOff = (i * 32) % SECTOR;
-                    /* 扇区可能只是簇的一部分：把对应扇区载入 gSector */
-                    if (!LoadSector(*DirLba)) {
-                        return 0;
-                    }
-                    return 1;
+            for (UINT32 i = 0; i < SECTOR / 32; i++) {
+                UINT8 *E = gSector + i * 32;
+                if (E[0] == 0x00) {
+                    return 0;
                 }
-                if ((E[11] & 0x08) || (E[11] & 0x10)) {
+                if (E[0] == 0xE5 || (E[11] & 0x08)) {
                     continue;
                 }
                 if (NameEq(E, Name)) {
-                    UINT32 Cl = Read16(E + 26);
-                    if (gFatType == 32) {
-                        Cl |= (UINT32)Read16(E + 20) << 16;
-                    }
-                    *FoundExisting = 1;
-                    *OldCluster = Cl;
-                    *DirLba = gDataStart + (Cluster - 2) * gSectorsPerCluster +
-                              (i * 32) / SECTOR;
-                    *EntryOff = (i * 32) % SECTOR;
-                    if (!LoadSector(*DirLba)) {
-                        return 0;
-                    }
+                    *DirLba = gRootLba + s;
+                    *EntryOff = i * 32;
+                    *OutCluster = Read16(E + 26);
+                    *OutAttr = E[11];
                     return 1;
                 }
-                (void)Name83;
             }
-            Cluster = FatNext(Cluster);
         }
         return 0;
     }
 
-    for (UINT32 s = 0; s < gRootSectors; s++) {
-        UINT32 i;
-        if (!LoadSector(gRootLba + s)) {
-            return 0;
-        }
-        for (i = 0; i < SECTOR / 32; i++) {
-            UINT8 *E = gSector + i * 32;
-            if (E[0] == 0x00 || E[0] == 0xE5) {
-                *DirLba = gRootLba + s;
-                *EntryOff = i * 32;
-                return 1;
+    {
+        UINT32 Cluster = Dir.Cluster;
+        while (!ClusterEnd(Cluster) && Cluster >= 2) {
+            if (!LoadCluster(Cluster)) {
+                return 0;
             }
-            if ((E[11] & 0x08) || (E[11] & 0x10)) {
-                continue;
+            {
+                UINT32 Entries = ClusterBytes() / 32;
+                for (UINT32 i = 0; i < Entries; i++) {
+                    UINT8 *E = gCluster + i * 32;
+                    if (E[0] == 0x00) {
+                        return 0;
+                    }
+                    if (E[0] == 0xE5 || (E[11] & 0x08)) {
+                        continue;
+                    }
+                    if (NameEq(E, Name)) {
+                        *DirLba = gDataStart + (Cluster - 2) * gSectorsPerCluster +
+                                  (i * 32) / SECTOR;
+                        *EntryOff = (i * 32) % SECTOR;
+                        *OutCluster = Read16(E + 26);
+                        if (gFatType == 32) {
+                            *OutCluster |= (UINT32)Read16(E + 20) << 16;
+                        }
+                        *OutAttr = E[11];
+                        return 1;
+                    }
+                }
             }
-            if (NameEq(E, Name)) {
-                UINT32 Cl = Read16(E + 26);
-                *FoundExisting = 1;
-                *OldCluster = Cl;
-                *DirLba = gRootLba + s;
-                *EntryOff = i * 32;
-                return 1;
-            }
+            Cluster = FatNext(Cluster);
         }
     }
     return 0;
+}
+
+static int ReadFileClusters(UINT32 Cluster, UINT32 Size, void *Buffer, UINTN MaxSize,
+                            UINTN *OutSize) {
+    UINT8 *Dst = (UINT8 *)Buffer;
+    UINTN Total = 0;
+    UINT32 Remaining = Size;
+
+    while (!ClusterEnd(Cluster) && Cluster >= 2 && Total < MaxSize) {
+        if (!LoadCluster(Cluster)) {
+            return 0;
+        }
+        {
+            UINT32 Chunk = ClusterBytes();
+            if (Chunk > Remaining) {
+                Chunk = Remaining;
+            }
+            if (Total + Chunk > MaxSize) {
+                Chunk = (UINT32)(MaxSize - Total);
+            }
+            for (UINT32 i = 0; i < Chunk; i++) {
+                Dst[Total++] = gCluster[i];
+            }
+            Remaining -= Chunk;
+        }
+        Cluster = FatNext(Cluster);
+    }
+    if (OutSize) {
+        *OutSize = Total;
+    }
+    return 1;
 }
 
 int FatInit(UINT32 StartLba) {
@@ -484,46 +759,44 @@ int FatInit(UINT32 StartLba) {
 }
 
 int FatListRoot(void) {
-    return ForEachRoot(1, 0, 0, 0);
+    return FatListDir(0);
+}
+
+int FatListDir(const char *Path) {
+    FAT_DIR_CTX Dir;
+
+    if (!ResolvePathAsDir(Path ? Path : "", &Dir)) {
+        ConsoleWrite("fat: dir not found\n");
+        return 0;
+    }
+    return ForEachDir(Dir, 1, 0, 0, 0, 0);
 }
 
 int FatReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
+    FAT_DIR_CTX Parent;
+    char Leaf[13];
     UINT32 Cluster = 0;
     UINT32 Size = 0;
-    if (!ForEachRoot(0, Path, &Cluster, &Size)) {
+    UINT8 Attr = 0;
+
+    if (!Path || !Path[0]) {
         return 0;
     }
-    {
-        UINT8 *Dst = (UINT8 *)Buffer;
-        UINTN Total = 0;
-        UINT32 Remaining = Size;
-        while (!ClusterEnd(Cluster) && Cluster >= 2 && Total < MaxSize) {
-            if (!LoadCluster(Cluster)) {
-                return 0;
-            }
-            {
-                UINT32 Chunk = ClusterBytes();
-                if (Chunk > Remaining) {
-                    Chunk = Remaining;
-                }
-                if (Total + Chunk > MaxSize) {
-                    Chunk = (UINT32)(MaxSize - Total);
-                }
-                for (UINT32 i = 0; i < Chunk; i++) {
-                    Dst[Total++] = gCluster[i];
-                }
-                Remaining -= Chunk;
-            }
-            Cluster = FatNext(Cluster);
-        }
-        if (OutSize) {
-            *OutSize = Total;
-        }
+    if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
+        return 0;
     }
-    return 1;
+    if (!LookupInDir(Parent, Leaf, &Cluster, &Size, &Attr)) {
+        return 0;
+    }
+    if (Attr & 0x10) {
+        return 0;
+    }
+    return ReadFileClusters(Cluster, Size, Buffer, MaxSize, OutSize);
 }
 
 int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
+    FAT_DIR_CTX Parent;
+    char Leaf[13];
     UINT8 Name83[11];
     UINT32 DirLba = 0;
     UINT32 EntryOff = 0;
@@ -545,11 +818,15 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         ConsoleWrite("fat: write too large (max 64K)\n");
         return 0;
     }
-    if (!PathTo83(Path, Name83)) {
+    if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
+        ConsoleWrite("fat: bad path\n");
+        return 0;
+    }
+    if (!PathTo83(Leaf, Name83)) {
         ConsoleWrite("fat: bad 8.3 name\n");
         return 0;
     }
-    if (!FindRootDirSlot(Path, Name83, &DirLba, &EntryOff, &Existing, &OldCluster)) {
+    if (!FindDirSlot(Parent, Leaf, Name83, &DirLba, &EntryOff, &Existing, &OldCluster, 0)) {
         ConsoleWrite("fat: no dir slot\n");
         return 0;
     }
@@ -625,4 +902,42 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         return 0;
     }
     return 1;
+}
+
+int FatDeleteFile(const char *Path) {
+    FAT_DIR_CTX Parent;
+    char Leaf[13];
+    UINT32 DirLba = 0;
+    UINT32 EntryOff = 0;
+    UINT32 Cluster = 0;
+    UINT8 Attr = 0;
+    UINT8 *E;
+
+    if (!Path || !Path[0]) {
+        return 0;
+    }
+    if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
+        ConsoleWrite("fat: bad path\n");
+        return 0;
+    }
+    if (!FindDirEntry(Parent, Leaf, &DirLba, &EntryOff, &Cluster, &Attr)) {
+        ConsoleWrite("fat: not found\n");
+        return 0;
+    }
+    if (Attr & 0x10) {
+        FAT_DIR_CTX Sub = {0, Cluster};
+        if (!DirIsEmpty(Sub)) {
+            ConsoleWrite("fat: dir not empty\n");
+            return 0;
+        }
+    }
+    if (Cluster >= 2 && !FatFreeChain(Cluster)) {
+        return 0;
+    }
+    if (!LoadSector(DirLba)) {
+        return 0;
+    }
+    E = gSector + EntryOff;
+    E[0] = 0xE5;
+    return StoreSector(DirLba);
 }
