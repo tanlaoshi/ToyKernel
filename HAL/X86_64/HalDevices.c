@@ -63,6 +63,10 @@ int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     return 1;
 }
 
+int HalKeyboardSetLeds(UINT8 Leds) {
+    return XhciKeyboardSetLeds(Leds);
+}
+
 int HalMousePresent(void) {
     return XhciMousePresent();
 }

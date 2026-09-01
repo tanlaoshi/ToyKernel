@@ -11,6 +11,10 @@
 #define HAL_IP_PROTO_TCP    6
 #define HAL_IP_PROTO_UDP    17
 
+#define HAL_KBD_LED_NUM_LOCK     0x01
+#define HAL_KBD_LED_CAPS_LOCK    0x02
+#define HAL_KBD_LED_SCROLL_LOCK  0x04
+
 typedef struct {
     UINT8 ModifierKeys;
     UINT8 Reserved;
@@ -28,6 +32,7 @@ int HalBlockInit(void);
 int HalUsbInit(void);
 void HalInputPoll(void);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
+int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);
 int HalMouseDequeue(HAL_MOUSE_REPORT *Report);
 

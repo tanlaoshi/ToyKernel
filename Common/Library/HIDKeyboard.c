@@ -1,7 +1,7 @@
 /*
  * HIDKeyboard.c — HID 键码到 ASCII 的映射
  *
- * 美式 QWERTY 布局，支持 Shift 组合键。仅处理按下事件（由上层去重）。
+ * 美式 QWERTY 布局，支持 Shift 与 Caps Lock。仅处理按下事件（由上层去重）。
  */
 #include "HIDKeyboard.h"
 
@@ -63,20 +63,44 @@ static const HID_KEYCODE_MAP US_ASCII_MAP[] = {
     {0x00, 0, 0}
 };
 
-/* 将 HID 键码转为 ASCII，考虑 Shift；无法映射返回 0 */
+static int gCapsLock;
+static UINT8 gLedState;
+
+void HIDKeyboardToggleCapsLock(void) {
+    gCapsLock = !gCapsLock;
+    if (gCapsLock) {
+        gLedState |= HID_LED_CAPS_LOCK;
+    } else {
+        gLedState &= ~HID_LED_CAPS_LOCK;
+    }
+}
+
+UINT8 HIDKeyboardGetLeds(void) {
+    return gLedState;
+}
+
+static int IsLetterKey(UINT8 KeyCode) {
+    return KeyCode >= HID_KEY_A && KeyCode <= HID_KEY_Z;
+}
+
+/* 将 HID 键码转为 ASCII，考虑 Shift / Caps Lock；无法映射返回 0 */
 char HIDKeyCodeToASCII(UINT8 KeyCode, UINT8 ModifierKeys) {
     UINT8 IsShift = (ModifierKeys & (HID_MOD_LSHIFT | HID_MOD_RSHIFT)) != 0;
-    
+    UINT8 UseShiftChar = IsShift;
+
+    if (IsLetterKey(KeyCode)) {
+        UseShiftChar = IsShift ^ (UINT8)gCapsLock;
+    }
+
     for (int i = 0; US_ASCII_MAP[i].KeyCode != 0; i++) {
         if (US_ASCII_MAP[i].KeyCode == KeyCode) {
-            if (IsShift) {
+            if (UseShiftChar) {
                 return US_ASCII_MAP[i].ShiftChar;
-            } else {
-                return US_ASCII_MAP[i].NormalChar;
             }
+            return US_ASCII_MAP[i].NormalChar;
         }
     }
-    
+
     return 0;
 }
 

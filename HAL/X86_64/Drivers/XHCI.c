@@ -590,6 +590,18 @@ static int SetIdle(UINT8 Iface) {
     return ControlXfer(&Setup, 0);
 }
 
+/* HID SET_REPORT：输出报告（键盘 LED 等） */
+static int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
+    USB_SETUP_PACKET Setup = {
+        .bmRequestType = 0x21,
+        .bRequest = 0x09,
+        .wValue = 0x0200,
+        .wIndex = Iface,
+        .wLength = Length
+    };
+    return ControlXfer(&Setup, Data);
+}
+
 static UINT8 FsInterval(UINT8 BInterval) {
     if (BInterval == 0) {
         BInterval = 1;
@@ -1126,6 +1138,16 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
 /* 返回是否使用 MSI-X 中断模式（否则为 GET_REPORT 轮询） */
 int XhciUsesIrq(void) {
     return gUseIrq != 0;
+}
+
+int XhciKeyboardSetLeds(UINT8 Leds) {
+    UINT8 LedByte = Leds;
+
+    if (gSlotId == 0) {
+        return -1;
+    }
+    gXferSlot = gSlotId;
+    return SetReportOutput(gKbdIface, &LedByte, 1);
 }
 
 /* 从键盘报告队列取一条，有数据返回 1，空队列返回 0 */

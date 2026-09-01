@@ -58,5 +58,6 @@ int XhciDequeueKeyboard(USB_KEYBOARD_REPORT *Report);
 int XhciMousePresent(void);
 int XhciDequeueMouse(USB_MOUSE_REPORT *Report);
 int XhciUsesIrq(void);
+int XhciKeyboardSetLeds(UINT8 Leds);
 
 #endif

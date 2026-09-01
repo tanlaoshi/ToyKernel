@@ -28,6 +28,7 @@
 #define HID_KEY_COMMA       0x36
 #define HID_KEY_DOT         0x37
 #define HID_KEY_SLASH       0x38
+#define HID_KEY_CAPSLOCK    0x39
 
 #define HID_KEY_LEFT        0x50
 #define HID_KEY_RIGHT       0x4F
@@ -44,7 +45,13 @@
 #define HID_MOD_RALT    0x40
 #define HID_MOD_RGUI    0x80
 
+#define HID_LED_NUM_LOCK     0x01
+#define HID_LED_CAPS_LOCK    0x02
+#define HID_LED_SCROLL_LOCK  0x04
+
 char HIDKeyCodeToASCII(UINT8 KeyCode, UINT8 ModifierKeys);
+void HIDKeyboardToggleCapsLock(void);
+UINT8 HIDKeyboardGetLeds(void);
 const char* HIDKeyCodeToName(UINT8 KeyCode);
 
 #endif
