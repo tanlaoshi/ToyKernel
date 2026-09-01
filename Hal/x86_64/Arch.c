@@ -101,6 +101,10 @@ static void GdtLoad(void) {
 }
 
 /* 安装 TSS 并加载任务寄存器（进入用户态前调用） */
+void ArchSetRsp0(UINT64 Rsp0) {
+    gTss.RSP0 = Rsp0;
+}
+
 void ArchTssInstall(void) {
     gTss.RSP0 = (UINT64)(UINTN)(gKernelIstStack + sizeof(gKernelIstStack));
     UINT64 TssBase = (UINT64)(UINTN)&gTss;
@@ -219,19 +223,26 @@ void TimerStart(void) {
 
 /* 打印异常信息后 cli+hlt 死循环（#PF 时额外打印 CR2） */
 static void ExceptionHalt(struct INT_FRAME *F) {
-    ConsoleWrite("\nEXCEPTION vec=");
-    ConsoleHex32((UINT32)F->Vector);
-    ConsoleWrite(" err=");
-    ConsoleHex32((UINT32)F->ErrorCode);
-    ConsoleWrite(" rip=");
-    ConsoleHex64(F->Rip);
+    char Buf[24];
+
+    ArchCli();
+    SerialWrite("\nEXCEPTION vec=");
+    SerialHexFormat(Buf, (UINT32)F->Vector, 8);
+    SerialWrite(Buf);
+    SerialWrite(" err=");
+    SerialHexFormat(Buf, (UINT32)F->ErrorCode, 8);
+    SerialWrite(Buf);
+    SerialWrite(" rip=");
+    SerialHexFormat(Buf, F->Rip, 16);
+    SerialWrite(Buf);
     if (F->Vector == 14) {
         UINT64 Cr2;
         __asm__ volatile ("mov %%cr2, %0" : "=r"(Cr2));
-        ConsoleWrite(" cr2=");
-        ConsoleHex64(Cr2);
+        SerialWrite(" cr2=");
+        SerialHexFormat(Buf, Cr2, 16);
+        SerialWrite(Buf);
     }
-    ConsoleWrite("\n");
+    SerialWrite("\n");
     for (;;) {
         __asm__ volatile ("cli; hlt");
     }

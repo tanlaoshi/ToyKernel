@@ -12,6 +12,7 @@
 #include "VirtualMemory.h"
 #include "Serial.h"
 #include "Debug.h"
+#include "hal.h"
 
 #define VIRTIO_VENDOR_ID      0x1AF4
 #define VIRTIO_DEV_NET        0x1000
@@ -255,7 +256,7 @@ static void VirtQueueKick(VIRTQ *Q, UINT16 QueueId) {
                                                         (UINTN)Q->NotifyOff * Q->NotifyMult);
         *Notify = QueueId;
     } else if (gIoPort != 0) {
-        __asm__ volatile("outw %0, %1" : : "a"(QueueId), "Nd"((UINT16)(gIoPort + 16)));
+        HalIoWrite16((UINT16)(gIoPort + 16), QueueId);
     }
     __asm__ volatile("mfence" ::: "memory");
 }

@@ -125,6 +125,11 @@ static void CommandPs(int Argc, char **Argv) {
         } else {
             ConsoleWrite(" kern");
         }
+        if (T->State == TASK_ZOMBIE) {
+            ConsoleWrite(" zombie");
+        } else if (T->State == TASK_BLOCKED) {
+            ConsoleWrite(" blocked");
+        }
         ConsoleWrite(" cr3=");
         ConsoleHex64(T->Cr3);
         ConsoleWrite(" rip=");

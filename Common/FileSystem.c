@@ -1,8 +1,8 @@
 /*
- * FileSystem.c — 文件系统模块（ATA + GPT + FAT）
+ * FileSystem.c — 文件系统模块（Block + GPT + FAT）
  */
 #include "FileSystem.h"
-#include "Ata.h"
+#include "Block.h"
 #include "Gpt.h"
 #include "Fat.h"
 #include "Console.h"
@@ -34,20 +34,122 @@ static void CommandCat(int Argc, char **Argv) {
     }
 }
 
-/* 初始化完整文件系统栈 */
-int FileSystemInit(void) {
-    UINT32 Start = 0;
-    if (!AtaInit()) {
-        return -1;
+/* Shell 命令 write：write <file> <text...> 写入/覆盖根目录文件 */
+static void CommandWrite(int Argc, char **Argv) {
+    static char Buf[512];
+    UINTN Len = 0;
+    int a;
+    int first = 1;
+
+    if (Argc < 3) {
+        ConsoleWrite("usage: write <file> <text...>\n");
+        return;
     }
+    for (a = 2; a < Argc; a++) {
+        const char *S = Argv[a];
+        if (!first) {
+            if (Len + 1 >= sizeof(Buf)) {
+                break;
+            }
+            Buf[Len++] = ' ';
+        }
+        first = 0;
+        while (*S && Len + 1 < sizeof(Buf)) {
+            Buf[Len++] = *S++;
+        }
+    }
+    if (Len + 1 < sizeof(Buf)) {
+        Buf[Len++] = '\n';
+    }
+    Buf[Len] = 0;
+    if (!FatWriteFile(Argv[1], Buf, Len)) {
+        ConsoleWrite("write: failed\n");
+        return;
+    }
+    ConsoleWrite("write: ok ");
+    ConsoleHex32((UINT32)Len);
+    ConsoleWrite(" bytes\n");
+}
+
+/* 在当前 Block 盘上挂载 FAT；成功返回 1 */
+static int TryMountCurrent(void) {
+    UINT32 Start = 0;
     if (!GptFindFatStart(&Start)) {
-        return -1;
+        return 0;
     }
     if (!FatInit(Start)) {
+        return 0;
+    }
+    return 1;
+}
+
+/*
+ * 优先挂载带 TOYOS.ID 的卷（独立系统盘），
+ * 其次含 HELLO.ELF/COUNT.ELF 且驱动器号更大的卷（避免 vvfat:. 启动盘抢走），
+ * 否则退回第一块可用 FAT。
+ */
+static int MountBestFat(void) {
+    UINT32 BestDrive = 0;
+    UINT32 Found = 0;
+    UINT32 d;
+    UINT8 Tmp[64];
+    UINTN Sz;
+    int ScoreBest = -1;
+
+    for (d = 0; d < BLOCK_MAX_DRIVES; d++) {
+        int Score;
+
+        if (!BlockSelect(d)) {
+            continue;
+        }
+        if (!TryMountCurrent()) {
+            continue;
+        }
+        if (!Found) {
+            BestDrive = d;
+            Found = 1;
+            ScoreBest = 0;
+        }
+
+        Score = 0;
+        if (FatReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz)) {
+            Score = 100 + (int)d;
+        } else if (FatReadFile("HELLO.ELF", Tmp, sizeof(Tmp), &Sz) ||
+                   FatReadFile("COUNT.ELF", Tmp, sizeof(Tmp), &Sz)) {
+            /* 同有用户程序时偏向从盘，避开 fat:rw:. 启动目录 */
+            Score = 10 + (int)d;
+        }
+        if (Score > ScoreBest) {
+            ScoreBest = Score;
+            BestDrive = d;
+        }
+    }
+
+    if (!Found) {
+        return 0;
+    }
+    if (!BlockSelect(BestDrive) || !TryMountCurrent()) {
+        return 0;
+    }
+    ConsoleWrite("fs: mounted drive ");
+    ConsoleHex32(BestDrive);
+    ConsoleWrite(" score=");
+    ConsoleHex32((UINT32)ScoreBest);
+    ConsoleWrite("\n");
+    return 1;
+}
+
+/* 初始化完整文件系统栈 */
+int FileSystemInit(void) {
+    if (BlockInit() <= 0) {
+        return -1;
+    }
+    if (!MountBestFat()) {
         return -1;
     }
     ConsoleRegister("ls", "list root directory", CommandLs);
     ConsoleRegister("cat", "print file", CommandCat);
-    DebugWrite("FS ready (ls, cat)\n");
+    ConsoleRegister("write", "write file text", CommandWrite);
+    DebugWrite("FS ready (ls, cat, write)\n");
     return 0;
 }

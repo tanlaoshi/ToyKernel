@@ -7,6 +7,7 @@
 #include "PCIe.h"
 #include "Console.h"
 #include "Debug.h"
+#include "hal.h"
 
 #define PCI_CONFIG_ADDRESS  0xCF8
 #define PCI_CONFIG_DATA     0xCFC
@@ -14,15 +15,15 @@
 /* 读取 PCI 配置空间 32 位寄存器（Offset 须 4 字节对齐） */
 UINT32 PciReadConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset) {
     UINT32 Address = (1 << 31) | (Bus << 16) | (Device << 11) | (Function << 8) | (Offset & 0xFC);
-    outl(PCI_CONFIG_ADDRESS, Address);
-    return inl(PCI_CONFIG_DATA);
+    HalIoWrite32(PCI_CONFIG_ADDRESS, Address);
+    return HalIoRead32(PCI_CONFIG_DATA);
 }
 
 /* 写入 PCI 配置空间 32 位寄存器 */
 void PciWriteConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset, UINT32 Value) {
     UINT32 Address = (1 << 31) | (Bus << 16) | (Device << 11) | (Function << 8) | (Offset & 0xFC);
-    outl(PCI_CONFIG_ADDRESS, Address);
-    outl(PCI_CONFIG_DATA, Value);
+    HalIoWrite32(PCI_CONFIG_ADDRESS, Address);
+    HalIoWrite32(PCI_CONFIG_DATA, Value);
 }
 
 /* 将 UINT32 格式化为静态缓冲区中的 0x 十六进制字符串 */

@@ -4,7 +4,7 @@
  * 读取 LBA0 判断启动方式，在分区表中查找 FAT12/16/32 类型分区。
  */
 #include "Gpt.h"
-#include "Ata.h"
+#include "Block.h"
 #include "Console.h"
 #include "Debug.h"
 
@@ -80,7 +80,7 @@ static const UINT8 BASIC_DATA[] = {
 
 /* 解析 GPT 分区项，查找 EFI System / Basic Data 分区起始 LBA */
 static int GptFatLba(UINT32 *OutLba) {
-    if (!AtaReadSectors(1, 1, gSector)) {
+    if (!BlockReadSectors(1, 1, gSector)) {
         return 0;
     }
     if (*(UINT64 *)(void *)gSector != 0x5452415020494645ULL) {
@@ -97,7 +97,7 @@ static int GptFatLba(UINT32 *OutLba) {
     for (UINT32 i = 0; i < EntryCount; i++) {
         UINT32 Sec = EntriesLba + (i * EntrySize) / SECTOR;
         UINT32 Off = (i * EntrySize) % SECTOR;
-        if (!AtaReadSectors(Sec, 1, gSector)) {
+        if (!BlockReadSectors(Sec, 1, gSector)) {
             return 0;
         }
         for (UINT32 j = 0; j < 128; j++) {
@@ -118,7 +118,7 @@ static int GptFatLba(UINT32 *OutLba) {
 
 /* 查找 FAT 卷起始 LBA（superfloppy / MBR / GPT 三选一） */
 int GptFindFatStart(UINT32 *OutLba) {
-    if (!AtaReadSectors(0, 1, gSector)) {
+    if (!BlockReadSectors(0, 1, gSector)) {
         return 0;
     }
     if (IsFatBootSector()) {

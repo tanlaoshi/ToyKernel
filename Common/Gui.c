@@ -12,6 +12,8 @@
 #include "hal.h"
 #include "Debug.h"
 
+#define DRAG_MIN_STEP 3
+
 #define MAX_WINS     4
 #define TITLE_HEIGHT GUI_TITLE_HEIGHT
 #define CURSOR_HALF  6
@@ -49,6 +51,25 @@ static int    gCursorVisible;
 static int    gDragWin = -1;
 static INT32  gDragOffX;
 static INT32  gDragOffY;
+
+/* 保存进入绘制区前的 IF，避免在中断/异常里 ConsoleWrite 后误 sti 嵌套中断 */
+static int    gGfxLockDepth;
+static int    gGfxHadIrq;
+
+static void GfxIrqEnter(void) {
+    if (gGfxLockDepth++ == 0) {
+        UINT64 Flags;
+        __asm__ volatile ("pushfq; pop %0" : "=r"(Flags) :: "memory");
+        gGfxHadIrq = (Flags & (1ULL << 9)) != 0;
+        HalIrqDisable();
+    }
+}
+
+static void GfxIrqLeave(void) {
+    if (gGfxLockDepth > 0 && --gGfxLockDepth == 0 && gGfxHadIrq) {
+        HalIrqEnable();
+    }
+}
 
 static void DrawWindowChrome(const GUI_WINDOW *W);
 void GuiFocusApply(void);
@@ -127,6 +148,13 @@ static void CursorMove(UINT32 X, UINT32 Y) {
         return;
     }
 
+    /* 拖动时只跟踪坐标，在 MoveWindowTo 里统一重画光标，避免十字像素被拷进窗口 */
+    if (gDragWin >= 0) {
+        gCursorX = X;
+        gCursorY = Y;
+        return;
+    }
+
     HalIrqDisable();
     CursorRestore();
     gCursorX = X;
@@ -177,7 +205,7 @@ static int PointInTitle(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
            Y >= W->Y && Y < W->Y + TITLE_HEIGHT;
 }
 
-/* 用桌面色填「旧矩形里未被新矩形覆盖」的区域（有符号运算，避免 UINT 溢出） */
+/* 用桌面色填「旧矩形里未被新矩形覆盖」的区域 */
 static void FillUncovered(INT32 Ox, INT32 Oy, INT32 Nx, INT32 Ny,
                           INT32 Ww, INT32 Wh) {
     INT32 OldR = Ox + Ww;
@@ -235,8 +263,8 @@ static void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y) {
 }
 
 /*
- * 平移窗口：帧缓冲内重叠安全拷贝 + 擦除露出区域。
- * 不再申请数兆离屏缓冲（会长时间关中断，并曾触发 NetPoll #GP）。
+ * 平移窗口：重叠安全拷贝 + 只擦旧区露出条带。
+ * 不整块刷灰（会闪屏）；拖动时光标已隐藏，不会把十字拷进窗口。
  */
 static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     GUI_WINDOW *W;
@@ -265,9 +293,7 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         return;
     }
 
-    /* 只在改光标时短暂关中断；大块拷贝期间允许中断，避免饿死网卡/定时器 */
-    CursorRestore();
-
+    HalIrqDisable();
     VideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
     FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
                   (INT32)Ww, (INT32)Wh);
@@ -280,12 +306,6 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         W->TermX = (UINT32)((INT32)W->TermX + Dx);
         W->TermY = (UINT32)((INT32)W->TermY + Dy);
     }
-    if (Idx == gFocusWin) {
-        GuiFocusApply();
-    }
-
-    HalIrqDisable();
-    CursorPaint();
     HalIrqEnable();
 }
 
@@ -398,14 +418,14 @@ void GuiFocusHome(void) {
 void GuiRedraw(void) {
     int i;
 
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorRestore();
     UiFillRectangle(0, 0, gScreenW, gScreenH, COLOR_DARK_GRAY);
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindow(&gWins[i]);
     }
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
 }
 
 void GuiInit(void) {
@@ -490,6 +510,9 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         DebugWrite("\n");
 
         if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+            HalIrqDisable();
+            CursorRestore();
+            HalIrqEnable();
             gDragWin = gFocusWin;
             gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
             gDragOffY = (INT32)Y - (INT32)gWins[gFocusWin].Y;
@@ -502,17 +525,46 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
 static void GuiDragUpdate(UINT32 X, UINT32 Y) {
     INT32 Nx;
     INT32 Ny;
+    INT32 Dx;
+    INT32 Dy;
+    GUI_WINDOW *W;
 
     if (gDragWin < 0 || gDragWin >= MAX_WINS || !gWins[gDragWin].Active) {
         return;
     }
+    W = &gWins[gDragWin];
     Nx = (INT32)X - gDragOffX;
     Ny = (INT32)Y - gDragOffY;
-    ClampWindowPos(&gWins[gDragWin], &Nx, &Ny);
+    ClampWindowPos(W, &Nx, &Ny);
+
+    Dx = Nx - (INT32)W->X;
+    Dy = Ny - (INT32)W->Y;
+    if (Dx < 0) {
+        Dx = -Dx;
+    }
+    if (Dy < 0) {
+        Dy = -Dy;
+    }
+    if ((UINT32)Dx < DRAG_MIN_STEP && (UINT32)Dy < DRAG_MIN_STEP) {
+        return;
+    }
     MoveWindowTo(gDragWin, (UINT32)Nx, (UINT32)Ny);
 }
 
 static void GuiDragEnd(void) {
+    if (gDragWin >= 0 && gWins[gDragWin].Active) {
+        INT32 Nx = (INT32)gCursorX - gDragOffX;
+        INT32 Ny = (INT32)gCursorY - gDragOffY;
+
+        ClampWindowPos(&gWins[gDragWin], &Nx, &Ny);
+        MoveWindowTo(gDragWin, (UINT32)Nx, (UINT32)Ny);
+        if (gDragWin == gFocusWin) {
+            GuiFocusApply();
+        }
+        HalIrqDisable();
+        CursorPaint();
+        HalIrqEnable();
+    }
     gDragWin = -1;
 }
 
@@ -525,33 +577,33 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
 
 /* 帧缓冲绘制前：关中断并擦掉光标（避免 save-under 采到十字像素） */
 void GuiFrameBufferBegin(void) {
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorRestore();
 }
 
-/* 帧缓冲绘制后：重画光标并开中断 */
+/* 帧缓冲绘制后：重画光标；仅恢复进入 Begin 前已开启的中断 */
 void GuiFrameBufferEnd(void) {
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
 }
 
 void GuiCursorPaint(void) {
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorRestore();
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
 }
 
 void GuiCursorHide(void) {
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorRestore();
-    HalIrqEnable();
+    GfxIrqLeave();
 }
 
 void GuiCursorShow(void) {
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
 }
 
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {

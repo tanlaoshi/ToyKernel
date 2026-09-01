@@ -24,6 +24,7 @@ typedef INT_FRAME HAL_FRAME;
 
 void ArchIdtSetGate(UINT32 Vec, void *Handler, UINT8 Type);
 int ArchInit(void);
+void ArchSetRsp0(UINT64 Rsp0);
 void ArchTssInstall(void);
 void ArchSti(void);
 void ArchCli(void);

@@ -58,6 +58,13 @@ VM_ADDR_SPACE *VirtualMemorySpaceCreate(void) {
     }
 
     HalPageRootCopy(Space->Root, HalPageKernelRoot());
+    /* 用户区 0x40000000 与内核恒等映射同属 PML4[0]；必须私有 PDPT 才能安全 fork */
+    if (HalPagePrivatizePml4Slot(Space->Root, 0,
+                                 (HalPageAllocateFunction)VirtualMemorySpaceAllocateAndTrack,
+                                 Space) != 0) {
+        VirtualMemorySpaceDestroy(Space);
+        return 0;
+    }
     return Space;
 }
 
@@ -82,8 +89,6 @@ void VirtualMemorySpaceDestroy(VM_ADDR_SPACE *Space) {
     }
     if (Space->Root != 0) {
         HalPageUnmapRange(Space->Root, USER_CODE_VIRT,
-                          USER_STACK_VIRT + USER_STACK_SIZE);
-        HalPageUnmapRange(HalPageKernelRoot(), USER_CODE_VIRT,
                           USER_STACK_VIRT + USER_STACK_SIZE);
     }
     for (int i = 0; i < Space->PageCount; i++) {
@@ -122,6 +127,67 @@ int VirtualMemoryCopyFromUser(void *Dst, UINT64 UserSrc, UINTN Len) {
         D[i] = *(volatile UINT8 *)(UINTN)(UserSrc + i);
     }
     return (int)Len;
+}
+
+int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
+    if (!Src || !VirtualMemoryUserAccessOk(UserDst, Len)) {
+        return -1;
+    }
+    const UINT8 *S = (const UINT8 *)Src;
+    for (UINTN i = 0; i < Len; i++) {
+        *(volatile UINT8 *)(UINTN)(UserDst + i) = S[i];
+    }
+    return (int)Len;
+}
+
+/*
+ * 深拷贝用户区页（代码+栈）。页表项经 HalPageGetEntry 读取，内容按物理恒等映射复制。
+ */
+VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
+    VM_ADDR_SPACE *Dst;
+    UINT64 Va;
+
+    if (!Src || Src->Root == 0) {
+        return 0;
+    }
+    Dst = VirtualMemorySpaceCreate();
+    if (!Dst) {
+        return 0;
+    }
+
+    for (Va = USER_CODE_VIRT; Va < USER_VIRT_END; Va += PAGE_SIZE) {
+        UINT64 Pte = HalPageGetEntry(Src->Root, Va);
+        UINT64 Flags;
+        UINT64 Phys;
+        void *NewPage;
+        UINT8 *From;
+        UINT8 *To;
+        UINTN i;
+
+        if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
+            continue;
+        }
+        Flags = PTE_PRESENT | PTE_USER;
+        if (Pte & HAL_PAGE_WRITABLE) {
+            Flags |= PTE_WRITABLE;
+        }
+        Phys = Pte & ~0xFFFULL;
+        NewPage = VirtualMemorySpaceAllocateAndTrack(Dst);
+        if (!NewPage) {
+            VirtualMemorySpaceDestroy(Dst);
+            return 0;
+        }
+        From = (UINT8 *)(UINTN)Phys;
+        To = (UINT8 *)NewPage;
+        for (i = 0; i < PAGE_SIZE; i++) {
+            To[i] = From[i];
+        }
+        if (VirtualMemorySpaceMapPage(Dst, Va, (UINT64)(UINTN)NewPage, Flags) != 0) {
+            VirtualMemorySpaceDestroy(Dst);
+            return 0;
+        }
+    }
+    return Dst;
 }
 
 int VirtualMemoryInit(void) {

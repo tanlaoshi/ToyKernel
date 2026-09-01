@@ -99,22 +99,23 @@ IsrCommon:
     mov rdi, rsp
     call InterruptDispatch
     test rax, rax
-    jz 1f
-    bt rax, 63
-    jc 2f
-    bt rax, 62
-    jc 3f
+    jz 4f
+    test al, 1
+    jnz 2f
+    test al, 2
+    jnz 3f
+    and rax, -4
     mov rsp, rax
-    jmp 1f
+    jmp 4f
 2:
-    btr rax, 63
+    and rax, -4
     mov rdi, rax
     jmp KernelEnter
 3:
-    btr rax, 62
-    mov rdi, rax
-    jmp UserEnter
-1:
+    and rax, -4
+    mov rsp, rax
+    jmp 4f
+4:
     pop rax
     pop rbx
     pop rcx

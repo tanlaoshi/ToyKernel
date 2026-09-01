@@ -173,6 +173,38 @@ void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
     }
 }
 
+/*
+ * 将 PML4[Index] 换成私有 PDPT（内容从原 PDPT 拷贝）。
+ * 内核恒等映射与用户空间都落在 PML4[0]；浅拷贝后若不私有化，
+ * Map/Unmap 用户页会改到共享表，fork/exit 会互相踩页表。
+ */
+int HalPagePrivatizePml4Slot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
+    UINT64 *Pml4;
+    UINT64 *OldPdpt;
+    UINT64 *NewPdpt;
+    UINT64 Flags;
+    int i;
+
+    if (!Alloc || Index >= 512) {
+        return -1;
+    }
+    Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    if (!(Pml4[Index] & HAL_PAGE_PRESENT)) {
+        return 0;
+    }
+    OldPdpt = (UINT64 *)(UINTN)(Pml4[Index] & ~0xFFFULL);
+    NewPdpt = (UINT64 *)Alloc(Ctx);
+    if (!NewPdpt) {
+        return -1;
+    }
+    for (i = 0; i < 512; i++) {
+        NewPdpt[i] = OldPdpt[i];
+    }
+    Flags = Pml4[Index] & 0xFFFULL;
+    Pml4[Index] = PagePhys(NewPdpt) | Flags | HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
+    return 0;
+}
+
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx) {
     int User = (Flags & HAL_PAGE_USER) != 0;

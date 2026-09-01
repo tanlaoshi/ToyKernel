@@ -34,8 +34,9 @@ cp Build/Kernel.elf ../ToyImage/
 if [ "$ARCH" = "x86_64" ]; then
     cp User/hello.elf ../ToyImage/HELLO.ELF
     cp User/count.elf ../ToyImage/COUNT.ELF
-    echo "Copied User/hello.elf -> ../ToyImage/HELLO.ELF"
-    echo "Copied User/count.elf -> ../ToyImage/COUNT.ELF"
+    cp User/fork.elf ../ToyImage/FORK.ELF
+    cp User/catfile.elf ../ToyImage/CAT.ELF
+    echo "Copied HELLO/COUNT/FORK/CAT ELF -> ../ToyImage/"
 fi
 
 echo "Copied Build/Kernel.elf -> ../ToyImage/"

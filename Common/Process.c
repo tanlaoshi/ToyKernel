@@ -11,7 +11,7 @@
 #include "Debug.h"
 #include "PhysicalMemory.h"
 
-#define ELF_MAX_SIZE (64 * 1024)
+#define ELF_MAX_SIZE (512 * 1024)
 
 extern char _binary_User_hello_elf_start[];
 extern char _binary_User_hello_elf_end[];
@@ -34,38 +34,60 @@ static int ProcessStartElf(VM_ADDR_SPACE *Space, const ELF_LOAD_RESULT *Info,
 }
 
 int ProcessExec(const char *Path) {
-    void *Buf = PhysicalMemoryAllocatePages((ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+    UINT32 Pages;
+    void *Buf;
+    UINTN Size = 0;
+    VM_ADDR_SPACE *Space;
+    ELF_LOAD_RESULT Info;
+
+    if (!Path || !Path[0]) {
+        ConsoleWrite("exec: empty path\n");
+        return -1;
+    }
+
+    Pages = (ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE;
+    Buf = PhysicalMemoryAllocatePages(Pages);
     if (!Buf) {
         ConsoleWrite("exec: alloc buffer failed\n");
         return -1;
     }
 
-    UINTN Size = 0;
     if (!FatReadFile(Path, Buf, ELF_MAX_SIZE, &Size)) {
         ConsoleWrite("exec: file not found: ");
         ConsoleWrite(Path);
         ConsoleWrite("\n");
-        PhysicalMemoryFreePages(Buf, (ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+        PhysicalMemoryFreePages(Buf, Pages);
+        return -1;
+    }
+    if (Size < 64) {
+        ConsoleWrite("exec: file too small\n");
+        PhysicalMemoryFreePages(Buf, Pages);
+        return -1;
+    }
+    if (Size >= ELF_MAX_SIZE) {
+        ConsoleWrite("exec: file too large (max 512K)\n");
+        PhysicalMemoryFreePages(Buf, Pages);
         return -1;
     }
 
-    VM_ADDR_SPACE *Space = VirtualMemorySpaceCreate();
+    Space = VirtualMemorySpaceCreate();
     if (!Space) {
         ConsoleWrite("exec: address space failed\n");
-        PhysicalMemoryFreePages(Buf, (ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+        PhysicalMemoryFreePages(Buf, Pages);
         return -1;
     }
 
-    ELF_LOAD_RESULT Info;
     if (ElfLoadFromMemory(Space, Buf, Size, &Info) != 0) {
+        ConsoleWrite("exec: elf load failed\n");
         VirtualMemorySpaceDestroy(Space);
-        PhysicalMemoryFreePages(Buf, (ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+        PhysicalMemoryFreePages(Buf, Pages);
         return -1;
     }
 
-    PhysicalMemoryFreePages(Buf, (ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+    PhysicalMemoryFreePages(Buf, Pages);
 
     HalUserInstall();
+    SchedulerReapOrphanZombies();
     return ProcessStartElf(Space, &Info, Path);
 }
 
