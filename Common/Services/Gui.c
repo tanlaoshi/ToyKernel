@@ -11,6 +11,7 @@
 #include "Hal.h"
 #include "Debug.h"
 #include "Console.h"
+#include "PhysicalMemory.h"
 
 #define DRAG_MIN_STEP 3
 
@@ -58,6 +59,14 @@ static int    gDragWin = -1;
 static INT32  gDragOffX;
 static INT32  gDragOffY;
 static GUI_WINDOW gWinSwap;
+
+/* PR-G4：拖动时动态分配整窗备份，每帧合成重画 */
+static int      gDragHasBackup;
+static int      gWinBackupValid[MAX_WINS];
+static UINT32   gWinBackupW[MAX_WINS];
+static UINT32   gWinBackupH[MAX_WINS];
+static UINT32   gWinBackupPages[MAX_WINS];
+static UINT32  *gWinBackup[MAX_WINS];
 
 static void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
     const UINT8 *S = (const UINT8 *)Src;
@@ -147,32 +156,6 @@ static void DrawCloseButton(const GUI_WINDOW *W) {
         UiDrawLine(Bx + Bw - 1 - Pad, By + Pad, Bx + Pad, By + Bh - 1 - Pad,
                    COLOR_WHITE);
     }
-}
-
-static int RectsOverlap(const GUI_WINDOW *A, const GUI_WINDOW *B) {
-    if (!A->Active || !B->Active) {
-        return 0;
-    }
-    return A->X < B->X + B->Width && B->X < A->X + A->Width &&
-           A->Y < B->Y + B->Height && B->Y < A->Y + A->Height;
-}
-
-static int RectOverlapsAnyWindow(UINT32 X, UINT32 Y, UINT32 Ww, UINT32 Wh,
-                                 int SkipIdx) {
-    GUI_WINDOW Probe;
-    int j;
-
-    Probe.Active = 1;
-    Probe.X = X;
-    Probe.Y = Y;
-    Probe.Width = Ww;
-    Probe.Height = Wh;
-    for (j = 0; j < MAX_WINS; j++) {
-        if (j != SkipIdx && RectsOverlap(&Probe, &gWins[j])) {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 static void RefreshOtherChrome(int SkipIdx) {
@@ -379,7 +362,169 @@ static int PointInTitle(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
            Y >= W->Y && Y < W->Y + TITLE_HEIGHT;
 }
 
-/* 用桌面色填「旧矩形里未被新矩形覆盖」的区域 */
+static int PointInAnyActiveWindow(UINT32 X, UINT32 Y) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active && PointInWindow(&gWins[i], X, Y)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void FillDesktopRectClipped(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (!W || !H) {
+        return;
+    }
+    for (Row = Y; Row < Y + H; Row++) {
+        InRun = 0;
+        RunStart = 0;
+        for (Col = X; Col < X + W; Col++) {
+            int Cover = PointInAnyActiveWindow(Col, Row);
+            if (!Cover && !InRun) {
+                RunStart = Col;
+                InRun = 1;
+            } else if (Cover && InRun) {
+                if (Col > RunStart) {
+                    VideoFillRect(RunStart, Row, Col - RunStart, 1,
+                                  COLOR_DARK_GRAY);
+                }
+                InRun = 0;
+            }
+        }
+        if (InRun && X + W > RunStart) {
+            VideoFillRect(RunStart, Row, X + W - RunStart, 1, COLOR_DARK_GRAY);
+        }
+    }
+}
+
+static void FreeDragBackups(void) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWinBackup[i] != 0) {
+            PhysicalMemoryFreePages(gWinBackup[i], gWinBackupPages[i]);
+            gWinBackup[i] = 0;
+        }
+        gWinBackupPages[i] = 0;
+        gWinBackupValid[i] = 0;
+        gWinBackupW[i] = 0;
+        gWinBackupH[i] = 0;
+    }
+    gDragHasBackup = 0;
+}
+
+static UINT32 BackupPageCount(UINT32 Ww, UINT32 Wh) {
+    UINT64 Bytes = (UINT64)Ww * (UINT64)Wh * sizeof(UINT32);
+
+    return (UINT32)((Bytes + PAGE_SIZE - 1) / PAGE_SIZE);
+}
+
+static void BackupWindowAt(int Idx) {
+    const GUI_WINDOW *Win = &gWins[Idx];
+    UINT32 Rw;
+    UINT32 Rh;
+    UINT32 Pages;
+    UINT32 *Buf;
+
+    gWinBackupValid[Idx] = 0;
+    if (Idx < 0 || Idx >= MAX_WINS || !Win->Active) {
+        return;
+    }
+    if (Win->Width == 0 || Win->Height == 0) {
+        return;
+    }
+    Rw = Win->Width;
+    Rh = Win->Height;
+    if (Win->X + Rw > gScreenW) {
+        Rw = gScreenW - Win->X;
+    }
+    if (Win->Y + Rh > gScreenH) {
+        Rh = gScreenH - Win->Y;
+    }
+    if (Rw == 0 || Rh == 0) {
+        return;
+    }
+    Pages = BackupPageCount(Rw, Rh);
+    if (Pages == 0) {
+        return;
+    }
+    if (gWinBackup[Idx] != 0 && gWinBackupPages[Idx] != Pages) {
+        PhysicalMemoryFreePages(gWinBackup[Idx], gWinBackupPages[Idx]);
+        gWinBackup[Idx] = 0;
+        gWinBackupPages[Idx] = 0;
+    }
+    if (gWinBackup[Idx] == 0) {
+        Buf = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
+        if (Buf == 0) {
+            return;
+        }
+        gWinBackup[Idx] = Buf;
+        gWinBackupPages[Idx] = Pages;
+    }
+    VideoReadRect(Win->X, Win->Y, Rw, Rh, gWinBackup[Idx]);
+    gWinBackupW[Idx] = Rw;
+    gWinBackupH[Idx] = Rh;
+    gWinBackupValid[Idx] = 1;
+}
+
+static void BackupAllWindows(void) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        gWinBackupValid[i] = 0;
+        if (!gWins[i].Active) {
+            continue;
+        }
+        BackupWindowAt(i);
+    }
+}
+
+static void StartDragBackups(void) {
+    HalIrqDisable();
+    CursorRestore();
+    FreeDragBackups();
+    BackupAllWindows();
+    gDragHasBackup = 1;
+    HalIrqEnable();
+}
+
+static void PaintWindowFromBackup(int Idx) {
+    const GUI_WINDOW *Win = &gWins[Idx];
+
+    if (!Win->Active) {
+        return;
+    }
+    if (gWinBackupValid[Idx] && gWinBackup[Idx] != 0) {
+        VideoWriteRect(Win->X, Win->Y, gWinBackupW[Idx], gWinBackupH[Idx],
+                       gWinBackup[Idx]);
+        return;
+    }
+    DrawWindowAt(Idx);
+}
+
+/* 按 gWins[] z 序重画所有窗口；DragIdx>=0 时被拖窗始终在最上 */
+static void PaintAllWindowsFromBackup(int DragIdx) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active || i == DragIdx) {
+            continue;
+        }
+        PaintWindowFromBackup(i);
+    }
+    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWins[DragIdx].Active) {
+        PaintWindowFromBackup(DragIdx);
+    }
+}
+
+/* 用桌面色填「旧矩形里未被新矩形覆盖」的区域（不覆盖其它窗口） */
 static void FillUncovered(INT32 Ox, INT32 Oy, INT32 Nx, INT32 Ny,
                           INT32 Ww, INT32 Wh) {
     INT32 OldR = Ox + Ww;
@@ -388,27 +533,61 @@ static void FillUncovered(INT32 Ox, INT32 Oy, INT32 Nx, INT32 Ny,
     INT32 NewB = Ny + Wh;
 
     if (Ny > Oy) {
-        UiFillRectangle((UINT32)Ox, (UINT32)Oy, (UINT32)Ww, (UINT32)(Ny - Oy),
-                        COLOR_DARK_GRAY);
+        FillDesktopRectClipped((UINT32)Ox, (UINT32)Oy, (UINT32)Ww,
+                               (UINT32)(Ny - Oy));
     }
     if (NewB < OldB) {
-        UiFillRectangle((UINT32)Ox, (UINT32)NewB, (UINT32)Ww, (UINT32)(OldB - NewB),
-                        COLOR_DARK_GRAY);
+        FillDesktopRectClipped((UINT32)Ox, (UINT32)NewB, (UINT32)Ww,
+                               (UINT32)(OldB - NewB));
     }
     {
         INT32 Y0 = (Ny > Oy) ? Ny : Oy;
         INT32 Y1 = (NewB < OldB) ? NewB : OldB;
         if (Y1 > Y0) {
             if (Nx > Ox) {
-                UiFillRectangle((UINT32)Ox, (UINT32)Y0, (UINT32)(Nx - Ox),
-                                (UINT32)(Y1 - Y0), COLOR_DARK_GRAY);
+                FillDesktopRectClipped((UINT32)Ox, (UINT32)Y0,
+                                       (UINT32)(Nx - Ox), (UINT32)(Y1 - Y0));
             }
             if (NewR < OldR) {
-                UiFillRectangle((UINT32)NewR, (UINT32)Y0, (UINT32)(OldR - NewR),
-                                (UINT32)(Y1 - Y0), COLOR_DARK_GRAY);
+                FillDesktopRectClipped((UINT32)NewR, (UINT32)Y0,
+                                       (UINT32)(OldR - NewR), (UINT32)(Y1 - Y0));
             }
         }
     }
+}
+
+static void ShiftWinBackupsUp(int From, int To) {
+    UINT32 *Buf = gWinBackup[From];
+    UINT32 Bw = gWinBackupW[From];
+    UINT32 Bh = gWinBackupH[From];
+    UINT32 Bp = gWinBackupPages[From];
+    int Bv = gWinBackupValid[From];
+    int J;
+
+    for (J = From; J < To; J++) {
+        gWinBackup[J] = gWinBackup[J + 1];
+        gWinBackupW[J] = gWinBackupW[J + 1];
+        gWinBackupH[J] = gWinBackupH[J + 1];
+        gWinBackupPages[J] = gWinBackupPages[J + 1];
+        gWinBackupValid[J] = gWinBackupValid[J + 1];
+    }
+    gWinBackup[To] = Buf;
+    gWinBackupW[To] = Bw;
+    gWinBackupH[To] = Bh;
+    gWinBackupPages[To] = Bp;
+    gWinBackupValid[To] = Bv;
+}
+
+static void RestackFromBackup(int DragIdx) {
+    UiFillRectangle(0, 0, gScreenW, gScreenH, COLOR_DARK_GRAY);
+    PaintAllWindowsFromBackup(DragIdx);
+}
+
+/* 拖动一帧：全屏桌面 + 按 z 序贴整窗备份（被拖窗最后） */
+static void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
+    (void)OldX;
+    (void)OldY;
+    RestackFromBackup(DragIdx);
 }
 
 /* 窗口必须完整留在屏内 */
@@ -479,31 +658,30 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
 
     HalIrqDisable();
     CursorRestore();
-    if (RectOverlapsAnyWindow(NewX, NewY, Ww, Wh, Idx)) {
-        FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
-                      (INT32)Ww, (INT32)Wh);
+    if (gDragHasBackup) {
         W->X = NewX;
         W->Y = NewY;
         if (W->TermSet) {
             W->TermX = (UINT32)((INT32)W->TermX + Dx);
             W->TermY = (UINT32)((INT32)W->TermY + Dy);
         }
-        RefreshOtherChrome(Idx);
-        DrawWindowAt(Idx);
+        RedrawDragFrame(Idx, Ox, Oy);
     } else {
         VideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
-        FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
-                      (INT32)Ww, (INT32)Wh);
         W->X = NewX;
         W->Y = NewY;
         if (W->TermSet) {
             W->TermX = (UINT32)((INT32)W->TermX + Dx);
             W->TermY = (UINT32)((INT32)W->TermY + Dy);
         }
+        FillUncovered((INT32)Ox, (INT32)Oy, (INT32)NewX, (INT32)NewY,
+                      (INT32)Ww, (INT32)Wh);
         RefreshOtherChrome(Idx);
         DrawWindowChromeAt(Idx);
     }
-    CursorPaint();
+    if (gDragWin < 0) {
+        CursorPaint();
+    }
     HalIrqEnable();
 }
 
@@ -527,6 +705,9 @@ static void RaiseWindow(int Idx) {
             WinCopy(&gWins[J], &gWins[J + 1]);
         }
         WinCopy(&gWins[Top], &gWinSwap);
+        if (gDragHasBackup) {
+            ShiftWinBackupsUp(Idx, Top);
+        }
         gFocusWin = Top;
     }
 }
@@ -854,6 +1035,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             gDragWin = gFocusWin;
             gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
             gDragOffY = (INT32)Y - (INT32)gWins[gFocusWin].Y;
+            StartDragBackups();
         }
         return 1;
     }
@@ -900,15 +1082,17 @@ static void GuiDragEnd(void) {
         ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
         MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
         RaiseWindow(DragIdx);
+        HalIrqDisable();
+        CursorRestore();
+        RestackFromBackup(-1);
         RedrawWindowChrome();
-        /* 点击标题栏时 mousedown 已 GuiFocusApply，此处仅恢复 clip/cursor */
         if (gFocusWin >= 0) {
             GuiFocusApplyClip();
         }
-        HalIrqDisable();
         CursorPaint();
         HalIrqEnable();
     }
+    FreeDragBackups();
 }
 
 void GuiPointerMove(UINT32 X, UINT32 Y) {
