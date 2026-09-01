@@ -30,6 +30,10 @@ int GuiHandleClick(UINT32 X, UINT32 Y);
 int GuiFocusClient(UINT32 *X, UINT32 *Y, UINT32 *Width, UINT32 *Height, UINT32 *Background);
 void GuiFocusSave(void);
 void GuiFocusApply(void);
+void GuiFocusApplyClip(void);
+void GuiFocusSyncCursor(void);
+void GuiFocusClearClient(void);
+int GuiShellAcceptsInput(void);
 void GuiFocusHome(void);
 void GuiPollMouse(void);
 
@@ -38,5 +42,6 @@ void GuiConsolePull(char *Line, int *Len, int *WaitPrompt);
 void GuiConsolePush(const char *Line, int Len, int WaitPrompt);
 int GuiConsoleNeedsPrompt(void);
 void GuiConsoleMarkPrompt(void);
+int GuiConsoleHasDisplay(void);
 
 #endif

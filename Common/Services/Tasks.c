@@ -35,7 +35,9 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
         }
 
         if (Key == HID_KEY_ENTER) {
-            ConsoleOnEnter();
+            if (GuiShellAcceptsInput()) {
+                ConsoleOnEnter();
+            }
             continue;
         }
         if (Key == HID_KEY_LEFT || Key == HID_KEY_RIGHT ||
@@ -44,7 +46,9 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
             continue;
         }
         if (Key == HID_KEY_BACKSPACE) {
-            ConsoleOnBackspace();
+            if (GuiShellAcceptsInput()) {
+                ConsoleOnBackspace();
+            }
             continue;
         }
         if (Key == HID_KEY_CAPSLOCK) {
@@ -54,7 +58,7 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
         }
 
         char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
-        if (C != 0) {
+        if (C != 0 && GuiShellAcceptsInput()) {
             ConsoleOnChar(C);
         }
     }

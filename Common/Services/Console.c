@@ -41,13 +41,17 @@ static int StrEq(const char *A, const char *B) {
 /* 帧缓冲绘制：先擦掉光标 → 写字 → 再画回光标 */
 static void ConsoleDrawString(const char *Text, UINT32 Color) {
     GuiFrameBufferBegin();
+    GuiFocusApplyClip();
     VideoDrawString(Text, Color);
+    GuiFocusSyncCursor();
     GuiFrameBufferEnd();
 }
 
 static void ConsoleDrawChar(char C, UINT32 Color) {
     GuiFrameBufferBegin();
+    GuiFocusApplyClip();
     VideoDrawChar(C, Color);
+    GuiFocusSyncCursor();
     GuiFrameBufferEnd();
 }
 
@@ -112,13 +116,12 @@ static void CommandHelp(int Argc, char **Argv) {
     }
 }
 
-/* 内置命令：清屏 */
+/* 内置命令：清屏（仅当前焦点窗客户区；提示符由 ConsoleOnEnter 统一显示） */
 static void CommandClear(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
-    GuiRedraw();
-    GuiFocusHome();
-    Prompt();
+    gLen = 0;
+    GuiFocusClearClient();
 }
 
 /* 内置命令：回显参数 */
@@ -196,8 +199,14 @@ void ConsoleFocusSave(void) {
 
 void ConsoleFocusLoad(void) {
     GuiConsolePull(gLine, &gLen, &gWaitPrompt);
+    /* 客户区已有终端输出时只恢复输入行，不重画提示符（避免 toyos> toyos>） */
+    if (GuiConsoleHasDisplay()) {
+        GuiConsoleMarkPrompt();
+        return;
+    }
     if (GuiConsoleNeedsPrompt()) {
         SerialWrite("\n");
+        GuiFocusHome();
         Prompt();
         GuiConsoleMarkPrompt();
     }
@@ -227,6 +236,9 @@ void ConsoleInit(void) {
 
 /* 处理可打印字符输入 */
 void ConsoleOnChar(char C) {
+    if (!GuiShellAcceptsInput()) {
+        return;
+    }
     if (C < 32 || C > 126) {
         return;
     }
@@ -241,18 +253,26 @@ void ConsoleOnChar(char C) {
 
 /* 处理退格键 */
 void ConsoleOnBackspace(void) {
+    if (!GuiShellAcceptsInput()) {
+        return;
+    }
     if (gLen <= 0) {
         return;
     }
     gLen--;
     GuiFrameBufferBegin();
+    GuiFocusApplyClip();
     VideoEraseLastChar();
+    GuiFocusSyncCursor();
     GuiFrameBufferEnd();
     SerialWrite("\b \b");
 }
 
 /* 处理回车：执行命令并重新显示提示符 */
 void ConsoleOnEnter(void) {
+    if (!GuiShellAcceptsInput()) {
+        return;
+    }
     ConsoleWrite("\n");
     RunLine();
     if (gWaitPrompt == 0) {

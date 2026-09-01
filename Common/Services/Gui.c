@@ -95,6 +95,10 @@ static void CursorRestore(void);
 static void CursorPaint(void);
 static void SyncWindowVisuals(void);
 void GuiFocusApply(void);
+void GuiFocusApplyClip(void);
+void GuiFocusSyncCursor(void);
+void GuiFocusClearClient(void);
+int GuiShellAcceptsInput(void);
 void GuiRedraw(void);
 
 static UINT32 TitleBarColor(int Idx) {
@@ -630,7 +634,19 @@ void GuiConsoleMarkPrompt(void) {
     gWins[gFocusWin].PromptShown = 1;
 }
 
+int GuiConsoleHasDisplay(void) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+        return 0;
+    }
+    return gWins[gFocusWin].TermSet;
+}
+
 void GuiFocusApply(void) {
+    GuiFocusApplyClip();
+    ConsoleFocusLoad();
+}
+
+void GuiFocusApplyClip(void) {
     UINT32 X;
     UINT32 Y;
     UINT32 W;
@@ -651,7 +667,41 @@ void GuiFocusApply(void) {
     } else {
         VideoSetTextCursor(X, Y);
     }
-    ConsoleFocusLoad();
+}
+
+void GuiFocusSyncCursor(void) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+        return;
+    }
+    VideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
+    gWins[gFocusWin].TermSet = 1;
+}
+
+void GuiFocusClearClient(void) {
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Bg;
+    GUI_WINDOW *Win;
+
+    if (!GuiFocusClient(&X, &Y, &W, &H, &Bg)) {
+        return;
+    }
+    GfxIrqEnter();
+    CursorRestore();
+    VideoFillRect(X, Y, W, H, Bg);
+    VideoSetClipOrigin(X, Y, W, H, Bg);
+    Win = &gWins[gFocusWin];
+    Win->TermX = X;
+    Win->TermY = Y;
+    Win->TermSet = 1;
+    CursorPaint();
+    GfxIrqLeave();
+}
+
+int GuiShellAcceptsInput(void) {
+    return gFocusWin >= 0 && gFocusWin < MAX_WINS && gWins[gFocusWin].Active;
 }
 
 void GuiFocusHome(void) {
@@ -842,6 +892,7 @@ static void GuiDragUpdate(UINT32 X, UINT32 Y) {
 static void GuiDragEnd(void) {
     int DragIdx = gDragWin;
 
+    gDragWin = -1;
     if (DragIdx >= 0 && gWins[DragIdx].Active) {
         INT32 Nx = (INT32)gCursorX - gDragOffX;
         INT32 Ny = (INT32)gCursorY - gDragOffY;
@@ -850,14 +901,14 @@ static void GuiDragEnd(void) {
         MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
         RaiseWindow(DragIdx);
         RedrawWindowChrome();
+        /* 点击标题栏时 mousedown 已 GuiFocusApply，此处仅恢复 clip/cursor */
         if (gFocusWin >= 0) {
-            GuiFocusApply();
+            GuiFocusApplyClip();
         }
         HalIrqDisable();
         CursorPaint();
         HalIrqEnable();
     }
-    gDragWin = -1;
 }
 
 void GuiPointerMove(UINT32 X, UINT32 Y) {
