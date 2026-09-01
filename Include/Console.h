@@ -20,4 +20,8 @@ void ConsoleOnEnter(void);
 void ConsoleOnBackspace(void);
 void ConsoleBindFocus(void);
 
+/* exec/runuser 成功后延迟提示符，进程退出时 ConsoleShowPrompt */
+void ConsoleWaitPrompt(void);
+void ConsoleShowPrompt(void);
+
 #endif

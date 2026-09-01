@@ -413,10 +413,14 @@ UINT64 SchedulerExitUser(struct INT_FRAME *Frame) {
             /* 父用户进程稍后 wait */
         }
     } else {
+        int ShowPrompt = Exiting->IsUser && !ParentIsUserWaiter(Exiting->ParentId);
         Exiting->State = TASK_UNUSED;
         Exiting->Frame = 0;
         Exiting->ParentId = -1;
         gTaskCount--;
+        if (ShowPrompt) {
+            ConsoleShowPrompt();
+        }
     }
 
     Next = FindRunnable();

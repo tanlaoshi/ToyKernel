@@ -24,6 +24,7 @@ static COMMAND gCommands[CMD_MAX];
 static int gCmdCount;
 static char gLine[LINE_MAX];
 static int gLen;
+static int gWaitPrompt;
 
 /* 比较两个 C 字符串是否相等 */
 static int StrEq(const char *A, const char *B) {
@@ -77,10 +78,24 @@ void ConsoleHex64(UINT64 Value) {
     ConsoleWrite(Buf);
 }
 
-/* 显示 Shell 提示符 toyos> */
+/* 显示 Shell 提示符 toyos>（清空输入行） */
 static void Prompt(void) {
+    gLen = 0;
     SerialWrite("toyos> ");
     ConsoleDrawString("toyos> ", COLOR_CYAN);
+}
+
+void ConsoleWaitPrompt(void) {
+    gWaitPrompt++;
+}
+
+void ConsoleShowPrompt(void) {
+    if (gWaitPrompt > 0) {
+        gWaitPrompt--;
+    }
+    if (gWaitPrompt == 0) {
+        Prompt();
+    }
 }
 
 /* 内置命令：列出所有已注册命令 */
@@ -183,6 +198,7 @@ void ConsoleBindFocus(void) {
 /* 初始化 Shell：注册内置命令、打印欢迎语、显示提示符 */
 void ConsoleInit(void) {
     gLen = 0;
+    gWaitPrompt = 0;
     ConsoleRegister("help", "list commands", CommandHelp);
     ConsoleRegister("clear", "clear screen", CommandClear);
     ConsoleRegister("echo", "print arguments", CommandEcho);
@@ -221,6 +237,7 @@ void ConsoleOnBackspace(void) {
 void ConsoleOnEnter(void) {
     ConsoleWrite("\n");
     RunLine();
-    gLen = 0;
-    Prompt();
+    if (gWaitPrompt == 0) {
+        Prompt();
+    }
 }

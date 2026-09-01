@@ -78,7 +78,9 @@ static void CommandMemtest(int Argc, char **Argv) {
 static void CommandRunuser(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
-    ProcessRunDemo();
+    if (ProcessRunDemo() == 0) {
+        ConsoleWaitPrompt();
+    }
 }
 
 static void CommandExec(int Argc, char **Argv) {
@@ -86,7 +88,9 @@ static void CommandExec(int Argc, char **Argv) {
         ConsoleWrite("usage: exec <file>\n");
         return;
     }
-    ProcessExec(Argv[1]);
+    if (ProcessExec(Argv[1]) == 0) {
+        ConsoleWaitPrompt();
+    }
 }
 
 static void CommandPs(int Argc, char **Argv) {
