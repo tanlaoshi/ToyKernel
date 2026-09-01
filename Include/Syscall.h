@@ -3,7 +3,7 @@
 
 #include "BootTypes.h"
 
-struct INT_FRAME;
+struct HAL_FRAME;
 
 #define SYS_EXIT  0
 #define SYS_WRITE 1
@@ -15,6 +15,6 @@ struct INT_FRAME;
 #define SYS_YIELD 7
 
 void SyscallInit(void);
-UINT64 SyscallDispatch(struct INT_FRAME *Frame);
+UINT64 SyscallDispatch(HAL_FRAME *Frame);
 
 #endif

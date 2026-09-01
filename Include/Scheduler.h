@@ -30,7 +30,7 @@ typedef struct {
 
 typedef struct TASK {
     UINT8                  Stack[8192] __attribute__((aligned(16)));
-    struct INT_FRAME      *Frame;
+    HAL_FRAME             *Frame;
     TASK_STATE             State;
     UINT32                 Id;
     UINT32                 Ticks;
@@ -49,11 +49,11 @@ void SchedulerInit(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 Cr3,
                     VM_ADDR_SPACE *Space);
-UINT64 SchedulerOnTimer(struct INT_FRAME *Frame);
-UINT64 SchedulerExitUser(struct INT_FRAME *Frame);
-UINT64 SchedulerFork(struct INT_FRAME *Frame);
-UINT64 SchedulerWait(struct INT_FRAME *Frame);
-UINT64 SchedulerYield(struct INT_FRAME *Frame);
+UINT64 SchedulerOnTimer(HAL_FRAME *Frame);
+UINT64 SchedulerExitUser(HAL_FRAME *Frame);
+UINT64 SchedulerFork(HAL_FRAME *Frame);
+UINT64 SchedulerWait(HAL_FRAME *Frame);
+UINT64 SchedulerYield(HAL_FRAME *Frame);
 void SchedulerStart(void);
 
 void SchedulerFdCloseAll(TASK *T);

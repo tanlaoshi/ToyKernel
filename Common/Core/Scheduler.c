@@ -162,8 +162,8 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
             continue;
         }
         UINT8 *Top = gTasks[i].Stack + sizeof(gTasks[i].Stack);
-        struct INT_FRAME *F = (struct INT_FRAME *)(Top - sizeof(struct INT_FRAME));
-        for (UINTN j = 0; j < sizeof(struct INT_FRAME); j++) {
+        HAL_FRAME *F = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
+        for (UINTN j = 0; j < sizeof(HAL_FRAME); j++) {
             ((UINT8 *)F)[j] = 0;
         }
         F->Rip = (UINT64)(UINTN)Entry;
@@ -199,8 +199,8 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 Cr3,
             continue;
         }
         UINT8 *Top = gTasks[i].Stack + sizeof(gTasks[i].Stack);
-        struct INT_FRAME *F = (struct INT_FRAME *)(Top - sizeof(struct INT_FRAME));
-        for (UINTN j = 0; j < sizeof(struct INT_FRAME); j++) {
+        HAL_FRAME *F = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
+        for (UINTN j = 0; j < sizeof(HAL_FRAME); j++) {
             ((UINT8 *)F)[j] = 0;
         }
         F->Rip = Rip;
@@ -361,7 +361,7 @@ static int WakeWaitingParent(TASK *Zombie) {
     return 1;
 }
 
-UINT64 SchedulerOnTimer(struct INT_FRAME *Frame) {
+UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
     if (gCurrent == 0) {
         return 0;
     }
@@ -379,7 +379,7 @@ UINT64 SchedulerOnTimer(struct INT_FRAME *Frame) {
     return SchedResumeFrame(gCurrent);
 }
 
-UINT64 SchedulerExitUser(struct INT_FRAME *Frame) {
+UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     INT32 Code;
     TASK *Exiting;
     TASK *Next;
@@ -435,13 +435,13 @@ UINT64 SchedulerExitUser(struct INT_FRAME *Frame) {
     return SchedResumeFrame(gCurrent);
 }
 
-UINT64 SchedulerFork(struct INT_FRAME *Frame) {
+UINT64 SchedulerFork(HAL_FRAME *Frame) {
     VM_ADDR_SPACE *ChildSpace;
     TASK *Parent;
     INT32 ParentSlot;
     int Child;
     UINT8 *Top;
-    struct INT_FRAME *CF;
+    HAL_FRAME *CF;
     UINTN j;
 
     Parent = gCurrent;
@@ -473,8 +473,8 @@ UINT64 SchedulerFork(struct INT_FRAME *Frame) {
     }
 
     Top = gTasks[Child].Stack + sizeof(gTasks[Child].Stack);
-    CF = (struct INT_FRAME *)(Top - sizeof(struct INT_FRAME));
-    for (j = 0; j < sizeof(struct INT_FRAME); j++) {
+    CF = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
+    for (j = 0; j < sizeof(HAL_FRAME); j++) {
         ((UINT8 *)CF)[j] = ((UINT8 *)Frame)[j];
     }
     CF->Rax = 0; /* 子进程 fork 返回 0 */
@@ -498,7 +498,7 @@ UINT64 SchedulerFork(struct INT_FRAME *Frame) {
     return 0;
 }
 
-UINT64 SchedulerWait(struct INT_FRAME *Frame) {
+UINT64 SchedulerWait(HAL_FRAME *Frame) {
     TASK *Self;
     INT32 MyId;
     int i;
@@ -554,7 +554,7 @@ UINT64 SchedulerWait(struct INT_FRAME *Frame) {
 }
 
 /* 主动让出 CPU */
-UINT64 SchedulerYield(struct INT_FRAME *Frame) {
+UINT64 SchedulerYield(HAL_FRAME *Frame) {
     TASK *Next;
 
     if (gCurrent == 0) {

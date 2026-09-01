@@ -103,7 +103,7 @@ static int SysClose(int Fd) {
     return SchedulerFdClose(T, Fd);
 }
 
-UINT64 SyscallDispatch(struct INT_FRAME *Frame) {
+UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     UINT64 Ret = 0;
 
     /* 保持 IF=0 直到 iretq 恢复用户 RFLAGS，避免在返回路径嵌套定时器抢占 */

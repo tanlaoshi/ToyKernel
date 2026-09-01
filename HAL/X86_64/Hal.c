@@ -77,15 +77,15 @@ void HalSyscallInit(void) {
 }
 
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
-    return InterruptDispatch((INT_FRAME *)Frame);
+    return InterruptDispatch(Frame);
 }
 
 void HalSchedulerEnter(struct HAL_FRAME *Frame) {
-    SchedulerEnter((INT_FRAME *)Frame);
+    SchedulerEnter(Frame);
 }
 
 void HalUserEnter(struct HAL_FRAME *Frame) {
-    UserEnter((INT_FRAME *)Frame);
+    UserEnter(Frame);
 }
 
 void HalConsolePutChar(char C) {
@@ -114,6 +114,18 @@ const char *HalArchName(void) {
 
 const char *HalCpuInfo(void) {
     return "x86-64 (ToyOS HAL)";
+}
+
+void HalDebugWrite(const char *Text) {
+    SerialWrite(Text);
+}
+
+void HalDebugHex32(UINT32 Value) {
+    SerialHex32(Value);
+}
+
+void HalDebugHex64(UINT64 Value) {
+    SerialHex64(Value);
 }
 
 void HalCpuPark(void) {

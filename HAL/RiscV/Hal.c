@@ -70,3 +70,7 @@ int HalConsoleHasChar(void) { return 0; }
 
 const char *HalArchName(void) { return "riscv64"; }
 const char *HalCpuInfo(void) { return "RISC-V (stub)"; }
+
+void HalDebugWrite(const char *Text) { (void)Text; }
+void HalDebugHex32(UINT32 Value) { (void)Value; }
+void HalDebugHex64(UINT64 Value) { (void)Value; }

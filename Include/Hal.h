@@ -78,4 +78,8 @@ int HalConsoleHasChar(void);
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
 
+void HalDebugWrite(const char *Text);
+void HalDebugHex32(UINT32 Value);
+void HalDebugHex64(UINT64 Value);
+
 #endif

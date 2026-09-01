@@ -11,7 +11,7 @@
 #define VEC_TIMER HAL_VEC_TIMER
 #define VEC_SYSCALL HAL_VEC_SYSCALL
 
-typedef struct INT_FRAME {
+typedef struct HAL_FRAME {
     UINT64 X[32];
     UINT64 Vec;
     UINT64 Err;
@@ -20,8 +20,8 @@ typedef struct INT_FRAME {
     UINT64 Rflags;
     UINT64 Rsp;
     UINT64 Ss;
-} INT_FRAME;
+} HAL_FRAME;
 
-typedef INT_FRAME HAL_FRAME;
+typedef HAL_FRAME INT_FRAME;
 
 #endif
