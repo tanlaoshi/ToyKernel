@@ -99,6 +99,8 @@ static int InitSched(void) {
 }
 
 static int InitConsole(void) {
+    /* 内置命令优先，避免 fs + ShellCommands 占满命令表 */
+    ConsoleRegisterBuiltins();
     ShellCommandsRegister();
     ConsoleInit();
     return 0;

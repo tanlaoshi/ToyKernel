@@ -10,6 +10,7 @@
 #include "Video.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "Console.h"
 
 #define DRAG_MIN_STEP 3
 
@@ -31,6 +32,10 @@ typedef struct {
     UINT32   TermX;
     UINT32   TermY;
     int      TermSet;
+    char     InputLine[GUI_INPUT_LINE_MAX];
+    int      InputLen;
+    int      WaitPrompt;
+    int      PromptShown;
 } GUI_WINDOW;
 
 static GUI_WINDOW gWins[MAX_WINS];
@@ -52,6 +57,16 @@ static int    gCursorVisible;
 static int    gDragWin = -1;
 static INT32  gDragOffX;
 static INT32  gDragOffY;
+static GUI_WINDOW gWinSwap;
+
+static void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
+    const UINT8 *S = (const UINT8 *)Src;
+    UINT8 *D = (UINT8 *)Dst;
+    UINTN N = sizeof(GUI_WINDOW);
+    while (N--) {
+        *D++ = *S++;
+    }
+}
 
 /* 保存进入绘制区前的 IF，避免在中断/异常里 ConsoleWrite 后误 sti 嵌套中断 */
 static int    gGfxLockDepth;
@@ -186,6 +201,10 @@ static void CloseWindow(int Idx) {
     Wh = gWins[Idx].Height;
     gWins[Idx].Active = 0;
     gWins[Idx].TermSet = 0;
+    gWins[Idx].InputLen = 0;
+    gWins[Idx].WaitPrompt = 0;
+    gWins[Idx].PromptShown = 0;
+    gWins[Idx].InputLine[0] = 0;
     if (gDragWin == Idx) {
         gDragWin = -1;
     }
@@ -499,11 +518,11 @@ static void RaiseWindow(int Idx) {
         return;
     }
     {
-        GUI_WINDOW Tmp = gWins[Idx];
+        WinCopy(&gWinSwap, &gWins[Idx]);
         for (J = Idx; J < Top; J++) {
-            gWins[J] = gWins[J + 1];
+            WinCopy(&gWins[J], &gWins[J + 1]);
         }
-        gWins[Top] = Tmp;
+        WinCopy(&gWins[Top], &gWinSwap);
         gFocusWin = Top;
     }
 }
@@ -542,8 +561,73 @@ void GuiFocusSave(void) {
     if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
         return;
     }
+    ConsoleFocusSave();
     VideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
     gWins[gFocusWin].TermSet = 1;
+}
+
+void GuiConsolePull(char *Line, int *Len, int *WaitPrompt) {
+    GUI_WINDOW *Win;
+
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+        if (Len) {
+            *Len = 0;
+        }
+        if (WaitPrompt) {
+            *WaitPrompt = 0;
+        }
+        if (Line) {
+            Line[0] = 0;
+        }
+        return;
+    }
+    Win = &gWins[gFocusWin];
+    if (Line) {
+        int i;
+        for (i = 0; i < Win->InputLen && i < GUI_INPUT_LINE_MAX - 1; i++) {
+            Line[i] = Win->InputLine[i];
+        }
+        Line[i] = 0;
+    }
+    if (Len) {
+        *Len = Win->InputLen;
+    }
+    if (WaitPrompt) {
+        *WaitPrompt = Win->WaitPrompt;
+    }
+}
+
+void GuiConsolePush(const char *Line, int Len, int WaitPrompt) {
+    GUI_WINDOW *Win;
+    int i;
+
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+        return;
+    }
+    Win = &gWins[gFocusWin];
+    if (Len >= GUI_INPUT_LINE_MAX) {
+        Len = GUI_INPUT_LINE_MAX - 1;
+    }
+    Win->InputLen = Len;
+    Win->WaitPrompt = WaitPrompt;
+    for (i = 0; i < Len; i++) {
+        Win->InputLine[i] = Line[i];
+    }
+    Win->InputLine[Len] = 0;
+}
+
+int GuiConsoleNeedsPrompt(void) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+        return 0;
+    }
+    return !gWins[gFocusWin].PromptShown;
+}
+
+void GuiConsoleMarkPrompt(void) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+        return;
+    }
+    gWins[gFocusWin].PromptShown = 1;
 }
 
 void GuiFocusApply(void) {
@@ -567,6 +651,7 @@ void GuiFocusApply(void) {
     } else {
         VideoSetTextCursor(X, Y);
     }
+    ConsoleFocusLoad();
 }
 
 void GuiFocusHome(void) {
@@ -634,6 +719,9 @@ void GuiInit(void) {
         gWins[0].Background = COLOR_LIGHT_GRAY;
         gWins[0].Title = "ToyOS Shell";
         gWins[0].TermSet = 0;
+        gWins[0].InputLen = 0;
+        gWins[0].WaitPrompt = 0;
+        gWins[0].PromptShown = 0;
 
         gWins[1].Active = 1;
         gWins[1].X = Margin + HalfW + Gap;
@@ -643,6 +731,9 @@ void GuiInit(void) {
         gWins[1].Background = COLOR_LIGHT_GRAY;
         gWins[1].Title = "Shell 2";
         gWins[1].TermSet = 0;
+        gWins[1].InputLen = 0;
+        gWins[1].WaitPrompt = 0;
+        gWins[1].PromptShown = 0;
 
         gWins[2].Active = 0;
         gWins[3].Active = 0;

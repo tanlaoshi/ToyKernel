@@ -14,6 +14,7 @@ typedef struct {
 
 #define GUI_TITLE_HEIGHT    40
 #define GUI_CLIENT_PAD 8
+#define GUI_INPUT_LINE_MAX  128
 
 void GuiInit(void);
 void GuiPointerMove(UINT32 X, UINT32 Y);
@@ -31,5 +32,11 @@ void GuiFocusSave(void);
 void GuiFocusApply(void);
 void GuiFocusHome(void);
 void GuiPollMouse(void);
+
+/* PR-G2：每窗 Shell 输入行与提示符状态（随 GUI_WINDOW 移动） */
+void GuiConsolePull(char *Line, int *Len, int *WaitPrompt);
+void GuiConsolePush(const char *Line, int Len, int WaitPrompt);
+int GuiConsoleNeedsPrompt(void);
+void GuiConsoleMarkPrompt(void);
 
 #endif

@@ -10,6 +10,7 @@
 #include "BootTypes.h"
 
 void ConsoleInit(void);
+void ConsoleRegisterBuiltins(void);
 void ConsoleRegister(const char *Name, const char *Help,
                      void (*Handler)(int Argc, char **Argv));
 void ConsoleWrite(const char *Text);
@@ -19,6 +20,10 @@ void ConsoleOnChar(char C);
 void ConsoleOnEnter(void);
 void ConsoleOnBackspace(void);
 void ConsoleBindFocus(void);
+
+/* PR-G2：焦点切换时保存/恢复当前窗输入行（由 GuiFocusSave/Apply 调用） */
+void ConsoleFocusSave(void);
+void ConsoleFocusLoad(void);
 
 /* exec/runuser 成功后延迟提示符，进程退出时 ConsoleShowPrompt */
 void ConsoleWaitPrompt(void);

@@ -12,7 +12,7 @@
 
 #define LINE_MAX 128
 #define ARG_MAX  8
-#define CMD_MAX  16
+#define CMD_MAX  32
 
 typedef struct {
     const char *Name;
@@ -190,21 +190,39 @@ static void RunLine(void) {
     ConsoleWrite("  (help)\n");
 }
 
+void ConsoleFocusSave(void) {
+    GuiConsolePush(gLine, gLen, gWaitPrompt);
+}
+
+void ConsoleFocusLoad(void) {
+    GuiConsolePull(gLine, &gLen, &gWaitPrompt);
+    if (GuiConsoleNeedsPrompt()) {
+        SerialWrite("\n");
+        Prompt();
+        GuiConsoleMarkPrompt();
+    }
+}
+
+/* 注册 help / clear / echo（须在 ShellCommands 之前调用） */
+void ConsoleRegisterBuiltins(void) {
+    ConsoleRegister("help", "list commands", CommandHelp);
+    ConsoleRegister("clear", "clear screen", CommandClear);
+    ConsoleRegister("echo", "print arguments", CommandEcho);
+}
+
 /* 将控制台输出限制在当前焦点窗口客户区内（不重置光标） */
 void ConsoleBindFocus(void) {
     GuiFocusApply();
 }
 
-/* 初始化 Shell：注册内置命令、打印欢迎语、显示提示符 */
+/* 初始化 Shell：打印欢迎语、显示提示符（内置命令须先由 InitConsole 注册） */
 void ConsoleInit(void) {
     gLen = 0;
     gWaitPrompt = 0;
-    ConsoleRegister("help", "list commands", CommandHelp);
-    ConsoleRegister("clear", "clear screen", CommandClear);
-    ConsoleRegister("echo", "print arguments", CommandEcho);
     GuiFocusHome();
     ConsoleWrite("ToyOS console. Type help.\n");
     Prompt();
+    GuiConsoleMarkPrompt();
 }
 
 /* 处理可打印字符输入 */
