@@ -10,5 +10,8 @@ int  LwIpInit(void);
 void LwIpPoll(void);
 int  LwIpActive(void);
 int  LwIpPing(UINT32 DstIp, int TimeoutMs);
+int  LwIpTcpListen(UINT16 Port);
+int  LwIpTcpListenStop(void);
+UINT16 LwIpTcpListenPort(void);
 
 #endif

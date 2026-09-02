@@ -8,7 +8,10 @@
 #include "lwip/netif.h"
 #include "lwip/etharp.h"
 #include "netif/ethernet.h"
+#include "toy_ip.h"
 #include "Net.h"
+
+extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
 static struct netif gToyNetif;
 
@@ -55,9 +58,9 @@ int ToyNetifAdd(UINT32 Ip, UINT32 Mask, UINT32 Gw) {
     ip4_addr_t NetMask;
     ip4_addr_t GwAddr;
 
-    ip4_addr_set_u32(&IpAddr, Ip);
-    ip4_addr_set_u32(&NetMask, Mask);
-    ip4_addr_set_u32(&GwAddr, Gw);
+    ToyHostIpToLwIp(Ip, &IpAddr);
+    ToyHostIpToLwIp(Mask, &NetMask);
+    ToyHostIpToLwIp(Gw, &GwAddr);
     if (netif_add(&gToyNetif, &IpAddr, &NetMask, &GwAddr, NULL,
                   ToyNetifInit, ethernet_input) == NULL) {
         return -1;

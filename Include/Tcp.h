@@ -16,6 +16,7 @@ typedef enum {
 
 void TcpInit(void);
 int  TcpListen(UINT16 Port);
+void TcpListenStop(void);
 int  TcpConnect(UINT32 DstIp, UINT16 DstPort);
 int  TcpSend(const void *Data, UINTN Len);
 void TcpClose(void);

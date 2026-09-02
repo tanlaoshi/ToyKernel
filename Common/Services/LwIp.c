@@ -11,6 +11,7 @@
 #include "lwip/timeouts.h"
 #include "lwip/sys.h"
 #include "toy_netif.h"
+#include "toy_ping.h"
 
 #define TOY_LWIP_MASK  0xFFFFFF00U  /* 255.255.255.0 */
 #define TOY_LWIP_GW    0x0A000202U  /* 10.0.2.2 */
@@ -49,9 +50,7 @@ int LwIpActive(void) {
 }
 
 int LwIpPing(UINT32 DstIp, int TimeoutMs) {
-    (void)DstIp;
-    (void)TimeoutMs;
-    return -1;
+    return ToyPing(DstIp, TimeoutMs);
 }
 
 #else
@@ -71,6 +70,19 @@ int LwIpPing(UINT32 DstIp, int TimeoutMs) {
     (void)DstIp;
     (void)TimeoutMs;
     return -1;
+}
+
+int LwIpTcpListen(UINT16 Port) {
+    (void)Port;
+    return -1;
+}
+
+int LwIpTcpListenStop(void) {
+    return -1;
+}
+
+UINT16 LwIpTcpListenPort(void) {
+    return 0;
 }
 
 #endif

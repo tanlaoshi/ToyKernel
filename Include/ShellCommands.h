@@ -5,5 +5,6 @@
 #define SHELL_COMMANDS_H
 
 void ShellCommandsRegister(void);
+void ShellOnInterrupt(void);
 
 #endif

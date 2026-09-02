@@ -10,6 +10,7 @@
 #include "Tcp.h"
 #include "LwIp.h"
 #include "Debug.h"
+#include "ShellCommands.h"
 
 static volatile UINT32 gWorkerCount;
 
@@ -56,6 +57,11 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
             HalKeyboardSetLeds(HIDKeyboardGetLeds());
             continue;
         }
+        if (Key == HID_KEY_C &&
+            (Report->ModifierKeys & (HID_MOD_LCTRL | HID_MOD_RCTRL))) {
+            ShellOnInterrupt();
+            continue;
+        }
 
         char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
         if (C != 0 && GuiShellAcceptsInput()) {
@@ -80,6 +86,8 @@ void ShellTask(void) {
             char C = HalSerialReadChar();
             if (C == '\r' || C == '\n') {
                 ConsoleOnEnter();
+            } else if (C == 3) {
+                ShellOnInterrupt();
             } else if (C == '\b' || C == 127) {
                 ConsoleOnBackspace();
             } else if (C >= 32 && C <= 126) {

@@ -17,6 +17,6 @@ make LWIP=1
 ./build.sh LWIP=1
 ```
 
-Shell：`lwip on` 切换到 lwIP 协议栈（会接管 RX，内置 ping/tcp/udp 不再收包）。
+Shell：`lwip on` 后 `ping` / `tcplisten` 自动走 lwIP（ICMP raw + TCP echo）。
 
 移植文件：`HAL/X86_64/LwIp/`（`lwipopts.h`、`toy_netif.c`）。

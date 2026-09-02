@@ -28,6 +28,7 @@ static int gCmdCount;
 static char gLine[LINE_MAX];
 static int gLen;
 static int gWaitPrompt;
+static int gPromptSuspend;
 
 /* 比较两个 C 字符串是否相等 */
 static int StrEq(const char *A, const char *B) {
@@ -124,6 +125,32 @@ void ConsoleShowPrompt(void) {
     if (gWaitPrompt == 0) {
         Prompt();
     }
+}
+
+void ConsoleNotify(const char *Text) {
+    if (!ConsolePromptSuspended()) {
+        ConsoleWrite("\n");
+    }
+    if (Text != 0) {
+        ConsoleWrite(Text);
+    }
+}
+
+void ConsoleSuspendPrompt(void) {
+    gPromptSuspend++;
+}
+
+void ConsoleResumePrompt(void) {
+    if (gPromptSuspend > 0) {
+        gPromptSuspend--;
+    }
+    if (gPromptSuspend == 0 && gWaitPrompt == 0) {
+        Prompt();
+    }
+}
+
+int ConsolePromptSuspended(void) {
+    return gPromptSuspend > 0;
 }
 
 /* 内置命令：列出所有已注册命令 */
@@ -314,6 +341,19 @@ void ConsoleOnBackspace(void) {
     HalConsoleBackspaceSerial();
 }
 
+void ConsoleCancelInput(void) {
+    if (!GuiShellAcceptsInput() || gLen <= 0) {
+        return;
+    }
+    while (gLen > 0) {
+        ConsoleOnBackspace();
+    }
+    ConsoleWrite("^C\n");
+    if (gWaitPrompt == 0 && !ConsolePromptSuspended()) {
+        Prompt();
+    }
+}
+
 /* 处理回车：执行命令并重新显示提示符 */
 void ConsoleOnEnter(void) {
     if (!GuiShellAcceptsInput()) {
@@ -321,7 +361,7 @@ void ConsoleOnEnter(void) {
     }
     ConsoleWrite("\n");
     RunLine();
-    if (gWaitPrompt == 0) {
+    if (gWaitPrompt == 0 && !ConsolePromptSuspended()) {
         Prompt();
     }
 }

@@ -9,6 +9,7 @@
 #include "BootTypes.h"
 
 #define HID_KEY_A           0x04
+#define HID_KEY_C           0x06
 #define HID_KEY_Z           0x1D
 #define HID_KEY_0           0x27
 #define HID_KEY_9           0x26

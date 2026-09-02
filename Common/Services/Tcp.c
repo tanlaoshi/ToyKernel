@@ -276,6 +276,12 @@ int TcpListen(UINT16 Port) {
     return 0;
 }
 
+void TcpListenStop(void) {
+    if (gState == TCP_LISTEN) {
+        TcpInit();
+    }
+}
+
 int TcpConnect(UINT32 DstIp, UINT16 DstPort) {
     TcpInit();
     gLocalPort = (UINT16)(40000 + (gIss & 0xFF));
@@ -425,7 +431,7 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
             gPeerWnd = 1;
         }
         gState = TCP_ESTABLISHED;
-        ConsoleWrite("tcp: client connected\n");
+        ConsoleNotify("tcp: client connected\n");
         DebugWrite("tcp: established (echo)\n");
         /* 可能与本包同段的 PSH 数据：落到下方 ESTABLISHED 处理 */
     } else if (gState != TCP_ESTABLISHED) {
@@ -469,16 +475,24 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
             TcpArmRetrans();
         }
         {
+            char Buf[96];
+            int Pos = 0;
             UINTN i;
-            ConsoleWrite("tcp echo: ");
-            for (i = 0; i < DataLen; i++) {
+            const char *Prefix = "tcp echo: ";
+
+            while (Prefix[Pos] && Pos < (int)sizeof(Buf) - 2) {
+                Buf[Pos] = Prefix[Pos];
+                Pos++;
+            }
+            for (i = 0; i < DataLen && Pos < (int)sizeof(Buf) - 2; i++) {
                 char C = (char)((const UINT8 *)Data)[i];
                 if (C >= 32 && C <= 126) {
-                    char S[2] = { C, 0 };
-                    ConsoleWrite(S);
+                    Buf[Pos++] = C;
                 }
             }
-            ConsoleWrite("\n");
+            Buf[Pos++] = '\n';
+            Buf[Pos] = 0;
+            ConsoleNotify(Buf);
         }
     }
 

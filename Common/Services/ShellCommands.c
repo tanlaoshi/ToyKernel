@@ -182,6 +182,23 @@ static void CommandPing(int Argc, char **Argv) {
     ConsoleWrite("ping ");
     ConsoleWrite(Argv[1]);
     ConsoleWrite(" ...\n");
+#ifdef TOY_LWIP
+    if (LwIpActive()) {
+        UINT32 Ip;
+        if (HalNetParseIp(Argv[1], &Ip) != 0) {
+            ConsoleWrite("bad ip\n");
+            return;
+        }
+        if (LwIpPing(Ip, 3000) == 0) {
+            ConsoleWrite("reply from ");
+            ConsoleWrite(Argv[1]);
+            ConsoleWrite("\n");
+        } else {
+            ConsoleWrite("no reply\n");
+        }
+        return;
+    }
+#endif
     if (HalNetPing(Argv[1], 3000) == 0) {
         ConsoleWrite("reply from ");
         ConsoleWrite(Argv[1]);
@@ -245,10 +262,54 @@ static void CommandUdpSend(int Argc, char **Argv) {
     }
 }
 
+static int ArgIsStop(const char *S) {
+    return S[0] == 's' && S[1] == 't' && S[2] == 'o' && S[3] == 'p' && S[4] == 0;
+}
+
+void ShellOnInterrupt(void) {
+#ifdef TOY_LWIP
+    if (LwIpActive()) {
+        if (LwIpTcpListenStop() == 0) {
+            ConsoleWrite("lwip: echo server stopped\n");
+            ConsoleResumePrompt();
+            return;
+        }
+    }
+#endif
+    if (TcpGetState() == TCP_LISTEN) {
+        TcpListenStop();
+        ConsoleWrite("tcp: echo server stopped\n");
+        ConsoleResumePrompt();
+        return;
+    }
+    ConsoleCancelInput();
+}
+
 static void CommandTcpListen(int Argc, char **Argv) {
     UINT32 Port = 0;
     if (Argc < 2) {
-        ConsoleWrite("usage: tcplisten <port>\n");
+        ConsoleWrite("usage: tcplisten <port>|stop\n");
+        return;
+    }
+    if (ArgIsStop(Argv[1])) {
+#ifdef TOY_LWIP
+        if (LwIpActive()) {
+            if (LwIpTcpListenStop() != 0) {
+                ConsoleWrite("tcplisten: not listening\n");
+                return;
+            }
+            ConsoleWrite("lwip: echo server stopped\n");
+            ConsoleResumePrompt();
+            return;
+        }
+#endif
+        if (TcpGetState() != TCP_LISTEN) {
+            ConsoleWrite("tcplisten: not listening\n");
+            return;
+        }
+        TcpListenStop();
+        ConsoleWrite("tcp: echo server stopped\n");
+        ConsoleResumePrompt();
         return;
     }
     for (const char *P = Argv[1]; *P; P++) {
@@ -258,7 +319,21 @@ static void CommandTcpListen(int Argc, char **Argv) {
         }
         Port = Port * 10 + (UINT32)(*P - '0');
     }
+#ifdef TOY_LWIP
+    if (LwIpActive()) {
+        if (LwIpTcpListen((UINT16)Port) != 0) {
+            ConsoleWrite("tcplisten: failed\n");
+            return;
+        }
+        ConsoleSuspendPrompt();
+        ConsoleWrite("lwip: echo server on ");
+        ConsoleHex32(Port);
+        ConsoleWrite("\n");
+        return;
+    }
+#endif
     TcpListen((UINT16)Port);
+    ConsoleSuspendPrompt();
     ConsoleWrite("tcp: echo server on ");
     ConsoleHex32(Port);
     ConsoleWrite("\n");
@@ -374,7 +449,7 @@ static void CommandLwIp(int Argc, char **Argv) {
             ConsoleWrite("lwip: init failed\n");
             return;
         }
-        ConsoleWrite("lwip: on (builtin tcp/udp/ping rx disabled)\n");
+        ConsoleWrite("lwip: on (use ping/tcplisten via lwIP)\n");
         return;
     }
     if (Argv[1][0] == 's') {
