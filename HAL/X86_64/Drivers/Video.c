@@ -250,8 +250,9 @@ void VideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT3
     UINT32 *Fb = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
     UINT32 Pitch;
     UINT32 Row;
-    UINT32 Col;
-    UINT32 i = 0;
+    UINT32 SrcStride;
+    UINT32 CopyW;
+    UINT32 CopyH;
 
     if (!Fb || !In || !Width || !Height) {
         return;
@@ -259,16 +260,24 @@ void VideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT3
     if (X >= gScreen.Width || Y >= gScreen.Height) {
         return;
     }
-    if (X + Width > gScreen.Width) {
-        Width = gScreen.Width - X;
+    /* 源缓冲按调用方 Width 紧密排列；裁剪后仍须用原 stride 换行 */
+    SrcStride = Width;
+    CopyW = Width;
+    CopyH = Height;
+    if (X + CopyW > gScreen.Width) {
+        CopyW = gScreen.Width - X;
     }
-    if (Y + Height > gScreen.Height) {
-        Height = gScreen.Height - Y;
+    if (Y + CopyH > gScreen.Height) {
+        CopyH = gScreen.Height - Y;
     }
     Pitch = gScreen.PixelsPerScanLine;
-    for (Row = 0; Row < Height; Row++) {
-        for (Col = 0; Col < Width; Col++) {
-            Fb[(Y + Row) * Pitch + X + Col] = In[i++];
+    for (Row = 0; Row < CopyH; Row++) {
+        UINT32 *Dst = &Fb[(Y + Row) * Pitch + X];
+        const UINT32 *Src = &In[Row * SrcStride];
+        UINT32 Col;
+
+        for (Col = 0; Col < CopyW; Col++) {
+            Dst[Col] = Src[Col];
         }
     }
 }

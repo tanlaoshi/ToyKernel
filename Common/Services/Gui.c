@@ -14,7 +14,7 @@
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
-#define DRAG_BORDER_PAD 1
+#define DRAG_BORDER_PAD 2
 
 #define MAX_WINS     4
 #define TITLE_HEIGHT GUI_TITLE_HEIGHT
@@ -69,6 +69,10 @@ static UINT32   gWinBackupH[MAX_WINS];
 static UINT32   gWinBackupPages[MAX_WINS];
 static UINT32  *gWinBackup[MAX_WINS];
 static UINT32   gDragRowBuf[DRAG_ROW_MAX];
+/* 脏区离屏缓冲：整块一次 WriteRect，避免逐行露出造成闪屏 */
+static UINT32  *gDragDirty;
+static UINT32   gDragDirtyPages;
+static UINT32   gDragDirtyCap; /* 像素数上限 */
 
 /* 拖动开始时的全屏快照 + 被拖窗 footprint 下方干净层（避免窗备份混入拖窗像素） */
 static UINT32  *gScreenSnap;
@@ -155,23 +159,139 @@ static int PointInClose(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
     return X >= Bx && X < Bx + Bw && Y >= By && Y < By + Bh;
 }
 
-static void DrawCloseButton(const GUI_WINDOW *W) {
+/* 更高 z（数组下标更大）的窗口是否盖住该像素 */
+static int PixelOccludedByAbove(int Idx, UINT32 X, UINT32 Y) {
+    int j;
+
+    for (j = Idx + 1; j < MAX_WINS; j++) {
+        if (!gWins[j].Active) {
+            continue;
+        }
+        if (X >= gWins[j].X && X < gWins[j].X + gWins[j].Width &&
+            Y >= gWins[j].Y && Y < gWins[j].Y + gWins[j].Height) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void FillRectOccluded(int Idx, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                             UINT32 Color) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (!W || !H) {
+        return;
+    }
+    for (Row = 0; Row < H; Row++) {
+        UINT32 Py = Y + Row;
+
+        InRun = 0;
+        RunStart = 0;
+        for (Col = 0; Col < W; Col++) {
+            UINT32 Px = X + Col;
+            int Occ = PixelOccludedByAbove(Idx, Px, Py);
+
+            if (!Occ && !InRun) {
+                RunStart = Col;
+                InRun = 1;
+            } else if (Occ && InRun) {
+                HalVideoFillRect(X + RunStart, Py, Col - RunStart, 1, Color);
+                InRun = 0;
+            }
+        }
+        if (InRun) {
+            HalVideoFillRect(X + RunStart, Py, W - RunStart, 1, Color);
+        }
+    }
+}
+
+static void DrawHLineOccluded(int Idx, UINT32 X0, UINT32 X1, UINT32 Y,
+                              UINT32 Color) {
+    UINT32 X;
+    UINT32 RunStart = 0;
+    int InRun = 0;
+
+    if (X1 < X0 || Y >= gScreenH) {
+        return;
+    }
+    for (X = X0; X <= X1; X++) {
+        int Occ = PixelOccludedByAbove(Idx, X, Y);
+
+        if (!Occ && !InRun) {
+            RunStart = X;
+            InRun = 1;
+        } else if (Occ && InRun) {
+            HalVideoFillRect(RunStart, Y, X - RunStart, 1, Color);
+            InRun = 0;
+        }
+    }
+    if (InRun) {
+        HalVideoFillRect(RunStart, Y, X1 - RunStart + 1, 1, Color);
+    }
+}
+
+static void DrawVLineOccluded(int Idx, UINT32 X, UINT32 Y0, UINT32 Y1,
+                              UINT32 Color) {
+    UINT32 Y;
+    UINT32 RunStart = 0;
+    int InRun = 0;
+
+    if (Y1 < Y0 || X >= gScreenW) {
+        return;
+    }
+    for (Y = Y0; Y <= Y1; Y++) {
+        int Occ = PixelOccludedByAbove(Idx, X, Y);
+
+        if (!Occ && !InRun) {
+            RunStart = Y;
+            InRun = 1;
+        } else if (Occ && InRun) {
+            HalVideoFillRect(X, RunStart, 1, Y - RunStart, Color);
+            InRun = 0;
+        }
+    }
+    if (InRun) {
+        HalVideoFillRect(X, RunStart, 1, Y1 - RunStart + 1, Color);
+    }
+}
+
+static void DrawCloseButton(int Idx, const GUI_WINDOW *W) {
     UINT32 Bx;
     UINT32 By;
     UINT32 Bw;
     UINT32 Bh;
     UINT32 Pad;
+    UINT32 I;
+    UINT32 Span;
 
     CloseButtonRect(W, &Bx, &By, &Bw, &Bh);
-    UiFillRectangle(Bx, By, Bw, Bh, COLOR_RED);
-    UiDrawRectangle(Bx, By, Bw, Bh, COLOR_WHITE);
+    FillRectOccluded(Idx, Bx, By, Bw, Bh, COLOR_RED);
+    if (Bw >= 2 && Bh >= 2) {
+        DrawHLineOccluded(Idx, Bx, Bx + Bw - 1, By, COLOR_WHITE);
+        DrawHLineOccluded(Idx, Bx, Bx + Bw - 1, By + Bh - 1, COLOR_WHITE);
+        DrawVLineOccluded(Idx, Bx, By, By + Bh - 1, COLOR_WHITE);
+        DrawVLineOccluded(Idx, Bx + Bw - 1, By, By + Bh - 1, COLOR_WHITE);
+    }
     /* 字体为 16×32，24×24 按钮内放不下；用对角线画居中 × */
     Pad = 7;
     if (Bw > Pad * 2 + 2 && Bh > Pad * 2 + 2) {
-        UiDrawLine(Bx + Pad, By + Pad, Bx + Bw - 1 - Pad, By + Bh - 1 - Pad,
-                   COLOR_WHITE);
-        UiDrawLine(Bx + Bw - 1 - Pad, By + Pad, Bx + Pad, By + Bh - 1 - Pad,
-                   COLOR_WHITE);
+        Span = Bw - 1 - Pad * 2;
+        for (I = 0; I <= Span; I++) {
+            UINT32 PxA = Bx + Pad + I;
+            UINT32 PyA = By + Pad + I;
+            UINT32 PxB = Bx + Bw - 1 - Pad - I;
+            UINT32 PyB = By + Pad + I;
+
+            if (!PixelOccludedByAbove(Idx, PxA, PyA)) {
+                HalVideoDrawPixel(PxA, PyA, COLOR_WHITE);
+            }
+            if (!PixelOccludedByAbove(Idx, PxB, PyB)) {
+                HalVideoDrawPixel(PxB, PyB, COLOR_WHITE);
+            }
+        }
     }
 }
 
@@ -309,8 +429,13 @@ static void CursorMove(UINT32 X, UINT32 Y) {
         return;
     }
 
-    /* 拖动时只跟踪坐标，在 MoveWindowTo 里统一重画光标，避免十字像素被拷进窗口 */
+    /* 拖动时只跟踪坐标；若光标仍可见则先擦掉，避免十字残影 */
     if (gDragWin >= 0) {
+        if (gCursorVisible) {
+            HalIrqDisable();
+            CursorRestore();
+            HalIrqEnable();
+        }
         gCursorX = X;
         gCursorY = Y;
         return;
@@ -330,25 +455,38 @@ static void DrawWindowAt(int Idx) {
     if (!W->Active) {
         return;
     }
-    UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    UiDrawRectangle(W->X, W->Y, W->Width, W->Height, COLOR_WHITE);
-    UiFillRectangle(W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
-                    W->Height - TITLE_HEIGHT - 2, W->Background);
+    FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
+    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
+    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
+                      COLOR_WHITE);
+    DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
+    DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
+                      COLOR_WHITE);
+    FillRectOccluded(Idx, W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
+                     W->Height - TITLE_HEIGHT - 2, W->Background);
     HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
-    DrawCloseButton(W);
+    DrawCloseButton(Idx, W);
 }
 
-/* 仅重绘标题栏与边框，保留客户区已有文字 */
+/* 仅重绘标题栏与边框，保留客户区已有文字；不画到上层窗口上 */
 static void DrawWindowChromeAt(int Idx) {
     const GUI_WINDOW *W = &gWins[Idx];
 
     if (!W->Active) {
         return;
     }
-    UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    UiDrawRectangle(W->X, W->Y, W->Width, W->Height, COLOR_WHITE);
-    HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
-    DrawCloseButton(W);
+    FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
+    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
+    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
+                      COLOR_WHITE);
+    DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
+    DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
+                      COLOR_WHITE);
+    /* 标题文字无逐像素遮挡；起点被盖住则跳过，避免写穿上层客户区 */
+    if (!PixelOccludedByAbove(Idx, W->X + 8, W->Y + 4)) {
+        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    }
+    DrawCloseButton(Idx, W);
 }
 
 static void RedrawWindowChrome(void) {
@@ -434,6 +572,12 @@ static void ResetDragState(void) {
         gUnderDrag = 0;
         gUnderDragPages = 0;
     }
+    if (gDragDirty != 0) {
+        PhysicalMemoryFreePages(gDragDirty, gDragDirtyPages);
+        gDragDirty = 0;
+        gDragDirtyPages = 0;
+        gDragDirtyCap = 0;
+    }
     gScreenSnapValid = 0;
     gUnderDragValid = 0;
     gDragStartW = 0;
@@ -518,6 +662,8 @@ static int EnsureWindowBackupBuf(int Idx) {
         gWinBackup[Idx] = 0;
         gWinBackupPages[Idx] = 0;
     }
+    /* 换新页后内容未定义，必须清 Valid，禁止未填充就 WriteRect */
+    gWinBackupValid[Idx] = 0;
     gWinBackup[Idx] = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
     if (gWinBackup[Idx] == 0) {
         return 0;
@@ -613,6 +759,39 @@ static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
     return COLOR_DARK_GRAY;
 }
 
+static int EnsureDragDirtyBuf(UINT32 Ww, UINT32 Hh) {
+    UINT64 Need;
+    UINT32 Pages;
+
+    if (Ww == 0 || Hh == 0) {
+        return 0;
+    }
+    Need = (UINT64)Ww * (UINT64)Hh;
+    if (Need > 0xFFFFFFFFu / sizeof(UINT32)) {
+        return 0;
+    }
+    if (gDragDirty != 0 && gDragDirtyCap >= (UINT32)Need) {
+        return 1;
+    }
+    Pages = BackupPageCount(Ww, Hh);
+    if (Pages == 0) {
+        return 0;
+    }
+    if (gDragDirty != 0) {
+        PhysicalMemoryFreePages(gDragDirty, gDragDirtyPages);
+        gDragDirty = 0;
+        gDragDirtyPages = 0;
+        gDragDirtyCap = 0;
+    }
+    gDragDirty = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
+    if (gDragDirty == 0) {
+        return 0;
+    }
+    gDragDirtyPages = Pages;
+    gDragDirtyCap = (UINT32)(((UINT64)Pages * PAGE_SIZE) / sizeof(UINT32));
+    return 1;
+}
+
 static int EnsureUnderDragBuf(UINT32 Ww, UINT32 Wh) {
     UINT32 Pages = BackupPageCount(Ww, Wh);
 
@@ -627,6 +806,7 @@ static int EnsureUnderDragBuf(UINT32 Ww, UINT32 Wh) {
         gUnderDrag = 0;
         gUnderDragPages = 0;
     }
+    gUnderDragValid = 0;
     gUnderDrag = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
     if (gUnderDrag == 0) {
         return 0;
@@ -672,6 +852,8 @@ static void CaptureDragRestoreData(int DragIdx) {
     }
     HalVideoReadRect(0, 0, gScreenW, gScreenH, gScreenSnap);
     gScreenSnapValid = 1;
+    /* 预分配脏区缓冲，拖动中避免边合成边申请 */
+    EnsureDragDirtyBuf(gScreenW, gScreenH);
 
     if (!EnsureUnderDragBuf(gDragStartW, gDragStartH)) {
         return;
@@ -726,8 +908,8 @@ static void StartDragBackups(int DragIdx) {
     if (gDragHasBackup && AllActiveWindowsHaveValidBackup()) {
         int i;
 
+        /* 屏上内容已正确：只刷新顶层备份并抓快照，避免整屏重贴闪一下 */
         HalVideoClearClip();
-        PaintAllWindowsFromBackup(-1);
         for (i = 0; i < MAX_WINS; i++) {
             if (!gWins[i].Active) {
                 continue;
@@ -857,15 +1039,18 @@ static UINT32 CompositeDragPixel(UINT32 Px, UINT32 Py, int DragIdx,
         }
     }
 
-    if (gScreenSnapValid && Px < gScreenW && Py < gScreenH) {
-        if (gUnderDragValid &&
-            Px >= gDragStartX && Px < gDragStartX + gDragStartW &&
-            Py >= gDragStartY && Py < gDragStartY + gDragStartH) {
-            UINT32 Ux = Px - gDragStartX;
-            UINT32 Uy = Py - gDragStartY;
+    /* 起始 footprint：用 under-drag，勿用含拖动窗本体的 screen snap */
+    if (gUnderDragValid &&
+        Px >= gDragStartX && Px < gDragStartX + gDragStartW &&
+        Py >= gDragStartY && Py < gDragStartY + gDragStartH) {
+        UINT32 Ux = Px - gDragStartX;
+        UINT32 Uy = Py - gDragStartY;
 
-            return gUnderDrag[Uy * gDragStartW + Ux];
-        }
+        return gUnderDrag[Uy * gDragStartW + Ux];
+    }
+
+    /* 拖动前全屏快照是露出区域的权威来源（被挡窗备份在重叠区是脏的） */
+    if (gScreenSnapValid && Px < gScreenW && Py < gScreenH) {
         return gScreenSnap[Py * gScreenW + Px];
     }
 
@@ -921,6 +1106,21 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
     DuH += DRAG_BORDER_PAD;
     ClipRectToScreen(&DuX, &DuY, &DuW, &DuH);
     if (DuW == 0 || DuH == 0) {
+        return;
+    }
+    if (EnsureDragDirtyBuf(DuW, DuH)) {
+        for (Row = 0; Row < DuH; Row++) {
+            UINT32 Py = DuY + Row;
+            UINT32 Col;
+
+            for (Col = 0; Col < DuW; Col++) {
+                UINT32 Px = DuX + Col;
+
+                gDragDirty[Row * DuW + Col] =
+                    CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
+            }
+        }
+        HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
         return;
     }
     if (DuW > DRAG_ROW_MAX) {
@@ -1074,7 +1274,9 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     Dy = (INT32)NewY - (INT32)Oy;
 
     HalIrqDisable();
-    CursorRestore();
+    if (gCursorVisible) {
+        CursorRestore();
+    }
     if (gDragHasBackup) {
         W->X = NewX;
         W->Y = NewY;
@@ -1119,6 +1321,7 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
 static void RaiseWindow(int Idx) {
     int Top = Idx;
     int J;
+    int HasBackup = 0;
 
     for (J = Idx + 1; J < MAX_WINS; J++) {
         if (gWins[J].Active) {
@@ -1129,13 +1332,20 @@ static void RaiseWindow(int Idx) {
         gFocusWin = Idx;
         return;
     }
+    for (J = 0; J < MAX_WINS; J++) {
+        if (gWinBackupValid[J] || gWinBackup[J] != 0) {
+            HasBackup = 1;
+            break;
+        }
+    }
     {
         WinCopy(&gWinSwap, &gWins[Idx]);
         for (J = Idx; J < Top; J++) {
             WinCopy(&gWins[J], &gWins[J + 1]);
         }
         WinCopy(&gWins[Top], &gWinSwap);
-        if (gDragHasBackup) {
+        /* 窗口与备份必须一起挪，否则会把别的窗备份贴到错误位置（花屏） */
+        if (HasBackup || gDragHasBackup) {
             ShiftWinBackupsUp(Idx, Top);
         }
         gFocusWin = Top;
@@ -1598,14 +1808,15 @@ static void GuiDragEnd(void) {
         ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
         MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
         RaiseWindow(DragIdx);
+        /* RaiseWindow 后焦点在 gFocusWin；下层 chrome 遮挡裁剪，勿整窗贴备份 */
         HalIrqDisable();
-        CursorRestore();
-        if (gDragHasBackup) {
-            HalVideoClearClip();
-            PaintAllWindowsFromBackup(-1);
-            DrawWindowChromeAt(DragIdx);
+        if (gCursorVisible) {
+            CursorRestore();
         }
+        HalVideoClearClip();
         if (gFocusWin >= 0) {
+            RefreshOtherChrome(gFocusWin);
+            DrawWindowChromeAt(gFocusWin);
             GuiFocusApplyClip();
         }
         CursorPaint();
