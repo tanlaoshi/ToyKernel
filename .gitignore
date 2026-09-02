@@ -5,6 +5,7 @@ ThirdParty/lwip/
 *.o
 *.elf
 *.elf~
+*.so
 
 # 临时文件
 *.log
