@@ -401,6 +401,50 @@ static void CommandTcpConnect(int Argc, char **Argv) {
         ConsoleWrite("usage: tcpconnect <ip> <port> <text>\n");
         return;
     }
+#ifdef TOY_LWIP
+    if (LwIpActive()) {
+        UINTN TextLen;
+        int Ret;
+
+        if (!HalNetReady()) {
+            ConsoleWrite("net: not available\n");
+            return;
+        }
+        if (HalNetParseIp(Argv[1], &Ip) != 0) {
+            ConsoleWrite("bad ip\n");
+            return;
+        }
+        for (const char *P = Argv[2]; *P; P++) {
+            if (*P < '0' || *P > '9') {
+                ConsoleWrite("bad port\n");
+                return;
+            }
+            Port = Port * 10 + (UINT32)(*P - '0');
+        }
+        if (Port == 0 || Port > 65535) {
+            ConsoleWrite("bad port\n");
+            return;
+        }
+        TextLen = 0;
+        while (Argv[3][TextLen]) {
+            TextLen++;
+        }
+        Ret = LwIpTcpConnectSend(Ip, (UINT16)Port, Argv[3], TextLen, 3000);
+        if (Ret == 0) {
+            ConsoleWrite("tcpconnect: done\n");
+        } else if (Ret == -2) {
+            ConsoleWrite("tcpconnect: timeout\n");
+        } else if (Ret == -3) {
+            ConsoleWrite("tcpconnect: send failed\n");
+        } else {
+            ConsoleWrite("tcpconnect: syn failed\n");
+            ConsoleWrite("hint: on host run nc -l ");
+            ConsoleHex32(Port);
+            ConsoleWrite(" first\n");
+        }
+        return;
+    }
+#endif
     if (TcpGetState() == TCP_LISTEN) {
         ConsoleWrite("tcpconnect: closes tcplisten (single TCP slot)\n");
     }

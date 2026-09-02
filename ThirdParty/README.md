@@ -17,6 +17,6 @@ make LWIP=1
 ./build.sh LWIP=1
 ```
 
-Shell：`lwip on` 后 `ping` / `tcplisten` / `udpsend` / `udplisten` 自动走 lwIP。
+Shell：`lwip on` 后 `ping` / `tcplisten` / `tcpconnect` / `udpsend` / `udplisten` 自动走 lwIP。
 
 移植文件：`HAL/X86_64/LwIp/`（`lwipopts.h`、`toy_netif.c`）。

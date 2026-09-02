@@ -107,4 +107,14 @@ int LwIpUdpRecv(UDP_DATAGRAM *Out) {
     return 0;
 }
 
+int LwIpTcpConnectSend(UINT32 DstIp, UINT16 DstPort,
+                       const void *Data, UINTN Len, int TimeoutMs) {
+    (void)DstIp;
+    (void)DstPort;
+    (void)Data;
+    (void)Len;
+    (void)TimeoutMs;
+    return -1;
+}
+
 #endif
