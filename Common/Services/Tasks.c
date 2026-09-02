@@ -100,8 +100,12 @@ void ShellTask(void) {
             Previous = Report;
         }
         HalNetPoll();
+#ifndef TOY_LWIP
         TcpPoll();
-#ifdef TOY_LWIP
+#else
+        if (!LwIpActive()) {
+            TcpPoll();
+        }
         LwIpPoll();
 #endif
         {

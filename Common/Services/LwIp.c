@@ -4,6 +4,8 @@
 #include "LwIp.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "Tcp.h"
+#include "Udp.h"
 
 #ifdef TOY_LWIP
 
@@ -27,6 +29,8 @@ int LwIpInit(void) {
     if (!HalNetReady()) {
         return -1;
     }
+    TcpInit();
+    UdpInit();
     lwip_init();
     if (ToyNetifAdd(HalNetGetIp(), TOY_LWIP_MASK, TOY_LWIP_GW) != 0) {
         return -1;

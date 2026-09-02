@@ -616,6 +616,7 @@ static void NetProcessRx(void) {
             UINTN PktLen = Len - VIRTIO_NET_HDR_LEN;
 #ifdef TOY_LWIP
             if (gLwIpRx) {
+                /* lwip on: all IP RX to lwIP; builtin HandleIpPacket idle */
                 ToyNetifInput(Pkt, PktLen);
             } else
 #endif
@@ -825,6 +826,9 @@ int NetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) 
     UINT16 IpTotal;
 
     if (!gNetOk || Payload == 0 || PayloadLen > 1400) {
+        return -1;
+    }
+    if (gLwIpRx) {
         return -1;
     }
     if (NetResolve(DstIp, DstMac, 2000) != 0) {
@@ -1043,6 +1047,9 @@ int NetPing(const char *Host, int TimeoutMs) {
     int Tries;
 
     if (!gNetOk) {
+        return -1;
+    }
+    if (gLwIpRx) {
         return -1;
     }
     if (NetParseIp(Host, &Target) != 0) {

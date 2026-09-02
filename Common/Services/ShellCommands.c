@@ -168,6 +168,10 @@ static void CommandNet(int Argc, char **Argv) {
         ConsoleHex32(RxFrames);
         ConsoleWrite("\n");
     }
+#ifdef TOY_LWIP
+    ConsoleWrite("stack ");
+    ConsoleWrite(LwIpActive() ? "lwip (RX unified)\n" : "builtin (run lwip on)\n");
+#endif
 }
 
 static void CommandPing(int Argc, char **Argv) {
@@ -370,6 +374,17 @@ static void CommandTcpStatus(int Argc, char **Argv) {
     UINT8 Retrans;
     (void)Argc;
     (void)Argv;
+#ifdef TOY_LWIP
+    if (LwIpActive()) {
+        ConsoleWrite("tcpstatus: lwIP active (builtin idle)\n");
+        ConsoleWrite("  tcp listen=");
+        ConsoleHex32(LwIpTcpListenPort());
+        ConsoleWrite(" udp bind=");
+        ConsoleHex32(LwIpUdpBoundPort());
+        ConsoleWrite("\n");
+        return;
+    }
+#endif
     TcpGetWindowStats(&Una, &Nxt, &BufLen, &PeerWnd, &Retrans);
     ConsoleWrite("tcp state=");
     ConsoleHex32((UINT32)TcpGetState());
@@ -501,6 +516,15 @@ static void CommandTcpConnect(int Argc, char **Argv) {
 }
 
 #ifdef TOY_LWIP
+static void ShellLwIpPrintStatus(void) {
+    ConsoleWrite("lwip: on (RX unified; ping/tcp/udp via lwIP)\n");
+    ConsoleWrite("  tcp listen=");
+    ConsoleHex32(LwIpTcpListenPort());
+    ConsoleWrite(" udp bind=");
+    ConsoleHex32(LwIpUdpBoundPort());
+    ConsoleWrite("\n");
+}
+
 static void CommandLwIp(int Argc, char **Argv) {
     if (Argc < 2) {
         ConsoleWrite("usage: lwip on|status\n");
@@ -515,12 +539,15 @@ static void CommandLwIp(int Argc, char **Argv) {
             ConsoleWrite("lwip: init failed\n");
             return;
         }
-        ConsoleWrite("lwip: on (use ping/tcplisten via lwIP)\n");
+        ShellLwIpPrintStatus();
         return;
     }
     if (Argv[1][0] == 's') {
-        ConsoleWrite("lwip: ");
-        ConsoleWrite(LwIpActive() ? "on\n" : "off\n");
+        if (!LwIpActive()) {
+            ConsoleWrite("lwip: off (builtin stack; run lwip on)\n");
+            return;
+        }
+        ShellLwIpPrintStatus();
         return;
     }
     ConsoleWrite("usage: lwip on|status\n");
@@ -542,6 +569,6 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("tcpconnect", "TCP connect and send", CommandTcpConnect);
     ConsoleRegister("tcpstatus", "TCP connection status", CommandTcpStatus);
 #ifdef TOY_LWIP
-    ConsoleRegister("lwip", "enable lwIP stack", CommandLwIp);
+    ConsoleRegister("lwip", "lwIP stack (lwip on)", CommandLwIp);
 #endif
 }
