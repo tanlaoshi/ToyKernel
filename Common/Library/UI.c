@@ -4,7 +4,7 @@
  * 提供直线、矩形、圆、三角形及按钮、进度条等绘制函数，供演示或扩展界面使用。
  */
 #include "UI.h"
-#include "Video.h"
+#include "HalVideo.h"
 
 /* 整数绝对值 */
 static int Abs(int x) {
@@ -30,7 +30,7 @@ void UiDrawLine(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 Color) {
     int steps = (Abs(dx) > Abs(dy)) ? Abs(dx) : Abs(dy);
     
     if (steps == 0) {
-        VideoDrawPixel(X1, Y1, Color);
+        HalVideoDrawPixel(X1, Y1, Color);
         return;
     }
     
@@ -40,7 +40,7 @@ void UiDrawLine(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 Color) {
     float y = Y1;
     
     for (int i = 0; i <= steps; i++) {
-        VideoDrawPixel((UINT32)x, (UINT32)y, Color);
+        HalVideoDrawPixel((UINT32)x, (UINT32)y, Color);
         x += xIncrement;
         y += yIncrement;
     }
@@ -58,7 +58,7 @@ void UiDrawRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Col
 
 /* 填充实心矩形 */
 void UiFillRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color) {
-    VideoFillRect(X, Y, Width, Height, Color);
+    HalVideoFillRect(X, Y, Width, Height, Color);
 }
 
 /* 绘制圆角空心矩形 */
@@ -93,17 +93,17 @@ void UiDrawRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT3
     
     while (x <= y) {
         // 左上角
-        VideoDrawPixel(cx1 - x, cy1 - y, Color);
-        VideoDrawPixel(cx1 - y, cy1 - x, Color);
+        HalVideoDrawPixel(cx1 - x, cy1 - y, Color);
+        HalVideoDrawPixel(cx1 - y, cy1 - x, Color);
         // 右上角
-        VideoDrawPixel(cx2 + x, cy2 - y, Color);
-        VideoDrawPixel(cx2 + y, cy2 - x, Color);
+        HalVideoDrawPixel(cx2 + x, cy2 - y, Color);
+        HalVideoDrawPixel(cx2 + y, cy2 - x, Color);
         // 左下角
-        VideoDrawPixel(cx3 - x, cy3 + y, Color);
-        VideoDrawPixel(cx3 - y, cy3 + x, Color);
+        HalVideoDrawPixel(cx3 - x, cy3 + y, Color);
+        HalVideoDrawPixel(cx3 - y, cy3 + x, Color);
         // 右下角
-        VideoDrawPixel(cx4 + x, cy4 + y, Color);
-        VideoDrawPixel(cx4 + y, cy4 + x, Color);
+        HalVideoDrawPixel(cx4 + x, cy4 + y, Color);
+        HalVideoDrawPixel(cx4 + y, cy4 + x, Color);
         
         if (d < 0) {
             d += 4 * x + 6;
@@ -164,7 +164,7 @@ void UiFillRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT3
             }
             
             if (inside) {
-                VideoDrawPixel(globalX, globalY, Color);
+                HalVideoDrawPixel(globalX, globalY, Color);
             }
         }
     }
@@ -177,7 +177,7 @@ void UiFillRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT3
 /* 绘制空心圆（中点圆算法） */
 void UiDrawCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
     if (Radius == 0) {
-        VideoDrawPixel(CenterX, CenterY, Color);
+        HalVideoDrawPixel(CenterX, CenterY, Color);
         return;
     }
     
@@ -186,14 +186,14 @@ void UiDrawCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
     int d = 3 - 2 * (int)Radius;
     
     while (y >= x) {
-        VideoDrawPixel(CenterX + x, CenterY + y, Color);
-        VideoDrawPixel(CenterX - x, CenterY + y, Color);
-        VideoDrawPixel(CenterX + x, CenterY - y, Color);
-        VideoDrawPixel(CenterX - x, CenterY - y, Color);
-        VideoDrawPixel(CenterX + y, CenterY + x, Color);
-        VideoDrawPixel(CenterX - y, CenterY + x, Color);
-        VideoDrawPixel(CenterX + y, CenterY - x, Color);
-        VideoDrawPixel(CenterX - y, CenterY - x, Color);
+        HalVideoDrawPixel(CenterX + x, CenterY + y, Color);
+        HalVideoDrawPixel(CenterX - x, CenterY + y, Color);
+        HalVideoDrawPixel(CenterX + x, CenterY - y, Color);
+        HalVideoDrawPixel(CenterX - x, CenterY - y, Color);
+        HalVideoDrawPixel(CenterX + y, CenterY + x, Color);
+        HalVideoDrawPixel(CenterX - y, CenterY + x, Color);
+        HalVideoDrawPixel(CenterX + y, CenterY - x, Color);
+        HalVideoDrawPixel(CenterX - y, CenterY - x, Color);
         
         if (d < 0) {
             d += 4 * x + 6;
@@ -208,14 +208,14 @@ void UiDrawCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
 /* 填充实心圆 */
 void UiFillCircle(UINT32 CenterX, UINT32 CenterY, UINT32 Radius, UINT32 Color) {
     if (Radius == 0) {
-        VideoDrawPixel(CenterX, CenterY, Color);
+        HalVideoDrawPixel(CenterX, CenterY, Color);
         return;
     }
     
     for (int y = -(int)Radius; y <= (int)Radius; y++) {
         int x = ISqrt(Radius * Radius - y * y);
         for (int i = -x; i <= x; i++) {
-            VideoDrawPixel(CenterX + i, CenterY + y, Color);
+            HalVideoDrawPixel(CenterX + i, CenterY + y, Color);
         }
     }
 }
@@ -251,7 +251,7 @@ void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *T
     // Calculate text position for centered alignment (for future implementation)
     // UINT32 textX = X + (Width - textLen * 10) / 2;
     // UINT32 textY = Y + (Height - 16) / 2;
-    VideoDrawString(Text, TextColor);
+    HalVideoDrawString(Text, TextColor);
 }
 
 /* 绘制水平进度条 */

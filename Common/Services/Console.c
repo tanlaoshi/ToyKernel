@@ -5,7 +5,6 @@
  * 内置 help / clear / echo；其他模块通过 ConsoleRegister 扩展命令。
  */
 #include "Console.h"
-#include "Video.h"
 #include "UI.h"
 #include "Hal.h"
 #include "Gui.h"
@@ -52,9 +51,9 @@ static void ConsoleDrawString(const char *Text, UINT32 Color) {
 
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
-    VideoGetTextCursor(&X0, &Y0);
-    VideoDrawString(Text, Color);
-    VideoGetTextCursor(&X1, &Y1);
+    HalVideoGetTextCursor(&X0, &Y0);
+    HalVideoDrawString(Text, Color);
+    HalVideoGetTextCursor(&X1, &Y1);
     L = X0 < X1 ? X0 : X1;
     T = Y0 < Y1 ? Y0 : Y1;
     R = (X0 > X1 ? X0 : X1) + FONT_ADVANCE_X;
@@ -72,8 +71,8 @@ static void ConsoleDrawChar(char C, UINT32 Color) {
 
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
-    VideoGetTextCursor(&X, &Y);
-    VideoDrawChar(C, Color);
+    HalVideoGetTextCursor(&X, &Y);
+    HalVideoDrawChar(C, Color);
     GuiBackupSyncRect(X, Y, FONT_CELL_W, FONT_CELL_H);
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
@@ -298,12 +297,12 @@ void ConsoleOnBackspace(void) {
     gLen--;
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
-    VideoEraseLastChar();
+    HalVideoEraseLastChar();
     {
         UINT32 X;
         UINT32 Y;
 
-        VideoGetTextCursor(&X, &Y);
+        HalVideoGetTextCursor(&X, &Y);
         GuiBackupSyncRect(X, Y, FONT_ADVANCE_X, FONT_CELL_H);
     }
     GuiFocusSyncCursor();

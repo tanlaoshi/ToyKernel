@@ -6,7 +6,7 @@
  */
 #include "Gui.h"
 #include "UI.h"
-#include "Video.h"
+#include "HalVideo.h"
 #include "Hal.h"
 #include "Debug.h"
 #include "Console.h"
@@ -243,13 +243,13 @@ static void DrawCursorAt(UINT32 X, UINT32 Y) {
         int Px = (int)X + i;
         int Py = (int)Y + i;
         if (Px >= 0 && (UINT32)Px < gScreenW) {
-            VideoDrawPixel((UINT32)Px, Y, COLOR_WHITE);
+            HalVideoDrawPixel((UINT32)Px, Y, COLOR_WHITE);
         }
         if (Py >= 0 && (UINT32)Py < gScreenH) {
-            VideoDrawPixel(X, (UINT32)Py, COLOR_WHITE);
+            HalVideoDrawPixel(X, (UINT32)Py, COLOR_WHITE);
         }
     }
-    VideoDrawPixel(X, Y, COLOR_RED);
+    HalVideoDrawPixel(X, Y, COLOR_RED);
 }
 
 static void CursorRestore(void) {
@@ -261,7 +261,7 @@ static void CursorRestore(void) {
     }
     for (Dy = 0; Dy < gSaveH; Dy++) {
         for (Dx = 0; Dx < gSaveW; Dx++) {
-            VideoDrawPixel(gSaveX + Dx, gSaveY + Dy,
+            HalVideoDrawPixel(gSaveX + Dx, gSaveY + Dy,
                       gUnder[Dy * gSaveW + Dx]);
         }
     }
@@ -276,7 +276,7 @@ static void CursorPaint(void) {
     for (Dy = 0; Dy < gSaveH; Dy++) {
         for (Dx = 0; Dx < gSaveW; Dx++) {
             gUnder[Dy * gSaveW + Dx] =
-                VideoReadPixel(gSaveX + Dx, gSaveY + Dy);
+                HalVideoReadPixel(gSaveX + Dx, gSaveY + Dy);
         }
     }
     DrawCursorAt(gCursorX, gCursorY);
@@ -319,7 +319,7 @@ static void DrawWindowAt(int Idx) {
     UiDrawRectangle(W->X, W->Y, W->Width, W->Height, COLOR_WHITE);
     UiFillRectangle(W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
                     W->Height - TITLE_HEIGHT - 2, W->Background);
-    VideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
     DrawCloseButton(W);
 }
 
@@ -332,7 +332,7 @@ static void DrawWindowChromeAt(int Idx) {
     }
     UiFillRectangle(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
     UiDrawRectangle(W->X, W->Y, W->Width, W->Height, COLOR_WHITE);
-    VideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
     DrawCloseButton(W);
 }
 
@@ -394,14 +394,14 @@ static void FillDesktopRectClipped(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
                 InRun = 1;
             } else if (Cover && InRun) {
                 if (Col > RunStart) {
-                    VideoFillRect(RunStart, Row, Col - RunStart, 1,
+                    HalVideoFillRect(RunStart, Row, Col - RunStart, 1,
                                   COLOR_DARK_GRAY);
                 }
                 InRun = 0;
             }
         }
         if (InRun && X + W > RunStart) {
-            VideoFillRect(RunStart, Row, X + W - RunStart, 1, COLOR_DARK_GRAY);
+            HalVideoFillRect(RunStart, Row, X + W - RunStart, 1, COLOR_DARK_GRAY);
         }
     }
 }
@@ -533,7 +533,7 @@ static void BackupWindowAt(int Idx) {
     if (!EnsureWindowBackupBuf(Idx)) {
         return;
     }
-    VideoReadRect(Win->X, Win->Y, Rw, Rh, gWinBackup[Idx]);
+    HalVideoReadRect(Win->X, Win->Y, Rw, Rh, gWinBackup[Idx]);
     gWinBackupW[Idx] = Rw;
     gWinBackupH[Idx] = Rh;
     gWinBackupValid[Idx] = 1;
@@ -577,7 +577,7 @@ static void StartDragBackups(int DragIdx) {
     if (gDragHasBackup && AllActiveWindowsHaveValidBackup()) {
         int i;
 
-        VideoClearClip();
+        HalVideoClearClip();
         PaintAllWindowsFromBackup(-1);
         for (i = 0; i < MAX_WINS; i++) {
             if (!gWins[i].Active) {
@@ -600,7 +600,7 @@ static void PaintWindowFromBackup(int Idx) {
         return;
     }
     if (gWinBackupValid[Idx] && gWinBackup[Idx] != 0) {
-        VideoWriteRect(Win->X, Win->Y, gWinBackupW[Idx], gWinBackupH[Idx],
+        HalVideoWriteRect(Win->X, Win->Y, gWinBackupW[Idx], gWinBackupH[Idx],
                        gWinBackup[Idx]);
         /* 备份里是拖动前的标题栏色，按当前焦点重画 chrome */
         DrawWindowChromeAt(Idx);
@@ -703,7 +703,7 @@ static void PaintAllWindowsDraw(int DragIdx) {
 static void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
     const GUI_WINDOW *Drag = &gWins[DragIdx];
 
-    VideoClearClip();
+    HalVideoClearClip();
     ClearOldDragFootprint(OldX, OldY, Drag->Width, Drag->Height, DragIdx);
     PaintAllWindowsFromBackup(DragIdx);
 }
@@ -791,11 +791,11 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
             W->TermX = (UINT32)((INT32)W->TermX + Dx);
             W->TermY = (UINT32)((INT32)W->TermY + Dy);
         }
-        VideoClearClip();
+        HalVideoClearClip();
         ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
         PaintAllWindowsDraw(Idx);
     } else {
-        VideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
+        HalVideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
         W->X = NewX;
         W->Y = NewY;
         if (W->TermSet) {
@@ -874,7 +874,7 @@ void GuiFocusSave(void) {
         return;
     }
     ConsoleFocusSave();
-    VideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
+    HalVideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
     gWins[gFocusWin].TermSet = 1;
 }
 
@@ -965,13 +965,13 @@ void GuiFocusApplyClip(void) {
     UINT32 Ty;
 
     if (!GuiFocusClient(&X, &Y, &W, &H, &Bg)) {
-        VideoClearClip();
+        HalVideoClearClip();
         return;
     }
-    VideoSetClipRegion(X, Y, W, H, Bg);
+    HalVideoSetClipRegion(X, Y, W, H, Bg);
     Win = &gWins[gFocusWin];
     if (!Win->TermSet) {
-        VideoSetTextCursor(X, Y);
+        HalVideoSetTextCursor(X, Y);
         return;
     }
     Tx = Win->TermX;
@@ -988,7 +988,7 @@ void GuiFocusApplyClip(void) {
     if (H > 0 && Ty >= Y + H) {
         Ty = Y + H - 1;
     }
-    VideoSetTextCursor(Tx, Ty);
+    HalVideoSetTextCursor(Tx, Ty);
     Win->TermX = Tx;
     Win->TermY = Ty;
 }
@@ -1046,7 +1046,7 @@ void GuiBackupSyncRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             Bx = Px - Win->X;
             By = Py - Win->Y;
             Dst = By * Bw + Bx;
-            gWinBackup[Idx][Dst] = VideoReadPixel(Px, Py);
+            gWinBackup[Idx][Dst] = HalVideoReadPixel(Px, Py);
         }
     }
 }
@@ -1055,7 +1055,7 @@ void GuiFocusSyncCursor(void) {
     if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
         return;
     }
-    VideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
+    HalVideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
     gWins[gFocusWin].TermSet = 1;
 }
 
@@ -1072,8 +1072,8 @@ void GuiFocusClearClient(void) {
     }
     GfxIrqEnter();
     CursorRestore();
-    VideoFillRect(X, Y, W, H, Bg);
-    VideoSetClipOrigin(X, Y, W, H, Bg);
+    HalVideoFillRect(X, Y, W, H, Bg);
+    HalVideoSetClipOrigin(X, Y, W, H, Bg);
     Win = &gWins[gFocusWin];
     Win->TermX = X;
     Win->TermY = Y;
@@ -1106,10 +1106,10 @@ void GuiFocusHome(void) {
     GUI_WINDOW *Win;
 
     if (!GuiFocusClient(&X, &Y, &W, &H, &Bg)) {
-        VideoClearClip();
+        HalVideoClearClip();
         return;
     }
-    VideoSetClipOrigin(X, Y, W, H, Bg);
+    HalVideoSetClipOrigin(X, Y, W, H, Bg);
     if (gFocusWin >= 0 && gFocusWin < MAX_WINS) {
         Win = &gWins[gFocusWin];
         Win->TermX = X;
@@ -1132,7 +1132,7 @@ void GuiRedraw(void) {
 }
 
 void GuiInit(void) {
-    VideoGetSize(&gScreenW, &gScreenH);
+    HalVideoGetSize(&gScreenW, &gScreenH);
     if (gScreenW == 0) {
         gScreenW = 1024;
         gScreenH = 768;
@@ -1298,7 +1298,7 @@ static void GuiDragEnd(void) {
         HalIrqDisable();
         CursorRestore();
         if (gDragHasBackup) {
-            VideoClearClip();
+            HalVideoClearClip();
             PaintAllWindowsFromBackup(-1);
         }
         if (gFocusWin >= 0) {
@@ -1376,7 +1376,7 @@ void GuiPollMouse(void) {
         return;
     }
 
-    VideoGetSize(&Sw, &Sh);
+    HalVideoGetSize(&Sw, &Sh);
     if (Sw == 0) {
         Sw = gScreenW ? gScreenW : 1024;
     }

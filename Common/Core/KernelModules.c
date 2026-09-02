@@ -5,7 +5,6 @@
 #include "Module.h"
 #include "BootInfo.h"
 #include "Hal.h"
-#include "Video.h"
 #include "UI.h"
 #include "Console.h"
 #include "FileSystem.h"
@@ -58,7 +57,7 @@ static int InitVideo(void) {
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
     HalVideoSet(&V);
-    VideoClearScreen(COLOR_DARK_GRAY);
+    HalVideoClearScreen(COLOR_DARK_GRAY);
     return 0;
 }
 
