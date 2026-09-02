@@ -1,8 +1,5 @@
 /*
- * Serial.h — COM1 串口驱动接口
- *
- * QEMU 下使用 -serial stdio 可将输出重定向到终端。
- * 端口基址 0x3F8，轮询发送，无接收缓冲。
+ * Serial.h — COM1 串口驱动（仅 HAL 内部使用，Common 请用 HalSerial.h）
  */
 #ifndef SERIAL_H
 #define SERIAL_H

@@ -68,6 +68,14 @@ void HalConsolePutChar(char C) { (void)C; }
 char HalConsoleGetChar(void) { return 0; }
 int HalConsoleHasChar(void) { return 0; }
 
+void HalSerialInit(void) { }
+void HalSerialWrite(const char *Text) { (void)Text; }
+int HalSerialDataReady(void) { return 0; }
+char HalSerialReadChar(void) { return 0; }
+void HalSerialHexFormat(char *Buf, UINT64 Value, int Digits) {
+    (void)Buf; (void)Value; (void)Digits;
+}
+
 const char *HalArchName(void) { return "aarch64"; }
 const char *HalCpuInfo(void) { return "ARM64 (stub)"; }
 

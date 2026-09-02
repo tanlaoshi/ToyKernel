@@ -5,7 +5,6 @@
  * 避免 XOR / 局部重绘在抢占下留下轨迹。
  */
 #include "Gui.h"
-#include "Serial.h"
 #include "UI.h"
 #include "Video.h"
 #include "Hal.h"

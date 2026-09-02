@@ -2,7 +2,7 @@
  * Console.h — 交互式 Shell 接口
  *
  * 双通道输出：串口 + 帧缓冲文字。命令通过 ConsoleRegister 动态注册。
- * SerialInit + VideoSet 之后即可 ConsoleWrite，无需 ConsoleInit。
+ * HalSerialInit + VideoSet 之后即可 ConsoleWrite，无需 ConsoleInit。
  */
 #ifndef CONSOLE_H
 #define CONSOLE_H

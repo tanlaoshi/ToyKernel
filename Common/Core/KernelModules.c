@@ -7,7 +7,6 @@
 #include "Hal.h"
 #include "Video.h"
 #include "UI.h"
-#include "Serial.h"
 #include "Console.h"
 #include "FileSystem.h"
 #include "Scheduler.h"
@@ -32,7 +31,7 @@ static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
 }
 
 static int InitSerial(void) {
-    SerialInit();
+    HalSerialInit();
     return 0;
 }
 

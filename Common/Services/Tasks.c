@@ -3,7 +3,6 @@
  */
 #include "Tasks.h"
 #include "Hal.h"
-#include "Serial.h"
 #include "HIDKeyboard.h"
 #include "Console.h"
 #include "Gui.h"
@@ -76,8 +75,8 @@ void ShellTask(void) {
     HAL_KEYBOARD_REPORT Previous = {0};
     DebugWrite("shell task running (preemptive)\n");
     for (;;) {
-        while (SerialDataReady()) {
-            char C = SerialReadChar();
+        while (HalSerialDataReady()) {
+            char C = HalSerialReadChar();
             if (C == '\r' || C == '\n') {
                 ConsoleOnEnter();
             } else if (C == '\b' || C == 127) {

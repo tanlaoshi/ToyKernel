@@ -6,6 +6,7 @@
 
 #include "BootTypes.h"
 #include "HalPort.h"
+#include "HalSerial.h"
 #include "HalDevices.h"
 
 /* 页表权限（架构无关语义，x86 位布局见 Page.c） */

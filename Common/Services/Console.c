@@ -7,7 +7,7 @@
 #include "Console.h"
 #include "Video.h"
 #include "UI.h"
-#include "Serial.h"
+#include "Hal.h"
 #include "Gui.h"
 #include "FontData.h"
 
@@ -84,7 +84,7 @@ void ConsoleWrite(const char *Text) {
     UINT32 W;
     UINT32 H;
 
-    SerialWrite(Text);
+    HalSerialWrite(Text);
     VideoGetSize(&W, &H);
     if (W == 0 || H == 0) {
         return;
@@ -95,21 +95,21 @@ void ConsoleWrite(const char *Text) {
 /* 输出 32 位十六进制 */
 void ConsoleHex32(UINT32 Value) {
     char Buf[12];
-    SerialHexFormat(Buf, Value, 8);
+    HalSerialHexFormat(Buf, Value, 8);
     ConsoleWrite(Buf);
 }
 
 /* 输出 64 位十六进制 */
 void ConsoleHex64(UINT64 Value) {
     char Buf[20];
-    SerialHexFormat(Buf, Value, 16);
+    HalSerialHexFormat(Buf, Value, 16);
     ConsoleWrite(Buf);
 }
 
 /* 显示 Shell 提示符 toyos>（清空输入行） */
 static void Prompt(void) {
     gLen = 0;
-    SerialWrite("toyos> ");
+    HalSerialWrite("toyos> ");
     ConsoleDrawString("toyos> ", COLOR_CYAN);
 }
 
@@ -283,7 +283,7 @@ void ConsoleOnChar(char C) {
     }
     gLine[gLen++] = C;
     char Buf[2] = {C, 0};
-    SerialWrite(Buf);
+    HalSerialWrite(Buf);
     ConsoleDrawChar(C, COLOR_WHITE);
 }
 
@@ -308,7 +308,7 @@ void ConsoleOnBackspace(void) {
     }
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
-    SerialWrite("\b \b");
+    HalSerialWrite("\b \b");
 }
 
 /* 处理回车：执行命令并重新显示提示符 */

@@ -3,7 +3,6 @@
  */
 #include "Hal.h"
 #include "Arch.h"
-#include "Serial.h"
 #include "Syscall.h"
 #include "Debug.h"
 
@@ -98,14 +97,14 @@ void HalConsolePutChar(char C) {
 }
 
 char HalConsoleGetChar(void) {
-    while (!SerialDataReady()) {
+    while (!HalSerialDataReady()) {
         HalCpuHalt();
     }
-    return SerialReadChar();
+    return HalSerialReadChar();
 }
 
 int HalConsoleHasChar(void) {
-    return SerialDataReady();
+    return HalSerialDataReady();
 }
 
 const char *HalArchName(void) {
@@ -117,15 +116,21 @@ const char *HalCpuInfo(void) {
 }
 
 void HalDebugWrite(const char *Text) {
-    SerialWrite(Text);
+    HalSerialWrite(Text);
 }
 
 void HalDebugHex32(UINT32 Value) {
-    SerialHex32(Value);
+    char Buf[12];
+
+    HalSerialHexFormat(Buf, Value, 8);
+    HalSerialWrite(Buf);
 }
 
 void HalDebugHex64(UINT64 Value) {
-    SerialHex64(Value);
+    char Buf[20];
+
+    HalSerialHexFormat(Buf, Value, 16);
+    HalSerialWrite(Buf);
 }
 
 void HalCpuPark(void) {

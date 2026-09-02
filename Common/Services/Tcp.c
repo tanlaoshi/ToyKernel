@@ -5,7 +5,6 @@
  */
 #include "Tcp.h"
 #include "Hal.h"
-#include "Serial.h"
 #include "Debug.h"
 
 #define TCP_HDR_LEN     20

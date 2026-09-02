@@ -3,7 +3,6 @@
  */
 #include "Udp.h"
 #include "Hal.h"
-#include "Serial.h"
 
 #define UDP_HDR_LEN 8
 #define UDP_RX_QUEUE 8
