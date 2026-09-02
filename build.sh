@@ -39,12 +39,14 @@ if [ "$ARCH" = "x86_64" ]; then
     cp User/hello.elf ../ToyImage/HELLO.ELF
     cp User/count.elf ../ToyImage/COUNT.ELF
     cp User/fork.elf ../ToyImage/FORK.ELF
+    cp User/waitnh.elf ../ToyImage/WAITNH.ELF
     cp User/catfile.elf ../ToyImage/CAT.ELF
     cp User/writefile.elf ../ToyImage/WRITE.ELF
-    echo "Copied HELLO/COUNT/FORK/CAT/WRITE ELF -> ../ToyImage/"
+    echo "Copied HELLO/COUNT/FORK/WAITNH/CAT/WRITE ELF -> ../ToyImage/"
     if [ -d ../ToyImage/rootfs ]; then
         cp -f ../ToyImage/WRITE.ELF ../ToyImage/rootfs/WRITE.ELF
-        echo "Synced WRITE.ELF -> ../ToyImage/rootfs/"
+        cp -f ../ToyImage/WAITNH.ELF ../ToyImage/rootfs/WAITNH.ELF
+        echo "Synced WRITE/WAITNH ELF -> ../ToyImage/rootfs/"
     fi
 fi
 

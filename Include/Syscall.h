@@ -13,6 +13,9 @@
 #define SYS_WAIT  6
 #define SYS_YIELD 7
 
+/* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
+#define WNOHANG 1
+
 void SyscallInit(void);
 UINT64 SyscallDispatch(HAL_FRAME *Frame);
 

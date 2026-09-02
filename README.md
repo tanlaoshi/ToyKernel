@@ -23,7 +23,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ### 进程与用户态（阶段 2）
 
-- **fork / wait / yield**：`VirtualMemorySpaceClone` 深拷贝用户区；子进程 exit 变 zombie，父进程 `wait` 阻塞直至收尸
+- **fork / wait / yield**：`VirtualMemorySpaceClone`（COW）；子进程 exit 变 zombie；`wait` 默认可阻塞，`rdi=WNOHANG` 非阻塞
 - **系统调用扩展**：`open` / `read` / `close` / `fork` / `wait`；每任务 FD 表（打开时整文件读入内核缓冲）
 - **用户程序**：`HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`
 - **多任务内核栈修复**：每个用户任务切换时设置独立 TSS `RSP0`（`ArchSetRsp0`），避免子进程 syscall 覆盖父进程中断帧导致 `exec FORK.ELF` 失败
@@ -156,7 +156,7 @@ echo hello | nc -u 127.0.0.1 5555
 | 3 | read | `rdi`=fd，`rsi`=buf，`rdx`=len |
 | 4 | close | `rdi`=fd |
 | 5 | fork | 父返回子槽位+1，子返回 0 |
-| 6 | wait | 阻塞等待子进程，返回子 pid |
+| 6 | wait | `rdi`=options；返回子 pid（`rdx`=退出码）；`WNOHANG` 时无僵尸返回 0 |
 | 7 | yield | 主动让出 CPU |
 
 详见 `Include/Syscall.h`。
@@ -167,7 +167,7 @@ echo hello | nc -u 127.0.0.1 5555
 
 - FAT：仅根目录、8.3 短名，无子目录/LFN/删除
 - TCP：无重传与滑动窗口
-- fork：整页拷贝，无 COW
+- fork：COW 用户页；`wait` 支持 `WNOHANG`
 - 最多 8 个任务槽
 - `riscv` / `arm64` 尚未实现完整启动
 

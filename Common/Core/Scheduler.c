@@ -2,6 +2,7 @@
  * Scheduler.c — 抢占式任务调度器（含 fork/wait 与每任务 FD）
  */
 #include "Scheduler.h"
+#include "Syscall.h"
 #include "Fat.h"
 #include "Hal.h"
 #include "Console.h"
@@ -558,6 +559,7 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     int i;
     int Live = 0;
     TASK *Next;
+    UINT64 Options;
 
     Self = gCurrent;
     if (Self == 0 || !Self->IsUser) {
@@ -565,6 +567,7 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
         return 0;
     }
     MyId = TaskSlot(Self);
+    Options = Frame->Rdi;
 
     for (i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State == TASK_ZOMBIE && gTasks[i].ParentId == MyId) {
@@ -587,6 +590,13 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     }
     if (!Live) {
         Frame->Rax = (UINT64)(INT64)-1; /* 无子进程 */
+        return 0;
+    }
+
+    /* WNOHANG：有存活子进程但尚无僵尸 → 立即返回 0 */
+    if (Options & (UINT64)WNOHANG) {
+        Frame->Rax = 0;
+        Frame->Rdx = 0;
         return 0;
     }
 

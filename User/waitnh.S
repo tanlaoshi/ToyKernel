@@ -1,4 +1,4 @@
-/* user/fork.S — fork + 阻塞 wait：父打印 P，子打印 C，父 wait 后再 done */
+/* user/waitnh.S — fork + WNOHANG：父轮询 wait/yield，子退出后再 done */
     .intel_syntax noprefix
     .section .text
     .global _start
@@ -9,19 +9,26 @@ _start:
     je .Lchild
     jl .Lfail
 
-    /* parent: print "P\n" then blocking wait */
+    /* parent */
     mov rax, 1
     mov rdi, 1
     lea rsi, [rip + msg_p]
     mov rdx, 2
     int 0x80
 
-    mov rax, 6          /* SYS_WAIT — blocks until child exits */
-    xor rdi, rdi        /* options = 0（阻塞；勿沿用上一 syscall 的 rdi） */
+.Lpoll:
+    mov rax, 6          /* SYS_WAIT */
+    mov rdi, 1          /* WNOHANG */
     int 0x80
     cmp rax, 0
-    jl .Lfail
+    jg .Lreaped        /* >0：收到子进程 */
+    jl .Lfail           /* <0：无子进程 */
+    /* ==0：子仍在跑 → yield 后再试 */
+    mov rax, 7          /* SYS_YIELD */
+    int 0x80
+    jmp .Lpoll
 
+.Lreaped:
     mov rax, 1
     mov rdi, 1
     lea rsi, [rip + msg_done]
@@ -37,8 +44,15 @@ _start:
     lea rsi, [rip + msg_c]
     mov rdx, 2
     int 0x80
+    /* 多 yield 几次，让父有机会看到 WNOHANG 返回 0 */
+    mov rcx, 8
+.Lyields:
+    mov rax, 7
+    int 0x80
+    dec rcx
+    jnz .Lyields
     mov rax, 0
-    mov rdi, 42
+    mov rdi, 7
     int 0x80
 
 .Lfail:
