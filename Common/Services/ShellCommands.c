@@ -225,6 +225,18 @@ static void CommandUdpListen(int Argc, char **Argv) {
         ConsoleWrite("bad port\n");
         return;
     }
+#ifdef TOY_LWIP
+    if (LwIpActive()) {
+        if (LwIpUdpBind((UINT16)Port) != 0) {
+            ConsoleWrite("udplisten: failed\n");
+            return;
+        }
+        ConsoleWrite("lwip: udp listening ");
+        ConsoleHex32(Port);
+        ConsoleWrite("\n");
+        return;
+    }
+#endif
     UdpBind((UINT16)Port);
     ConsoleWrite("udp: listening ");
     ConsoleHex32(Port);
@@ -254,6 +266,16 @@ static void CommandUdpSend(int Argc, char **Argv) {
         while (Argv[3][Len]) {
             Len++;
         }
+#ifdef TOY_LWIP
+        if (LwIpActive()) {
+            if (LwIpUdpSend(Ip, (UINT16)Port, Argv[3], Len) != 0) {
+                ConsoleWrite("udpsend failed\n");
+            } else {
+                ConsoleWrite("udp: sent\n");
+            }
+            return;
+        }
+#endif
         if (UdpSend(Ip, (UINT16)Port, Argv[3], Len) != 0) {
             ConsoleWrite("udpsend failed\n");
         } else {

@@ -106,7 +106,13 @@ void ShellTask(void) {
 #endif
         {
             UDP_DATAGRAM Dg;
-            while (UdpRecv(&Dg)) {
+            int (*RecvFn)(UDP_DATAGRAM *) = UdpRecv;
+#ifdef TOY_LWIP
+            if (LwIpActive()) {
+                RecvFn = LwIpUdpRecv;
+            }
+#endif
+            while (RecvFn(&Dg)) {
                 char IpBuf[20];
                 UINTN i;
                 HalNetFormatIp(Dg.SrcIp, IpBuf, sizeof(IpBuf));

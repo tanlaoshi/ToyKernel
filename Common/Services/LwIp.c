@@ -85,4 +85,26 @@ UINT16 LwIpTcpListenPort(void) {
     return 0;
 }
 
+int LwIpUdpBind(UINT16 Port) {
+    (void)Port;
+    return -1;
+}
+
+UINT16 LwIpUdpBoundPort(void) {
+    return 0;
+}
+
+int LwIpUdpSend(UINT32 DstIp, UINT16 DstPort, const void *Data, UINTN Len) {
+    (void)DstIp;
+    (void)DstPort;
+    (void)Data;
+    (void)Len;
+    return -1;
+}
+
+int LwIpUdpRecv(UDP_DATAGRAM *Out) {
+    (void)Out;
+    return 0;
+}
+
 #endif

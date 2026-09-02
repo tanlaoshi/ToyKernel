@@ -67,7 +67,8 @@ LWIPCORE = \
 LWIPOBJS = $(patsubst $(LWIPDIR)/%.c,$(BUILDDIR)/lwip/%.o,$(LWIPCORE))
 LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_ping.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_tcpecho.c
+                 HAL/$(HAL_ARCH)/LwIp/toy_tcpecho.c \
+                 HAL/$(HAL_ARCH)/LwIp/toy_udp.c
 LWIP_PORT_OBJS = $(patsubst HAL/$(HAL_ARCH)/LwIp/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/LwIp/%.o,$(LWIP_PORT_SRCS))
 endif
 
