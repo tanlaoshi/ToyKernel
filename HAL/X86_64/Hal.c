@@ -87,26 +87,6 @@ void HalUserEnter(struct HAL_FRAME *Frame) {
     UserEnter(Frame);
 }
 
-void HalConsolePutChar(char C) {
-#if TOY_DEBUG
-    char Buf[2] = {C, 0};
-    DebugWrite(Buf);
-#else
-    (void)C;
-#endif
-}
-
-char HalConsoleGetChar(void) {
-    while (!HalSerialDataReady()) {
-        HalCpuHalt();
-    }
-    return HalSerialReadChar();
-}
-
-int HalConsoleHasChar(void) {
-    return HalSerialDataReady();
-}
-
 const char *HalArchName(void) {
     return "x86_64";
 }

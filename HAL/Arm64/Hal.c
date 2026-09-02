@@ -64,10 +64,6 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 }
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) { (void)VirtualAddress; return 0; }
 
-void HalConsolePutChar(char C) { (void)C; }
-char HalConsoleGetChar(void) { return 0; }
-int HalConsoleHasChar(void) { return 0; }
-
 void HalSerialInit(void) { }
 void HalSerialWrite(const char *Text) { (void)Text; }
 int HalSerialDataReady(void) { return 0; }

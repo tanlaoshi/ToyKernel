@@ -8,6 +8,7 @@
 #include "HalPort.h"
 #include "HalSerial.h"
 #include "HalVideo.h"
+#include "HalConsole.h"
 #include "HalDevices.h"
 
 /* 页表权限（架构无关语义，x86 位布局见 Page.c） */
@@ -72,10 +73,6 @@ int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT6
 int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End);
 UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt);
 UINT64 HalPageGetEntryCurrent(UINT64 Virt);
-
-void HalConsolePutChar(char C);
-char HalConsoleGetChar(void);
-int HalConsoleHasChar(void);
 
 const char *HalArchName(void);
 const char *HalCpuInfo(void);

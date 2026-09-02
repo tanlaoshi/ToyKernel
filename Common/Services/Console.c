@@ -3,6 +3,9 @@
  *
  * 维护输入行缓冲与命令表，解析空格分隔参数后分发给 Handler。
  * 内置 help / clear / echo；其他模块通过 ConsoleRegister 扩展命令。
+ *
+ * 输出经 HalConsole 门面：串口（HalConsoleWriteSerial）与帧缓冲（HalConsoleDraw*，
+ * 由本文件配合 Gui 做 clip/备份同步）；不直接调用 HalSerial/HalVideo。
  */
 #include "Console.h"
 #include "UI.h"
@@ -51,9 +54,9 @@ static void ConsoleDrawString(const char *Text, UINT32 Color) {
 
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
-    HalVideoGetTextCursor(&X0, &Y0);
-    HalVideoDrawString(Text, Color);
-    HalVideoGetTextCursor(&X1, &Y1);
+    HalConsoleGetTextCursor(&X0, &Y0);
+    HalConsoleDrawString(Text, Color);
+    HalConsoleGetTextCursor(&X1, &Y1);
     L = X0 < X1 ? X0 : X1;
     T = Y0 < Y1 ? Y0 : Y1;
     R = (X0 > X1 ? X0 : X1) + FONT_ADVANCE_X;
@@ -71,8 +74,8 @@ static void ConsoleDrawChar(char C, UINT32 Color) {
 
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
-    HalVideoGetTextCursor(&X, &Y);
-    HalVideoDrawChar(C, Color);
+    HalConsoleGetTextCursor(&X, &Y);
+    HalConsoleDrawChar(C, Color);
     GuiBackupSyncRect(X, Y, FONT_CELL_W, FONT_CELL_H);
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
@@ -80,12 +83,8 @@ static void ConsoleDrawChar(char C, UINT32 Color) {
 
 /* 同时输出到串口与屏幕（帧缓冲未就绪时只写串口） */
 void ConsoleWrite(const char *Text) {
-    UINT32 W;
-    UINT32 H;
-
-    HalSerialWrite(Text);
-    HalVideoGetSize(&W, &H);
-    if (W == 0 || H == 0) {
+    HalConsoleWriteSerial(Text);
+    if (!HalConsoleVideoReady()) {
         return;
     }
     ConsoleDrawString(Text, COLOR_WHITE);
@@ -108,8 +107,10 @@ void ConsoleHex64(UINT64 Value) {
 /* 显示 Shell 提示符 toyos>（清空输入行） */
 static void Prompt(void) {
     gLen = 0;
-    HalSerialWrite("toyos> ");
-    ConsoleDrawString("toyos> ", COLOR_CYAN);
+    HalConsoleWriteSerial("toyos> ");
+    if (HalConsoleVideoReady()) {
+        ConsoleDrawString("toyos> ", COLOR_CYAN);
+    }
 }
 
 void ConsoleWaitPrompt(void) {
@@ -281,9 +282,10 @@ void ConsoleOnChar(char C) {
         return;
     }
     gLine[gLen++] = C;
-    char Buf[2] = {C, 0};
-    HalSerialWrite(Buf);
-    ConsoleDrawChar(C, COLOR_WHITE);
+    HalConsolePutChar(C);
+    if (HalConsoleVideoReady()) {
+        ConsoleDrawChar(C, COLOR_WHITE);
+    }
 }
 
 /* 处理退格键 */
@@ -295,19 +297,21 @@ void ConsoleOnBackspace(void) {
         return;
     }
     gLen--;
-    GuiFrameBufferBegin();
-    GuiFocusApplyClip();
-    HalVideoEraseLastChar();
-    {
-        UINT32 X;
-        UINT32 Y;
+    if (HalConsoleVideoReady()) {
+        GuiFrameBufferBegin();
+        GuiFocusApplyClip();
+        HalConsoleEraseLastChar();
+        {
+            UINT32 X;
+            UINT32 Y;
 
-        HalVideoGetTextCursor(&X, &Y);
-        GuiBackupSyncRect(X, Y, FONT_ADVANCE_X, FONT_CELL_H);
+            HalConsoleGetTextCursor(&X, &Y);
+            GuiBackupSyncRect(X, Y, FONT_ADVANCE_X, FONT_CELL_H);
+        }
+        GuiFocusSyncCursor();
+        GuiFrameBufferEnd();
     }
-    GuiFocusSyncCursor();
-    GuiFrameBufferEnd();
-    HalSerialWrite("\b \b");
+    HalConsoleBackspaceSerial();
 }
 
 /* 处理回车：执行命令并重新显示提示符 */
