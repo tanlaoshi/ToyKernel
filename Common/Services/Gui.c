@@ -1663,14 +1663,12 @@ void GuiInit(void) {
                         gScreenW - Margin * 2 : gScreenW - 32;
         UINT32 ShellH = gScreenH > Margin * 2 + 120 ?
                         gScreenH - Margin * 2 : gScreenH - 32;
-
-        UINT32 Gap = 32;
-        UINT32 HalfW = (ShellW > Gap) ? (ShellW - Gap) / 2 : ShellW / 2;
+        int i;
 
         gWins[0].Active = 1;
         gWins[0].X = Margin;
         gWins[0].Y = Margin;
-        gWins[0].Width = HalfW;
+        gWins[0].Width = ShellW;
         gWins[0].Height = ShellH;
         gWins[0].Background = COLOR_LIGHT_GRAY;
         gWins[0].Title = "ToyOS Shell";
@@ -1679,26 +1677,22 @@ void GuiInit(void) {
         gWins[0].WaitPrompt = 0;
         gWins[0].PromptShown = 0;
 
-        gWins[1].Active = 1;
-        gWins[1].X = Margin + HalfW + Gap;
-        gWins[1].Y = Margin;
-        gWins[1].Width = HalfW;
-        gWins[1].Height = ShellH * 2 / 3;
-        gWins[1].Background = COLOR_LIGHT_GRAY;
-        gWins[1].Title = "Shell 2";
-        gWins[1].TermSet = 0;
-        gWins[1].InputLen = 0;
-        gWins[1].WaitPrompt = 0;
-        gWins[1].PromptShown = 0;
-
-        gWins[2].Active = 0;
-        gWins[3].Active = 0;
+        /* 其余槽位空闲；需要第二窗时可再开（当前无运行时 new 命令） */
+        for (i = 1; i < MAX_WINS; i++) {
+            gWins[i].Active = 0;
+            gWins[i].TermSet = 0;
+            gWins[i].InputLen = 0;
+            gWins[i].WaitPrompt = 0;
+            gWins[i].PromptShown = 0;
+            gWins[i].InputLine[0] = 0;
+            gWins[i].Title = "Shell";
+        }
     }
 
     gFocusWin = 0;
     PreallocWindowBackups();
     GuiRedraw();
-    DebugWrite("gui: desktop ready (2 shell windows)\n");
+    DebugWrite("gui: desktop ready (1 shell window)\n");
 }
 
 void GuiOnArrowKey(UINT8 Key) {
