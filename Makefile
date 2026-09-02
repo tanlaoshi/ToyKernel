@@ -21,15 +21,19 @@ ARCH_CFLAGS = -mgeneral-regs-only
 LDFLAGS_ARCH =
 endif
 
-INCLUDES = -IInclude \
-           -ICommon/Library \
-           -IHAL/$(HAL_ARCH) -IHAL/$(HAL_ARCH)/Drivers
+INCLUDES_COMMON = -IInclude \
+                  -ICommon/Library \
+                  -IHAL/$(HAL_ARCH)
+INCLUDES_HAL    = $(INCLUDES_COMMON) \
+                  -IHAL/$(HAL_ARCH)/Drivers
 
-CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra \
-         -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
-         -DTOY_DEBUG=$(DEBUG) \
-         $(ARCH_CFLAGS) \
-         $(INCLUDES)
+CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
+              -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
+              -DTOY_DEBUG=$(DEBUG) \
+              $(ARCH_CFLAGS)
+
+CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON)
+CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL)
 
 LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 
@@ -82,27 +86,27 @@ $(TARGET): $(OBJS) | $(BUILDDIR)
 
 $(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.S | $(BUILDDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
 $(USER_HELLO_OBJ): User/hello.S
