@@ -40,13 +40,17 @@ if [ "$ARCH" = "x86_64" ]; then
     cp User/count.elf ../ToyImage/COUNT.ELF
     cp User/fork.elf ../ToyImage/FORK.ELF
     cp User/waitnh.elf ../ToyImage/WAITNH.ELF
+    cp User/libtoy.so ../ToyImage/LIBTOY.SO
+    cp User/dyndemo.elf ../ToyImage/DYNDEMO.ELF
     cp User/catfile.elf ../ToyImage/CAT.ELF
     cp User/writefile.elf ../ToyImage/WRITE.ELF
-    echo "Copied HELLO/COUNT/FORK/WAITNH/CAT/WRITE ELF -> ../ToyImage/"
+    echo "Copied HELLO/COUNT/FORK/WAITNH/DYNDEMO/LIBTOY/CAT/WRITE -> ../ToyImage/"
     if [ -d ../ToyImage/rootfs ]; then
         cp -f ../ToyImage/WRITE.ELF ../ToyImage/rootfs/WRITE.ELF
         cp -f ../ToyImage/WAITNH.ELF ../ToyImage/rootfs/WAITNH.ELF
-        echo "Synced WRITE/WAITNH ELF -> ../ToyImage/rootfs/"
+        cp -f ../ToyImage/LIBTOY.SO ../ToyImage/rootfs/LIBTOY.SO
+        cp -f ../ToyImage/DYNDEMO.ELF ../ToyImage/rootfs/DYNDEMO.ELF
+        echo "Synced WRITE/WAITNH/DYNDEMO/LIBTOY -> ../ToyImage/rootfs/"
     fi
 fi
 

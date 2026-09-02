@@ -11,7 +11,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 方向 | 状态 | 说明 |
 |------|------|------|
 | 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80` 系统调用 |
-| 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield** |
+| 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
 | 图形界面 | ≈ 可用 | 多窗口、USB 键鼠、**标题栏拖动** |
 | 网络 | 已启动 | virtio-net、ping、UDP、简易 TCP echo |

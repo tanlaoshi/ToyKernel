@@ -100,12 +100,16 @@ USER_HELLO_ELF = User/hello.elf
 USER_COUNT_ELF = User/count.elf
 USER_FORK_ELF = User/fork.elf
 USER_WAITNH_ELF = User/waitnh.elf
+USER_DYNDEMO_ELF = User/dyndemo.elf
+USER_LIBTOY_SO = User/libtoy.so
 USER_CAT_ELF = User/catfile.elf
 USER_WRITE_ELF = User/writefile.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
 USER_WAITNH_OBJ = User/waitnh.o
+USER_DYNDEMO_OBJ = User/dyndemo.o
+USER_LIBTOY_OBJ = User/libtoy.o
 USER_CAT_OBJ = User/catfile.o
 USER_WRITE_OBJ = User/writefile.o
 USER_LD = User/user.ld
@@ -118,7 +122,8 @@ TARGET = $(BUILDDIR)/Kernel.elf
 
 all: $(TARGET)
 ifeq ($(ARCH),x86_64)
-all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
+all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
+	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 endif
 
 $(BUILDDIR):
@@ -180,6 +185,12 @@ $(USER_FORK_OBJ): User/fork.S
 $(USER_WAITNH_OBJ): User/waitnh.S
 	$(CC) -c $< -o $@
 
+$(USER_LIBTOY_OBJ): User/libtoy.S
+	$(CC) -fPIC -c $< -o $@
+
+$(USER_DYNDEMO_OBJ): User/dyndemo.S
+	$(CC) -c $< -o $@
+
 $(USER_CAT_OBJ): User/catfile.S
 	$(CC) -c $< -o $@
 
@@ -191,6 +202,13 @@ $(USER_FORK_ELF): $(USER_FORK_OBJ) $(USER_LD)
 
 $(USER_WAITNH_ELF): $(USER_WAITNH_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WAITNH_OBJ)
+
+$(USER_LIBTOY_SO): $(USER_LIBTOY_OBJ)
+	$(LD) -shared -soname LIBTOY.SO -o $@ $(USER_LIBTOY_OBJ)
+
+$(USER_DYNDEMO_ELF): $(USER_DYNDEMO_OBJ) $(USER_LIBTOY_SO)
+	$(LD) -nostdlib -no-pie -Ttext-segment=0x40000000 -z max-page-size=0x1000 \
+		-o $@ $(USER_DYNDEMO_OBJ) $(USER_LIBTOY_SO)
 
 $(USER_CAT_ELF): $(USER_CAT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_CAT_OBJ)
@@ -205,6 +223,8 @@ endif
 clean:
 	rm -rf $(BUILDDIR)
 ifeq ($(ARCH),x86_64)
-	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_WAITNH_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
-	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
+	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_WAITNH_OBJ)
+	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
+	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
+	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 endif
