@@ -24,6 +24,9 @@ UINT16 TcpLocalPort(void);
 UINT32 TcpPeerIp(void);
 UINT16 TcpPeerPort(void);
 
+void TcpGetWindowStats(UINT32 *SndUna, UINT32 *SndNxt, UINT32 *BufLen,
+                       UINT16 *PeerWnd, UINT8 *Retrans);
+
 void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len);
 void TcpPoll(void);
 
