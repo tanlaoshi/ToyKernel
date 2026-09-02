@@ -147,6 +147,33 @@ static int SysConnect(int Fd, UINT32 Ip, UINT16 Port) {
     return SchedulerFdConnect(T, Fd, Ip, Port);
 }
 
+static int SysBind(int Fd, UINT32 Ip, UINT16 Port) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return SchedulerFdBind(T, Fd, Ip, Port);
+}
+
+static int SysListen(int Fd, int Backlog) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return SchedulerFdListen(T, Fd, Backlog);
+}
+
+static int SysAccept(int Fd) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return SchedulerFdAccept(T, Fd);
+}
+
 UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     UINT64 Ret = 0;
 
@@ -187,6 +214,17 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     case SYS_CONNECT:
         Frame->Rax = (UINT64)(long)SysConnect(
             (int)Frame->Rdi, (UINT32)Frame->Rsi, (UINT16)Frame->Rdx);
+        break;
+    case SYS_BIND:
+        Frame->Rax = (UINT64)(long)SysBind(
+            (int)Frame->Rdi, (UINT32)Frame->Rsi, (UINT16)Frame->Rdx);
+        break;
+    case SYS_LISTEN:
+        Frame->Rax = (UINT64)(long)SysListen(
+            (int)Frame->Rdi, (int)Frame->Rsi);
+        break;
+    case SYS_ACCEPT:
+        Frame->Rax = (UINT64)(long)SysAccept((int)Frame->Rdi);
         break;
     default:
         ConsoleWrite("syscall: unknown ");

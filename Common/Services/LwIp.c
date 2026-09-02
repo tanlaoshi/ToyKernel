@@ -65,6 +65,27 @@ int LwIpSocketCreate(void) {
     return ToySocketCreate();
 }
 
+int LwIpSocketBind(int Sock, UINT32 Ip, UINT16 Port) {
+    if (!gLwIpReady) {
+        return -1;
+    }
+    return ToySocketBind(Sock, Ip, Port);
+}
+
+int LwIpSocketListen(int Sock, int Backlog) {
+    if (!gLwIpReady) {
+        return -1;
+    }
+    return ToySocketListen(Sock, Backlog);
+}
+
+int LwIpSocketAccept(int Sock, int TimeoutMs) {
+    if (!gLwIpReady) {
+        return -1;
+    }
+    return ToySocketAccept(Sock, TimeoutMs);
+}
+
 int LwIpSocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort) {
     if (!gLwIpReady) {
         return -1;
@@ -149,6 +170,25 @@ int LwIpTcpConnectSend(UINT32 DstIp, UINT16 DstPort,
 }
 
 int LwIpSocketCreate(void) {
+    return -1;
+}
+
+int LwIpSocketBind(int Sock, UINT32 Ip, UINT16 Port) {
+    (void)Sock;
+    (void)Ip;
+    (void)Port;
+    return -1;
+}
+
+int LwIpSocketListen(int Sock, int Backlog) {
+    (void)Sock;
+    (void)Backlog;
+    return -1;
+}
+
+int LwIpSocketAccept(int Sock, int TimeoutMs) {
+    (void)Sock;
+    (void)TimeoutMs;
     return -1;
 }
 

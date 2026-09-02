@@ -1,5 +1,6 @@
 /*
  * toy_socket.c — lwIP 持久 TCP socket（NO_SYS raw API）
+ * 支持 connect 客户端与 bind/listen/accept 服务端。
  */
 #include "lwip/opt.h"
 
@@ -14,13 +15,17 @@
 
 #define SOCK_RX_MAX 2048
 
+/* Phase: 0 idle/connecting, 1 connected, 2 peer-closed, 3 bound, 4 listening, -1 error */
 typedef struct {
     int Used;
     struct tcp_pcb *Pcb;
-    volatile int Phase; /* 0 connecting, 1 connected, 2 closed, -1 error */
+    volatile int Phase;
     volatile err_t Err;
     UINT8 Rx[SOCK_RX_MAX];
     UINTN RxLen;
+    int Pending[TOY_SOCK_PENDING];
+    int PendingCount;
+    int IsListen;
 } TOY_SOCK;
 
 static TOY_SOCK gSocks[TOY_SOCK_MAX];
@@ -32,6 +37,24 @@ static TOY_SOCK *SockGet(int Sock) {
     return &gSocks[Sock];
 }
 
+static int SockAllocSlot(void) {
+    int i;
+
+    for (i = 0; i < TOY_SOCK_MAX; i++) {
+        if (!gSocks[i].Used) {
+            gSocks[i].Used = 1;
+            gSocks[i].Pcb = NULL;
+            gSocks[i].Phase = 0;
+            gSocks[i].Err = ERR_OK;
+            gSocks[i].RxLen = 0;
+            gSocks[i].PendingCount = 0;
+            gSocks[i].IsListen = 0;
+            return i;
+        }
+    }
+    return -1;
+}
+
 static void SockAbortPcb(TOY_SOCK *S) {
     if (S->Pcb != NULL) {
         tcp_arg(S->Pcb, NULL);
@@ -39,17 +62,19 @@ static void SockAbortPcb(TOY_SOCK *S) {
         tcp_sent(S->Pcb, NULL);
         tcp_err(S->Pcb, NULL);
         tcp_poll(S->Pcb, NULL, 0);
+        tcp_accept(S->Pcb, NULL);
         tcp_abort(S->Pcb);
         S->Pcb = NULL;
     }
 }
+
+static void SockSetupConnected(TOY_SOCK *S, struct tcp_pcb *Pcb);
 
 static err_t SockRecvCb(void *Arg, struct tcp_pcb *Pcb, struct pbuf *P, err_t Err) {
     TOY_SOCK *S = (TOY_SOCK *)Arg;
     UINTN Space;
     UINTN Copy;
 
-    (void)Pcb;
     if (S == NULL) {
         if (P != NULL) {
             pbuf_free(P);
@@ -76,7 +101,6 @@ static err_t SockRecvCb(void *Arg, struct tcp_pcb *Pcb, struct pbuf *P, err_t Er
         S->RxLen += Copy;
         tcp_recved(Pcb, (u16_t)Copy);
     }
-    /* 丢弃超出缓冲部分，避免卡死对端窗口 */
     if (P->tot_len > Copy) {
         tcp_recved(Pcb, (u16_t)(P->tot_len - Copy));
     }
@@ -107,27 +131,136 @@ static err_t SockConnectedCb(void *Arg, struct tcp_pcb *Pcb, err_t Err) {
         S->Pcb = NULL;
         return Err;
     }
+    SockSetupConnected(S, Pcb);
+    return ERR_OK;
+}
+
+static void SockSetupConnected(TOY_SOCK *S, struct tcp_pcb *Pcb) {
     S->Pcb = Pcb;
     S->Phase = 1;
+    S->IsListen = 0;
+    S->RxLen = 0;
+    tcp_arg(Pcb, S);
     tcp_recv(Pcb, SockRecvCb);
     tcp_err(Pcb, SockErrCb);
+}
+
+static err_t SockAcceptCb(void *Arg, struct tcp_pcb *NewPcb, err_t Err) {
+    TOY_SOCK *Listen = (TOY_SOCK *)Arg;
+    int Child;
+    TOY_SOCK *Cs;
+
+    if (Listen == NULL || Err != ERR_OK || NewPcb == NULL) {
+        if (NewPcb != NULL) {
+            tcp_abort(NewPcb);
+        }
+        return ERR_VAL;
+    }
+    if (Listen->PendingCount >= TOY_SOCK_PENDING) {
+        tcp_abort(NewPcb);
+        return ERR_MEM;
+    }
+    Child = SockAllocSlot();
+    if (Child < 0) {
+        tcp_abort(NewPcb);
+        return ERR_MEM;
+    }
+    Cs = &gSocks[Child];
+    tcp_setprio(NewPcb, TCP_PRIO_MIN);
+    SockSetupConnected(Cs, NewPcb);
+    Listen->Pending[Listen->PendingCount++] = Child;
     return ERR_OK;
 }
 
 int ToySocketCreate(void) {
-    int i;
+    return SockAllocSlot();
+}
 
-    for (i = 0; i < TOY_SOCK_MAX; i++) {
-        if (!gSocks[i].Used) {
-            gSocks[i].Used = 1;
-            gSocks[i].Pcb = NULL;
-            gSocks[i].Phase = 0;
-            gSocks[i].Err = ERR_OK;
-            gSocks[i].RxLen = 0;
-            return i;
+int ToySocketBind(int Sock, UINT32 Ip, UINT16 Port) {
+    TOY_SOCK *S = SockGet(Sock);
+    struct tcp_pcb *Pcb;
+    err_t Err;
+
+    if (S == NULL || S->Phase == 1 || S->Phase == 4 || Port == 0) {
+        return -1;
+    }
+    if (S->Pcb == NULL) {
+        Pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+        if (Pcb == NULL) {
+            return -1;
+        }
+        S->Pcb = Pcb;
+    } else {
+        Pcb = S->Pcb;
+    }
+    if (Ip == 0) {
+        Err = tcp_bind(Pcb, IP_ANY_TYPE, Port);
+    } else {
+        ip4_addr_t A4;
+        ip_addr_t Addr;
+
+        ToyHostIpToLwIp(Ip, &A4);
+        ip_addr_copy_from_ip4(Addr, A4);
+        Err = tcp_bind(Pcb, &Addr, Port);
+    }
+    if (Err != ERR_OK) {
+        return -1;
+    }
+    S->Phase = 3;
+    return 0;
+}
+
+int ToySocketListen(int Sock, int Backlog) {
+    TOY_SOCK *S = SockGet(Sock);
+    struct tcp_pcb *ListenPcb;
+
+    (void)Backlog;
+    if (S == NULL || S->Pcb == NULL || S->Phase != 3) {
+        return -1;
+    }
+    ListenPcb = tcp_listen_with_backlog(S->Pcb, TOY_SOCK_PENDING);
+    if (ListenPcb == NULL) {
+        return -1;
+    }
+    S->Pcb = ListenPcb;
+    S->IsListen = 1;
+    S->PendingCount = 0;
+    S->Phase = 4;
+    tcp_arg(ListenPcb, S);
+    tcp_accept(ListenPcb, SockAcceptCb);
+    return 0;
+}
+
+int ToySocketAccept(int Sock, int TimeoutMs) {
+    TOY_SOCK *S = SockGet(Sock);
+    int Child;
+    int Tries;
+    int i;
+    int Forever;
+
+    if (S == NULL || S->Phase != 4) {
+        return -1;
+    }
+    Forever = (TimeoutMs <= 0);
+    Tries = Forever ? 1 : TimeoutMs;
+    while (S->PendingCount == 0 && S->Phase == 4) {
+        HalNetPoll();
+        LwIpPoll();
+        if (!Forever) {
+            if (--Tries <= 0) {
+                break;
+            }
         }
     }
-    return -1;
+    if (S->PendingCount == 0) {
+        return -1;
+    }
+    Child = S->Pending[0];
+    for (i = 1; i < S->PendingCount; i++) {
+        S->Pending[i - 1] = S->Pending[i];
+    }
+    S->PendingCount--;
+    return Child;
 }
 
 int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
@@ -137,16 +270,20 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
     err_t Err;
     int Tries;
 
-    if (S == NULL || S->Pcb != NULL || S->Phase == 1) {
+    if (S == NULL || S->Phase == 1 || S->Phase == 4 || S->IsListen) {
         return -1;
     }
-    Pcb = tcp_new();
-    if (Pcb == NULL) {
-        return -1;
+    if (S->Pcb == NULL) {
+        Pcb = tcp_new();
+        if (Pcb == NULL) {
+            return -1;
+        }
+        S->Pcb = Pcb;
+    } else {
+        Pcb = S->Pcb;
     }
     S->Phase = 0;
     S->Err = ERR_OK;
-    S->Pcb = Pcb;
     tcp_arg(Pcb, S);
     tcp_err(Pcb, SockErrCb);
     ToyHostIpToLwIp(DstIp, &Remote);
@@ -253,11 +390,29 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
 
 int ToySocketClose(int Sock) {
     TOY_SOCK *S = SockGet(Sock);
+    int Pending[TOY_SOCK_PENDING];
+    int Count;
+    int i;
 
     if (S == NULL) {
         return -1;
     }
-    if (S->Pcb != NULL) {
+    if (S->IsListen) {
+        Count = S->PendingCount;
+        for (i = 0; i < Count; i++) {
+            Pending[i] = S->Pending[i];
+        }
+        S->PendingCount = 0;
+        for (i = 0; i < Count; i++) {
+            ToySocketClose(Pending[i]);
+        }
+        if (S->Pcb != NULL) {
+            tcp_arg(S->Pcb, NULL);
+            tcp_accept(S->Pcb, NULL);
+            tcp_close(S->Pcb);
+            S->Pcb = NULL;
+        }
+    } else if (S->Pcb != NULL) {
         tcp_arg(S->Pcb, NULL);
         tcp_recv(S->Pcb, NULL);
         tcp_err(S->Pcb, NULL);
@@ -269,6 +424,7 @@ int ToySocketClose(int Sock) {
     S->Used = 0;
     S->Phase = 0;
     S->RxLen = 0;
+    S->IsListen = 0;
     return 0;
 }
 
@@ -277,6 +433,25 @@ int ToySocketClose(int Sock) {
 #include "toy_socket.h"
 
 int ToySocketCreate(void) {
+    return -1;
+}
+
+int ToySocketBind(int Sock, UINT32 Ip, UINT16 Port) {
+    (void)Sock;
+    (void)Ip;
+    (void)Port;
+    return -1;
+}
+
+int ToySocketListen(int Sock, int Backlog) {
+    (void)Sock;
+    (void)Backlog;
+    return -1;
+}
+
+int ToySocketAccept(int Sock, int TimeoutMs) {
+    (void)Sock;
+    (void)TimeoutMs;
     return -1;
 }
 

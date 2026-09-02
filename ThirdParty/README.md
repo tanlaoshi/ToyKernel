@@ -44,10 +44,13 @@ ToyOS 同时保留两套 IP/传输实现，但**运行时不同时处理同一�
 | 系统调用 | 编号 | 参数 | 说明 |
 |----------|------|------|------|
 | `socket` | 8 | domain, type, protocol | 仅 `AF_INET` + `SOCK_STREAM`；首次调用自动 `LwIpInit` |
-| `connect` | 9 | fd, ip(host u32), port | 简化 ABI，无 `sockaddr` |
+| `connect` | 9 | fd, ip(host u32), port | 主动连接 |
+| `bind` | 10 | fd, ip(`0`=ANY), port | 绑定本地端口 |
+| `listen` | 11 | fd, backlog | 进入监听 |
+| `accept` | 12 | listen_fd | 返回新连接 fd（默认一直等到有连接） |
 | `write`/`read`/`close` | 1/3/4 | 同文件 FD | socket fd 上即 send/recv/close |
 
-验证程序：`User/netdemo.S` → `NETDEMO.ELF`（宿主机先 `nc -l 8888`）。
+验证：`NETDEMO.ELF`（客户端→8888）、`NETSRV.ELF`（服务端:9000 echo）。
 
 ### 快速验证
 
