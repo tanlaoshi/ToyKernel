@@ -12,6 +12,7 @@
 #include "Scheduler.h"
 #include "BootTypes.h"
 #include "Syscall.h"
+#include "VirtualMemory.h"
 
 extern void Isr128(void);
 
@@ -255,6 +256,14 @@ static volatile UINT32 gIrqCount;
  * 返回值：0 表示不切换任务；非 0 为新任务 HAL_FRAME 指针（切换 RSP）
  */
 UINT64 InterruptDispatch(HAL_FRAME *F) {
+    if (F->Vector == 14) {
+        UINT64 Cr2;
+        __asm__ volatile ("mov %%cr2, %0" : "=r"(Cr2));
+        if (VirtualMemoryHandlePageFault(Cr2, F->ErrorCode) == 0) {
+            return 0;
+        }
+        ExceptionHalt(F);
+    }
     if (F->Vector < 32) {
         ExceptionHalt(F);
     }

@@ -84,10 +84,22 @@ int VirtualMemorySpaceMapPage(VM_ADDR_SPACE *Space, UINT64 Virt, UINT64 Phys, UI
 }
 
 void VirtualMemorySpaceDestroy(VM_ADDR_SPACE *Space) {
+    UINT64 Va;
+
     if (!Space) {
         return;
     }
     if (Space->Root != 0) {
+        for (Va = USER_CODE_VIRT; Va < USER_VIRT_END; Va += PAGE_SIZE) {
+            UINT64 Pte = HalPageGetEntry(Space->Root, Va);
+            UINT64 Phys;
+
+            if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
+                continue;
+            }
+            Phys = Pte & ~0xFFFULL;
+            PhysicalMemoryReleasePage((void *)(UINTN)Phys);
+        }
         HalPageUnmapRange(Space->Root, USER_CODE_VIRT,
                           USER_STACK_VIRT + USER_STACK_SIZE);
     }
@@ -133,6 +145,18 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
     if (!Src || !VirtualMemoryUserAccessOk(UserDst, Len)) {
         return -1;
     }
+    {
+        UINT64 Start = UserDst & ~(UINT64)(PAGE_SIZE - 1);
+        UINT64 End = UserDst + Len - 1;
+        for (UINT64 Va = Start; Va <= End; Va += PAGE_SIZE) {
+            UINT64 Pte = HalPageGetEntryCurrent(Va);
+            if ((Pte & PTE_COW) && !(Pte & HAL_PAGE_WRITABLE)) {
+                if (VirtualMemoryHandlePageFault(Va, 0x7) != 0) {
+                    return -1;
+                }
+            }
+        }
+    }
     const UINT8 *S = (const UINT8 *)Src;
     for (UINTN i = 0; i < Len; i++) {
         *(volatile UINT8 *)(UINTN)(UserDst + i) = S[i];
@@ -141,7 +165,8 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
 }
 
 /*
- * 深拷贝用户区页（代码+栈）。页表项经 HalPageGetEntry 读取，内容按物理恒等映射复制。
+ * COW fork：共享用户物理页；原可写页双方去掉 W、打上 PTE_COW。
+ * 页表仍私有（SpaceCreate 已 privatize PML4[0]）。
  */
 VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
     VM_ADDR_SPACE *Dst;
@@ -157,37 +182,81 @@ VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
 
     for (Va = USER_CODE_VIRT; Va < USER_VIRT_END; Va += PAGE_SIZE) {
         UINT64 Pte = HalPageGetEntry(Src->Root, Va);
-        UINT64 Flags;
         UINT64 Phys;
-        void *NewPage;
-        UINT8 *From;
-        UINT8 *To;
-        UINTN i;
+        UINT64 SharedFlags;
 
         if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
             continue;
         }
-        Flags = PTE_PRESENT | PTE_USER;
-        if (Pte & HAL_PAGE_WRITABLE) {
-            Flags |= PTE_WRITABLE;
-        }
         Phys = Pte & ~0xFFFULL;
-        NewPage = VirtualMemorySpaceAllocateAndTrack(Dst);
-        if (!NewPage) {
+        SharedFlags = PTE_PRESENT | PTE_USER;
+        if (Pte & HAL_PAGE_WRITABLE) {
+            SharedFlags |= PTE_COW;
+            if (HalPageMap(Src->Root, Va, Phys, SharedFlags, 0, 0) != 0) {
+                VirtualMemorySpaceDestroy(Dst);
+                return 0;
+            }
+        } else if (Pte & PTE_COW) {
+            SharedFlags |= PTE_COW;
+        }
+
+        if (PhysicalMemoryRetainPage((void *)(UINTN)Phys) != 0) {
             VirtualMemorySpaceDestroy(Dst);
             return 0;
         }
-        From = (UINT8 *)(UINTN)Phys;
-        To = (UINT8 *)NewPage;
-        for (i = 0; i < PAGE_SIZE; i++) {
-            To[i] = From[i];
-        }
-        if (VirtualMemorySpaceMapPage(Dst, Va, (UINT64)(UINTN)NewPage, Flags) != 0) {
+        if (VirtualMemorySpaceMapPage(Dst, Va, Phys, SharedFlags) != 0) {
+            PhysicalMemoryReleasePage((void *)(UINTN)Phys);
             VirtualMemorySpaceDestroy(Dst);
             return 0;
         }
     }
     return Dst;
+}
+
+int VirtualMemoryHandlePageFault(UINT64 Cr2, UINT64 ErrorCode) {
+    UINT64 Va;
+    UINT64 Pte;
+    UINT64 Phys;
+    void *NewPage;
+    UINT8 *From;
+    UINT8 *To;
+    UINTN i;
+    UINT64 Root;
+
+    /* bit0=P present, bit1=W write, bit2=U user */
+    if ((ErrorCode & 0x7) != 0x7) {
+        return -1;
+    }
+    Va = Cr2 & ~(UINT64)(PAGE_SIZE - 1);
+    if (Va < USER_CODE_VIRT || Va >= USER_VIRT_END) {
+        return -1;
+    }
+    Root = HalGetPageTable();
+    Pte = HalPageGetEntry(Root, Va);
+    if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER) || !(Pte & PTE_COW)) {
+        return -1;
+    }
+    if (Pte & HAL_PAGE_WRITABLE) {
+        return -1;
+    }
+
+    Phys = Pte & ~0xFFFULL;
+    NewPage = PhysicalMemoryAllocatePage();
+    if (!NewPage) {
+        return -1;
+    }
+    From = (UINT8 *)(UINTN)Phys;
+    To = (UINT8 *)NewPage;
+    for (i = 0; i < PAGE_SIZE; i++) {
+        To[i] = From[i];
+    }
+    if (HalPageMap(Root, Va, (UINT64)(UINTN)NewPage,
+                   PTE_PRESENT | PTE_USER | PTE_WRITABLE, 0, 0) != 0) {
+        PhysicalMemoryFreePage(NewPage);
+        return -1;
+    }
+    PhysicalMemoryReleasePage((void *)(UINTN)Phys);
+    return 0;
 }
 
 int VirtualMemoryInit(void) {

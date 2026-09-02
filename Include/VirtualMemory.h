@@ -10,6 +10,8 @@
 #define PTE_PRESENT  HAL_PAGE_PRESENT
 #define PTE_WRITABLE HAL_PAGE_WRITABLE
 #define PTE_USER     HAL_PAGE_USER
+/* x86 PTE 软件可用位；标记 fork 后共享、待写时复制的页 */
+#define PTE_COW      (1ULL << 9)
 
 #define USER_CODE_VIRT  0x40000000ULL
 #define USER_STACK_VIRT 0x40100000ULL
@@ -43,5 +45,8 @@ int VirtualMemoryCopyFromUser(void *Dst, UINT64 UserSrc, UINTN Len);
 int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len);
 
 VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src);
+
+/* #PF：写 COW 页时拆分；成功返回 0 */
+int VirtualMemoryHandlePageFault(UINT64 Cr2, UINT64 ErrorCode);
 
 #endif

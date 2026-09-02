@@ -48,7 +48,7 @@ static int ElfMapSegment(VM_ADDR_SPACE *Space, const UINT8 *Image,
     }
 
     for (UINT64 Virt = MapStart; Virt < MapEnd; Virt += PAGE_SIZE) {
-        void *Page = VirtualMemorySpaceAllocateAndTrack(Space);
+        void *Page = PhysicalMemoryAllocatePage();
         if (!Page) {
             return -1;
         }
@@ -66,6 +66,7 @@ static int ElfMapSegment(VM_ADDR_SPACE *Space, const UINT8 *Image,
         }
 
         if (VirtualMemorySpaceMapPage(Space, Virt, (UINT64)(UINTN)Page, Flags) != 0) {
+            PhysicalMemoryFreePage(Page);
             return -1;
         }
     }
@@ -77,12 +78,13 @@ static int ElfMapStack(VM_ADDR_SPACE *Space) {
     for (UINT64 Virt = USER_STACK_VIRT;
          Virt < USER_STACK_VIRT + USER_STACK_SIZE;
          Virt += PAGE_SIZE) {
-        void *Page = VirtualMemorySpaceAllocateAndTrack(Space);
+        void *Page = PhysicalMemoryAllocatePage();
         if (!Page) {
             return -1;
         }
         MemZero(Page, PAGE_SIZE);
         if (VirtualMemorySpaceMapPage(Space, Virt, (UINT64)(UINTN)Page, Flags) != 0) {
+            PhysicalMemoryFreePage(Page);
             return -1;
         }
     }
