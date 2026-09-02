@@ -116,3 +116,5 @@ void HalDebugHex64(UINT64 Value) {
 void HalCpuPark(void) {
     __asm__ volatile ("cli; hlt");
 }
+
+/* SmpBoot.c 提供 HalCpuCount / HalCpuId / HalSmpStartAps */

@@ -79,6 +79,11 @@ UINT64 HalPageGetEntryCurrent(UINT64 Virt);
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
 
+/* SMP（PR-S1+）：Common 只依赖这些门面；x86=MADT/SIPI，其它架构 stub */
+int HalCpuCount(void);
+UINT32 HalCpuId(void);
+int HalSmpStartAps(void);
+
 void HalDebugWrite(const char *Text);
 void HalDebugHex32(UINT32 Value);
 void HalDebugHex64(UINT64 Value);

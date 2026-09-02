@@ -86,7 +86,8 @@ SERVICES_SRCS := $(wildcard Common/Services/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
 ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
-ARCH_ASM      := $(wildcard HAL/$(HAL_ARCH)/*.S)
+ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
+ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S,$(ARCH_ASM_ALL))
 
 CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
@@ -96,7 +97,7 @@ ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,
 ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_ASM))
 
 ifeq ($(ARCH),x86_64)
-EXTRA_OBJS = $(BUILDDIR)/User_hello_blob.o
+EXTRA_OBJS = $(BUILDDIR)/User_hello_blob.o $(BUILDDIR)/SmpTramp_blob.o
 USER_HELLO_ELF = User/hello.elf
 USER_COUNT_ELF = User/count.elf
 USER_FORK_ELF = User/fork.elf
@@ -173,6 +174,16 @@ $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.S | $(BUILDDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
+$(BUILDDIR)/SmpTramp.bin: HAL/X86_64/SmpTrampoline.S HAL/X86_64/SmpTrampoline.ld | $(BUILDDIR)
+	$(CC) -c HAL/X86_64/SmpTrampoline.S -o $(BUILDDIR)/SmpTrampoline_low.o
+	$(LD) -T HAL/X86_64/SmpTrampoline.ld -o $(BUILDDIR)/SmpTrampoline_low.elf \
+		$(BUILDDIR)/SmpTrampoline_low.o
+	objcopy -O binary $(BUILDDIR)/SmpTrampoline_low.elf $@
+
+$(BUILDDIR)/SmpTramp_blob.o: $(BUILDDIR)/SmpTramp.bin
+	cd $(BUILDDIR) && objcopy -I binary -O elf64-x86-64 -B i386:x86-64 \
+		SmpTramp.bin SmpTramp_blob.o
+
 $(USER_HELLO_OBJ): User/hello.S
 	$(CC) -c $< -o $@
 

@@ -5,6 +5,7 @@
 #include "VirtualMemory.h"
 
 static UINT64 gXhciFallback;
+static UINT64 gRsdp;
 
 void HalPlatformSetXhciFallback(UINT64 Address) {
     gXhciFallback = Address;
@@ -12,6 +13,14 @@ void HalPlatformSetXhciFallback(UINT64 Address) {
 
 UINT64 HalPlatformXhciFallback(void) {
     return gXhciFallback;
+}
+
+void HalPlatformSetRsdp(UINT64 Address) {
+    gRsdp = Address;
+}
+
+UINT64 HalPlatformRsdp(void) {
+    return gRsdp;
 }
 
 static void MapIdentityRange(UINT64 Phys, UINT64 Size) {

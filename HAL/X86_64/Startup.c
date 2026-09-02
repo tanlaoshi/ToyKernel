@@ -7,6 +7,7 @@
 
 extern char __kernel_end[];
 extern void HalPlatformSetXhciFallback(UINT64 Address);
+extern void HalPlatformSetRsdp(UINT64 Address);
 
 #define EFI_MEMORY_CONVENTIONAL 7
 
@@ -46,6 +47,7 @@ static void BootInfoFromUefi(BOOT_CONFIG *Cfg, BOOT_INFO *Out, BOOT_CONFIG *CfgP
     Out->KernelEnd = (UINT64)(UINTN)__kernel_end;
 
     HalPlatformSetXhciFallback(Cfg->XhciBaseAddress);
+    HalPlatformSetRsdp(Cfg->RsdpAddress);
 
     if (Map->Buffer != 0 && Map->DescriptorSize >= sizeof(EFI_MEMORY_DESCRIPTOR)) {
         Base = (UINT8 *)Map->Buffer;
@@ -62,6 +64,8 @@ static void BootInfoFromUefi(BOOT_CONFIG *Cfg, BOOT_INFO *Out, BOOT_CONFIG *CfgP
     }
 
     BootInfoAddRegion(Out, 0, 4096, 0);
+    /* AP trampoline @0x8000、参数/GDT @0x7E00、临时栈 @0x7000 — 勿被 PMM 占用 */
+    BootInfoAddRegion(Out, 0x7000, 0x2000, 0);
     BootInfoAddRegion(Out, Out->KernelStart, Out->KernelEnd - Out->KernelStart, 0);
     if (CfgPhys) {
         BootInfoAddRegion(Out, (UINT64)(UINTN)CfgPhys, sizeof(BOOT_CONFIG), 0);

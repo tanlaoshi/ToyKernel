@@ -69,6 +69,10 @@ static int InitCpu(void) {
     return 0;
 }
 
+static int InitSmp(void) {
+    return HalSmpStartAps();
+}
+
 static int InitUsb(void) {
     return HalUsbInit();
 }
@@ -110,6 +114,7 @@ static const MODULE gModules[] = {
     { "vmm",     InitVmm },
     { "video",   InitVideo },
     { "cpu",     InitCpu },
+    { "smp",     InitSmp },
     { "fs",      InitFileSystemModule },
     { "usb",     InitUsb },
     { "net",     InitNetModule },

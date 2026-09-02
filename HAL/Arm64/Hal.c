@@ -81,3 +81,7 @@ const char *HalCpuInfo(void) { return "ARM64 (stub)"; }
 void HalDebugWrite(const char *Text) { (void)Text; }
 void HalDebugHex32(UINT32 Value) { (void)Value; }
 void HalDebugHex64(UINT64 Value) { (void)Value; }
+
+int HalCpuCount(void) { return 1; }
+UINT32 HalCpuId(void) { return 0; }
+int HalSmpStartAps(void) { return 0; }

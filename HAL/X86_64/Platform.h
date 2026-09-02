@@ -8,5 +8,8 @@
 
 void HalPlatformMapMmio(void);
 void HalPlatformSetXhciFallback(UINT64 Address);
+UINT64 HalPlatformXhciFallback(void);
+void HalPlatformSetRsdp(UINT64 Address);
+UINT64 HalPlatformRsdp(void);
 
 #endif
