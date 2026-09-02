@@ -30,4 +30,9 @@ void NetGetStats(UINT32 *TxDone, UINT32 *RxFrames);
 int NetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen);
 UINT16 NetChecksum(const void *Data, UINTN Len);
 
+/* lwIP：发送原始以太网帧；开启后 RX 交给 lwIP */
+int  NetSendEthernet(const UINT8 *Frame, UINTN Len);
+void NetSetLwIpRx(int Enable);
+int  NetLwIpRx(void);
+
 #endif

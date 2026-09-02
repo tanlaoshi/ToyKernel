@@ -11,6 +11,7 @@
 #include "Hal.h"
 #include "Udp.h"
 #include "Tcp.h"
+#include "LwIp.h"
 #include "VirtualMemory.h"
 
 static void CommandInfo(int Argc, char **Argv) {
@@ -358,6 +359,33 @@ static void CommandTcpConnect(int Argc, char **Argv) {
     ConsoleWrite("tcpconnect: done\n");
 }
 
+#ifdef TOY_LWIP
+static void CommandLwIp(int Argc, char **Argv) {
+    if (Argc < 2) {
+        ConsoleWrite("usage: lwip on|status\n");
+        return;
+    }
+    if (Argv[1][0] == 'o' && Argv[1][1] == 'n' && Argv[1][2] == 0) {
+        if (LwIpActive()) {
+            ConsoleWrite("lwip: already on\n");
+            return;
+        }
+        if (LwIpInit() != 0) {
+            ConsoleWrite("lwip: init failed\n");
+            return;
+        }
+        ConsoleWrite("lwip: on (builtin tcp/udp/ping rx disabled)\n");
+        return;
+    }
+    if (Argv[1][0] == 's') {
+        ConsoleWrite("lwip: ");
+        ConsoleWrite(LwIpActive() ? "on\n" : "off\n");
+        return;
+    }
+    ConsoleWrite("usage: lwip on|status\n");
+}
+#endif
+
 void ShellCommandsRegister(void) {
     ConsoleRegister("info", "boot framebuffer info", CommandInfo);
     ConsoleRegister("ps", "list tasks", CommandPs);
@@ -372,4 +400,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("tcplisten", "TCP echo server", CommandTcpListen);
     ConsoleRegister("tcpconnect", "TCP connect and send", CommandTcpConnect);
     ConsoleRegister("tcpstatus", "TCP connection status", CommandTcpStatus);
+#ifdef TOY_LWIP
+    ConsoleRegister("lwip", "enable lwIP stack", CommandLwIp);
+#endif
 }

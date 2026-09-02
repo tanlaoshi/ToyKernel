@@ -47,5 +47,6 @@ int HalNetPing(const char *Host, int TimeoutMs);
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames);
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen);
 UINT16 HalNetChecksum(const void *Data, UINTN Len);
+void HalNetSetLwIpRx(int Enable);
 
 #endif

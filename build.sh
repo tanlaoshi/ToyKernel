@@ -8,27 +8,31 @@ cd "$(dirname "$0")"
 #   ./build.sh riscv        # 指定架构
 #   ./build.sh riscv DEBUG=1
 
+#   ./build.sh LWIP=1      # 嵌入 lwIP（需 ThirdParty/lwip）
 ARCH=x86_64
 DEBUG=0
+LWIP=0
 for Arg in "$@"; do
     case "$Arg" in
         DEBUG=1|debug=1) DEBUG=1 ;;
         DEBUG=0|debug=0) DEBUG=0 ;;
+        LWIP=1|lwip=1) LWIP=1 ;;
+        LWIP=0|lwip=0) LWIP=0 ;;
         *) ARCH="$Arg" ;;
     esac
 done
 
-echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG"
+echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP"
 
 make clean ARCH="$ARCH"
-make ARCH="$ARCH" DEBUG="$DEBUG"
+make ARCH="$ARCH" DEBUG="$DEBUG" LWIP="$LWIP"
 
 if [ ! -f Build/Kernel.elf ]; then
     echo "Build failed!"
     exit 1
 fi
 
-echo "Build successful: Build/Kernel.elf (DEBUG=$DEBUG)"
+echo "Build successful: Build/Kernel.elf (DEBUG=$DEBUG LWIP=$LWIP)"
 cp Build/Kernel.elf ../ToyImage/
 
 if [ "$ARCH" = "x86_64" ]; then

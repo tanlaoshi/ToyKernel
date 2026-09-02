@@ -7,6 +7,9 @@
 #include "Net.h"
 #include "Udp.h"
 #include "Tcp.h"
+#ifdef TOY_LWIP
+#include "toy_netif.h"
+#endif
 #include "PCIe.h"
 #include "PhysicalMemory.h"
 #include "VirtualMemory.h"
@@ -201,9 +204,11 @@ static UINT16 gIoPort;
 
 static UINT32 gTxDone;
 static UINT32 gRxFrames;
+static int gLwIpRx;
 
 void NetGetStats(UINT32 *TxDone, UINT32 *RxFrames);
 static int NetResolve(UINT32 TargetIp, UINT8 Mac[6], int TimeoutMs);
+static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen);
 
 static void MemSet(void *Dst, UINT8 Val, UINTN Len) {
     UINT8 *P = (UINT8 *)Dst;
@@ -461,6 +466,21 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     return 0;
 }
 
+int NetSendEthernet(const UINT8 *Frame, UINTN Len) {
+    if (Frame == 0 || Len < ETH_HDR_LEN) {
+        return -1;
+    }
+    return NetSendFrame(Frame, Len);
+}
+
+void NetSetLwIpRx(int Enable) {
+    gLwIpRx = Enable ? 1 : 0;
+}
+
+int NetLwIpRx(void) {
+    return gLwIpRx;
+}
+
 static void NetSendArpRequest(UINT32 TargetIp) {
     UINT8 Frame[ETH_HDR_LEN + sizeof(ARP_PKT)];
     ETH_HDR *Eth = (ETH_HDR *)Frame;
@@ -592,7 +612,16 @@ static void NetProcessRx(void) {
             }
         }
         if (Ok && Len > VIRTIO_NET_HDR_LEN + ETH_HDR_LEN) {
-            HandleIpPacket(Buf + VIRTIO_NET_HDR_LEN, Len - VIRTIO_NET_HDR_LEN);
+            const UINT8 *Pkt = Buf + VIRTIO_NET_HDR_LEN;
+            UINTN PktLen = Len - VIRTIO_NET_HDR_LEN;
+#ifdef TOY_LWIP
+            if (gLwIpRx) {
+                ToyNetifInput(Pkt, PktLen);
+            } else
+#endif
+            {
+                HandleIpPacket(Pkt, PktLen);
+            }
         }
         VirtQueueFreeDescriptor(&gRxQ, Head);
         if (Ok) {
@@ -832,6 +861,7 @@ int NetInit(void) {
     UINT64 Bar;
 
     gNetOk = 0;
+    gLwIpRx = 0;
     if (!VirtioFindNet(&Bus, &Dev, &Fn, &Bar)) {
         DebugWrite("net: virtio-net not found\n");
         return 0;

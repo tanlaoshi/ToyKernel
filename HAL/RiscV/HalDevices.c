@@ -96,3 +96,7 @@ UINT16 HalNetChecksum(const void *Data, UINTN Len) {
     (void)Len;
     return 0;
 }
+
+void HalNetSetLwIpRx(int Enable) {
+    (void)Enable;
+}

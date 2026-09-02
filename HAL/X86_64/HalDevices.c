@@ -129,3 +129,7 @@ int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLe
 UINT16 HalNetChecksum(const void *Data, UINTN Len) {
     return NetChecksum(Data, Len);
 }
+
+void HalNetSetLwIpRx(int Enable) {
+    NetSetLwIpRx(Enable);
+}

@@ -1,5 +1,9 @@
 ARCH ?= x86_64
 DEBUG ?= 0
+LWIP ?= 0
+LWIPINCLUDES :=
+LWIPOBJS :=
+LWIP_PORT_OBJS :=
 
 CC = gcc
 LD = ld
@@ -32,8 +36,40 @@ CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -DTOY_DEBUG=$(DEBUG) \
               $(ARCH_CFLAGS)
 
-CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON)
-CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL)
+ifeq ($(LWIP),1)
+CFLAGS_BASE += -DTOY_LWIP=1
+LWIPDIR = ThirdParty/lwip/src
+LWIPINCLUDES = -I$(LWIPDIR)/include \
+               -IHAL/$(HAL_ARCH)/LwIp/include \
+               -IHAL/$(HAL_ARCH)/LwIp
+LWIPCORE = \
+	$(LWIPDIR)/core/init.c \
+	$(LWIPDIR)/core/def.c \
+	$(LWIPDIR)/core/inet_chksum.c \
+	$(LWIPDIR)/core/ip.c \
+	$(LWIPDIR)/core/mem.c \
+	$(LWIPDIR)/core/memp.c \
+	$(LWIPDIR)/core/netif.c \
+	$(LWIPDIR)/core/pbuf.c \
+	$(LWIPDIR)/core/stats.c \
+	$(LWIPDIR)/core/sys.c \
+	$(LWIPDIR)/core/tcp.c \
+	$(LWIPDIR)/core/tcp_in.c \
+	$(LWIPDIR)/core/tcp_out.c \
+	$(LWIPDIR)/core/timeouts.c \
+	$(LWIPDIR)/core/udp.c \
+	$(LWIPDIR)/core/ipv4/etharp.c \
+	$(LWIPDIR)/core/ipv4/icmp.c \
+	$(LWIPDIR)/core/ipv4/ip4.c \
+	$(LWIPDIR)/core/ipv4/ip4_addr.c \
+	$(LWIPDIR)/netif/ethernet.c
+LWIPOBJS = $(patsubst $(LWIPDIR)/%.c,$(BUILDDIR)/lwip/%.o,$(LWIPCORE))
+LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c
+LWIP_PORT_OBJS = $(patsubst HAL/$(HAL_ARCH)/LwIp/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/LwIp/%.o,$(LWIP_PORT_SRCS))
+endif
+
+CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON) $(LWIPINCLUDES)
+CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -IHAL/$(HAL_ARCH)/LwIp
 
 LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 
@@ -68,7 +104,7 @@ USER_WRITE_OBJ = User/writefile.o
 USER_LD = User/user.ld
 endif
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS)
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(BUILDDIR)/Kernel.elf
 
 .PHONY: all clean
@@ -103,6 +139,16 @@ $(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(BUILDDI
 $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+$(BUILDDIR)/HAL/$(HAL_ARCH)/LwIp/%.o: HAL/$(HAL_ARCH)/LwIp/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+ifeq ($(LWIP),1)
+$(BUILDDIR)/lwip/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+endif
 
 $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.S | $(BUILDDIR)
 	@mkdir -p $(dir $@)

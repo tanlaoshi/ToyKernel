@@ -8,6 +8,7 @@
 #include "Gui.h"
 #include "Udp.h"
 #include "Tcp.h"
+#include "LwIp.h"
 #include "Debug.h"
 
 static volatile UINT32 gWorkerCount;
@@ -92,6 +93,9 @@ void ShellTask(void) {
         }
         HalNetPoll();
         TcpPoll();
+#ifdef TOY_LWIP
+        LwIpPoll();
+#endif
         {
             UDP_DATAGRAM Dg;
             while (UdpRecv(&Dg)) {
