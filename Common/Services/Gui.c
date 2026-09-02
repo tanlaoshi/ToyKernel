@@ -603,6 +603,8 @@ static void PaintWindowFromBackup(int Idx) {
     if (gWinBackupValid[Idx] && gWinBackup[Idx] != 0) {
         VideoWriteRect(Win->X, Win->Y, gWinBackupW[Idx], gWinBackupH[Idx],
                        gWinBackup[Idx]);
+        /* 备份里是拖动前的标题栏色，按当前焦点重画 chrome */
+        DrawWindowChromeAt(Idx);
         return;
     }
     DrawWindowAt(Idx);
