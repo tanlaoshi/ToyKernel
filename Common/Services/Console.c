@@ -85,7 +85,7 @@ void ConsoleWrite(const char *Text) {
     UINT32 H;
 
     HalSerialWrite(Text);
-    VideoGetSize(&W, &H);
+    HalVideoGetSize(&W, &H);
     if (W == 0 || H == 0) {
         return;
     }

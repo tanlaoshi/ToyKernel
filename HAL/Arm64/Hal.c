@@ -76,6 +76,16 @@ void HalSerialHexFormat(char *Buf, UINT64 Value, int Digits) {
     (void)Buf; (void)Value; (void)Digits;
 }
 
+void HalVideoSet(const VIDEO_CONFIG *Config) { (void)Config; }
+void HalVideoGetSize(UINT32 *Width, UINT32 *Height) {
+    if (Width) {
+        *Width = 0;
+    }
+    if (Height) {
+        *Height = 0;
+    }
+}
+
 const char *HalArchName(void) { return "aarch64"; }
 const char *HalCpuInfo(void) { return "ARM64 (stub)"; }
 

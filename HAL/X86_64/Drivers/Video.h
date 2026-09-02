@@ -1,7 +1,5 @@
 /*
- * Video.h — 帧缓冲文本与像素绘制
- *
- * 依赖 UEFI GOP 提供的线性帧缓冲。使用 FontData.h 中的 Terminus 16×32 点阵字体。
+ * Video.h — GOP 帧缓冲驱动（仅 HAL 内部使用，Common 请用 HalVideo.h）
  */
 #ifndef VIDEO_H
 #define VIDEO_H

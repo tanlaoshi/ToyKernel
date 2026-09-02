@@ -57,7 +57,7 @@ static int InitVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
-    VideoSet(&V);
+    HalVideoSet(&V);
     VideoClearScreen(COLOR_DARK_GRAY);
     return 0;
 }
