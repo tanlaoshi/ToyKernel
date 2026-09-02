@@ -14,7 +14,7 @@ void HalCpuShutdown(void) { HalCpuPark(); }
 
 void HalIrqEnable(void) { }
 void HalIrqDisable(void) { }
-void HalIdtSetGate(UINT32 Vector, void *Handler, UINT8 Type) {
+void HalIrqVectorSet(UINT32 Vector, void *Handler, UINT8 Type) {
     (void)Vector; (void)Handler; (void)Type;
 }
 void HalIrqRegister(UINT32 Vector, void (*Handler)(void)) {
@@ -39,7 +39,7 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) { (void)Frame; }
 void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }
 
 void HalFlushTlb(UINT64 VirtualAddress) { (void)VirtualAddress; }
-void HalLoadPageTable(UINT64 Cr3) { (void)Cr3; }
+void HalLoadPageTable(UINT64 Root) { (void)Root; }
 UINT64 HalGetPageTable(void) { return 0; }
 void HalPagingEnable(UINT64 RootPhys) { (void)RootPhys; }
 
@@ -51,18 +51,21 @@ UINT64 HalPageRootCreate(HalPageAllocateFunction Alloc, void *Ctx) {
 void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
     (void)DstRoot; (void)SrcRoot;
 }
+int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
+    (void)Root; (void)Index; (void)Alloc; (void)Ctx; return -1;
+}
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx) {
-    (void)Root; (void)VirtualAddress; (void)Phys; (void)Flags; (void)Alloc; (void)Ctx;
+    (void)Root; (void)VirtualAddress; (void)PhysicalAddress; (void)Flags; (void)Alloc; (void)Ctx;
     return -1;
 }
 int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End) {
     (void)Root; (void)Start; (void)End; return 0;
 }
 UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
-    (void)Root; (void)VirtualAddress; return 0;
+    (void)Root; (void)Virt; return 0;
 }
-UINT64 HalPageGetEntryCurrent(UINT64 Virt) { (void)VirtualAddress; return 0; }
+UINT64 HalPageGetEntryCurrent(UINT64 Virt) { (void)Virt; return 0; }
 
 void HalSerialInit(void) { }
 void HalSerialWrite(const char *Text) { (void)Text; }

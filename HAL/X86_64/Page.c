@@ -106,8 +106,8 @@ void HalFlushTlb(UINT64 VirtualAddress) {
     __asm__ volatile ("invlpg (%0)" :: "r"(VirtualAddress) : "memory");
 }
 
-void HalLoadPageTable(UINT64 Cr3) {
-    __asm__ volatile ("mov %0, %%cr3" :: "r"(Cr3) : "memory");
+void HalLoadPageTable(UINT64 Root) {
+    __asm__ volatile ("mov %0, %%cr3" :: "r"(Root) : "memory");
 }
 
 UINT64 HalGetPageTable(void) {
@@ -174,11 +174,11 @@ void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
 }
 
 /*
- * 将 PML4[Index] 换成私有 PDPT（内容从原 PDPT 拷贝）。
- * 内核恒等映射与用户空间都落在 PML4[0]；浅拷贝后若不私有化，
+ * 将根页表槽 Root[Index] 换成私有下一级表（x86：PML4→私有 PDPT）。
+ * 内核恒等映射与用户空间都落在槽 0；浅拷贝后若不私有化，
  * Map/Unmap 用户页会改到共享表，fork/exit 会互相踩页表。
  */
-int HalPagePrivatizePml4Slot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
+int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
     UINT64 *Pml4;
     UINT64 *OldPdpt;
     UINT64 *NewPdpt;

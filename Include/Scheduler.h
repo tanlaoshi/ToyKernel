@@ -37,7 +37,7 @@ typedef struct TASK {
     UINT32                 Id;
     UINT32                 Ticks;
     char                   Name[16];
-    UINT64                 Cr3;
+    UINT64                 PageRoot;   /* 页表根物理地址（x86 曾称 CR3） */
     int                    IsUser;
     int                    Started;
     VM_ADDR_SPACE         *UserSpace;
@@ -49,7 +49,7 @@ typedef struct TASK {
 
 void SchedulerInit(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
-int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 Cr3,
+int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VM_ADDR_SPACE *Space);
 UINT64 SchedulerOnTimer(HAL_FRAME *Frame);
 UINT64 SchedulerExitUser(HAL_FRAME *Frame);

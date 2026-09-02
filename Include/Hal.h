@@ -30,7 +30,8 @@ void HalCpuShutdown(void);
 
 void HalIrqEnable(void);
 void HalIrqDisable(void);
-void HalIdtSetGate(UINT32 Vector, void *Handler, UINT8 Type);
+/* Type：架构相关门描述（x86 为 IDT type；其它架构可忽略） */
+void HalIrqVectorSet(UINT32 Vector, void *Handler, UINT8 Type);
 void HalIrqRegister(UINT32 Vector, void (*Handler)(void));
 void HalIrqUnregister(UINT32 Vector);
 void HalIrqEoi(UINT32 Vector);
@@ -56,9 +57,9 @@ void   HalIoWrite8(UINT16 Port, UINT8 Value);
 void   HalIoWrite16(UINT16 Port, UINT16 Value);
 void   HalIoWrite32(UINT16 Port, UINT32 Value);
 
-/* 分页：CPU 寄存器 */
+/* 分页：CPU 当前页表根（x86 为 CR3；其它架构为等价寄存器） */
 void HalFlushTlb(UINT64 VirtualAddress);
-void HalLoadPageTable(UINT64 Cr3);
+void HalLoadPageTable(UINT64 Root);
 UINT64 HalGetPageTable(void);
 void HalPagingEnable(UINT64 RootPhys);
 
@@ -67,7 +68,8 @@ int HalPageKernelSetup(UINTN IdentityMegabytes);
 UINT64 HalPageKernelRoot(void);
 UINT64 HalPageRootCreate(HalPageAllocateFunction Alloc, void *Ctx);
 void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot);
-int HalPagePrivatizePml4Slot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx);
+/* 将根表槽 Index 换成私有下一级表（x86：PML4→PDPT）；fork 浅拷贝后必须私有化 */
+int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx);
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx);
 int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End);

@@ -14,7 +14,7 @@ extern void Isr128(void);
 #define PATH_MAX_LEN 15
 
 void SyscallInit(void) {
-    HalIdtSetGate(VEC_SYSCALL, (void *)Isr128, 0xEE);
+    HalIrqVectorSet(VEC_SYSCALL, (void *)Isr128, 0xEE);
     DebugWrite("syscall: vector 0x80 (DPL=3) ready\n");
 }
 

@@ -34,7 +34,7 @@ void HalIrqDisable(void) {
     ArchCli();
 }
 
-void HalIdtSetGate(UINT32 Vector, void *Handler, UINT8 Type) {
+void HalIrqVectorSet(UINT32 Vector, void *Handler, UINT8 Type) {
     ArchIdtSetGate(Vector, Handler, Type);
 }
 

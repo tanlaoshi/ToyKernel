@@ -30,7 +30,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ### 存储与启动
 
-- **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32 根目录读写（8.3 短名，写 ≤64K）
+- **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32（8.3 + LFN，子路径，写 ≤64K）
 - **卷选择**：优先挂载含 `TOYOS.ID` 的 FAT 卷
 - **双盘 QEMU**：`ToyImage/run-split.sh` — 盘 0 为 Boot/ESP，盘 1 为 `rootfs/`
 
@@ -50,6 +50,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 - **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
 - **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X86_64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
 - **HAL 设备门面（PR-4）**：`Block` 后端注册 + `HalDevices.h`（USB 输入 / virtio-net）；Common 不再 `#include` ATA/PCIe/XHCI/Net 驱动头
+- **HAL 去 x86 命名（PR-6）**：`HalIrqVectorSet`、`HalPagePrivatizeRootSlot`、`TASK.PageRoot` / `VirtualMemory*Root|LoadPageTable`
 - **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
 
 ---
@@ -165,7 +166,7 @@ echo hello | nc -u 127.0.0.1 5555
 
 ## 已知限制
 
-- FAT：仅根目录、8.3 短名，无子目录/LFN/删除
+- FAT：8.3 + LFN；写 ≤64K；无完整 Unicode 控制台渲染
 - TCP：无重传与滑动窗口
 - fork：COW 用户页；`wait` 支持 `WNOHANG`
 - 最多 8 个任务槽

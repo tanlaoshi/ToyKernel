@@ -28,15 +28,15 @@ typedef struct {
 
 int VirtualMemoryInit(void);
 void VirtualMemoryEnable(void);
-UINT64 VirtualMemoryKernelCr3(void);
-void VirtualMemoryLoadCr3(UINT64 Cr3);
+UINT64 VirtualMemoryKernelRoot(void);
+void VirtualMemoryLoadPageTable(UINT64 Root);
 
 int VirtualMemoryMapPage(UINT64 Virt, UINT64 Phys, UINT64 Flags);
 int VirtualMemoryMapRange(UINT64 Virt, UINT64 Phys, UINTN Bytes, UINT64 Flags);
 
 VM_ADDR_SPACE *VirtualMemorySpaceCreate(void);
 void VirtualMemorySpaceDestroy(VM_ADDR_SPACE *Space);
-UINT64 VirtualMemorySpaceCr3(const VM_ADDR_SPACE *Space);
+UINT64 VirtualMemorySpaceRoot(const VM_ADDR_SPACE *Space);
 int VirtualMemorySpaceMapPage(VM_ADDR_SPACE *Space, UINT64 Virt, UINT64 Phys, UINT64 Flags);
 void *VirtualMemorySpaceAllocateAndTrack(VM_ADDR_SPACE *Space);
 
@@ -46,7 +46,7 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len);
 
 VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src);
 
-/* #PF：写 COW 页时拆分；成功返回 0 */
-int VirtualMemoryHandlePageFault(UINT64 Cr2, UINT64 ErrorCode);
+/* 缺页：写 COW 页时拆分；成功返回 0 */
+int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode);
 
 #endif

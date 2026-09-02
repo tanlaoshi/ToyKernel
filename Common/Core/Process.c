@@ -19,7 +19,7 @@ extern char _binary_User_hello_elf_end[];
 static int ProcessStartElf(VM_ADDR_SPACE *Space, const ELF_LOAD_RESULT *Info,
                            const char *Name) {
     if (SchedulerCreateUser(Name, Info->Entry, Info->StackTop,
-                        VirtualMemorySpaceCr3(Space), Space) < 0) {
+                        VirtualMemorySpaceRoot(Space), Space) < 0) {
         ConsoleWrite("process: no task slot\n");
         return -1;
     }
@@ -27,8 +27,8 @@ static int ProcessStartElf(VM_ADDR_SPACE *Space, const ELF_LOAD_RESULT *Info,
     DebugWrite(Name);
     DebugWrite(" entry=");
     DebugHex64(Info->Entry);
-    DebugWrite(" cr3=");
-    DebugHex64(VirtualMemorySpaceCr3(Space));
+    DebugWrite(" root=");
+    DebugHex64(VirtualMemorySpaceRoot(Space));
     DebugWrite("\n");
     return 0;
 }
@@ -173,10 +173,10 @@ int ProcessExec(const char *Path) {
     }
 
     /* 装载 DT_NEEDED 前先切到用户页表，便于 CopyToUser 写 GOT */
-    VirtualMemoryLoadCr3(VirtualMemorySpaceCr3(Space));
+    VirtualMemoryLoadPageTable(VirtualMemorySpaceRoot(Space));
 
     if (ProcessLoadNeeded(Space, Buf, Size, Sos, &SoCount) != 0) {
-        VirtualMemoryLoadCr3(VirtualMemoryKernelCr3());
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
         ProcessFreeSos(Sos, SoCount);
         VirtualMemorySpaceDestroy(Space);
         PhysicalMemoryFreePages(Buf, Pages);
@@ -186,7 +186,7 @@ int ProcessExec(const char *Path) {
     if (SoCount > 0) {
         if (ElfRelocateProgram(Space, Buf, Size, Sos, SoCount) != 0) {
             ConsoleWrite("exec: relocate failed\n");
-            VirtualMemoryLoadCr3(VirtualMemoryKernelCr3());
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
             ProcessFreeSos(Sos, SoCount);
             VirtualMemorySpaceDestroy(Space);
             PhysicalMemoryFreePages(Buf, Pages);
@@ -194,7 +194,7 @@ int ProcessExec(const char *Path) {
         }
     }
 
-    VirtualMemoryLoadCr3(VirtualMemoryKernelCr3());
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
     ProcessFreeSos(Sos, SoCount);
     PhysicalMemoryFreePages(Buf, Pages);
 

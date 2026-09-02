@@ -188,7 +188,7 @@ void SchedulerInit(void) {
         gTasks[i].Id = (UINT32)i;
         gTasks[i].Ticks = 0;
         gTasks[i].Name[0] = 0;
-        gTasks[i].Cr3 = 0;
+        gTasks[i].PageRoot = 0;
         gTasks[i].IsUser = 0;
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = 0;
@@ -232,7 +232,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].Frame = F;
         gTasks[i].State = TASK_READY;
         gTasks[i].Ticks = 0;
-        gTasks[i].Cr3 = VirtualMemoryKernelCr3();
+        gTasks[i].PageRoot = VirtualMemoryKernelRoot();
         gTasks[i].IsUser = 0;
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = 0;
@@ -247,7 +247,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
     return -1;
 }
 
-int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 Cr3,
+int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VM_ADDR_SPACE *Space) {
     for (int i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State != TASK_UNUSED) {
@@ -269,7 +269,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 Cr3,
         gTasks[i].Frame = F;
         gTasks[i].State = TASK_READY;
         gTasks[i].Ticks = 0;
-        gTasks[i].Cr3 = Cr3;
+        gTasks[i].PageRoot = PageRoot;
         gTasks[i].IsUser = 1;
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = Space;
@@ -325,8 +325,8 @@ static void ActivateTask(TASK *T) {
     if (T->IsUser) {
         ArchSetRsp0((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
     }
-    if (T->Cr3 != 0) {
-        VirtualMemoryLoadCr3(T->Cr3);
+    if (T->PageRoot != 0) {
+        VirtualMemoryLoadPageTable(T->PageRoot);
     }
 }
 
@@ -355,7 +355,7 @@ static void ReapZombie(TASK *Z) {
     }
     Z->State = TASK_UNUSED;
     Z->Frame = 0;
-    Z->Cr3 = 0;
+    Z->PageRoot = 0;
     Z->IsUser = 0;
     Z->Started = 0;
     Z->ParentId = -1;
@@ -459,7 +459,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
         Exiting->UserSpace = 0;
     }
     Exiting->ExitCode = Code;
-    Exiting->Cr3 = VirtualMemoryKernelCr3();
+    Exiting->PageRoot = VirtualMemoryKernelRoot();
     Exiting->Waiting = 0;
 
     if (ParentIsUserWaiter(Exiting->ParentId)) {
@@ -537,7 +537,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTasks[Child].Frame = CF;
     gTasks[Child].State = TASK_READY;
     gTasks[Child].Ticks = 0;
-    gTasks[Child].Cr3 = VirtualMemorySpaceCr3(ChildSpace);
+    gTasks[Child].PageRoot = VirtualMemorySpaceRoot(ChildSpace);
     gTasks[Child].IsUser = 1;
     gTasks[Child].Started = 0;
     gTasks[Child].UserSpace = ChildSpace;
@@ -654,8 +654,8 @@ void SchedulerStart(void) {
     }
     gCurrent = First;
     gCurrent->State = TASK_RUNNING;
-    if (gCurrent->Cr3 != 0) {
-        VirtualMemoryLoadCr3(gCurrent->Cr3);
+    if (gCurrent->PageRoot != 0) {
+        VirtualMemoryLoadPageTable(gCurrent->PageRoot);
     }
     HalIrqDisable();
     HalTimerStart();

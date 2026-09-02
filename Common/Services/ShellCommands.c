@@ -114,8 +114,8 @@ static void CommandPs(int Argc, char **Argv) {
         } else if (T->State == TASK_BLOCKED) {
             ConsoleWrite(" blocked");
         }
-        ConsoleWrite(" cr3=");
-        ConsoleHex64(T->Cr3);
+        ConsoleWrite(" root=");
+        ConsoleHex64(T->PageRoot);
         ConsoleWrite(" rip=");
         ConsoleHex64(SchedulerTaskRip(T));
         ConsoleWrite(" ticks=");

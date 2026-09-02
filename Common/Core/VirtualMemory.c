@@ -59,7 +59,7 @@ VM_ADDR_SPACE *VirtualMemorySpaceCreate(void) {
 
     HalPageRootCopy(Space->Root, HalPageKernelRoot());
     /* 用户区 0x40000000 与内核恒等映射同属 PML4[0]；必须私有 PDPT 才能安全 fork */
-    if (HalPagePrivatizePml4Slot(Space->Root, 0,
+    if (HalPagePrivatizeRootSlot(Space->Root, 0,
                                  (HalPageAllocateFunction)VirtualMemorySpaceAllocateAndTrack,
                                  Space) != 0) {
         VirtualMemorySpaceDestroy(Space);
@@ -68,7 +68,7 @@ VM_ADDR_SPACE *VirtualMemorySpaceCreate(void) {
     return Space;
 }
 
-UINT64 VirtualMemorySpaceCr3(const VM_ADDR_SPACE *Space) {
+UINT64 VirtualMemorySpaceRoot(const VM_ADDR_SPACE *Space) {
     if (!Space) {
         return 0;
     }
@@ -108,8 +108,8 @@ void VirtualMemorySpaceDestroy(VM_ADDR_SPACE *Space) {
     }
 }
 
-void VirtualMemoryLoadCr3(UINT64 Cr3) {
-    HalLoadPageTable(Cr3);
+void VirtualMemoryLoadPageTable(UINT64 Root) {
+    HalLoadPageTable(Root);
 }
 
 int VirtualMemoryUserAccessOk(UINT64 Virt, UINTN Len) {
@@ -213,7 +213,7 @@ VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
     return Dst;
 }
 
-int VirtualMemoryHandlePageFault(UINT64 Cr2, UINT64 ErrorCode) {
+int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode) {
     UINT64 Va;
     UINT64 Pte;
     UINT64 Phys;
@@ -227,7 +227,7 @@ int VirtualMemoryHandlePageFault(UINT64 Cr2, UINT64 ErrorCode) {
     if ((ErrorCode & 0x7) != 0x7) {
         return -1;
     }
-    Va = Cr2 & ~(UINT64)(PAGE_SIZE - 1);
+    Va = FaultAddress & ~(UINT64)(PAGE_SIZE - 1);
     if (Va < USER_CODE_VIRT || Va >= USER_VIRT_END) {
         return -1;
     }
@@ -277,6 +277,6 @@ void VirtualMemoryEnable(void) {
     DebugWrite("VMM: paging enabled\n");
 }
 
-UINT64 VirtualMemoryKernelCr3(void) {
+UINT64 VirtualMemoryKernelRoot(void) {
     return HalPageKernelRoot();
 }
