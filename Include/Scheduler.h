@@ -12,6 +12,9 @@
 #define MAX_FDS   4
 #define FD_MAX_BYTES (64 * 1024)
 
+#define FD_KIND_FILE   0
+#define FD_KIND_SOCKET 1
+
 typedef enum {
     TASK_UNUSED = 0,
     TASK_READY,
@@ -22,6 +25,8 @@ typedef enum {
 
 typedef struct {
     int     Used;
+    int     Kind;   /* FD_KIND_FILE / FD_KIND_SOCKET */
+    int     SockId; /* Kind==SOCKET 时为 LwIp socket id */
     UINT8  *Data;
     UINTN   Size;
     UINTN   Pos;
@@ -60,6 +65,8 @@ void SchedulerStart(void);
 
 void SchedulerFdCloseAll(TASK *T);
 int SchedulerFdOpen(TASK *T, const char *Path);
+int SchedulerFdSocket(TASK *T, int Domain, int Type, int Protocol);
+int SchedulerFdConnect(TASK *T, int Fd, UINT32 Ip, UINT16 Port);
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len);
 int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len);
 int SchedulerFdClose(TASK *T, int Fd);

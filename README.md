@@ -14,7 +14,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
 | 图形界面 | ≈ 可用 | 多窗口、USB 键鼠、**标题栏拖动** |
-| 网络 | 已启动 | virtio-net、ping、UDP、简易 TCP echo |
+| 网络 | 进行中 | virtio-net；builtin TCP/UDP（legacy）+ 可选 lwIP |
 | 多核 SMP | 未开始 | — |
 
 ---
@@ -41,8 +41,10 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ### 网络
 
-- **virtio-net**：ARP、ICMP ping
-- **UDP / TCP**：`udplisten`、`udpsend`、`tcplisten`（TCP 无重传，仅供 QEMU 联调）
+- **virtio-net**：ARP、ICMP；默认走自研 builtin 栈（`Net`/`Udp`/`Tcp`，**legacy**）
+- **lwIP（可选）**：`./build.sh LWIP=1` 后 `lwip on` → RX/TX 仅 lwIP；同名 Shell 命令自动切换
+- **用户态 socket**：`SYS_SOCKET` / `SYS_CONNECT`；`exec NETDEMO.ELF`（需 LWIP=1）
+- **双栈策略**：运行时一帧一栈、不热切回 builtin；新功能以 lwIP 为准 → 详见 [`ThirdParty/README.md`](ThirdParty/README.md)
 
 ### 架构与工程
 

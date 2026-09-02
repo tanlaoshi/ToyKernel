@@ -9,6 +9,8 @@
 #include "Debug.h"
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
+#include "LwIp.h"
+#include "Socket.h"
 
 #define SCHED_TAG_KERNEL_FIRST 1ULL
 #define SCHED_TAG_USER_FIRST   2ULL
@@ -29,6 +31,8 @@ static void TaskClearFds(TASK *T) {
     int i;
     for (i = 0; i < MAX_FDS; i++) {
         T->Fds[i].Used = 0;
+        T->Fds[i].Kind = FD_KIND_FILE;
+        T->Fds[i].SockId = -1;
         T->Fds[i].Data = 0;
         T->Fds[i].Size = 0;
         T->Fds[i].Pos = 0;
@@ -60,17 +64,7 @@ void SchedulerFdCloseAll(TASK *T) {
     }
     for (i = 0; i < MAX_FDS; i++) {
         if (T->Fds[i].Used) {
-            FdFlush(&T->Fds[i]);
-            if (T->Fds[i].Data) {
-                PhysicalMemoryFreePages(T->Fds[i].Data, T->Fds[i].Pages);
-            }
-            T->Fds[i].Used = 0;
-            T->Fds[i].Data = 0;
-            T->Fds[i].Size = 0;
-            T->Fds[i].Pos = 0;
-            T->Fds[i].Pages = 0;
-            T->Fds[i].Path[0] = 0;
-            T->Fds[i].Dirty = 0;
+            SchedulerFdClose(T, i);
         }
     }
 }
@@ -103,6 +97,8 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
         Size = 0;
     }
     T->Fds[Slot].Used = 1;
+    T->Fds[Slot].Kind = FD_KIND_FILE;
+    T->Fds[Slot].SockId = -1;
     T->Fds[Slot].Data = (UINT8 *)Buf;
     T->Fds[Slot].Size = Size;
     T->Fds[Slot].Pos = 0;
@@ -112,15 +108,67 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     return Slot;
 }
 
+int SchedulerFdSocket(TASK *T, int Domain, int Type, int Protocol) {
+    int Slot = -1;
+    int Sock;
+    int i;
+
+    (void)Protocol;
+    if (!T || Domain != AF_INET || Type != SOCK_STREAM) {
+        return -1;
+    }
+    for (i = 0; i < MAX_FDS; i++) {
+        if (!T->Fds[i].Used) {
+            Slot = i;
+            break;
+        }
+    }
+    if (Slot < 0) {
+        return -1;
+    }
+    Sock = LwIpSocketCreate();
+    if (Sock < 0) {
+        return -1;
+    }
+    T->Fds[Slot].Used = 1;
+    T->Fds[Slot].Kind = FD_KIND_SOCKET;
+    T->Fds[Slot].SockId = Sock;
+    T->Fds[Slot].Data = 0;
+    T->Fds[Slot].Size = 0;
+    T->Fds[Slot].Pos = 0;
+    T->Fds[Slot].Pages = 0;
+    T->Fds[Slot].Path[0] = 0;
+    T->Fds[Slot].Dirty = 0;
+    return Slot;
+}
+
+int SchedulerFdConnect(TASK *T, int Fd, UINT32 Ip, UINT16 Port) {
+    if (!T || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
+        return -1;
+    }
+    if (T->Fds[Fd].Kind != FD_KIND_SOCKET) {
+        return -1;
+    }
+    return LwIpSocketConnect(T->Fds[Fd].SockId, Ip, Port);
+}
+
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
     TASK_FD *F;
     UINTN N;
     UINTN i;
+    int Ret;
 
     if (!T || !Buf || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
         return -1;
     }
     F = &T->Fds[Fd];
+    if (F->Kind == FD_KIND_SOCKET) {
+        Ret = LwIpSocketRecv(F->SockId, Buf, Len, 2000);
+        if (Ret == -2) {
+            return 0; /* EOF */
+        }
+        return Ret;
+    }
     if (F->Pos >= F->Size) {
         return 0;
     }
@@ -143,6 +191,9 @@ int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len) {
         return -1;
     }
     F = &T->Fds[Fd];
+    if (F->Kind == FD_KIND_SOCKET) {
+        return LwIpSocketSend(F->SockId, Buf, Len);
+    }
     if (F->Pos > FD_MAX_BYTES) {
         return -1;
     }
@@ -167,11 +218,17 @@ int SchedulerFdClose(TASK *T, int Fd) {
     if (!T || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
         return -1;
     }
-    FdFlush(&T->Fds[Fd]);
-    if (T->Fds[Fd].Data) {
-        PhysicalMemoryFreePages(T->Fds[Fd].Data, T->Fds[Fd].Pages);
+    if (T->Fds[Fd].Kind == FD_KIND_SOCKET) {
+        LwIpSocketClose(T->Fds[Fd].SockId);
+    } else {
+        FdFlush(&T->Fds[Fd]);
+        if (T->Fds[Fd].Data) {
+            PhysicalMemoryFreePages(T->Fds[Fd].Data, T->Fds[Fd].Pages);
+        }
     }
     T->Fds[Fd].Used = 0;
+    T->Fds[Fd].Kind = FD_KIND_FILE;
+    T->Fds[Fd].SockId = -1;
     T->Fds[Fd].Data = 0;
     T->Fds[Fd].Size = 0;
     T->Fds[Fd].Pos = 0;

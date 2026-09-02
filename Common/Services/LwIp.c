@@ -14,6 +14,7 @@
 #include "lwip/sys.h"
 #include "toy_netif.h"
 #include "toy_ping.h"
+#include "toy_socket.h"
 
 #define TOY_LWIP_MASK  0xFFFFFF00U  /* 255.255.255.0 */
 #define TOY_LWIP_GW    0x0A000202U  /* 10.0.2.2 */
@@ -55,6 +56,32 @@ int LwIpActive(void) {
 
 int LwIpPing(UINT32 DstIp, int TimeoutMs) {
     return ToyPing(DstIp, TimeoutMs);
+}
+
+int LwIpSocketCreate(void) {
+    if (!gLwIpReady && LwIpInit() != 0) {
+        return -1;
+    }
+    return ToySocketCreate();
+}
+
+int LwIpSocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort) {
+    if (!gLwIpReady) {
+        return -1;
+    }
+    return ToySocketConnect(Sock, DstIp, DstPort, 3000);
+}
+
+int LwIpSocketSend(int Sock, const void *Data, UINTN Len) {
+    return ToySocketSend(Sock, Data, Len);
+}
+
+int LwIpSocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
+    return ToySocketRecv(Sock, Buf, Len, TimeoutMs);
+}
+
+int LwIpSocketClose(int Sock) {
+    return ToySocketClose(Sock);
 }
 
 #else
@@ -118,6 +145,37 @@ int LwIpTcpConnectSend(UINT32 DstIp, UINT16 DstPort,
     (void)Data;
     (void)Len;
     (void)TimeoutMs;
+    return -1;
+}
+
+int LwIpSocketCreate(void) {
+    return -1;
+}
+
+int LwIpSocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort) {
+    (void)Sock;
+    (void)DstIp;
+    (void)DstPort;
+    return -1;
+}
+
+int LwIpSocketSend(int Sock, const void *Data, UINTN Len) {
+    (void)Sock;
+    (void)Data;
+    (void)Len;
+    return -1;
+}
+
+int LwIpSocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
+    (void)Sock;
+    (void)Buf;
+    (void)Len;
+    (void)TimeoutMs;
+    return -1;
+}
+
+int LwIpSocketClose(int Sock) {
+    (void)Sock;
     return -1;
 }
 

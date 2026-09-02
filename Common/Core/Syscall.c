@@ -129,6 +129,24 @@ static int SysClose(int Fd) {
     return SchedulerFdClose(T, Fd);
 }
 
+static int SysSocket(int Domain, int Type, int Protocol) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return SchedulerFdSocket(T, Domain, Type, Protocol);
+}
+
+static int SysConnect(int Fd, UINT32 Ip, UINT16 Port) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return SchedulerFdConnect(T, Fd, Ip, Port);
+}
+
 UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     UINT64 Ret = 0;
 
@@ -161,6 +179,14 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         break;
     case SYS_YIELD:
         Ret = SchedulerYield(Frame);
+        break;
+    case SYS_SOCKET:
+        Frame->Rax = (UINT64)(long)SysSocket(
+            (int)Frame->Rdi, (int)Frame->Rsi, (int)Frame->Rdx);
+        break;
+    case SYS_CONNECT:
+        Frame->Rax = (UINT64)(long)SysConnect(
+            (int)Frame->Rdi, (UINT32)Frame->Rsi, (UINT16)Frame->Rdx);
         break;
     default:
         ConsoleWrite("syscall: unknown ");

@@ -33,7 +33,7 @@ INCLUDES_HAL    = $(INCLUDES_COMMON) \
 
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
-              -DTOY_DEBUG=$(DEBUG) \
+              -DTOY_DEBUG=$(DEBUG) -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
               $(ARCH_CFLAGS)
 
 ifeq ($(LWIP),1)
@@ -69,7 +69,8 @@ LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_ping.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_tcpecho.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_udp.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_tcpclient.c
+                 HAL/$(HAL_ARCH)/LwIp/toy_tcpclient.c \
+                 HAL/$(HAL_ARCH)/LwIp/toy_socket.c
 LWIP_PORT_OBJS = $(patsubst HAL/$(HAL_ARCH)/LwIp/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/LwIp/%.o,$(LWIP_PORT_SRCS))
 endif
 
@@ -104,6 +105,7 @@ USER_DYNDEMO_ELF = User/dyndemo.elf
 USER_LIBTOY_SO = User/libtoy.so
 USER_CAT_ELF = User/catfile.elf
 USER_WRITE_ELF = User/writefile.elf
+USER_NETDEMO_ELF = User/netdemo.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
@@ -112,6 +114,7 @@ USER_DYNDEMO_OBJ = User/dyndemo.o
 USER_LIBTOY_OBJ = User/libtoy.o
 USER_CAT_OBJ = User/catfile.o
 USER_WRITE_OBJ = User/writefile.o
+USER_NETDEMO_OBJ = User/netdemo.o
 USER_LD = User/user.ld
 endif
 
@@ -123,7 +126,8 @@ TARGET = $(BUILDDIR)/Kernel.elf
 all: $(TARGET)
 ifeq ($(ARCH),x86_64)
 all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
-	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
+	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
+	$(USER_NETDEMO_ELF)
 endif
 
 $(BUILDDIR):
@@ -197,6 +201,9 @@ $(USER_CAT_OBJ): User/catfile.S
 $(USER_WRITE_OBJ): User/writefile.S
 	$(CC) -c $< -o $@
 
+$(USER_NETDEMO_OBJ): User/netdemo.S
+	$(CC) -c $< -o $@
+
 $(USER_FORK_ELF): $(USER_FORK_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_FORK_OBJ)
 
@@ -216,6 +223,9 @@ $(USER_CAT_ELF): $(USER_CAT_OBJ) $(USER_LD)
 $(USER_WRITE_ELF): $(USER_WRITE_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WRITE_OBJ)
 
+$(USER_NETDEMO_ELF): $(USER_NETDEMO_OBJ) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_NETDEMO_OBJ)
+
 $(BUILDDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(BUILDDIR)
 	objcopy -I binary -O $(USER_BLOB_FMT) User/hello.elf $@
 endif
@@ -225,6 +235,8 @@ clean:
 ifeq ($(ARCH),x86_64)
 	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_WAITNH_OBJ)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
+	rm -f $(USER_NETDEMO_OBJ)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
+	rm -f $(USER_NETDEMO_ELF)
 endif

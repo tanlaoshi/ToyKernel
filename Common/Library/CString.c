@@ -13,6 +13,12 @@ void *memcpy(void *Dst, const void *Src, UINTN Len) {
     return Dst;
 }
 
+/* GCC _FORTIFY_SOURCE 可能把 memcpy 换成此符号；freestanding 下忽略 destlen */
+void *__memcpy_chk(void *Dst, const void *Src, UINTN Len, UINTN DestLen) {
+    (void)DestLen;
+    return memcpy(Dst, Src, Len);
+}
+
 void *memset(void *Dst, int Val, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     UINT8 V = (UINT8)Val;
@@ -21,6 +27,11 @@ void *memset(void *Dst, int Val, UINTN Len) {
         D[i] = V;
     }
     return Dst;
+}
+
+void *__memset_chk(void *Dst, int Val, UINTN Len, UINTN DestLen) {
+    (void)DestLen;
+    return memset(Dst, Val, Len);
 }
 
 void *memmove(void *Dst, const void *Src, UINTN Len) {

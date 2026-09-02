@@ -21,4 +21,11 @@ int  LwIpUdpRecv(UDP_DATAGRAM *Out);
 int  LwIpTcpConnectSend(UINT32 DstIp, UINT16 DstPort,
                         const void *Data, UINTN Len, int TimeoutMs);
 
+/* 用户态 socket 后端（持久 TCP）；无 TOY_LWIP 时返回 -1 */
+int  LwIpSocketCreate(void);
+int  LwIpSocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort);
+int  LwIpSocketSend(int Sock, const void *Data, UINTN Len);
+int  LwIpSocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs);
+int  LwIpSocketClose(int Sock);
+
 #endif

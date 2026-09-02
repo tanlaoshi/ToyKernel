@@ -1,5 +1,6 @@
 /*
- * Udp.h — 极简 UDP：绑定本地端口、发送、接收队列
+ * Udp.h — 自研 UDP（legacy）：绑定本地端口、发送、接收队列
+ * lwip on 后走 lwIP；策略见 ThirdParty/README.md。
  */
 #ifndef UDP_H
 #define UDP_H

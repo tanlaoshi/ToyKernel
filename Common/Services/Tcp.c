@@ -1,7 +1,8 @@
 /*
- * Tcp.c — 单连接 TCP：握手/回显 + 发送缓冲、对端窗口、超时重传
+ * Tcp.c — 自研单连接 TCP（legacy）：握手/回显 + 发送缓冲、对端窗口、超时重传
  *
  * 无慢启动/拥塞控制；RTO 以 ShellTask 轮询次数计（见 TCP_RTO_POLLS）。
+ * 生产路径为 lwIP（ThirdParty/README.md）；本文件仅保留教学/无 lwIP 联调。
  */
 #include "Tcp.h"
 #include "Hal.h"
