@@ -5,6 +5,7 @@
  */
 #include "Tcp.h"
 #include "Hal.h"
+#include "Console.h"
 #include "Debug.h"
 
 #define TCP_HDR_LEN       20
@@ -222,6 +223,12 @@ static void TcpRetransmit(void) {
     if (gState != TCP_ESTABLISHED || gSndNxt <= gSndUna) {
         return;
     }
+    /* 仅重传 snd_buf 中由 TcpSend 入队的数据；回显为即时发送不在缓冲内 */
+    if (gSndBufLen == 0) {
+        gSndUna = gSndNxt;
+        gRetransCount = 0;
+        return;
+    }
     Unacked = gSndNxt - gSndUna;
     Chunk = TCP_MSS;
     if (Chunk > Unacked) {
@@ -375,7 +382,11 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
             gPeerWnd = 1;
         }
         gState = TCP_SYN_RECEIVED;
-        TcpSendSegment(TCP_FLAG_SYN | TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+        if (TcpSendSegment(TCP_FLAG_SYN | TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt) != 0) {
+            ConsoleWrite("tcp: syn-ack failed\n");
+            gState = TCP_LISTEN;
+            return;
+        }
         gSndNxt++;
         return;
     }
@@ -405,14 +416,19 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
         if (SrcIp != gPeerIp || SrcPort != gPeerPort) {
             return;
         }
-        if (Flags & TCP_FLAG_ACK) {
-            gState = TCP_ESTABLISHED;
-            DebugWrite("tcp: established (echo)\n");
+        if ((Flags & TCP_FLAG_ACK) == 0 || Ack != gSndNxt) {
+            return;
         }
-        return;
-    }
-
-    if (gState != TCP_ESTABLISHED) {
+        gSndUna = Ack;
+        gPeerWnd = NetToHost16(Hdr->Window);
+        if (gPeerWnd == 0) {
+            gPeerWnd = 1;
+        }
+        gState = TCP_ESTABLISHED;
+        ConsoleWrite("tcp: client connected\n");
+        DebugWrite("tcp: established (echo)\n");
+        /* 可能与本包同段的 PSH 数据：落到下方 ESTABLISHED 处理 */
+    } else if (gState != TCP_ESTABLISHED) {
         return;
     }
     if (SrcIp != gPeerIp || SrcPort != gPeerPort || DstPort != gLocalPort) {
@@ -440,18 +456,34 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
             TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
             return;
         }
-        if (TcpQueueBytes(Data, DataLen) != 0) {
-            DebugWrite("tcp: snd buf full\n");
-            TcpSendSegment(TCP_FLAG_RST | TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
-            gState = TCP_CLOSED;
+        gRcvNxt = Seq + (UINT32)DataLen;
+        /* 回显：直接发送（不经 snd_buf，避免与 snd_una 序号错位） */
+        if (TcpSendSegment(TCP_FLAG_ACK | TCP_FLAG_PSH, Data, DataLen,
+                           gSndNxt, gRcvNxt) != 0) {
+            ConsoleWrite("tcp: echo send failed\n");
+            DebugWrite("tcp: echo send failed\n");
             return;
         }
-        gRcvNxt = Seq + (UINT32)DataLen;
-        TcpFlushSend();
+        gSndNxt += (UINT32)DataLen;
+        if (gSndUna < gSndNxt) {
+            TcpArmRetrans();
+        }
+        {
+            UINTN i;
+            ConsoleWrite("tcp echo: ");
+            for (i = 0; i < DataLen; i++) {
+                char C = (char)((const UINT8 *)Data)[i];
+                if (C >= 32 && C <= 126) {
+                    char S[2] = { C, 0 };
+                    ConsoleWrite(S);
+                }
+            }
+            ConsoleWrite("\n");
+        }
     }
 
     if (Flags & TCP_FLAG_FIN) {
-        gRcvNxt = Seq + 1;
+        gRcvNxt = Seq + (UINT32)DataLen + 1;
         TcpSendSegment(TCP_FLAG_ACK | TCP_FLAG_FIN, 0, 0, gSndNxt, gRcvNxt);
         gSndNxt++;
         gState = TCP_CLOSED;

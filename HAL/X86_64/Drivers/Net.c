@@ -559,6 +559,7 @@ static void HandleIpPacket(const UINT8 *Pkt, UINTN Len) {
     if (ByteSwap32(Ip->Dst) != gIp) {
         return;
     }
+    ArpLearn(ByteSwap32(Ip->Src), Eth->Src);
     if (Ip->Proto == IP_PROTO_ICMP) {
         HandleIcmp(Ip, Pkt + ETH_HDR_LEN + IpHdrLen,
                    IpLen - IpHdrLen);

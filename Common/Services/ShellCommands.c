@@ -303,6 +303,9 @@ static void CommandTcpConnect(int Argc, char **Argv) {
         ConsoleWrite("usage: tcpconnect <ip> <port> <text>\n");
         return;
     }
+    if (TcpGetState() == TCP_LISTEN) {
+        ConsoleWrite("tcpconnect: closes tcplisten (single TCP slot)\n");
+    }
     if (!HalNetReady()) {
         ConsoleWrite("net: not available\n");
         return;
