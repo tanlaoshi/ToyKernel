@@ -1,7 +1,7 @@
 /*
  * Fat.h — FAT16/FAT32 文件系统接口
  *
- * 依赖 Block 读写扇区。8.3 短文件名；支持路径 DIR/FILE、读/写/删。
+ * 依赖 Block 读写扇区。支持 8.3 与 LFN；路径 DIR/FILE、读/写/删。
  */
 #ifndef FAT_H
 #define FAT_H
