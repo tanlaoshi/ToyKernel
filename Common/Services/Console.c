@@ -289,16 +289,22 @@ void ConsoleFocusSave(void) {
 
 void ConsoleFocusLoad(void) {
     GuiConsolePull(gLine, &gLen, &gWaitPrompt);
-    if (GuiConsoleHasDisplay()) {
-        GuiFocusApplyClip();
-        GuiConsoleMarkPrompt();
+    /* 非 Shell 焦点（如 Settings）不碰控制台绘制 */
+    if (!GuiShellAcceptsInput()) {
         return;
     }
-    if (GuiConsoleNeedsPrompt()) {
-        GuiFocusHome();
-        Prompt();
-        GuiConsoleMarkPrompt();
+    if (GuiConsoleHasDisplay()) {
+        GuiFocusApplyClip();
+        if (GuiConsoleNeedsPrompt()) {
+            Prompt();
+            GuiConsoleMarkPrompt();
+        }
+        return;
     }
+    /*
+     * 新 Shell 窗：欢迎语由 ConsoleOnShellOpened 画，此处不自动 Prompt，
+     * 避免与欢迎语叠字。
+     */
 }
 
 /* 注册 help / clear / echo（须在 ShellCommands 之前调用） */
@@ -313,32 +319,58 @@ void ConsoleBindFocus(void) {
     GuiFocusApply();
 }
 
-/* 初始化 Shell：打印欢迎语、显示提示符（内置命令须先由 InitConsole 注册） */
+/* 初始化：无 Shell 时仅串口提示；开窗后由 ConsoleOnShellOpened 画欢迎语 */
 void ConsoleInit(void) {
-    int i;
-
     gLen = 0;
     gWaitPrompt = 0;
+    gAtLineStart = 1;
+    HalConsoleWriteSerial("ToyOS ready. Type shell / settings, or any key to open Shell.\n");
+}
+
+void ConsoleOnShellOpened(void) {
+    if (!GuiShellAcceptsInput()) {
+        return;
+    }
+    gLen = 0;
+    gWaitPrompt = 0;
+    gAtLineStart = 1;
+    GuiFocusClearClient();
     GuiFocusHome();
     ConsoleWrite("ToyOS console. Type help.\n");
     Prompt();
     GuiConsoleMarkPrompt();
-
-    for (i = 1; i < GUI_MAX_WINS; i++) {
-        if (GuiShellWindowActive(i)) {
-            GuiFocusSave();
-            GuiSetFocusWin(i);
-            GuiFocusApply();
-        }
-    }
     GuiFocusSave();
-    GuiSetFocusWin(0);
-    GuiFocusApply();
+}
+
+/*
+ * 空桌面按键自动开 Shell。
+ * 返回：0 失败；1 已有可输入 Shell；2 刚打开（调用方应吞掉触发键，勿写入行缓冲）。
+ */
+static int ConsoleEnsureShell(void) {
+    if (GuiShellAcceptsInput()) {
+        return 1;
+    }
+    if (GuiFocusKind() != GUI_WIN_NONE) {
+        return 0;
+    }
+    if (GuiOpenShell() < 0) {
+        HalConsoleWriteSerial("shell: no free window\n");
+        return 0;
+    }
+    ConsoleOnShellOpened();
+    return 2;
 }
 
 /* 处理可打印字符输入 */
 void ConsoleOnChar(char C) {
-    if (!GuiShellAcceptsInput()) {
+    int Ensured;
+
+    Ensured = ConsoleEnsureShell();
+    if (Ensured == 0) {
+        return;
+    }
+    if (Ensured == 2) {
+        /* 开窗触发键（如 /）不进入输入行 */
         return;
     }
     if (C < 32 || C > 126) {
@@ -393,14 +425,32 @@ void ConsoleCancelInput(void) {
     }
 }
 
+/* 命令可能把焦点切走（settings）；提示符只能画在 Shell 上 */
+static void ConsolePromptAfterCommand(void) {
+    if (gWaitPrompt != 0 || ConsolePromptSuspended()) {
+        return;
+    }
+    if (GuiShellAcceptsInput()) {
+        Prompt();
+        return;
+    }
+    /* 焦点在 Settings 等：标记 Shell 待补提示符，点回 Shell 时再画 */
+    GuiShellRequestPrompt();
+}
+
 /* 处理回车：执行命令并重新显示提示符 */
 void ConsoleOnEnter(void) {
-    if (!GuiShellAcceptsInput()) {
+    int Ensured;
+
+    Ensured = ConsoleEnsureShell();
+    if (Ensured == 0) {
+        return;
+    }
+    if (Ensured == 2) {
+        /* 仅用 Enter 开窗：已有欢迎语+提示符，勿再当空命令执行 */
         return;
     }
     ConsoleWrite("\n");
     RunLine();
-    if (gWaitPrompt == 0 && !ConsolePromptSuspended()) {
-        Prompt();
-    }
+    ConsolePromptAfterCommand();
 }

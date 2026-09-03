@@ -36,9 +36,8 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
         }
 
         if (Key == HID_KEY_ENTER) {
-            if (GuiShellAcceptsInput()) {
-                ConsoleOnEnter();
-            }
+            /* ConsoleOnEnter → EnsureShell：空桌面时开 Shell */
+            ConsoleOnEnter();
             continue;
         }
         if (Key == HID_KEY_LEFT || Key == HID_KEY_RIGHT ||
@@ -64,7 +63,7 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
         }
 
         char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
-        if (C != 0 && GuiShellAcceptsInput()) {
+        if (C != 0) {
             ConsoleOnChar(C);
         }
     }

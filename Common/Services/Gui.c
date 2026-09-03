@@ -12,12 +12,14 @@
 #include "Console.h"
 #include "PhysicalMemory.h"
 #include "Theme.h"
+#include "Font.h"
+#include "Desktop.h"
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
 #define DRAG_BORDER_PAD 2
 
-#define MAX_WINS     4
+#define MAX_WINS     GUI_MAX_WINS
 #define TITLE_HEIGHT GUI_TITLE_HEIGHT
 #define CLOSE_SIZE   24
 #define CLOSE_MARGIN 6
@@ -26,6 +28,7 @@
 
 typedef struct {
     int      Active;
+    GUI_WIN_KIND Kind; /* PR-D3 */
     UINT32   X;
     UINT32   Y;
     UINT32   Width;
@@ -117,6 +120,8 @@ static void GfxIrqLeave(void) {
 
 static void DrawWindowChromeAt(int Idx);
 static void DrawWindowAt(int Idx);
+static void BackupWindowAt(int Idx);
+static void RaiseWindow(int Idx);
 static void PaintAllWindowsFromBackup(int DragIdx);
 static void RedrawWindowChrome(void);
 static int RectIntersects(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
@@ -325,6 +330,7 @@ static void CloseWindow(int Idx) {
     Ww = gWins[Idx].Width;
     Wh = gWins[Idx].Height;
     gWins[Idx].Active = 0;
+    gWins[Idx].Kind = GUI_WIN_NONE;
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
     gWins[Idx].WaitPrompt = 0;
@@ -345,6 +351,7 @@ static void CloseWindow(int Idx) {
     HalIrqDisable();
     CursorRestore();
     UiFillRectangle(X, Y, Ww, Wh, ThemeDesktopBg());
+    DesktopDrawRect(X, Y, Ww, Wh);
     for (i = 0; i < MAX_WINS; i++) {
         if (gWins[i].Active) {
             DrawWindowChromeAt(i);
@@ -1461,6 +1468,16 @@ void GuiConsoleMarkPrompt(void) {
     gWins[gFocusWin].PromptShown = 1;
 }
 
+void GuiShellRequestPrompt(void) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL) {
+            gWins[i].PromptShown = 0;
+        }
+    }
+}
+
 int GuiConsoleHasDisplay(void) {
     if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
         return 0;
@@ -1626,11 +1643,14 @@ void GuiFocusClearClient(void) {
 }
 
 int GuiShellAcceptsInput(void) {
-    return gFocusWin >= 0 && gFocusWin < MAX_WINS && gWins[gFocusWin].Active;
+    return gFocusWin >= 0 && gFocusWin < MAX_WINS &&
+           gWins[gFocusWin].Active &&
+           gWins[gFocusWin].Kind == GUI_WIN_SHELL;
 }
 
 int GuiShellWindowActive(int Idx) {
-    return Idx >= 0 && Idx < MAX_WINS && gWins[Idx].Active;
+    return Idx >= 0 && Idx < MAX_WINS && gWins[Idx].Active &&
+           gWins[Idx].Kind == GUI_WIN_SHELL;
 }
 
 void GuiSetFocusWin(int Idx) {
@@ -1666,6 +1686,7 @@ void GuiRedraw(void) {
     GfxIrqEnter();
     CursorRestore();
     UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+    DesktopDraw();
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindowAt(i);
     }
@@ -1678,11 +1699,165 @@ void GuiApplyThemeColors(void) {
     UINT32 Bg = ThemeShellClientBg();
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active) {
+        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL) {
             gWins[i].Background = Bg;
         }
     }
     GuiRedraw();
+}
+
+static int AllocWindowSlot(void) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void PlaceNewWindow(int Idx, UINT32 *OutX, UINT32 *OutY,
+                           UINT32 *OutW, UINT32 *OutH) {
+    UINT32 Margin = 48;
+    UINT32 Cascade = (UINT32)Idx * 28;
+    UINT32 W;
+    UINT32 H;
+
+    W = gScreenW > Margin * 2 + 200 ? gScreenW - Margin * 2 : gScreenW - 32;
+    H = gScreenH > Margin * 2 + 120 ? gScreenH - Margin * 2 : gScreenH - 32;
+    if (W > 720) {
+        W = 720;
+    }
+    if (H > 480) {
+        H = 480;
+    }
+    *OutX = Margin + Cascade;
+    *OutY = Margin + Cascade;
+    if (*OutX + W > gScreenW) {
+        *OutX = Margin;
+    }
+    if (*OutY + H > gScreenH) {
+        *OutY = Margin;
+    }
+    *OutW = W;
+    *OutH = H;
+}
+
+int GuiOpenShell(void) {
+    int Idx;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+
+    Idx = AllocWindowSlot();
+    if (Idx < 0) {
+        return -1;
+    }
+    PlaceNewWindow(Idx, &X, &Y, &W, &H);
+    gWins[Idx].Active = 1;
+    gWins[Idx].Kind = GUI_WIN_SHELL;
+    gWins[Idx].X = X;
+    gWins[Idx].Y = Y;
+    gWins[Idx].Width = W;
+    gWins[Idx].Height = H;
+    gWins[Idx].Background = ThemeShellClientBg();
+    gWins[Idx].Title = "ToyOS Shell";
+    gWins[Idx].TermSet = 0;
+    gWins[Idx].InputLen = 0;
+    gWins[Idx].WaitPrompt = 0;
+    gWins[Idx].PromptShown = 0;
+    gWins[Idx].InputLine[0] = 0;
+
+    DrawWindowAt(Idx);
+    BackupWindowAt(Idx);
+    GuiFocusSave();
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    GuiFocusApply();
+    DebugWrite("gui: open shell idx=");
+    DebugHex32((UINT32)gFocusWin);
+    DebugWrite("\n");
+    return gFocusWin;
+}
+
+int GuiOpenSettings(void) {
+    int Idx;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Margin = 48;
+
+    Idx = AllocWindowSlot();
+    if (Idx < 0) {
+        return -1;
+    }
+    /* 靠右放置，避免盖住左侧已开的 Shell */
+    W = 480;
+    H = 360;
+    if (W + Margin * 2 > gScreenW) {
+        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    }
+    if (H + Margin * 2 > gScreenH) {
+        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    }
+    X = (gScreenW > W + Margin) ? (gScreenW - W - Margin) : Margin;
+    Y = Margin;
+    gWins[Idx].Active = 1;
+    gWins[Idx].Kind = GUI_WIN_SETTINGS;
+    gWins[Idx].X = X;
+    gWins[Idx].Y = Y;
+    gWins[Idx].Width = W;
+    gWins[Idx].Height = H;
+    gWins[Idx].Background = COLOR_LIGHT_GRAY;
+    gWins[Idx].Title = "Settings";
+    gWins[Idx].TermSet = 0;
+    gWins[Idx].InputLen = 0;
+    gWins[Idx].WaitPrompt = 0;
+    gWins[Idx].PromptShown = 0;
+    gWins[Idx].InputLine[0] = 0;
+
+    DrawWindowAt(Idx);
+    BackupWindowAt(Idx);
+    GuiFocusSave();
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    GuiFocusApply();
+    /* 占位文案；D5 再换交互控件（勿走 Console/Prompt，以免画到本窗） */
+    {
+        UINT32 Cx;
+        UINT32 Cy;
+        UINT32 Cw;
+        UINT32 Ch;
+        UINT32 Bg;
+
+        if (GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
+            HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
+            HalVideoDrawStringAt(Cx + 12, Cy + 12, "Settings (PR-D5)", COLOR_BLACK);
+            HalVideoDrawStringAt(Cx + 12, Cy + 12 + FontAdvanceY(),
+                                 "font / colors soon", COLOR_BLACK);
+            GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+            BackupWindowAt(gFocusWin);
+            HalVideoClearClip();
+        }
+    }
+    DebugWrite("gui: open settings idx=");
+    DebugHex32((UINT32)gFocusWin);
+    DebugWrite("\n");
+    return gFocusWin;
+}
+
+GUI_WIN_KIND GuiWindowKind(int Idx) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+        return GUI_WIN_NONE;
+    }
+    return gWins[Idx].Kind;
+}
+
+GUI_WIN_KIND GuiFocusKind(void) {
+    return GuiWindowKind(gFocusWin);
 }
 
 void GuiInit(void) {
@@ -1693,47 +1868,30 @@ void GuiInit(void) {
     }
     gCursorX = gScreenW / 2;
     gCursorY = gScreenH / 2;
-    gFocusWin = 0;
+    gFocusWin = -1;
     gCursorVisible = 0;
     gDragWin = -1;
 
     {
-        /* 略小于全屏，露出桌面，方便演示拖动 */
-        UINT32 Margin = 48;
-        UINT32 ShellW = gScreenW > Margin * 2 + 200 ?
-                        gScreenW - Margin * 2 : gScreenW - 32;
-        UINT32 ShellH = gScreenH > Margin * 2 + 120 ?
-                        gScreenH - Margin * 2 : gScreenH - 32;
         int i;
 
-        gWins[0].Active = 1;
-        gWins[0].X = Margin;
-        gWins[0].Y = Margin;
-        gWins[0].Width = ShellW;
-        gWins[0].Height = ShellH;
-        gWins[0].Background = ThemeShellClientBg();
-        gWins[0].Title = "ToyOS Shell";
-        gWins[0].TermSet = 0;
-        gWins[0].InputLen = 0;
-        gWins[0].WaitPrompt = 0;
-        gWins[0].PromptShown = 0;
-
-        /* 其余槽位空闲；需要第二窗时可再开（当前无运行时 new 命令） */
-        for (i = 1; i < MAX_WINS; i++) {
+        for (i = 0; i < MAX_WINS; i++) {
             gWins[i].Active = 0;
+            gWins[i].Kind = GUI_WIN_NONE;
             gWins[i].TermSet = 0;
             gWins[i].InputLen = 0;
             gWins[i].WaitPrompt = 0;
             gWins[i].PromptShown = 0;
             gWins[i].InputLine[0] = 0;
-            gWins[i].Title = "Shell";
+            gWins[i].Title = "";
+            gWins[i].Background = ThemeShellClientBg();
         }
     }
 
-    gFocusWin = 0;
     PreallocWindowBackups();
+    DesktopInit();
     GuiRedraw();
-    DebugWrite("gui: desktop ready (1 shell window)\n");
+    DebugWrite("gui: desktop ready (icons + no app windows)\n");
 }
 
 void GuiOnArrowKey(UINT8 Key) {
@@ -1800,7 +1958,8 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         }
         return 1;
     }
-    return 0;
+    /* 未点中窗口：桌面图标（双击打开） */
+    return DesktopHandleClick(X, Y);
 }
 
 static void GuiDragUpdate(UINT32 X, UINT32 Y) {

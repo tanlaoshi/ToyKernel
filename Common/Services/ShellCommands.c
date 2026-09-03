@@ -13,6 +13,7 @@
 #include "Tcp.h"
 #include "LwIp.h"
 #include "VirtualMemory.h"
+#include "Gui.h"
 
 static void CommandInfo(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -560,6 +561,30 @@ static void CommandLwIp(int Argc, char **Argv) {
 }
 #endif
 
+static void CommandShell(int Argc, char **Argv) {
+    int Idx;
+
+    (void)Argc;
+    (void)Argv;
+    Idx = GuiOpenShell();
+    if (Idx < 0) {
+        ConsoleWrite("shell: no free window\n");
+        return;
+    }
+    ConsoleOnShellOpened();
+}
+
+static void CommandSettings(int Argc, char **Argv) {
+    int Idx;
+
+    (void)Argc;
+    (void)Argv;
+    Idx = GuiOpenSettings();
+    if (Idx < 0) {
+        ConsoleWrite("settings: no free window\n");
+    }
+}
+
 void ShellCommandsRegister(void) {
     ConsoleRegister("info", "boot framebuffer info", CommandInfo);
     ConsoleRegister("ps", "list tasks", CommandPs);
@@ -567,6 +592,8 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("memtest", "alloc/verify/free one page", CommandMemtest);
     ConsoleRegister("runuser", "run embedded hello ELF", CommandRunuser);
     ConsoleRegister("exec", "load ELF from FAT", CommandExec);
+    ConsoleRegister("shell", "open Shell window", CommandShell);
+    ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
     ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);

@@ -12,7 +12,14 @@ typedef struct {
     UINT8  Buttons;
 } GUI_MOUSE_STATE;
 
-#define GUI_MAX_WINS        4
+/* PR-D3：窗口种类（桌面图标 / Settings 依赖） */
+typedef enum {
+    GUI_WIN_NONE = 0,
+    GUI_WIN_SHELL,
+    GUI_WIN_SETTINGS
+} GUI_WIN_KIND;
+
+#define GUI_MAX_WINS        6
 #define GUI_TITLE_HEIGHT    40
 #define GUI_CLIENT_PAD 8
 #define GUI_INPUT_LINE_MAX  128
@@ -43,11 +50,19 @@ void GuiPollMouse(void);
 int GuiShellWindowActive(int Idx);
 void GuiSetFocusWin(int Idx);
 
+/* PR-D3：打开应用窗；成功返回槽位，失败 -1 */
+int GuiOpenShell(void);
+int GuiOpenSettings(void);
+GUI_WIN_KIND GuiFocusKind(void);
+GUI_WIN_KIND GuiWindowKind(int Idx);
+
 /* PR-G2：每窗 Shell 输入行与提示符状态（随 GUI_WINDOW 移动） */
 void GuiConsolePull(char *Line, int *Len, int *WaitPrompt);
 void GuiConsolePush(const char *Line, int Len, int WaitPrompt);
 int GuiConsoleNeedsPrompt(void);
 void GuiConsoleMarkPrompt(void);
 int GuiConsoleHasDisplay(void);
+/* 焦点不在 Shell 时：标记所有 Shell 下次获焦需补 prompt */
+void GuiShellRequestPrompt(void);
 
 #endif

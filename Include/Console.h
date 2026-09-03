@@ -22,6 +22,8 @@ void ConsoleOnEnter(void);
 void ConsoleOnBackspace(void);
 void ConsoleCancelInput(void);
 void ConsoleBindFocus(void);
+/* PR-D3：新开 Shell 窗后打印欢迎语与提示符 */
+void ConsoleOnShellOpened(void);
 
 /* PR-G2：焦点切换时保存/恢复当前窗输入行（由 GuiFocusSave/Apply 调用） */
 void ConsoleFocusSave(void);
