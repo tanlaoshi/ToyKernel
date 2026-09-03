@@ -89,11 +89,9 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 - **落地**：`DrawTitleStringOccluded` 逐字 `PixelOccludedByAbove`。
 
-### M5. Clip「名不副实」：绝对坐标绘制无视 clip
+### M5. Clip「名不副实」：绝对坐标绘制无视 clip — **G10 ✅**
 
-- **位置**：`Video.c`：clip 主要约束相对光标 `VideoDrawChar` / 滚屏；`FillRect` / `DrawStringAt` 不受裁  
-- **问题**：Settings `SetClipRegion` 后仍 `DrawStringAt`，防写穿靠自觉。  
-- **方向**：`DrawPixel`/`FillRect`/`DrawStringAt` 尊重 `gClipOn`；或文档写明 Settings 不依赖 clip。
+- **落地**：`VideoFillRect` 与 clip 求交；`DrawStringAt`/`DrawCharAt` 经 `VideoDrawPixel` 本已裁剪。
 
 ### M6. 重叠时跳过被挡窗备份刷新 → 陈旧备份
 
@@ -123,17 +121,17 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 ## 3. Low / 结构
 
-| ID | 说明 | 方向 |
-|----|------|------|
-| L1 | `Gui.c` ~2100 行：窗管 + 合成 + 光标 + 焦点 | 拆 `GuiCompositor` / `GuiCursor` |
-| L2 | `GuiOnMouse` 与 `GuiPollMouse` 双份按钮边沿 | 统一到一处 |
-| L3 | `WinCopy` 手写字节拷贝 | 结构体赋值 |
-| L4 | `FillRectOccluded` O(像素×窗) | 矩形裁剪 / 只 blit 备份 |
-| L5 | `VideoCopyRect` 逐像素 | 按行拷贝（注意 pitch） |
-| L6 | `DesktopDraw`（Raw）若在已有窗时被误调会盖窗 | 注释/断言/改名 |
-| L7 | Console `GuiBackupSyncRect` 包围盒在滚屏后可能不全 | 滚屏后 sync 整客户区 |
-| L8 | 双击时限绑裸 TSC，与「~0.5s」注释随 CPU 变 | 用校准毫秒时钟 |
-| L9 | Arm64/RiscV `HalVideoClearClip` 空实现 | 跨架构对齐或 `#ifdef` 文档说明 |
+| ID | 说明 | 方向 | 状态 |
+|----|------|------|------|
+| L1 | `Gui.c` 过大：窗管 + 合成 + 光标 + 焦点 | 拆 `GuiCompositor` / `GuiCursor` | 后置 |
+| L2 | `GuiOnMouse` 与 `GuiPollMouse` 双份按钮边沿 | 统一到 `GuiOnMouse` | **G10 ✅** |
+| L3 | `WinCopy` 手写字节拷贝 | 结构体赋值 | **G10 ✅** |
+| L4 | `FillRectOccluded` O(像素×窗) | 矩形裁剪 / 只 blit 备份 | 后置 |
+| L5 | `VideoCopyRect` 逐像素 | 按行拷贝 | **G10 ✅** |
+| L6 | `DesktopDraw`（Raw）若在已有窗时被误调会盖窗 | 注释/断言/改名 | 后置 |
+| L7 | Console `GuiBackupSyncRect` 包围盒在滚屏后可能不全 | 滚屏后 sync 整客户区 | **G10 ✅** |
+| L8 | 双击时限绑裸 TSC | `HalCpuTicks(0)` | **G10 ✅** |
+| L9 | Arm64/RiscV `HalVideoClearClip` 空实现 | 注释对齐（无 FB） | **G10 ✅** |
 
 ---
 

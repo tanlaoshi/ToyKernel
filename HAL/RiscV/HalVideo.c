@@ -160,5 +160,6 @@ void HalVideoSetTextCursor(UINT32 X, UINT32 Y) { (void)X; (void)Y; }
 
 
 
+/* PR-G10 L9：无帧缓冲时 clip 为空操作；符号与 x86 HalVideo 对齐 */
 void HalVideoClearClip(void) { }
 

@@ -60,12 +60,25 @@ static void ConsoleDrawString(const char *Text, UINT32 Color) {
     HalConsoleGetTextCursor(&X0, &Y0);
     HalConsoleDrawString(Text, Color);
     HalConsoleGetTextCursor(&X1, &Y1);
-    L = X0 < X1 ? X0 : X1;
-    T = Y0 < Y1 ? Y0 : Y1;
-    R = (X0 > X1 ? X0 : X1) + FontAdvanceX();
-    B = (Y0 > Y1 ? Y0 : Y1) + FontAdvanceY();
-    if (R > L && B > T) {
-        GuiBackupSyncRect(L, T, R - L, B - T);
+    /* PR-G10 L7：滚屏后光标 Y 回退，包围盒盖不住整客户区 → 整区 sync */
+    if (Y1 < Y0) {
+        UINT32 Cx;
+        UINT32 Cy;
+        UINT32 Cw;
+        UINT32 Ch;
+        UINT32 Bg;
+
+        if (GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) && Cw > 0 && Ch > 0) {
+            GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+        }
+    } else {
+        L = X0 < X1 ? X0 : X1;
+        T = Y0 < Y1 ? Y0 : Y1;
+        R = (X0 > X1 ? X0 : X1) + FontAdvanceX();
+        B = (Y0 > Y1 ? Y0 : Y1) + FontAdvanceY();
+        if (R > L && B > T) {
+            GuiBackupSyncRect(L, T, R - L, B - T);
+        }
     }
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();

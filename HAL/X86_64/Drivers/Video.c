@@ -309,6 +309,8 @@ void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color
     UINT32 Col;
     UINT32 CopyW;
     UINT32 CopyH;
+    UINT32 X0;
+    UINT32 Y0;
 
     if (!Width || !Height) {
         return;
@@ -318,25 +320,70 @@ void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color
     if (!Fb || Pitch == 0) {
         return;
     }
-    if (X >= gScreen.Width || Y >= gScreen.Height) {
-        return;
-    }
+    X0 = X;
+    Y0 = Y;
     CopyW = Width;
     CopyH = Height;
-    if (X + CopyW > gScreen.Width) {
-        CopyW = gScreen.Width - X;
+
+    /* PR-G10 M5：与 DrawPixel 一致，尊重客户区 clip */
+    if (gClipOn) {
+        UINT32 ClipR = gClipX + gClipW;
+        UINT32 ClipB = gClipY + gClipH;
+        UINT32 R;
+        UINT32 B;
+
+        if (X0 >= ClipR || Y0 >= ClipB) {
+            return;
+        }
+        if (X0 < gClipX) {
+            UINT32 Skip = gClipX - X0;
+            if (Skip >= CopyW) {
+                return;
+            }
+            CopyW -= Skip;
+            X0 = gClipX;
+        }
+        if (Y0 < gClipY) {
+            UINT32 Skip = gClipY - Y0;
+            if (Skip >= CopyH) {
+                return;
+            }
+            CopyH -= Skip;
+            Y0 = gClipY;
+        }
+        if (CopyW == 0 || CopyH == 0) {
+            return;
+        }
+        R = X0 + CopyW;
+        B = Y0 + CopyH;
+        if (R > ClipR) {
+            CopyW = ClipR - X0;
+        }
+        if (B > ClipB) {
+            CopyH = ClipB - Y0;
+        }
     }
-    if (Y + CopyH > gScreen.Height) {
-        CopyH = gScreen.Height - Y;
+
+    if (X0 >= gScreen.Width || Y0 >= gScreen.Height) {
+        return;
+    }
+    if (X0 + CopyW > gScreen.Width) {
+        CopyW = gScreen.Width - X0;
+    }
+    if (Y0 + CopyH > gScreen.Height) {
+        CopyH = gScreen.Height - Y0;
+    }
+    if (CopyW == 0 || CopyH == 0) {
+        return;
     }
     for (Row = 0; Row < CopyH; Row++) {
-        UINT32 *Line = &Fb[(Y + Row) * Pitch + X];
+        UINT32 *Line = &Fb[(Y0 + Row) * Pitch + X0];
 
         for (Col = 0; Col < CopyW; Col++) {
             Line[Col] = Color;
         }
     }
-    DirtyUnion(X, Y, CopyW, CopyH);
+    DirtyUnion(X0, Y0, CopyW, CopyH);
 }
 
 void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
@@ -375,18 +422,21 @@ void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
         return;
     }
 
+    /* PR-G10 L5：按行拷贝（同向/逆向处理重叠） */
     if (DstY > SrcY || (DstY == SrcY && DstX > SrcX)) {
         for (Y = H - 1; Y >= 0; Y--) {
+            UINT32 *Dst = &Fb[(DstY + (UINT32)Y) * Pitch + DstX];
+            UINT32 *Src = &Fb[(SrcY + (UINT32)Y) * Pitch + SrcX];
             for (X = W - 1; X >= 0; X--) {
-                Fb[(DstY + (UINT32)Y) * Pitch + DstX + (UINT32)X] =
-                    Fb[(SrcY + (UINT32)Y) * Pitch + SrcX + (UINT32)X];
+                Dst[X] = Src[X];
             }
         }
-    } else {
+    } else if (DstY != SrcY || DstX != SrcX) {
         for (Y = 0; Y < H; Y++) {
+            UINT32 *Dst = &Fb[(DstY + (UINT32)Y) * Pitch + DstX];
+            UINT32 *Src = &Fb[(SrcY + (UINT32)Y) * Pitch + SrcX];
             for (X = 0; X < W; X++) {
-                Fb[(DstY + (UINT32)Y) * Pitch + DstX + (UINT32)X] =
-                    Fb[(SrcY + (UINT32)Y) * Pitch + SrcX + (UINT32)X];
+                Dst[X] = Src[X];
             }
         }
     }

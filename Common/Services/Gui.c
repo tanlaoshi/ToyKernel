@@ -93,12 +93,7 @@ static UINT32   gDragStartW;
 static UINT32   gDragStartH;
 
 static void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
-    const UINT8 *S = (const UINT8 *)Src;
-    UINT8 *D = (UINT8 *)Dst;
-    UINTN N = sizeof(GUI_WINDOW);
-    while (N--) {
-        *D++ = *S++;
-    }
+    *Dst = *Src;
 }
 
 /* 保存进入绘制区前的 IF，避免在中断/异常里 ConsoleWrite 后误 sti 嵌套中断 */
@@ -2527,6 +2522,9 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
 
     if ((Mouse->Buttons & 1) && !(PrevBtn & 1)) {
         GuiHandleClick(gCursorX, gCursorY);
+    } else if ((Mouse->Buttons & 1) && gDragWin >= 0) {
+        /* PR-G10 L2：与 GuiPollMouse 统一，按住拖动时持续更新 */
+        GuiDragUpdate(gCursorX, gCursorY);
     }
     if (!(Mouse->Buttons & 1) && (PrevBtn & 1)) {
         GuiDragEnd();
@@ -2534,12 +2532,12 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     PrevBtn = Mouse->Buttons;
 }
 
-/* 从 XHCI 鼠标队列取报告并更新光标（Shell/Gui 任务均可调用） */
+/* 从 XHCI 鼠标队列取报告并交给 GuiOnMouse（单一边沿/拖动逻辑） */
 void GuiPollMouse(void) {
     HAL_MOUSE_REPORT Raw;
     UINT32 Sw;
     UINT32 Sh;
-    static UINT8 PrevBtn;
+    GUI_MOUSE_STATE M;
 
     if (!HalMousePresent()) {
         return;
@@ -2573,17 +2571,9 @@ void GuiPollMouse(void) {
             Y = Sh > 0 ? Sh - 1 : 0;
         }
 
-        gCursorBtn = Raw.Buttons;
-        CursorMove(X, Y);
-
-        if ((Raw.Buttons & 1) && !(PrevBtn & 1)) {
-            GuiHandleClick(X, Y);
-        } else if ((Raw.Buttons & 1) && gDragWin >= 0) {
-            GuiDragUpdate(X, Y);
-        }
-        if (!(Raw.Buttons & 1) && (PrevBtn & 1)) {
-            GuiDragEnd();
-        }
-        PrevBtn = Raw.Buttons;
+        M.X = X;
+        M.Y = Y;
+        M.Buttons = Raw.Buttons;
+        GuiOnMouse(&M);
     }
 }

@@ -21,15 +21,10 @@
 #define DESKTOP_DBLCLICK_SLOP 16u
 
 /*
- * 双击时限：x86_64 用 TSC（与 LAPIC 频率无关）。
- * 约 1.0e9 周期 ≈ 0.25s@4GHz … 1s@1GHz，贴近常见双击手感。
- * 其它架构退回 HalCpuTicks，窗宽另行估计。
+ * 双击时限：用 BSP 的 LAPIC tick 计数（HalCpuTickInc），与 CPU 主频无关。
+ * 约 400 次周期定时中断 ≈ 常见双击窗（具体秒数随 TIMER_INIT 略变）。
  */
-#if defined(__x86_64__) || defined(__amd64__)
-#define DESKTOP_DBLCLICK_MAX  1000000000ULL
-#else
-#define DESKTOP_DBLCLICK_MAX  300ULL
-#endif
+#define DESKTOP_DBLCLICK_MAX  400ULL
 
 typedef enum {
     DESKTOP_ACT_SHELL = 0,
@@ -51,15 +46,7 @@ static UINT32 gSelectX;
 static UINT32 gSelectY;
 
 static UINT64 DesktopClock(void) {
-#if defined(__x86_64__) || defined(__amd64__)
-    UINT32 Lo;
-    UINT32 Hi;
-
-    __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
-    return ((UINT64)Hi << 32) | Lo;
-#else
-    return HalCpuTicks(HalCpuId());
-#endif
+    return HalCpuTicks(0);
 }
 
 static int RectsOverlap(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
@@ -420,7 +407,7 @@ void DesktopInit(void) {
     gSelectClock = 0;
     gSelectX = 0;
     gSelectY = 0;
-    DebugWrite("desktop: icons ready (double-click within ~0.5s)\n");
+    DebugWrite("desktop: icons ready (double-click within ~timer ticks)\n");
 }
 
 int DesktopHandleClick(UINT32 X, UINT32 Y) {
