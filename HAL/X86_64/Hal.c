@@ -15,6 +15,17 @@ void HalCpuHalt(void) {
 }
 
 void HalCpuReboot(void) {
+    UINT32 i;
+
+    HalIrqDisable();
+    /* 8042 脉冲复位（QEMU/PC 通用）；失败则 CF9 冷复位 */
+    for (i = 0; i < 100000; i++) {
+        if ((HalIoRead8(0x64) & 0x02) == 0) {
+            break;
+        }
+    }
+    HalIoWrite8(0x64, 0xFE);
+    HalIoWrite8(0xCF9, 0x06);
     for (;;) {
         HalCpuHalt();
     }

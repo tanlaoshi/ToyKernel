@@ -561,6 +561,14 @@ static void CommandLwIp(int Argc, char **Argv) {
 }
 #endif
 
+static void CommandReboot(int Argc, char **Argv) {
+    (void)Argc;
+    (void)Argv;
+    ConsoleWrite("rebooting...\n");
+    HalConsoleWriteSerial("shell: reboot\n");
+    HalCpuReboot();
+}
+
 static void CommandShell(int Argc, char **Argv) {
     int Idx;
 
@@ -594,6 +602,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("exec", "load ELF from FAT", CommandExec);
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
+    ConsoleRegister("reboot", "reset machine (keep QEMU)", CommandReboot);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
     ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);

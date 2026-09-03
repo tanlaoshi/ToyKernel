@@ -119,7 +119,6 @@ static void GfxIrqLeave(void) {
     }
 }
 
-static void DrawWindowChromeAt(int Idx);
 static void DrawWindowAt(int Idx);
 static void BackupWindowAt(int Idx);
 static void RaiseWindow(int Idx);
@@ -130,6 +129,9 @@ static void RefreshOtherChrome(int SkipIdx);
 static void CursorRestore(void);
 static void CursorPaint(void);
 static void SyncWindowVisuals(void);
+static UINT32 SampleWindowBackupPixel(int Idx, UINT32 Px, UINT32 Py);
+static void DrawWindowChromeAt(int Idx);
+static void PaintWindowFromBackup(int Idx);
 void GuiFocusApply(void);
 void GuiFocusApplyClip(void);
 void GuiFocusSyncCursor(void);
@@ -353,8 +355,13 @@ static void CloseWindow(int Idx) {
     UiFillRectangle(X, Y, Ww, Wh, ThemeDesktopBg());
     DesktopDrawRect(X, Y, Ww, Wh);
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active) {
-            DrawWindowChromeAt(i);
+        if (!gWins[i].Active) {
+            continue;
+        }
+        if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
+                           X, Y, Ww, Wh)) {
+            /* 恢复被关窗盖住的客户区，勿只重画标题栏 */
+            PaintWindowFromBackup(i);
         }
     }
     CursorPaint();
@@ -724,7 +731,7 @@ static void BackupWindowAt(int Idx) {
     gWinBackupValid[Idx] = 1;
 }
 
-/* 与 DrawWindowAt 布局一致，用于合成被拖窗下方的干净像素 */
+/* 与 DrawWindowAt 布局一致；仅作无备份时的回退 */
 static UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     const GUI_WINDOW *W = &gWins[Idx];
     UINT32 Lx;
@@ -751,6 +758,10 @@ static UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     return COLOR_WHITE;
 }
 
+/*
+ * 被拖窗下方可见像素：优先窗备份（含 Shell 文字）；无备份再解析空壳。
+ * 注意：若备份是在被上层盖住时从 FB 抓的，重叠区可能脏——Capture 时用重绘采样避免。
+ */
 static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
     int i;
     UINT32 IconColor;
@@ -762,10 +773,12 @@ static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
         if (Px >= gWins[i].X && Py >= gWins[i].Y &&
             Px < gWins[i].X + gWins[i].Width &&
             Py < gWins[i].Y + gWins[i].Height) {
+            if (gWinBackupValid[i] && gWinBackup[i] != 0) {
+                return SampleWindowBackupPixel(i, Px, Py);
+            }
             return AnalyticWindowPixel(i, Px, Py);
         }
     }
-    /* 窗下是桌面：必须带回图标，否则拖走后只剩底色（图标被「吃掉」） */
     if (DesktopSamplePixel(Px, Py, &IconColor)) {
         return IconColor;
     }
@@ -830,8 +843,7 @@ static int EnsureUnderDragBuf(UINT32 Ww, UINT32 Wh) {
 
 static void CaptureDragRestoreData(int DragIdx) {
     UINT32 Pages;
-    UINT32 Ly;
-    UINT32 Lx;
+    int i;
 
     gScreenSnapValid = 0;
     gUnderDragValid = 0;
@@ -863,23 +875,56 @@ static void CaptureDragRestoreData(int DragIdx) {
         }
         gScreenSnapPages = Pages;
     }
+    /* 含被拖窗的全屏快照：非起始 footprint 露底时用 */
     HalVideoReadRect(0, 0, gScreenW, gScreenH, gScreenSnap);
     gScreenSnapValid = 1;
-    /* 预分配脏区缓冲，拖动中避免边合成边申请 */
     EnsureDragDirtyBuf(gScreenW, gScreenH);
 
     if (!EnsureUnderDragBuf(gDragStartW, gDragStartH)) {
         return;
     }
-    for (Ly = 0; Ly < gDragStartH; Ly++) {
-        for (Lx = 0; Lx < gDragStartW; Lx++) {
-            UINT32 Px = gDragStartX + Lx;
-            UINT32 Py = gDragStartY + Ly;
 
-            gUnderDrag[Ly * gDragStartW + Lx] = TopmostBelowDragPixel(Px, Py, DragIdx);
+    /*
+     * 起始 footprint 的「去被拖窗」场景：暂时取消被拖窗 Active，重画桌面+其它窗，
+     * 再读入 under-drag，最后恢复 Active 并贴回被拖窗。
+     */
+    HalVideoClearClip();
+    gWins[DragIdx].Active = 0;
+    UiFillRectangle(gDragStartX, gDragStartY, gDragStartW, gDragStartH,
+                    ThemeDesktopBg());
+    DesktopDrawRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH);
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active || i == DragIdx) {
+            continue;
+        }
+        if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
+                           gDragStartX, gDragStartY, gDragStartW, gDragStartH)) {
+            DrawWindowAt(i);
         }
     }
+    HalVideoReadRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH, gUnderDrag);
     gUnderDragValid = 1;
+    gWins[DragIdx].Active = 1;
+
+    /* 贴回被拖窗（备份应在 Begin/Start 里已抓好） */
+    if (gWinBackupValid[DragIdx] && gWinBackup[DragIdx] != 0) {
+        HalVideoWriteRect(gDragStartX, gDragStartY, gWinBackupW[DragIdx],
+                          gWinBackupH[DragIdx], gWinBackup[DragIdx]);
+        DrawWindowChromeAt(DragIdx);
+    } else {
+        DrawWindowAt(DragIdx);
+    }
+
+    /* 同步被重画过的其它窗备份，供后续合成/关窗 */
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active || i == DragIdx) {
+            continue;
+        }
+        if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
+                           gDragStartX, gDragStartY, gDragStartW, gDragStartH)) {
+            BackupWindowAt(i);
+        }
+    }
 }
 
 static void BeginDragBackups(int DragIdx) {
@@ -1075,14 +1120,7 @@ static UINT32 CompositeDragPixel(UINT32 Px, UINT32 Py, int DragIdx,
             return SampleWindowBackupPixel(i, Px, Py);
         }
     }
-    {
-        UINT32 IconColor;
-
-        if (DesktopSamplePixel(Px, Py, &IconColor)) {
-            return IconColor;
-        }
-    }
-    return ThemeDesktopBg();
+    return TopmostBelowDragPixel(Px, Py, DragIdx);
 }
 
 /* 旧/新 footprint 并集一次扫描线写出，避免先清灰再全窗重贴的两步闪屏 */
@@ -1141,8 +1179,6 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
             }
         }
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
-        /* 合成可能只带回底色；标签等复杂像素再避让重画一次 */
-        DesktopDrawRect(DuX, DuY, DuW, DuH);
         return;
     }
     if (DuW > DRAG_ROW_MAX) {
@@ -1159,7 +1195,6 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
         }
         HalVideoWriteRect(DuX, Py, DuW, 1, gDragRowBuf);
     }
-    DesktopDrawRect(DuX, DuY, DuW, DuH);
 }
 
 static void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
@@ -1829,9 +1864,22 @@ int GuiOpenSettings(void) {
     if (Idx < 0) {
         return -1;
     }
-    /* 靠右放置，避免盖住左侧已开的 Shell */
-    W = 520;
-    H = 400;
+    /* 靠右放置；高度按字体行距预留，避免菜单画出窗外叠在 Shell/桌面上 */
+    W = 560;
+    {
+        UINT32 LineH = FontAdvanceY();
+        UINT32 NeedH;
+
+        if (LineH < 16) {
+            LineH = 16;
+        }
+        /* 标题 + 边距 + Display 页约 14 行（含 Now/提示） */
+        NeedH = TITLE_HEIGHT + GUI_CLIENT_PAD * 2 + 12 + LineH * 14 + 8;
+        H = NeedH;
+        if (H < 420) {
+            H = 420;
+        }
+    }
     if (W + Margin * 2 > gScreenW) {
         W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
     }

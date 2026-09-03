@@ -1,5 +1,8 @@
 /*
- * SettingsUi.c — Settings 一级/二级文字菜单（PR-D5）
+ * SettingsUi.c — Settings 一级/二级文字菜单（PR-D5）+ 分辨率（PR-D7）
+ *
+ * 分辨率只写 THEME.CFG mode=WxH；保存后提示手动 reboot（Shell `reboot` 或 QEMU Machine→Reset）。
+ * 「重启」= Guest 复位（QEMU 窗口保持）。不要 Ctrl+C 再 ./run-split.sh（vvfat 常丢未提交写入）。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -13,7 +16,8 @@ typedef enum {
     SETTINGS_PAGE_MAIN = 0,
     SETTINGS_PAGE_DESKTOP_BG,
     SETTINGS_PAGE_SHELL_BG,
-    SETTINGS_PAGE_FONT
+    SETTINGS_PAGE_FONT,
+    SETTINGS_PAGE_DISPLAY
 } SETTINGS_PAGE;
 
 typedef struct {
@@ -21,7 +25,14 @@ typedef struct {
     UINT32      Color;
 } SETTINGS_COLOR;
 
+typedef struct {
+    const char *Label;
+    UINT32      W;
+    UINT32      H;
+} SETTINGS_MODE;
+
 static SETTINGS_PAGE gPage = SETTINGS_PAGE_MAIN;
+static int gRebootHint;
 
 static const SETTINGS_COLOR gDesktopColors[] = {
     { "Dark Gray", COLOR_DARK_GRAY },
@@ -39,10 +50,19 @@ static const SETTINGS_COLOR gShellColors[] = {
     { "Gray",       COLOR_GRAY },
 };
 
+/* 与路线图 / ToyBoot QEMU 友好表对齐 */
+static const SETTINGS_MODE gModes[] = {
+    { "800x600",   800,  600 },
+    { "1024x768", 1024,  768 },
+    { "1280x720", 1280,  720 },
+    { "1600x900", 1600,  900 },
+};
+
 #define DESKTOP_COLOR_COUNT \
     ((int)(sizeof(gDesktopColors) / sizeof(gDesktopColors[0])))
 #define SHELL_COLOR_COUNT \
     ((int)(sizeof(gShellColors) / sizeof(gShellColors[0])))
+#define MODE_COUNT ((int)(sizeof(gModes) / sizeof(gModes[0])))
 
 static int FocusSettingsWindow(void) {
     int i;
@@ -59,11 +79,69 @@ static int FocusSettingsWindow(void) {
     return 0;
 }
 
-static void DrawLine(UINT32 *X, UINT32 *Y, UINT32 X0, const char *Text,
-                     UINT32 Color) {
+static void DrawLine(UINT32 *X, UINT32 *Y, UINT32 X0, UINT32 MaxBottom,
+                     const char *Text, UINT32 Color) {
+    /* 禁止画到客户区外（否则叠在下层 Shell / 桌面上） */
+    if (*Y + FontCellH() > MaxBottom) {
+        return;
+    }
     HalVideoDrawStringAt(*X, *Y, Text, Color);
     *Y += FontAdvanceY();
     *X = X0;
+}
+
+static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {
+    UINTN N = 0;
+    char Tmp[8];
+    int Tn;
+    int i;
+    UINT32 V;
+
+    if (Max == 0) {
+        return;
+    }
+    V = A;
+    Tn = 0;
+    if (V == 0) {
+        Tmp[Tn++] = '0';
+    } else {
+        while (V > 0 && Tn < (int)sizeof(Tmp)) {
+            Tmp[Tn++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    for (i = Tn - 1; i >= 0 && N + 1 < Max; i--) {
+        Out[N++] = Tmp[i];
+    }
+    if (N + 1 < Max) {
+        Out[N++] = 'x';
+    }
+    V = B;
+    Tn = 0;
+    if (V == 0) {
+        Tmp[Tn++] = '0';
+    } else {
+        while (V > 0 && Tn < (int)sizeof(Tmp)) {
+            Tmp[Tn++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    for (i = Tn - 1; i >= 0 && N + 1 < Max; i--) {
+        Out[N++] = Tmp[i];
+    }
+    Out[N] = 0;
+}
+
+static void CopyLabel(char *Dst, int DstMax, const char *S) {
+    int j;
+
+    if (DstMax <= 0) {
+        return;
+    }
+    for (j = 0; S[j] && j < DstMax - 1; j++) {
+        Dst[j] = S[j];
+    }
+    Dst[j] = 0;
 }
 
 static void PaintMenu(void) {
@@ -75,12 +153,17 @@ static void PaintMenu(void) {
     UINT32 X;
     UINT32 Y;
     UINT32 X0;
-    UINT32 MaxY;
+    UINT32 MaxBottom;
     int i;
-    char Line[48];
+    char Line[56];
     const FONT_FACE *Face;
     UINT32 CurColor;
     UINT32 CurFont;
+    UINT32 NowW;
+    UINT32 NowH;
+    UINT32 PrefW;
+    UINT32 PrefH;
+    int HasPref;
 
     if (!FocusSettingsWindow()) {
         return;
@@ -95,80 +178,124 @@ static void PaintMenu(void) {
 
     X0 = Cx + 12;
     X = X0;
-    Y = Cy + 10;
-    MaxY = Cy + Ch - FontCellH();
+    Y = Cy + 8;
+    MaxBottom = Cy + Ch;
 
-    DrawLine(&X, &Y, X0, "Settings", COLOR_BLUE);
-    DrawLine(&X, &Y, X0, "----------------", COLOR_DARK_GRAY);
+    DrawLine(&X, &Y, X0, MaxBottom, "Settings", COLOR_BLUE);
+    DrawLine(&X, &Y, X0, MaxBottom, "----------------", COLOR_DARK_GRAY);
 
     if (gPage == SETTINGS_PAGE_MAIN) {
-        DrawLine(&X, &Y, X0, "[Main]", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, " 1. Desktop background", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, " 2. Shell background", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, " 3. Font", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, "", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, "Keys: 1-3 open  Esc back", COLOR_DARK_GRAY);
+        HalVideoGetSize(&NowW, &NowH);
+        DrawLine(&X, &Y, X0, MaxBottom, "[Main]", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, " 1. Desktop bg", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, " 2. Shell bg", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, " 3. Font", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, " 4. Display (reboot)", COLOR_BLACK);
+        Line[0] = 'N';
+        Line[1] = 'o';
+        Line[2] = 'w';
+        Line[3] = ' ';
+        FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
+        if (ThemeHasDisplayPref()) {
+            UINTN N = 0;
+            while (Line[N]) {
+                N++;
+            }
+            if (N + 6 < sizeof(Line)) {
+                Line[N++] = ' ';
+                Line[N++] = 'n';
+                Line[N++] = 'x';
+                Line[N++] = 't';
+                Line[N++] = ' ';
+                FormatUxU(Line + N, sizeof(Line) - N,
+                          ThemeDisplayWidth(), ThemeDisplayHeight());
+            }
+        } else {
+            UINTN N = 0;
+            while (Line[N]) {
+                N++;
+            }
+            CopyLabel(Line + N, (int)(sizeof(Line) - N), " nxt auto");
+        }
+        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, "1-4 open  Esc/0 back", COLOR_DARK_GRAY);
+        if (gRebootHint) {
+            DrawLine(&X, &Y, X0, MaxBottom, "Saved. Type: reboot", COLOR_BLUE);
+        }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
         CurColor = ThemeDesktopBg();
-        DrawLine(&X, &Y, X0, "[Desktop background]", COLOR_BLACK);
-        for (i = 0; i < DESKTOP_COLOR_COUNT && Y <= MaxY; i++) {
+        DrawLine(&X, &Y, X0, MaxBottom, "[Desktop bg]", COLOR_BLACK);
+        for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
             Line[0] = (gDesktopColors[i].Color == CurColor) ? '*' : ' ';
             Line[1] = ' ';
             Line[2] = (char)('1' + i);
             Line[3] = '.';
             Line[4] = ' ';
-            {
-                int j;
-                const char *S = gDesktopColors[i].Label;
-                for (j = 0; S[j] && j < 40; j++) {
-                    Line[5 + j] = S[j];
-                }
-                Line[5 + j] = 0;
-            }
-            DrawLine(&X, &Y, X0, Line, COLOR_BLACK);
+            CopyLabel(Line + 5, (int)sizeof(Line) - 5, gDesktopColors[i].Label);
+            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
         }
-        DrawLine(&X, &Y, X0, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
     } else if (gPage == SETTINGS_PAGE_SHELL_BG) {
         CurColor = ThemeShellClientBg();
-        DrawLine(&X, &Y, X0, "[Shell background]", COLOR_BLACK);
-        for (i = 0; i < SHELL_COLOR_COUNT && Y <= MaxY; i++) {
+        DrawLine(&X, &Y, X0, MaxBottom, "[Shell bg]", COLOR_BLACK);
+        for (i = 0; i < SHELL_COLOR_COUNT; i++) {
             Line[0] = (gShellColors[i].Color == CurColor) ? '*' : ' ';
             Line[1] = ' ';
             Line[2] = (char)('1' + i);
             Line[3] = '.';
             Line[4] = ' ';
-            {
-                int j;
-                const char *S = gShellColors[i].Label;
-                for (j = 0; S[j] && j < 40; j++) {
-                    Line[5 + j] = S[j];
-                }
-                Line[5 + j] = 0;
-            }
-            DrawLine(&X, &Y, X0, Line, COLOR_BLACK);
+            CopyLabel(Line + 5, (int)sizeof(Line) - 5, gShellColors[i].Label);
+            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
         }
-        DrawLine(&X, &Y, X0, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
     } else if (gPage == SETTINGS_PAGE_FONT) {
         CurFont = ThemeFontId();
-        DrawLine(&X, &Y, X0, "[Font]", COLOR_BLACK);
-        for (i = 0; (UINT32)i < FontCount() && Y <= MaxY; i++) {
+        DrawLine(&X, &Y, X0, MaxBottom, "[Font]", COLOR_BLACK);
+        for (i = 0; (UINT32)i < FontCount(); i++) {
             Face = FontGetById((UINT32)i);
             Line[0] = ((UINT32)i == CurFont) ? '*' : ' ';
             Line[1] = ' ';
             Line[2] = (char)('1' + i);
             Line[3] = '.';
             Line[4] = ' ';
-            {
-                int j;
-                const char *S = (Face && Face->Name) ? Face->Name : "?";
-                for (j = 0; S[j] && j < 40; j++) {
-                    Line[5 + j] = S[j];
-                }
-                Line[5 + j] = 0;
-            }
-            DrawLine(&X, &Y, X0, Line, COLOR_BLACK);
+            CopyLabel(Line + 5, (int)sizeof(Line) - 5,
+                      (Face && Face->Name) ? Face->Name : "?");
+            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
         }
-        DrawLine(&X, &Y, X0, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
+    } else if (gPage == SETTINGS_PAGE_DISPLAY) {
+        HasPref = ThemeHasDisplayPref();
+        PrefW = ThemeDisplayWidth();
+        PrefH = ThemeDisplayHeight();
+        HalVideoGetSize(&NowW, &NowH);
+        DrawLine(&X, &Y, X0, MaxBottom, "[Display] reboot", COLOR_BLACK);
+        Line[0] = (!HasPref) ? '*' : ' ';
+        Line[1] = ' ';
+        Line[2] = '1';
+        Line[3] = '.';
+        Line[4] = ' ';
+        CopyLabel(Line + 5, (int)sizeof(Line) - 5, "Auto");
+        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+        for (i = 0; i < MODE_COUNT; i++) {
+            int Mark = HasPref && gModes[i].W == PrefW && gModes[i].H == PrefH;
+            Line[0] = Mark ? '*' : ' ';
+            Line[1] = ' ';
+            Line[2] = (char)('2' + i);
+            Line[3] = '.';
+            Line[4] = ' ';
+            CopyLabel(Line + 5, (int)sizeof(Line) - 5, gModes[i].Label);
+            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+        }
+        Line[0] = 'N';
+        Line[1] = 'o';
+        Line[2] = 'w';
+        Line[3] = ' ';
+        FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
+        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
+        if (gRebootHint) {
+            DrawLine(&X, &Y, X0, MaxBottom, "Saved. Type: reboot", COLOR_BLUE);
+        }
     }
 
     GuiBackupSyncRect(Cx, Cy, Cw, Ch);
@@ -202,8 +329,31 @@ static void ApplyFont(int Index) {
     ThemeApply();
 }
 
+static void ApplyDisplayChoice(int Index) {
+    /* Index 0 = Auto；1..MODE_COUNT = 预置 */
+    if (Index == 0) {
+        ThemeClearDisplayMode();
+    } else if (Index >= 1 && Index <= MODE_COUNT) {
+        ThemeSetDisplayMode(gModes[Index - 1].W, gModes[Index - 1].H);
+    } else {
+        return;
+    }
+    if (ThemeSave() != 0) {
+        HalConsoleWriteSerial("settings: display save failed\n");
+        DebugWrite("settings: display save failed\n");
+        gRebootHint = 0;
+        PaintMenu();
+        return;
+    }
+    gRebootHint = 1;
+    HalConsoleWriteSerial("settings: display saved; type reboot (keep QEMU)\n");
+    DebugWrite("settings: display pref saved (reboot)\n");
+    PaintMenu();
+}
+
 void SettingsUiOpen(void) {
     gPage = SETTINGS_PAGE_MAIN;
+    gRebootHint = 0;
     PaintMenu();
     DebugWrite("settings: main menu\n");
 }
@@ -264,6 +414,9 @@ void SettingsUiOnDigit(char Digit) {
         } else if (N == 3) {
             gPage = SETTINGS_PAGE_FONT;
             PaintMenu();
+        } else if (N == 4) {
+            gPage = SETTINGS_PAGE_DISPLAY;
+            PaintMenu();
         }
         return;
     }
@@ -284,6 +437,11 @@ void SettingsUiOnDigit(char Digit) {
     }
     if (gPage == SETTINGS_PAGE_FONT) {
         ApplyFont(N - 1);
+        return;
+    }
+    if (gPage == SETTINGS_PAGE_DISPLAY) {
+        /* 1=Auto，2..=预置 → ApplyDisplayChoice(N-1) */
+        ApplyDisplayChoice(N - 1);
         return;
     }
 }

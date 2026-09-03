@@ -1,8 +1,8 @@
 /*
- * SettingsUi.h — Settings 文字菜单（PR-D5）
+ * SettingsUi.h — Settings 文字菜单（PR-D5 / PR-D7）
  *
- * 一级：Desktop / Shell 背景、Font
- * 二级：具体颜色或字体；数字键选择，Esc/0 返回
+ * 一级：Desktop / Shell 背景、Font、Display（重启生效）
+ * 二级：具体颜色、字体或分辨率；数字键选择，Esc/0 返回
  */
 #ifndef SETTINGS_UI_H
 #define SETTINGS_UI_H
