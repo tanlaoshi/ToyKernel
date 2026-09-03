@@ -152,7 +152,45 @@ static void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     }
 }
 
-static void DrawOneIcon(const DESKTOP_ICON *Icon, int Selected) {
+static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
+    UINT32 LabelX;
+    UINT32 LabelY;
+    UINT32 LabelW;
+    const char *P;
+    UINT32 Border;
+
+    /* GuiRedraw：先画图标再画窗，无需逐像素避让（避让在关中断下会拖死 USB 鼠标） */
+    UiFillRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
+                    Icon->IconColor);
+    Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
+    UiDrawRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
+                    Border);
+    if (Selected) {
+        UiDrawRectangle(Icon->X + 1, Icon->Y + 1,
+                        DESKTOP_ICON_SIZE - 2, DESKTOP_ICON_SIZE - 2,
+                        COLOR_YELLOW);
+    }
+    UiFillRectangle(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y,
+                    14, 14, COLOR_LIGHT_GRAY);
+
+    LabelW = 0;
+    if (Icon->Label) {
+        for (P = Icon->Label; *P; P++) {
+            LabelW += FontAdvanceX();
+        }
+    }
+    LabelX = Icon->X;
+    if (LabelW < DESKTOP_ICON_SIZE) {
+        LabelX = Icon->X + (DESKTOP_ICON_SIZE - LabelW) / 2;
+    }
+    LabelY = Icon->Y + DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD;
+    if (Icon->Label) {
+        HalVideoDrawStringAt(LabelX, LabelY, Icon->Label,
+                             Selected ? COLOR_YELLOW : COLOR_WHITE);
+    }
+}
+
+static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelX;
     UINT32 LabelY;
     UINT32 LabelW;
@@ -162,7 +200,6 @@ static void DrawOneIcon(const DESKTOP_ICON *Icon, int Selected) {
     FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
                  Icon->IconColor);
     Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
-    /* 边框用细填充近似，同样避让窗口 */
     FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, 1, Border);
     FillRectFree(Icon->X, Icon->Y + DESKTOP_ICON_SIZE - 1, DESKTOP_ICON_SIZE, 1,
                  Border);
@@ -194,11 +231,76 @@ static void DrawOneIcon(const DESKTOP_ICON *Icon, int Selected) {
     }
 }
 
+void DesktopDraw(void) {
+    int i;
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        DrawOneIconRaw(&gIcons[i], i == gSelected);
+    }
+}
+
+void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    int i;
+    UINT32 Ix;
+    UINT32 Iy;
+    UINT32 Iw;
+    UINT32 Ih;
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        IconBounds(&gIcons[i], &Ix, &Iy, &Iw, &Ih);
+        if (RectsOverlap(X, Y, W, H, Ix, Iy, Iw, Ih)) {
+            DrawOneIconOccluded(&gIcons[i], i == gSelected);
+        }
+    }
+}
+
+/*
+ * 拖窗 under-drag 合成用：只解析方块几何（文字仍靠 DesktopDrawRect 补画）。
+ */
+int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
+    int i;
+    UINT32 Border;
+
+    if (!Out) {
+        return 0;
+    }
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        const DESKTOP_ICON *Icon = &gIcons[i];
+        int Selected = (i == gSelected);
+
+        if (X < Icon->X || Y < Icon->Y ||
+            X >= Icon->X + DESKTOP_ICON_SIZE ||
+            Y >= Icon->Y + DESKTOP_ICON_SIZE) {
+            continue;
+        }
+        Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
+        if (X >= Icon->X + DESKTOP_ICON_SIZE - 14 && Y < Icon->Y + 14) {
+            *Out = COLOR_LIGHT_GRAY;
+            return 1;
+        }
+        if (X == Icon->X || X == Icon->X + DESKTOP_ICON_SIZE - 1 ||
+            Y == Icon->Y || Y == Icon->Y + DESKTOP_ICON_SIZE - 1) {
+            *Out = Border;
+            return 1;
+        }
+        if (Selected &&
+            (X == Icon->X + 1 || X == Icon->X + DESKTOP_ICON_SIZE - 2 ||
+             Y == Icon->Y + 1 || Y == Icon->Y + DESKTOP_ICON_SIZE - 2)) {
+            *Out = COLOR_YELLOW;
+            return 1;
+        }
+        *Out = Icon->IconColor;
+        return 1;
+    }
+    return 0;
+}
+
 static void RedrawIconIndex(int Idx) {
     if (Idx < 0 || Idx >= DESKTOP_ICON_COUNT) {
         return;
     }
-    DrawOneIcon(&gIcons[Idx], Idx == gSelected);
+    /* 选中态刷新时可能已有窗口，避让写穿 */
+    DrawOneIconOccluded(&gIcons[Idx], Idx == gSelected);
 }
 
 static void OpenAction(DESKTOP_ACTION Action) {
@@ -250,29 +352,6 @@ void DesktopInit(void) {
     gSelectX = 0;
     gSelectY = 0;
     DebugWrite("desktop: icons ready (double-click within ~0.5s)\n");
-}
-
-void DesktopDraw(void) {
-    int i;
-
-    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        DrawOneIcon(&gIcons[i], i == gSelected);
-    }
-}
-
-void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
-    int i;
-    UINT32 Ix;
-    UINT32 Iy;
-    UINT32 Iw;
-    UINT32 Ih;
-
-    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        IconBounds(&gIcons[i], &Ix, &Iy, &Iw, &Ih);
-        if (RectsOverlap(X, Y, W, H, Ix, Iy, Iw, Ih)) {
-            DrawOneIcon(&gIcons[i], i == gSelected);
-        }
-    }
 }
 
 int DesktopHandleClick(UINT32 X, UINT32 Y) {

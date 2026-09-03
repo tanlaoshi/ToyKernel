@@ -12,6 +12,11 @@ void DesktopDraw(void);
 /* 仅重绘与矩形相交的图标（关窗擦除区域） */
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /*
+ * 采样桌面图标像素（含方块/边框/角标；不含文字字形）。
+ * 命中图标区返回 1 并写 *Out；否则返回 0（调用方用桌面底色）。
+ */
+int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out);
+/*
  * 桌面空白处的按下：双击图标则打开对应窗并返回 1；
  * 单击图标只记录待双击状态返回 1；点空白清除选择返回 0。
  */

@@ -86,6 +86,8 @@ static int InitFileSystemModule(void) {
 }
 
 static int InitGuiModule(void) {
+    /* FAT 已挂载：加载 THEME.CFG 后再 GuiRedraw，首帧即正确配色 */
+    (void)ThemeLoad();
     GuiInit();
     return 0;
 }

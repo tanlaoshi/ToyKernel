@@ -123,7 +123,6 @@ static void DrawWindowChromeAt(int Idx);
 static void DrawWindowAt(int Idx);
 static void BackupWindowAt(int Idx);
 static void RaiseWindow(int Idx);
-static void PaintAllWindowsFromBackup(int DragIdx);
 static void RedrawWindowChrome(void);
 static int RectIntersects(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
                           UINT32 Bx, UINT32 By, UINT32 Bw, UINT32 Bh);
@@ -754,6 +753,7 @@ static UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
 
 static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
     int i;
+    UINT32 IconColor;
 
     for (i = DragIdx - 1; i >= 0; i--) {
         if (!gWins[i].Active) {
@@ -764,6 +764,10 @@ static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
             Py < gWins[i].Y + gWins[i].Height) {
             return AnalyticWindowPixel(i, Px, Py);
         }
+    }
+    /* 窗下是桌面：必须带回图标，否则拖走后只剩底色（图标被「吃掉」） */
+    if (DesktopSamplePixel(Px, Py, &IconColor)) {
+        return IconColor;
     }
     return ThemeDesktopBg();
 }
@@ -1071,6 +1075,13 @@ static UINT32 CompositeDragPixel(UINT32 Px, UINT32 Py, int DragIdx,
             return SampleWindowBackupPixel(i, Px, Py);
         }
     }
+    {
+        UINT32 IconColor;
+
+        if (DesktopSamplePixel(Px, Py, &IconColor)) {
+            return IconColor;
+        }
+    }
     return ThemeDesktopBg();
 }
 
@@ -1130,6 +1141,8 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
             }
         }
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
+        /* 合成可能只带回底色；标签等复杂像素再避让重画一次 */
+        DesktopDrawRect(DuX, DuY, DuW, DuH);
         return;
     }
     if (DuW > DRAG_ROW_MAX) {
@@ -1146,6 +1159,7 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
         }
         HalVideoWriteRect(DuX, Py, DuW, 1, gDragRowBuf);
     }
+    DesktopDrawRect(DuX, DuY, DuW, DuH);
 }
 
 static void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
@@ -1169,29 +1183,6 @@ static void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh,
     RestoreWindowsInFootprint(Ox, Oy, Ww, Wh, DragIdx);
     FillDesktopRectClipped(Ox, Oy, Ww, Wh);
     DesktopDrawRect(Ox, Oy, Ww, Wh);
-}
-
-/* 按 z 序从备份重贴全部窗口（DragIdx<0 时按数组序；否则被拖窗最后画） */
-static void PaintAllWindowsFromBackup(int DragIdx) {
-    int i;
-
-    if (DragIdx < 0) {
-        for (i = 0; i < MAX_WINS; i++) {
-            if (gWins[i].Active) {
-                PaintWindowFromBackup(i);
-            }
-        }
-        return;
-    }
-    for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active || i == DragIdx) {
-            continue;
-        }
-        PaintWindowFromBackup(i);
-    }
-    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWins[DragIdx].Active) {
-        PaintWindowFromBackup(DragIdx);
-    }
 }
 
 /* 按 z 序重画全部窗口（被拖窗最后画；备份不可用时回退） */
@@ -1689,6 +1680,10 @@ void GuiFocusHome(void) {
 void GuiRedraw(void) {
     int i;
 
+    /*
+     * 整屏刷新保持关中断，避免 USB 鼠标 IRQ 插在半屏状态里造成闪烁。
+     * DesktopDraw 用快速 Raw 路径（不逐像素避让），cli 时间短，不拖死鼠标。
+     */
     GfxIrqEnter();
     CursorRestore();
     UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());

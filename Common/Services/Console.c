@@ -349,6 +349,7 @@ void ConsoleOnShellOpened(void) {
     Prompt();
     GuiConsoleMarkPrompt();
     GuiFocusSave();
+    HalVideoClearClip();
 }
 
 void ConsoleRepaintShellWindows(void) {
@@ -373,6 +374,7 @@ void ConsoleRepaintShellWindows(void) {
             ConsoleFocusLoad();
         }
     }
+    HalVideoClearClip();
 }
 
 /*
