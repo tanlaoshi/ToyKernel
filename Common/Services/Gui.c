@@ -296,10 +296,10 @@ static void DrawCloseButton(int Idx, const GUI_WINDOW *W) {
             UINT32 PyB = By + Pad + I;
 
             if (!PixelOccludedByAbove(Idx, PxA, PyA)) {
-                HalVideoDrawPixel(PxA, PyA, COLOR_WHITE);
+                HalVideoDrawPixelRaw(PxA, PyA, COLOR_WHITE);
             }
             if (!PixelOccludedByAbove(Idx, PxB, PyB)) {
-                HalVideoDrawPixel(PxB, PyB, COLOR_WHITE);
+                HalVideoDrawPixelRaw(PxB, PyB, COLOR_WHITE);
             }
         }
     }
@@ -410,17 +410,18 @@ static void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
 static void DrawCursorAt(UINT32 X, UINT32 Y) {
     int i;
 
+    /* 必须 Raw：客户区 clip 开启时普通 DrawPixel 会让窗外光标消失 */
     for (i = -CURSOR_HALF; i <= CURSOR_HALF; i++) {
         int Px = (int)X + i;
         int Py = (int)Y + i;
         if (Px >= 0 && (UINT32)Px < gScreenW) {
-            HalVideoDrawPixel((UINT32)Px, Y, COLOR_WHITE);
+            HalVideoDrawPixelRaw((UINT32)Px, Y, COLOR_WHITE);
         }
         if (Py >= 0 && (UINT32)Py < gScreenH) {
-            HalVideoDrawPixel(X, (UINT32)Py, COLOR_WHITE);
+            HalVideoDrawPixelRaw(X, (UINT32)Py, COLOR_WHITE);
         }
     }
-    HalVideoDrawPixel(X, Y, COLOR_RED);
+    HalVideoDrawPixelRaw(X, Y, COLOR_RED);
 }
 
 static void CursorRestore(void) {
@@ -432,8 +433,8 @@ static void CursorRestore(void) {
     }
     for (Dy = 0; Dy < gSaveH; Dy++) {
         for (Dx = 0; Dx < gSaveW; Dx++) {
-            HalVideoDrawPixel(gSaveX + Dx, gSaveY + Dy,
-                      gUnder[Dy * gSaveW + Dx]);
+            HalVideoDrawPixelRaw(gSaveX + Dx, gSaveY + Dy,
+                                 gUnder[Dy * gSaveW + Dx]);
         }
     }
     gCursorVisible = 0;
@@ -1743,7 +1744,8 @@ void GuiFocusClearClient(void) {
 int GuiShellAcceptsInput(void) {
     return gFocusWin >= 0 && gFocusWin < MAX_WINS &&
            gWins[gFocusWin].Active &&
-           gWins[gFocusWin].Kind == GUI_WIN_SHELL;
+           gWins[gFocusWin].Kind == GUI_WIN_SHELL &&
+           !WindowOccludedByOther(gFocusWin);
 }
 
 int GuiShellWindowActive(int Idx) {
@@ -1755,6 +1757,16 @@ void GuiSetFocusWin(int Idx) {
     if (Idx >= 0 && Idx < MAX_WINS && gWins[Idx].Active) {
         gFocusWin = Idx;
     }
+}
+
+/* 置顶并按备份重合成，避免只改焦点却在下层写穿 */
+void GuiRaiseToFront(int Idx) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+        return;
+    }
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    GuiFocusApply();
 }
 
 int GuiFocusIndex(void) {

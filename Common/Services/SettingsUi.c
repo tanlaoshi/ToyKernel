@@ -68,11 +68,13 @@ static int FocusSettingsWindow(void) {
     int i;
 
     if (GuiFocusKind() == GUI_WIN_SETTINGS) {
+        /* 仅有焦点不够：可能被 Shell 压住仍写穿 */
+        GuiRaiseToFront(GuiFocusIndex());
         return 1;
     }
     for (i = 0; i < GUI_MAX_WINS; i++) {
         if (GuiWindowKind(i) == GUI_WIN_SETTINGS) {
-            GuiSetFocusWin(i);
+            GuiRaiseToFront(i);
             return 1;
         }
     }
@@ -366,10 +368,9 @@ void SettingsUiRefresh(void) {
             continue;
         }
         /*
-         * Shell 重画可能穿透 Settings：必须整窗重画（标题栏+客户区），
-         * 再画菜单，避免灰块残留/标题栏被截断。
+         * 必须先置顶再画：否则菜单字写在上层 Shell 上，随后被抓进 Shell 备份成「印字」。
          */
-        GuiSetFocusWin(i);
+        GuiRaiseToFront(i);
         GuiPaintWindow(i);
         PaintMenu();
         return;

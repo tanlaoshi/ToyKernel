@@ -123,19 +123,28 @@ void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     }
 }
 
+/* 无视 clip：鼠标光标等必须能画在客户区外 */
+void VideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color) {
+    UINT32 *Framebuffer;
+
+    if (X >= gScreen.Width || Y >= gScreen.Height) {
+        return;
+    }
+    Framebuffer = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
+    if (Framebuffer) {
+        Framebuffer[Y * gScreen.PixelsPerScanLine + X] = Color;
+    }
+}
+
 /* 在 (X,Y) 绘制一个像素（ARGB 格式，越界忽略；开启 clip 时裁到客户区） */
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {
-    if (X >= gScreen.Width || Y >= gScreen.Height) return;
     if (gClipOn) {
         if (X < gClipX || Y < gClipY ||
             X >= gClipX + gClipW || Y >= gClipY + gClipH) {
             return;
         }
     }
-    UINT32 *Framebuffer = (UINT32*)(UINTN)gScreen.FrameBufferBase;
-    if (Framebuffer) {
-        Framebuffer[Y * gScreen.PixelsPerScanLine + X] = Color;
-    }
+    VideoDrawPixelRaw(X, Y, Color);
 }
 
 UINT32 VideoReadPixel(UINT32 X, UINT32 Y) {

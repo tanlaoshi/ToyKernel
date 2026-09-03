@@ -12,6 +12,7 @@
 #include "Hal.h"
 #include "Gui.h"
 #include "Font.h"
+#include "SettingsUi.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -364,14 +365,17 @@ void ConsoleRepaintShellWindows(void) {
         if (GuiWindowKind(i) != GUI_WIN_SHELL) {
             continue;
         }
-        GuiSetFocusWin(i);
+        /* 置顶后再画，避免欢迎语/prompt 写穿上层 Settings */
+        GuiRaiseToFront(i);
         ConsoleOnShellOpened();
     }
 
     if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
-        GuiSetFocusWin(Saved);
+        GuiRaiseToFront(Saved);
         if (SavedKind == GUI_WIN_SHELL) {
             ConsoleFocusLoad();
+        } else if (SavedKind == GUI_WIN_SETTINGS) {
+            SettingsUiRefresh();
         }
     }
     HalVideoClearClip();

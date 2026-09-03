@@ -20,6 +20,8 @@ typedef struct {
 void VideoSet(VIDEO_CONFIG *VideoConfig);
 void VideoGetSize(UINT32 *Width, UINT32 *Height);
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
+/* 忽略文字 clip，供光标等全屏叠层 */
+void VideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color);
 UINT32 VideoReadPixel(UINT32 X, UINT32 Y);
 void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color);
 void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,

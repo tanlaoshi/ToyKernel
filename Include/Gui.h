@@ -54,6 +54,8 @@ void GuiFocusHome(void);
 void GuiPollMouse(void);
 int GuiShellWindowActive(int Idx);
 void GuiSetFocusWin(int Idx);
+/* 置顶 + 从备份重合成；内容绘制前应调用，避免写穿上层窗 */
+void GuiRaiseToFront(int Idx);
 /* 当前焦点窗下标；无焦点返回 -1 */
 int GuiFocusIndex(void);
 
