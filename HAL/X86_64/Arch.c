@@ -5,6 +5,7 @@
  * 中断入口在 Isr.S；本文件实现 InterruptDispatch 与各设备 IRQ 处理逻辑。
  */
 #include "Arch.h"
+#include "Hal.h"
 #include "Console.h"
 #include "Serial.h"
 #include "Debug.h"
@@ -134,6 +135,13 @@ static void IdtSet(UINT32 Vec, void *Handler) {
     ArchIdtSetGate(Vec, Handler, 0x8E);
 }
 
+static void IdtLidt(void) {
+    DT_PTR Ptr;
+    Ptr.Limit = (UINT16)(sizeof(gIdt) - 1);
+    Ptr.Base = (UINT64)(UINTN)gIdt;
+    __asm__ volatile ("lidt %0" : : "m"(Ptr) : "memory");
+}
+
 /* 填充 IDT：CPU 异常、PIC、自定义 XHCI/定时器向量，然后 lidt */
 static void IdtLoad(void) {
     UINT32 i;
@@ -149,11 +157,7 @@ static void IdtLoad(void) {
     IdtSet(VEC_XHCI, (void *)Isr64);
     IdtSet(VEC_TIMER, (void *)Isr65);
     IdtSet(255, (void *)Isr255);
-
-    DT_PTR Ptr;
-    Ptr.Limit = (UINT16)(sizeof(gIdt) - 1);
-    Ptr.Base = (UINT64)(UINTN)gIdt;
-    __asm__ volatile ("lidt %0" : : "m"(Ptr) : "memory");
+    IdtLidt();
 }
 
 /* 初始化并屏蔽 8259 双 PIC 所有 IRQ（使用 LAPIC 代替） */
@@ -275,6 +279,11 @@ UINT64 InterruptDispatch(HAL_FRAME *F) {
     }
     if (F->Vector == VEC_TIMER) {
         LapicEoi();
+        HalCpuTickInc();
+        /* PR-S2：AP 只计 tick，不进共享调度（S3 再多核安全） */
+        if (!HalCpuIsBsp()) {
+            return 0;
+        }
         return SchedulerOnTimer(F);
     }
     if (F->Vector == VEC_SYSCALL) {
@@ -307,6 +316,40 @@ int ArchInit(void) {
     DebugHex32(gIrqCount);
     DebugWrite("\n");
     return gIrqCount > 0 ? 0 : -1;
+}
+
+/*
+ * AP 初始化（PR-S2）：
+ * trampoline 进入时 CS=0x18；把低址 GDT 的 0x08 改成 64-bit code 后 lretq，
+ * 即可直接 lidt 共享 BSP IDT（门选 0x08）。
+ */
+void ArchApInit(UINT32 LogicalCpu) {
+    UINT64 *Gdt = (UINT64 *)(UINTN)0x7F00ULL;
+
+    (void)LogicalCpu;
+
+    /* 0x08 原为 32-bit code（实模式→保护模式用）；长模式下改为与 BSP 一致 */
+    Gdt[1] = 0x00AF9A000000FFFFULL;
+
+    __asm__ volatile (
+        "pushq $0x08\n\t"
+        "leaq 1f(%%rip), %%rax\n\t"
+        "pushq %%rax\n\t"
+        "lretq\n"
+        "1:\n\t"
+        "mov $0x10, %%ax\n\t"
+        "mov %%ax, %%ds\n\t"
+        "mov %%ax, %%es\n\t"
+        "mov %%ax, %%ss\n\t"
+        "mov %%ax, %%fs\n\t"
+        "mov %%ax, %%gs\n\t"
+        :
+        :
+        : "rax", "memory"
+    );
+
+    IdtLidt();
+    LapicEnable();
 }
 
 /* 开中断 */

@@ -24,6 +24,7 @@ typedef HAL_FRAME INT_FRAME;
 
 void ArchIdtSetGate(UINT32 Vec, void *Handler, UINT8 Type);
 int ArchInit(void);
+void ArchApInit(UINT32 LogicalCpu); /* AP：本核 GDT/TSS + 共享 IDT + LAPIC */
 void ArchSetRsp0(UINT64 Rsp0);
 void ArchTssInstall(void);
 void ArchSti(void);

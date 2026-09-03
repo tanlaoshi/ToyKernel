@@ -79,9 +79,14 @@ UINT64 HalPageGetEntryCurrent(UINT64 Virt);
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
 
-/* SMP（PR-S1+）：Common 只依赖这些门面；x86=MADT/SIPI，其它架构 stub */
+/* SMP：Common 只依赖这些门面；x86=MADT/SIPI，其它架构 stub */
+#define HAL_MAX_CPUS 8
+
 int HalCpuCount(void);
-UINT32 HalCpuId(void);
+UINT32 HalCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
+int HalCpuIsBsp(void);
+UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 LAPIC timer 计数（PR-S2） */
+void HalCpuTickInc(void);
 int HalSmpStartAps(void);
 
 void HalDebugWrite(const char *Text);

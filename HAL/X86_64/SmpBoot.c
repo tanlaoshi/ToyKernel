@@ -1,13 +1,15 @@
 /*
- * SmpBoot.c — MADT + INIT/SIPI 拉起 AP（PR-S1）
+ * SmpBoot.c — MADT + INIT/SIPI 拉起 AP；PR-S2 每核 timer / CpuId / ticks
  */
 #include "AcpiMadt.h"
 #include "Hal.h"
 #include "Platform.h"
+#include "HalPort.h"
 
-/* PR-S1 验证日志始终走串口（不受 TOY_DEBUG 开关影响） */
+/* PR-S1/S2 验证日志始终走串口（不受 TOY_DEBUG 开关影响） */
 #define SmpLog(Text)      HalDebugWrite(Text)
 #define SmpLogHex32(V)    HalDebugHex32(V)
+#define SmpLogHex64(V)    HalDebugHex64(V)
 
 #define LAPIC_BASE       0xFEE00000ULL
 #define LAPIC_ID         0x20
@@ -28,16 +30,18 @@ typedef struct {
     UINT64 StackTop;
     UINT64 Entry;
     volatile UINT32 Ready;
+    UINT32 LogicalCpu;
 } SMP_BOOT_PARAM;
 
 extern UINT8 _binary_SmpTramp_bin_start[];
 extern UINT8 _binary_SmpTramp_bin_end[];
 
-static UINT8 gApicIds[SMP_MAX_CPUS];
+static UINT8 gApicIds[HAL_MAX_CPUS];
 static int gCpuCount = 1;
 static UINT8 gBspApicId;
-static UINT8 gApStacks[SMP_MAX_CPUS][8192] __attribute__((aligned(16)));
+static UINT8 gApStacks[HAL_MAX_CPUS][8192] __attribute__((aligned(16)));
 static volatile UINT32 gApHelloCount;
+static volatile UINT64 gCpuTicks[HAL_MAX_CPUS];
 
 static inline UINT32 LapicRead(UINT32 Off) {
     return *(volatile UINT32 *)(UINTN)(LAPIC_BASE + Off);
@@ -87,21 +91,50 @@ static void MemZero(void *Dst, UINTN Len) {
     }
 }
 
-/* AP 入口：打印后置位 Ready，然后停车（PR-S1 不进调度） */
+/* 保证 BSP 在 gApicIds[0]，便于 HalCpuId()==0 表示 BSP */
+static void NormalizeBspFirst(UINT8 BspId, int Count) {
+    int i;
+    for (i = 0; i < Count; i++) {
+        if (gApicIds[i] == BspId) {
+            UINT8 Tmp = gApicIds[0];
+            gApicIds[0] = gApicIds[i];
+            gApicIds[i] = Tmp;
+            return;
+        }
+    }
+    if (Count < HAL_MAX_CPUS) {
+        for (i = Count; i > 0; i--) {
+            gApicIds[i] = gApicIds[i - 1];
+        }
+        gApicIds[0] = BspId;
+        gCpuCount = Count + 1;
+    }
+}
+
+/* AP 入口：ArchApInit + 本核 LAPIC timer，tick 空转（不进调度） */
 void SmpApEntry(void) {
+    SMP_BOOT_PARAM *Param = (SMP_BOOT_PARAM *)(UINTN)SMP_PARAM_PHYS;
+    UINT32 Logical = Param->LogicalCpu;
     UINT8 Id = LapicGetId();
 
-    LapicWrite(LAPIC_TPR, 0);
-    LapicWrite(LAPIC_SVR, (1u << 8) | 0xFF);
+    if (Logical >= HAL_MAX_CPUS) {
+        Logical = HAL_MAX_CPUS - 1;
+    }
 
-    SmpLog("smp: hello cpu apic=");
+    ArchApInit(Logical);
+    TimerStart();
+
+    SmpLog("smp: hello cpu=");
+    SmpLogHex32(Logical);
+    SmpLog(" apic=");
     SmpLogHex32(Id);
     SmpLog("\n");
     gApHelloCount++;
-    ((SMP_BOOT_PARAM *)(UINTN)SMP_PARAM_PHYS)->Ready = 1;
+    Param->Ready = 1;
 
+    __asm__ volatile ("sti" ::: "memory");
     for (;;) {
-        __asm__ volatile ("cli; hlt");
+        __asm__ volatile ("hlt");
     }
 }
 
@@ -125,7 +158,7 @@ static void SetupTrampolineGdt(void) {
     *(UINT16 *)((UINT8 *)Gdtr + 6) = 0;
 }
 
-static int StartOneAp(UINT8 ApicId, int StackIndex) {
+static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
     SMP_BOOT_PARAM *Param = (SMP_BOOT_PARAM *)(UINTN)SMP_PARAM_PHYS;
     UINTN TrampSize =
         (UINTN)(_binary_SmpTramp_bin_end - _binary_SmpTramp_bin_start);
@@ -136,6 +169,9 @@ static int StartOneAp(UINT8 ApicId, int StackIndex) {
         SmpLog("smp: bad trampoline size\n");
         return -1;
     }
+    if (LogicalCpu >= HAL_MAX_CPUS) {
+        return -1;
+    }
 
     MemCopy((void *)(UINTN)SMP_TRAMP_PHYS, _binary_SmpTramp_bin_start, TrampSize);
     SetupTrampolineGdt();
@@ -143,11 +179,12 @@ static int StartOneAp(UINT8 ApicId, int StackIndex) {
     __asm__ volatile ("mov %%cr3, %0" : "=r"(Cr3));
     Param->Cr3 = Cr3;
     Param->StackTop =
-        (UINT64)(UINTN)(gApStacks[StackIndex] + sizeof(gApStacks[StackIndex]));
+        (UINT64)(UINTN)(gApStacks[LogicalCpu] + sizeof(gApStacks[LogicalCpu]));
     Param->Entry = (UINT64)(UINTN)SmpApEntry;
+    Param->LogicalCpu = LogicalCpu;
     Param->Ready = 0;
 
-    /* INIT assert (level) → deassert → SIPI×2（Intel MP 启动序列） */
+    /* INIT assert (level) → deassert → SIPI×2 */
     LapicSendIpi(ApicId, 0x0000C500u);
     DelayLoops(10000000);
     LapicSendIpi(ApicId, 0x00008500u);
@@ -175,7 +212,36 @@ int HalCpuCount(void) {
 }
 
 UINT32 HalCpuId(void) {
-    return LapicGetId();
+    UINT8 Apic = LapicGetId();
+    int i;
+
+    if (Apic == gBspApicId) {
+        return 0;
+    }
+    for (i = 1; i < gCpuCount && i < HAL_MAX_CPUS; i++) {
+        if (gApicIds[i] == Apic) {
+            return (UINT32)i;
+        }
+    }
+    return 0;
+}
+
+int HalCpuIsBsp(void) {
+    return LapicGetId() == gBspApicId;
+}
+
+void HalCpuTickInc(void) {
+    UINT32 Id = HalCpuId();
+    if (Id < HAL_MAX_CPUS) {
+        gCpuTicks[Id]++;
+    }
+}
+
+UINT64 HalCpuTicks(UINT32 Cpu) {
+    if (Cpu >= HAL_MAX_CPUS) {
+        return 0;
+    }
+    return gCpuTicks[Cpu];
 }
 
 int HalSmpStartAps(void) {
@@ -185,32 +251,37 @@ int HalSmpStartAps(void) {
     int i;
     int Started = 0;
     UINT8 BspId;
+    UINT32 Logical;
 
     gCpuCount = 1;
     gApHelloCount = 0;
+    for (i = 0; i < HAL_MAX_CPUS; i++) {
+        gCpuTicks[i] = 0;
+    }
     BspId = LapicGetId();
     gBspApicId = BspId;
+    gApicIds[0] = BspId;
 
     if (Rsdp == 0) {
         SmpLog("smp: no RSDP (single CPU)\n");
         return 0;
     }
-    if (AcpiMadtParse(Rsdp, gApicIds, SMP_MAX_CPUS, &Count, &BspFromMadt) != 0) {
-        /* 不阻断启动：保持单核 */
+    if (AcpiMadtParse(Rsdp, gApicIds, HAL_MAX_CPUS, &Count, &BspFromMadt) != 0) {
         return 0;
     }
     gCpuCount = Count;
+    NormalizeBspFirst(BspId, Count);
+    Count = gCpuCount;
+
     SmpLog("smp: MADT cpus=");
     SmpLogHex32((UINT32)Count);
     SmpLog(" bsp_apic=");
     SmpLogHex32(BspId);
     SmpLog("\n");
 
-    for (i = 0; i < Count; i++) {
-        if (gApicIds[i] == BspId) {
-            continue;
-        }
-        if (StartOneAp(gApicIds[i], Started + 1) == 0) {
+    for (i = 1; i < Count; i++) {
+        Logical = (UINT32)i;
+        if (StartOneAp(gApicIds[i], Logical) == 0) {
             Started++;
         }
     }
@@ -218,6 +289,17 @@ int HalSmpStartAps(void) {
     SmpLogHex32((UINT32)Started);
     SmpLog(" hellos=");
     SmpLogHex32(gApHelloCount);
+    SmpLog("\n");
+
+    /* PR-S2：等 AP timer 跑一会儿，确认每核 ticks */
+    DelayLoops(50000000);
+    SmpLog("smp: ticks");
+    for (i = 0; i < Count && i < HAL_MAX_CPUS; i++) {
+        SmpLog(" cpu");
+        SmpLogHex32((UINT32)i);
+        SmpLog("=");
+        SmpLogHex64(gCpuTicks[i]);
+    }
     SmpLog("\n");
     return 0;
 }

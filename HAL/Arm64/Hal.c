@@ -84,4 +84,7 @@ void HalDebugHex64(UINT64 Value) { (void)Value; }
 
 int HalCpuCount(void) { return 1; }
 UINT32 HalCpuId(void) { return 0; }
+int HalCpuIsBsp(void) { return 1; }
+UINT64 HalCpuTicks(UINT32 Cpu) { (void)Cpu; return 0; }
+void HalCpuTickInc(void) { }
 int HalSmpStartAps(void) { return 0; }
