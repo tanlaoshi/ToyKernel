@@ -569,8 +569,14 @@ static void DrawWindowAt(int Idx) {
     DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
     DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
                       COLOR_WHITE);
-    FillRectOccluded(Idx, W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
-                     W->Height - TITLE_HEIGHT - 2, W->Background);
+    /*
+     * 客户区贴齐 1px 白边内侧（X+1 .. Width-2，底边到 Height-2）。
+     * 旧几何 X+2 / Height-TITLE-2 会在边框旁留 1px 缝，透出桌面色。
+     */
+    if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
+        FillRectOccluded(Idx, W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
+                         W->Height - TITLE_HEIGHT - 1, W->Background);
+    }
     DrawTitleStringOccluded(Idx, W);
     DrawCloseButton(Idx, W);
 }
@@ -897,11 +903,8 @@ static UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     if (Ly == W->Height - 1 || Lx == 0 || Lx == W->Width - 1) {
         return COLOR_WHITE;
     }
-    if (Ly >= TITLE_HEIGHT + 2 && Ly < W->Height - 2 &&
-        Lx >= 2 && Lx < W->Width - 2) {
-        return W->Background;
-    }
-    return COLOR_WHITE;
+    /* 与 DrawWindowAt 一致：白边内侧整片客户区底色 */
+    return W->Background;
 }
 
 /*
@@ -1539,18 +1542,19 @@ int GuiFocusClient(UINT32 *X, UINT32 *Y, UINT32 *Width, UINT32 *Height, UINT32 *
         return 0;
     }
     Win = &gWins[gFocusWin];
+    /* 与 DrawWindowAt 一致：1px 白边内侧再加 GUI_CLIENT_PAD 文本边距 */
     if (X) {
-        *X = Win->X + 2 + Pad;
+        *X = Win->X + 1 + Pad;
     }
     if (Y) {
         *Y = Win->Y + TITLE_HEIGHT + Pad;
     }
     if (Width) {
-        *Width = (Win->Width > 4 + Pad * 2) ? Win->Width - 4 - Pad * 2 : 0;
+        *Width = (Win->Width > 2 + Pad * 2) ? Win->Width - 2 - Pad * 2 : 0;
     }
     if (Height) {
-        *Height = (Win->Height > TITLE_HEIGHT + 2 + Pad * 2) ?
-             Win->Height - TITLE_HEIGHT - 2 - Pad * 2 : 0;
+        *Height = (Win->Height > TITLE_HEIGHT + 1 + Pad * 2) ?
+             Win->Height - TITLE_HEIGHT - 1 - Pad * 2 : 0;
     }
     if (Background) {
         *Background = Win->Background;
