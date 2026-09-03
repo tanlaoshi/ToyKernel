@@ -22,7 +22,15 @@ static TASK *gIdleTask[HAL_MAX_CPUS];
 static SPIN_LOCK gSchedLock;
 static volatile int gSchedOnline;
 static int gTaskCount;
-static int gLastPick;
+static int gRrHome;          /* 新建任务轮转 HomeCpu */
+static UINT64 gStealCount;   /* 偷任务次数（调试/ps） */
+
+typedef struct {
+    TASK *Slot[MAX_TASKS];
+    int   Count;
+} CPU_RUNQ;
+
+static CPU_RUNQ gRunq[HAL_MAX_CPUS];
 
 static TASK *CurrentTask(void) {
     UINT32 Id = HalCpuId();
@@ -37,6 +45,128 @@ static void SetCurrentTask(TASK *T) {
     if (Id < HAL_MAX_CPUS) {
         gCurrentCpu[Id] = T;
     }
+}
+
+static int IsIdleTask(const TASK *T) {
+    UINT32 c;
+    if (!T) {
+        return 0;
+    }
+    for (c = 0; c < HAL_MAX_CPUS; c++) {
+        if (gIdleTask[c] == T) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void RunqInit(void) {
+    UINT32 c;
+    int i;
+    for (c = 0; c < HAL_MAX_CPUS; c++) {
+        gRunq[c].Count = 0;
+        for (i = 0; i < MAX_TASKS; i++) {
+            gRunq[c].Slot[i] = 0;
+        }
+    }
+}
+
+static void RunqEnqueue(UINT32 Cpu, TASK *T) {
+    CPU_RUNQ *Q;
+    if (!T || Cpu >= HAL_MAX_CPUS || IsIdleTask(T) || T->InRunq) {
+        return;
+    }
+    Q = &gRunq[Cpu];
+    if (Q->Count >= MAX_TASKS) {
+        return;
+    }
+    Q->Slot[Q->Count++] = T;
+    T->InRunq = 1;
+    T->HomeCpu = (INT32)Cpu;
+}
+
+static TASK *RunqDequeue(UINT32 Cpu) {
+    CPU_RUNQ *Q;
+    TASK *T;
+    int i;
+    if (Cpu >= HAL_MAX_CPUS) {
+        return 0;
+    }
+    Q = &gRunq[Cpu];
+    if (Q->Count <= 0) {
+        return 0;
+    }
+    T = Q->Slot[0];
+    for (i = 1; i < Q->Count; i++) {
+        Q->Slot[i - 1] = Q->Slot[i];
+    }
+    Q->Count--;
+    Q->Slot[Q->Count] = 0;
+    if (T) {
+        T->InRunq = 0;
+    }
+    return T;
+}
+
+/* 从队尾偷：减少与本地 dequeue 冲突的直觉（大锁下等价于任取） */
+static TASK *RunqStealOne(UINT32 Victim) {
+    CPU_RUNQ *Q;
+    TASK *T;
+    if (Victim >= HAL_MAX_CPUS) {
+        return 0;
+    }
+    Q = &gRunq[Victim];
+    if (Q->Count <= 0) {
+        return 0;
+    }
+    T = Q->Slot[Q->Count - 1];
+    Q->Count--;
+    Q->Slot[Q->Count] = 0;
+    if (T) {
+        T->InRunq = 0;
+    }
+    return T;
+}
+
+static void RunqRemove(TASK *T) {
+    UINT32 c;
+    int i, j;
+    if (!T || !T->InRunq) {
+        return;
+    }
+    for (c = 0; c < HAL_MAX_CPUS; c++) {
+        CPU_RUNQ *Q = &gRunq[c];
+        for (i = 0; i < Q->Count; i++) {
+            if (Q->Slot[i] != T) {
+                continue;
+            }
+            for (j = i + 1; j < Q->Count; j++) {
+                Q->Slot[j - 1] = Q->Slot[j];
+            }
+            Q->Count--;
+            Q->Slot[Q->Count] = 0;
+            T->InRunq = 0;
+            return;
+        }
+    }
+    T->InRunq = 0;
+}
+
+static UINT32 PickHomeCpu(const TASK *T) {
+    int Cpus = HalCpuCount();
+    UINT32 Home;
+    if (Cpus < 1) {
+        Cpus = 1;
+    }
+    if (Cpus > HAL_MAX_CPUS) {
+        Cpus = HAL_MAX_CPUS;
+    }
+    if (T && T->Affinity >= 0 && T->Affinity < Cpus) {
+        return (UINT32)T->Affinity;
+    }
+    Home = (UINT32)(gRrHome % Cpus);
+    gRrHome++;
+    return Home;
 }
 
 static INT32 TaskSlot(const TASK *T) {
@@ -318,6 +448,9 @@ void SchedulerInit(void) {
 
     SpinLockInit(&gSchedLock);
     gSchedOnline = 0;
+    gRrHome = 0;
+    gStealCount = 0;
+    RunqInit();
     for (c = 0; c < HAL_MAX_CPUS; c++) {
         gCurrentCpu[c] = 0;
         gIdleTask[c] = 0;
@@ -337,10 +470,11 @@ void SchedulerInit(void) {
         gTasks[i].Waiting = 0;
         gTasks[i].Affinity = -1;
         gTasks[i].OnCpu = -1;
+        gTasks[i].HomeCpu = 0;
+        gTasks[i].InRunq = 0;
         TaskClearFds(&gTasks[i]);
     }
     gTaskCount = 0;
-    gLastPick = 0;
 }
 
 static void CopyName(TASK *T, const char *Name) {
@@ -389,9 +523,15 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].Waiting = 0;
         gTasks[i].Affinity = -1;
         gTasks[i].OnCpu = -1;
+        gTasks[i].HomeCpu = 0;
+        gTasks[i].InRunq = 0;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
+        {
+            UINT32 Home = PickHomeCpu(&gTasks[i]);
+            RunqEnqueue(Home, &gTasks[i]);
+        }
         SpinLockRelease(&gSchedLock);
         return i;
     }
@@ -432,11 +572,17 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].ParentId = Cur ? TaskSlot(Cur) : -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
-        gTasks[i].Affinity = 0; /* 用户态暂绑 BSP（单 TSS） */
+        gTasks[i].Affinity = -1; /* PR-S4：每核 TSS，用户态可上 AP */
         gTasks[i].OnCpu = -1;
+        gTasks[i].HomeCpu = 0;
+        gTasks[i].InRunq = 0;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
+        {
+            UINT32 Home = PickHomeCpu(&gTasks[i]);
+            RunqEnqueue(Home, &gTasks[i]);
+        }
         SpinLockRelease(&gSchedLock);
         return i;
     }
@@ -459,11 +605,10 @@ static int TaskFitsCpu(const TASK *T, UINT32 Cpu) {
     if (!T || T->State != TASK_READY) {
         return 0;
     }
-    if (T->Affinity >= 0 && (UINT32)T->Affinity != Cpu) {
+    if (IsIdleTask(T)) {
         return 0;
     }
-    /* 用户态与 console/gui 热点：仅 BSP（Affinity 已限制；双保险） */
-    if (T->IsUser && Cpu != 0) {
+    if (T->Affinity >= 0 && (UINT32)T->Affinity != Cpu) {
         return 0;
     }
     return 1;
@@ -471,20 +616,44 @@ static int TaskFitsCpu(const TASK *T, UINT32 Cpu) {
 
 static TASK *PickNext(UINT32 Cpu) {
     TASK *Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
-    int n;
+    TASK *T;
+    int Cpus;
+    int v;
 
-    for (n = 1; n <= MAX_TASKS; n++) {
-        int i = (gLastPick + n) % MAX_TASKS;
-        if (!TaskFitsCpu(&gTasks[i], Cpu)) {
-            continue;
+    /* 1) 本核队列 */
+    for (;;) {
+        T = RunqDequeue(Cpu);
+        if (!T) {
+            break;
         }
-        /* 勿抢走其它核的 idle */
-        if (Idle && &gTasks[i] == Idle) {
-            continue;
+        if (TaskFitsCpu(T, Cpu)) {
+            return T;
         }
-        gLastPick = i;
-        return &gTasks[i];
+        /* 亲和性不符：送回其 Home / Affinity */
+        RunqEnqueue(PickHomeCpu(T), T);
     }
+
+    /* 2) 从其它核偷 */
+    Cpus = HalCpuCount();
+    if (Cpus < 1) {
+        Cpus = 1;
+    }
+    if (Cpus > HAL_MAX_CPUS) {
+        Cpus = HAL_MAX_CPUS;
+    }
+    for (v = 1; v < Cpus; v++) {
+        UINT32 Vic = (Cpu + (UINT32)v) % (UINT32)Cpus;
+        T = RunqStealOne(Vic);
+        if (!T) {
+            continue;
+        }
+        if (TaskFitsCpu(T, Cpu)) {
+            gStealCount++;
+            return T;
+        }
+        RunqEnqueue(PickHomeCpu(T), T);
+    }
+
     if (Idle && Idle->State != TASK_UNUSED) {
         if (Idle->State == TASK_RUNNING || Idle->State == TASK_READY) {
             return Idle;
@@ -519,7 +688,11 @@ static void ActivateTask(TASK *T) {
     if (Prev && Prev != T && Prev->State == TASK_RUNNING) {
         Prev->State = TASK_READY;
         Prev->OnCpu = -1;
+        if (!IsIdleTask(Prev)) {
+            RunqEnqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
+        }
     }
+    RunqRemove(T);
     SetCurrentTask(T);
     T->State = TASK_RUNNING;
     T->OnCpu = (INT32)Cpu;
@@ -536,6 +709,7 @@ static TASK *FindRunnable(UINT32 Cpu) {
 }
 
 static void ReapZombie(TASK *Z) {
+    RunqRemove(Z);
     SchedulerFdCloseAll(Z);
     if (Z->UserSpace) {
         VirtualMemorySpaceDestroy(Z->UserSpace);
@@ -548,6 +722,8 @@ static void ReapZombie(TASK *Z) {
     Z->Started = 0;
     Z->ParentId = -1;
     Z->Waiting = 0;
+    Z->OnCpu = -1;
+    Z->InRunq = 0;
     gTaskCount--;
 }
 
@@ -602,6 +778,7 @@ static int WakeWaitingParent(TASK *Zombie) {
     }
     P->Waiting = 0;
     P->State = TASK_READY;
+    RunqEnqueue(PickHomeCpu(P), P);
     ReapZombie(Zombie);
     return 1;
 }
@@ -629,10 +806,6 @@ UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
     if (Next == Cur || Next == 0) {
         SpinLockRelease(&gSchedLock);
         return 0;
-    }
-    if (Cur->State == TASK_RUNNING) {
-        Cur->State = TASK_READY;
-        Cur->OnCpu = -1;
     }
     ActivateTask(Next);
     Ret = SchedResumeFrame(Next);
@@ -681,6 +854,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
         }
     } else {
         ShowPrompt = Exiting->IsUser && !ParentIsUserWaiter(Exiting->ParentId);
+        RunqRemove(Exiting);
         Exiting->State = TASK_UNUSED;
         Exiting->Frame = 0;
         Exiting->ParentId = -1;
@@ -771,11 +945,14 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTasks[Child].ParentId = ParentSlot;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
-    gTasks[Child].Affinity = 0;
+    gTasks[Child].Affinity = -1;
     gTasks[Child].OnCpu = -1;
+    gTasks[Child].HomeCpu = 0;
+    gTasks[Child].InRunq = 0;
     TaskClearFds(&gTasks[Child]);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;
+    RunqEnqueue(PickHomeCpu(&gTasks[Child]), &gTasks[Child]);
 
     Frame->Rax = (UINT64)(UINT32)(Child + 1);
     Parent->Frame = Frame;
@@ -869,15 +1046,9 @@ UINT64 SchedulerYield(HAL_FRAME *Frame) {
         return 0;
     }
     Cur->Frame = Frame;
-    if (Cur->State == TASK_RUNNING) {
-        Cur->State = TASK_READY;
-        Cur->OnCpu = -1;
-    }
     Cpu = HalCpuId();
     Next = PickNext(Cpu);
     if (Next == Cur || Next == 0) {
-        Cur->State = TASK_RUNNING;
-        Cur->OnCpu = (INT32)Cpu;
         SpinLockRelease(&gSchedLock);
         return 0;
     }
@@ -902,7 +1073,10 @@ static int CreateIdleForCpu(UINT32 Cpu) {
         return -1;
     }
     SchedulerSetAffinity(Id, (INT32)Cpu);
+    SpinLockAcquire(&gSchedLock);
     gIdleTask[Cpu] = &gTasks[Id];
+    RunqRemove(gIdleTask[Cpu]);
+    SpinLockRelease(&gSchedLock);
     return Id;
 }
 
@@ -964,15 +1138,19 @@ void SchedulerStart(void) {
         }
     }
 
-    /* shell/gui 绑 BSP；worker 可任意核（演示偷任务） */
+    /*
+     * shell/gui 仍绑 BSP（Console/帧缓冲无大锁）；
+     * worker / 用户态 Affinity=-1，靠每核队列 + 偷任务上 AP。
+     */
     for (i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State == TASK_UNUSED) {
             continue;
         }
-        if (gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') {
+        if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||
+            (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u')) {
+            RunqRemove(&gTasks[i]);
             gTasks[i].Affinity = 0;
-        } else if (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u') {
-            gTasks[i].Affinity = 0;
+            RunqEnqueue(0, &gTasks[i]);
         }
     }
 
@@ -1010,6 +1188,10 @@ TASK *SchedulerCurrent(void) {
 
 int SchedulerTaskCount(void) {
     return gTaskCount;
+}
+
+UINT64 SchedulerStealCount(void) {
+    return gStealCount;
 }
 
 const TASK *SchedulerTaskByIndex(int Index) {

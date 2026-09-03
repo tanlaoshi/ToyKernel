@@ -46,7 +46,9 @@ if [ "$ARCH" = "x86_64" ]; then
     cp User/writefile.elf ../ToyImage/WRITE.ELF
     cp User/netdemo.elf ../ToyImage/NETDEMO.ELF
     cp User/netsrv.elf ../ToyImage/NETSRV.ELF
-    echo "Copied HELLO/COUNT/FORK/WAITNH/DYNDEMO/LIBTOY/CAT/WRITE/NETDEMO/NETSRV -> ../ToyImage/"
+    cp User/syshello.elf ../ToyImage/SYSHELLO.ELF
+    cp User/sysfork.elf ../ToyImage/SYSFORK.ELF
+    echo "Copied HELLO/COUNT/FORK/WAITNH/DYNDEMO/LIBTOY/CAT/WRITE/NETDEMO/NETSRV/SYSHELLO/SYSFORK -> ../ToyImage/"
     if [ -d ../ToyImage/rootfs ]; then
         cp -f ../ToyImage/WRITE.ELF ../ToyImage/rootfs/WRITE.ELF
         cp -f ../ToyImage/WAITNH.ELF ../ToyImage/rootfs/WAITNH.ELF
@@ -54,7 +56,9 @@ if [ "$ARCH" = "x86_64" ]; then
         cp -f ../ToyImage/DYNDEMO.ELF ../ToyImage/rootfs/DYNDEMO.ELF
         cp -f ../ToyImage/NETDEMO.ELF ../ToyImage/rootfs/NETDEMO.ELF
         cp -f ../ToyImage/NETSRV.ELF ../ToyImage/rootfs/NETSRV.ELF
-        echo "Synced WRITE/WAITNH/DYNDEMO/LIBTOY/NETDEMO/NETSRV -> ../ToyImage/rootfs/"
+        cp -f ../ToyImage/SYSHELLO.ELF ../ToyImage/rootfs/SYSHELLO.ELF
+        cp -f ../ToyImage/SYSFORK.ELF ../ToyImage/rootfs/SYSFORK.ELF
+        echo "Synced WRITE/WAITNH/DYNDEMO/LIBTOY/NETDEMO/NETSRV/SYSHELLO/SYSFORK -> ../ToyImage/rootfs/"
     fi
 fi
 

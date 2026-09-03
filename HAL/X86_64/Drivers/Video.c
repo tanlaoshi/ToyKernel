@@ -356,6 +356,8 @@ void VideoNewLine(void) {
 
     if (gClipOn) {
         if (gClipH <= LineHeight) {
+            /* 仍回到行首，避免 \n 被吞后提示符粘在同一行 */
+            gScreen.CursorX = gClipX;
             return;
         }
         gScreen.CursorX = gClipX;

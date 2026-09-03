@@ -1,5 +1,10 @@
 /*
- * Syscall.c — int 0x80 系统调用（用户 Ring 3 可触发）
+ * Syscall.c — 系统调用分发（入口无关）
+ *
+ * 教学双路径（互不耦合）：
+ *   - legacy：int 0x80 → Isr128 → InterruptDispatch → SyscallDispatch
+ *   - 快速：syscall → SyscallEntry → SyscallDispatch → sysretq
+ * 号与 ABI（rax / rdi,rsi,rdx）两条路径共用。
  */
 #include "Syscall.h"
 #include "Hal.h"
@@ -14,8 +19,12 @@ extern void Isr128(void);
 #define PATH_MAX_LEN 15
 
 void SyscallInit(void) {
+    /* legacy：IDT 0x80，DPL=3 */
     HalIrqVectorSet(VEC_SYSCALL, (void *)Isr128, 0xEE);
     DebugWrite("syscall: vector 0x80 (DPL=3) ready\n");
+    /* 快速路径：MSR（BSP）；AP 在 ArchApInit 中各自初始化 */
+    ArchSyscallMsrInit(0);
+    DebugWrite("syscall: SYSCALL/SYSRET MSR ready\n");
 }
 
 static int SysWrite(int Fd, UINT64 UserBuf, UINTN Len) {
@@ -32,8 +41,7 @@ static int SysWrite(int Fd, UINT64 UserBuf, UINTN Len) {
             if (VirtualMemoryCopyFromUser(Buf, UserBuf + Done, Chunk) < 0) {
                 return Done > 0 ? (int)Done : -1;
             }
-            Buf[Chunk] = '\0';
-            ConsoleWrite(Buf);
+            ConsoleWriteLen(Buf, Chunk);
             Done += Chunk;
         }
         return (int)Len;

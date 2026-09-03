@@ -14,6 +14,7 @@ void ConsoleRegisterBuiltins(void);
 void ConsoleRegister(const char *Name, const char *Help,
                      void (*Handler)(int Argc, char **Argv));
 void ConsoleWrite(const char *Text);
+void ConsoleWriteLen(const char *Data, UINTN Len);
 void ConsoleHex32(UINT32 Value);
 void ConsoleHex64(UINT64 Value);
 void ConsoleOnChar(char C);

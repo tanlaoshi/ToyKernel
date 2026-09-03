@@ -38,7 +38,7 @@ typedef struct {
     UINT32 Zero;
 } __attribute__((packed)) IDT_GATE;
 
-static UINT64 gGdt[7];
+static UINT64 gGdt[5 + HAL_MAX_CPUS * 2];
 static IDT_GATE gIdt[256] __attribute__((aligned(16)));
 
 typedef struct __attribute__((packed)) {
@@ -59,25 +59,111 @@ typedef struct __attribute__((packed)) {
     UINT16 IOPBOffset;
 } TSS64;
 
-static TSS64 gTss __attribute__((aligned(16)));
-static UINT8 gKernelIstStack[16384] __attribute__((aligned(16)));
+static TSS64 gTss[HAL_MAX_CPUS] __attribute__((aligned(16)));
+static UINT8 gKernelIstStack[HAL_MAX_CPUS][16384] __attribute__((aligned(16)));
+
+/* SYSCALL 入口用：KERNEL_GS_BASE 指向本结构；与 int 0x80 无关 */
+typedef struct {
+    UINT64 KernelRsp;     /* gs:[0] — 与 TSS.RSP0 同步 */
+    UINT64 ScratchUserRsp; /* gs:[8] — SyscallEntry 暂存用户 RSP */
+} ARCH_CPU_LOCAL;
+
+static ARCH_CPU_LOCAL gArchCpuLocal[HAL_MAX_CPUS] __attribute__((aligned(16)));
+
+#define MSR_EFER            0xC0000080u
+#define MSR_STAR            0xC0000081u
+#define MSR_LSTAR           0xC0000082u
+#define MSR_SFMASK          0xC0000084u
+#define MSR_GS_BASE         0xC0000101u
+#define MSR_KERNEL_GS_BASE  0xC0000102u
+#define EFER_SCE            (1ULL << 0)
+/* SFMASK：进入 SYSCALL 时清 IF（bit9），与 SyscallDispatch 关中断一致 */
+#define SFMASK_IF           (1ULL << 9)
+
+extern void SyscallEntry(void);
+
+static void Wrmsr(UINT32 Msr, UINT64 Value) {
+    UINT32 Lo = (UINT32)Value;
+    UINT32 Hi = (UINT32)(Value >> 32);
+    __asm__ volatile ("wrmsr" :: "c"(Msr), "a"(Lo), "d"(Hi) : "memory");
+}
+
+static UINT64 Rdmsr(UINT32 Msr) {
+    UINT32 Lo;
+    UINT32 Hi;
+    __asm__ volatile ("rdmsr" : "=a"(Lo), "=d"(Hi) : "c"(Msr));
+    return ((UINT64)Hi << 32) | Lo;
+}
+
+/*
+ * 配置本核 SYSCALL/SYSRET MSR。
+ * STAR：kernel CS=0x08（SS=0x10）；user base=0x13 → SYSRET CS=0x23 SS=0x1B
+ * （依赖 GDT：1=kcode 2=kdata 3=udata 4=ucode）
+ */
+void ArchSyscallMsrInit(UINT32 LogicalCpu) {
+    UINT64 Efer;
+    UINT64 Star;
+    UINT64 Local;
+
+    if (LogicalCpu >= HAL_MAX_CPUS) {
+        LogicalCpu = 0;
+    }
+
+    gArchCpuLocal[LogicalCpu].KernelRsp = gTss[LogicalCpu].RSP0;
+
+    Local = (UINT64)(UINTN)&gArchCpuLocal[LogicalCpu];
+    Wrmsr(MSR_GS_BASE, 0);
+    Wrmsr(MSR_KERNEL_GS_BASE, Local);
+
+    Star = (0x0013ULL << 48) | (0x0008ULL << 32);
+    Wrmsr(MSR_STAR, Star);
+    Wrmsr(MSR_LSTAR, (UINT64)(UINTN)SyscallEntry);
+    Wrmsr(MSR_SFMASK, SFMASK_IF);
+
+    Efer = Rdmsr(MSR_EFER);
+    Wrmsr(MSR_EFER, Efer | EFER_SCE);
+}
+
+static void TssDescWrite(UINT32 Cpu) {
+    UINT64 TssBase = (UINT64)(UINTN)&gTss[Cpu];
+    UINT32 TssLimit = sizeof(TSS64) - 1;
+    UINT32 Idx = 5 + Cpu * 2;
+
+    gGdt[Idx] = (TssLimit & 0xFFFFULL)
+            | ((TssBase & 0xFFFFFFULL) << 16)
+            | (0x89ULL << 40)
+            | ((UINT64)(TssLimit & 0x000F0000ULL) << 32)
+            | ((TssBase & 0xFF000000ULL) << 32);
+    gGdt[Idx + 1] = (TssBase >> 32) & 0xFFFFFFFFULL;
+}
+
+static UINT16 TssSelector(UINT32 Cpu) {
+    return (UINT16)(0x28 + Cpu * 16);
+}
 
 /* 写 I/O 端口（字节） */
 static inline void Outb(UINT16 Port, UINT8 Value) {
     __asm__ volatile ("outb %0, %1" : : "a"(Value), "Nd"(Port));
 }
 
-/* 构造 GDT：内核段、用户段、TSS；far return 刷新段寄存器 */
+/* 构造 GDT：内核段、用户段、每核 TSS；far return 刷新段寄存器 */
 static void GdtLoad(void) {
-    gGdt[0] = 0;
+    UINT32 i;
+
+    for (i = 0; i < (UINT32)(sizeof(gGdt) / sizeof(gGdt[0])); i++) {
+        gGdt[i] = 0;
+    }
     gGdt[1] = 0x00AF9A000000FFFFULL;
     gGdt[2] = 0x00CF92000000FFFFULL;
     gGdt[3] = 0x00CFF2000000FFFFULL;
     gGdt[4] = 0x00AFFA000000FFFFULL;
-    gGdt[5] = 0;
-    gGdt[6] = 0;
 
-    gTss.RSP0 = (UINT64)(UINTN)(gKernelIstStack + sizeof(gKernelIstStack));
+    for (i = 0; i < HAL_MAX_CPUS; i++) {
+        gTss[i].RSP0 =
+            (UINT64)(UINTN)(gKernelIstStack[i] + sizeof(gKernelIstStack[i]));
+        gArchCpuLocal[i].KernelRsp = gTss[i].RSP0;
+        TssDescWrite(i);
+    }
 
     DT_PTR Ptr;
     Ptr.Limit = (UINT16)(sizeof(gGdt) - 1);
@@ -102,21 +188,22 @@ static void GdtLoad(void) {
     );
 }
 
-/* 安装 TSS 并加载任务寄存器（进入用户态前调用） */
+/* 每核 TSS.RSP0：用户态陷入内核时用的栈（int 0x80 与 SYSCALL 共用） */
 void ArchSetRsp0(UINT64 Rsp0) {
-    gTss.RSP0 = Rsp0;
+    UINT32 Cpu = HalCpuId();
+    if (Cpu >= HAL_MAX_CPUS) {
+        Cpu = 0;
+    }
+    gTss[Cpu].RSP0 = Rsp0;
+    gArchCpuLocal[Cpu].KernelRsp = Rsp0;
 }
 
 void ArchTssInstall(void) {
-    gTss.RSP0 = (UINT64)(UINTN)(gKernelIstStack + sizeof(gKernelIstStack));
-    UINT64 TssBase = (UINT64)(UINTN)&gTss;
-    UINT32 TssLimit = sizeof(TSS64) - 1;
-    gGdt[5] = (TssLimit & 0xFFFFULL)
-            | ((TssBase & 0xFFFFFFULL) << 16)
-            | (0x89ULL << 40)
-            | ((UINT64)(TssLimit & 0x000F0000ULL) << 32);
-    gGdt[6] = (TssBase >> 32) & 0xFFFFFFFFULL;
-    __asm__ volatile ("ltr %%ax" :: "a"((UINT16)0x28));
+    gTss[0].RSP0 =
+        (UINT64)(UINTN)(gKernelIstStack[0] + sizeof(gKernelIstStack[0]));
+    gArchCpuLocal[0].KernelRsp = gTss[0].RSP0;
+    TssDescWrite(0);
+    __asm__ volatile ("ltr %%ax" :: "a"(TssSelector(0)));
 }
 
 /* 设置 IDT 门（Type: 0x8E=内核中断门, 0xEE=用户可调用中断门） */
@@ -301,6 +388,7 @@ UINT64 InterruptDispatch(HAL_FRAME *F) {
 /* 完整 CPU 中断环境初始化；自 IPI 测试成功返回 0 */
 int ArchInit(void) {
     GdtLoad();
+    ArchTssInstall();
     PicMaskAll();
     LapicEnable();
     IdtLoad();
@@ -319,17 +407,24 @@ int ArchInit(void) {
 }
 
 /*
- * AP 初始化（PR-S2）：
- * trampoline 进入时 CS=0x18；把低址 GDT 的 0x08 改成 64-bit code 后 lretq，
- * 即可直接 lidt 共享 BSP IDT（门选 0x08）。
+ * AP 初始化（PR-S2/S4）：
+ * 切到共享 gGdt（含每核 TSS），ltr 本核 TSS，再 lidt + 开 LAPIC。
  */
 void ArchApInit(UINT32 LogicalCpu) {
-    UINT64 *Gdt = (UINT64 *)(UINTN)0x7F00ULL;
+    DT_PTR Ptr;
 
-    (void)LogicalCpu;
+    if (LogicalCpu >= HAL_MAX_CPUS) {
+        LogicalCpu = HAL_MAX_CPUS - 1;
+    }
 
-    /* 0x08 原为 32-bit code（实模式→保护模式用）；长模式下改为与 BSP 一致 */
-    Gdt[1] = 0x00AF9A000000FFFFULL;
+    gTss[LogicalCpu].RSP0 = (UINT64)(UINTN)(
+        gKernelIstStack[LogicalCpu] + sizeof(gKernelIstStack[LogicalCpu]));
+    gArchCpuLocal[LogicalCpu].KernelRsp = gTss[LogicalCpu].RSP0;
+    TssDescWrite(LogicalCpu);
+
+    Ptr.Limit = (UINT16)(sizeof(gGdt) - 1);
+    Ptr.Base = (UINT64)(UINTN)gGdt;
+    __asm__ volatile ("lgdt %0" : : "m"(Ptr) : "memory");
 
     __asm__ volatile (
         "pushq $0x08\n\t"
@@ -348,8 +443,11 @@ void ArchApInit(UINT32 LogicalCpu) {
         : "rax", "memory"
     );
 
+    __asm__ volatile ("ltr %%ax" :: "a"(TssSelector(LogicalCpu)));
+
     IdtLidt();
     LapicEnable();
+    ArchSyscallMsrInit(LogicalCpu);
 }
 
 /* 开中断 */

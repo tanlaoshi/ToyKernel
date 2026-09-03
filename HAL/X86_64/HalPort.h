@@ -27,6 +27,7 @@ int ArchInit(void);
 void ArchApInit(UINT32 LogicalCpu); /* AP：本核 GDT/TSS + 共享 IDT + LAPIC */
 void ArchSetRsp0(UINT64 Rsp0);
 void ArchTssInstall(void);
+void ArchSyscallMsrInit(UINT32 LogicalCpu); /* SYSCALL/SYSRET MSR（与 int 0x80 独立） */
 void ArchSti(void);
 void ArchCli(void);
 void LapicEoi(void);

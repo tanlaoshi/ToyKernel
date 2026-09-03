@@ -30,6 +30,6 @@
  */
 
 void SyscallInit(void);
-UINT64 SyscallDispatch(HAL_FRAME *Frame);
+UINT64 SyscallDispatch(HAL_FRAME *Frame); /* int 0x80 与 SYSCALL 共用 */
 
 #endif

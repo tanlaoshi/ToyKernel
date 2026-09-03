@@ -31,8 +31,8 @@ typedef struct {
     UINT32   Height;
     UINT32   Background;
     const char *Title;
-    UINT32   TermX;
-    UINT32   TermY;
+    UINT32   TermX;   /* 客户区内相对文本光标 X（非屏幕绝对坐标） */
+    UINT32   TermY;   /* 客户区内相对文本光标 Y */
     int      TermSet;
     char     InputLine[GUI_INPUT_LINE_MAX];
     int      InputLen;
@@ -1249,8 +1249,6 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     UINT32 Oy;
     UINT32 Ww;
     UINT32 Wh;
-    INT32 Dx;
-    INT32 Dy;
 
     if (Idx < 0 || Idx >= MAX_WINS) {
         return;
@@ -1270,9 +1268,6 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         return;
     }
 
-    Dx = (INT32)NewX - (INT32)Ox;
-    Dy = (INT32)NewY - (INT32)Oy;
-
     HalIrqDisable();
     if (gCursorVisible) {
         CursorRestore();
@@ -1280,18 +1275,11 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     if (gDragHasBackup) {
         W->X = NewX;
         W->Y = NewY;
-        if (W->TermSet) {
-            W->TermX = (UINT32)((INT32)W->TermX + Dx);
-            W->TermY = (UINT32)((INT32)W->TermY + Dy);
-        }
+        /* TermX/Y 为客户区相对坐标，随窗移动无需累加 Dx */
         RedrawDragFrame(Idx, Ox, Oy);
     } else if (gDragWin >= 0) {
         W->X = NewX;
         W->Y = NewY;
-        if (W->TermSet) {
-            W->TermX = (UINT32)((INT32)W->TermX + Dx);
-            W->TermY = (UINT32)((INT32)W->TermY + Dy);
-        }
         HalVideoClearClip();
         if (gWinBackupValid[Idx]) {
             CompositeDragDirtyRegion(Idx, Ox, Oy, Ww, Wh);
@@ -1303,10 +1291,6 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         HalVideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
         W->X = NewX;
         W->Y = NewY;
-        if (W->TermSet) {
-            W->TermX = (UINT32)((INT32)W->TermX + Dx);
-            W->TermY = (UINT32)((INT32)W->TermY + Dy);
-        }
         ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
         RefreshOtherChrome(Idx);
         DrawWindowChromeAt(Idx);
@@ -1383,12 +1367,33 @@ int GuiFocusClient(UINT32 *X, UINT32 *Y, UINT32 *Width, UINT32 *Height, UINT32 *
 }
 
 void GuiFocusSave(void) {
+    UINT32 Cx;
+    UINT32 Cy;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Bg;
+    UINT32 Ax;
+    UINT32 Ay;
+    GUI_WINDOW *Win;
+
     if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
         return;
     }
     ConsoleFocusSave();
-    HalVideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
-    gWins[gFocusWin].TermSet = 1;
+    Win = &gWins[gFocusWin];
+    if (!GuiFocusClient(&Cx, &Cy, &W, &H, &Bg)) {
+        return;
+    }
+    HalVideoGetTextCursor(&Ax, &Ay);
+    Win->TermX = (Ax >= Cx) ? (Ax - Cx) : 0;
+    Win->TermY = (Ay >= Cy) ? (Ay - Cy) : 0;
+    if (W > 0 && Win->TermX >= W) {
+        Win->TermX = W - 1;
+    }
+    if (H > 0 && Win->TermY >= H) {
+        Win->TermY = H - 1;
+    }
+    Win->TermSet = 1;
 }
 
 void GuiConsolePull(char *Line, int *Len, int *WaitPrompt) {
@@ -1485,10 +1490,12 @@ void GuiFocusApplyClip(void) {
     Win = &gWins[gFocusWin];
     if (!Win->TermSet) {
         HalVideoSetTextCursor(X, Y);
+        Win->TermX = 0;
+        Win->TermY = 0;
         return;
     }
-    Tx = Win->TermX;
-    Ty = Win->TermY;
+    Tx = X + Win->TermX;
+    Ty = Y + Win->TermY;
     if (Tx < X) {
         Tx = X;
     }
@@ -1502,8 +1509,8 @@ void GuiFocusApplyClip(void) {
         Ty = Y + H - 1;
     }
     HalVideoSetTextCursor(Tx, Ty);
-    Win->TermX = Tx;
-    Win->TermY = Ty;
+    Win->TermX = Tx - X;
+    Win->TermY = Ty - Y;
 }
 
 static int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py) {
@@ -1565,11 +1572,32 @@ void GuiBackupSyncRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 }
 
 void GuiFocusSyncCursor(void) {
+    UINT32 Cx;
+    UINT32 Cy;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Bg;
+    UINT32 Ax;
+    UINT32 Ay;
+    GUI_WINDOW *Win;
+
     if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
         return;
     }
-    HalVideoGetTextCursor(&gWins[gFocusWin].TermX, &gWins[gFocusWin].TermY);
-    gWins[gFocusWin].TermSet = 1;
+    if (!GuiFocusClient(&Cx, &Cy, &W, &H, &Bg)) {
+        return;
+    }
+    Win = &gWins[gFocusWin];
+    HalVideoGetTextCursor(&Ax, &Ay);
+    Win->TermX = (Ax >= Cx) ? (Ax - Cx) : 0;
+    Win->TermY = (Ay >= Cy) ? (Ay - Cy) : 0;
+    if (W > 0 && Win->TermX >= W) {
+        Win->TermX = W - 1;
+    }
+    if (H > 0 && Win->TermY >= H) {
+        Win->TermY = H - 1;
+    }
+    Win->TermSet = 1;
 }
 
 void GuiFocusClearClient(void) {
@@ -1588,8 +1616,8 @@ void GuiFocusClearClient(void) {
     HalVideoFillRect(X, Y, W, H, Bg);
     HalVideoSetClipOrigin(X, Y, W, H, Bg);
     Win = &gWins[gFocusWin];
-    Win->TermX = X;
-    Win->TermY = Y;
+    Win->TermX = 0;
+    Win->TermY = 0;
     Win->TermSet = 1;
     GuiBackupSyncRect(X, Y, W, H);
     CursorPaint();
@@ -1625,8 +1653,8 @@ void GuiFocusHome(void) {
     HalVideoSetClipOrigin(X, Y, W, H, Bg);
     if (gFocusWin >= 0 && gFocusWin < MAX_WINS) {
         Win = &gWins[gFocusWin];
-        Win->TermX = X;
-        Win->TermY = Y;
+        Win->TermX = 0;
+        Win->TermY = 0;
         Win->TermSet = 1;
     }
 }

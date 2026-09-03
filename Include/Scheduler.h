@@ -51,6 +51,8 @@ typedef struct TASK {
     int                    Waiting;    /* wait() 阻塞中 */
     INT32                  Affinity;   /* -1=任意 CPU；否则逻辑 CpuId */
     INT32                  OnCpu;      /* 正在跑的逻辑 CPU；未跑为 -1 */
+    INT32                  HomeCpu;    /* 首选运行队列（PR-S4） */
+    int                    InRunq;     /* 已在某核 READY 队列中 */
     TASK_FD                Fds[MAX_FDS];
 } TASK;
 
@@ -84,6 +86,7 @@ void SchedulerReapOrphanZombies(void);
 
 TASK *SchedulerCurrent(void);
 int SchedulerTaskCount(void);
+UINT64 SchedulerStealCount(void);
 const TASK *SchedulerTaskByIndex(int Index);
 UINT64 SchedulerTaskRip(const TASK *T);
 

@@ -120,6 +120,10 @@ static void CommandPs(int Argc, char **Argv) {
         ConsoleHex64(SchedulerTaskRip(T));
         ConsoleWrite(" ticks=");
         ConsoleHex32(T->Ticks);
+        ConsoleWrite(" cpu=");
+        ConsoleHex32((UINT32)T->OnCpu);
+        ConsoleWrite(" home=");
+        ConsoleHex32((UINT32)T->HomeCpu);
         if (SchedulerCurrent() == T) {
             ConsoleWrite(" *");
         }
@@ -127,6 +131,8 @@ static void CommandPs(int Argc, char **Argv) {
     }
     ConsoleWrite("worker loops=");
     ConsoleHex32(WorkerLoopCount());
+    ConsoleWrite(" steals=");
+    ConsoleHex64(SchedulerStealCount());
     ConsoleWrite("\n");
 }
 

@@ -10,12 +10,12 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 | 方向 | 状态 | 说明 |
 |------|------|------|
-| 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80` 系统调用 |
+| 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80`（legacy）与 `syscall`/`sysret` |
 | 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
 | 图形界面 | ≈ 可用 | 多窗口、USB 键鼠、**标题栏拖动** |
 | 网络 | 进行中 | virtio-net；builtin TCP/UDP（legacy）+ 可选 lwIP |
-| 多核 SMP | 进行中 | PR-S1～S3：MADT/SIPI、每核 timer、调度大锁 + AP idle |
+| 多核 SMP | ✅ | PR-S1～S4：MADT/SIPI、每核 timer、调度大锁、每核 TSS/队列偷任务 |
 
 ---
 
@@ -149,7 +149,14 @@ echo hello | nc -u 127.0.0.1 5555
 
 ---
 
-## 系统调用（int 0x80）
+## 系统调用（双路径，互不耦合）
+
+| 路径 | 入口 | 返回 | 演示 |
+|------|------|------|------|
+| **legacy** | `int 0x80` → IDT → `Isr128` | `iretq` | `HELLO.ELF` / `FORK.ELF` |
+| **快速** | `syscall` → `LSTAR`/`SyscallEntry` | `sysretq`（同任务） | `SYSHELLO.ELF` / `SYSFORK.ELF` |
+
+号表与参数约定相同（`rax` = 号，`rdi`/`rsi`/`rdx` = 参数）。`SyscallDispatch` 共用；两条入口桩互不调用。
 
 | 号 | 名称 | 说明 |
 |----|------|------|

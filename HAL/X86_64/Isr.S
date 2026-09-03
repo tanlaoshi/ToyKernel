@@ -70,7 +70,7 @@ ISR_NOERR 31
     .set i, i+1
 .endr
 
-/* 自定义：64=XHCI MSI-X，65=LAPIC 定时器，128=系统调用，255=默认 */
+/* 自定义：64=XHCI MSI-X，65=LAPIC 定时器，128=int 0x80 legacy；syscall 见 SyscallEntry.S */
 ISR_NOERR 64
 ISR_NOERR 65
 ISR_NOERR 128

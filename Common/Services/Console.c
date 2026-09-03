@@ -29,6 +29,7 @@ static char gLine[LINE_MAX];
 static int gLen;
 static int gWaitPrompt;
 static int gPromptSuspend;
+static int gAtLineStart = 1;
 
 /* 比较两个 C 字符串是否相等 */
 static int StrEq(const char *A, const char *B) {
@@ -84,11 +85,44 @@ static void ConsoleDrawChar(char C, UINT32 Color) {
 
 /* 同时输出到串口与屏幕（帧缓冲未就绪时只写串口） */
 void ConsoleWrite(const char *Text) {
+    const char *P;
+
+    if (Text == 0) {
+        return;
+    }
     HalConsoleWriteSerial(Text);
+    for (P = Text; *P; P++) {
+        gAtLineStart = (*P == '\n');
+    }
     if (!HalConsoleVideoReady()) {
         return;
     }
     ConsoleDrawString(Text, COLOR_WHITE);
+}
+
+/* 按长度输出（SYS_WRITE 用；不因中间的 NUL 截断） */
+void ConsoleWriteLen(const char *Data, UINTN Len) {
+    UINTN i;
+
+    if (Data == 0 || Len == 0) {
+        return;
+    }
+    for (i = 0; i < Len; i++) {
+        char C = Data[i];
+        char Tmp[2];
+
+        if (C == '\n') {
+            ConsoleWrite("\n");
+            continue;
+        }
+        if (C == '\0' || (C > 0 && C < 32) || (unsigned char)C == 127) {
+            /* 控制字符：跳过（换行已处理）；避免 VideoDrawChar 静默丢弃导致“无换行”错觉 */
+            continue;
+        }
+        Tmp[0] = C;
+        Tmp[1] = 0;
+        ConsoleWrite(Tmp);
+    }
 }
 
 /* 输出 32 位十六进制 */
@@ -105,10 +139,14 @@ void ConsoleHex64(UINT64 Value) {
     ConsoleWrite(Buf);
 }
 
-/* 显示 Shell 提示符 toyos>（清空输入行） */
+/* 显示 Shell 提示符 toyos>（清空输入行；若当前不在行首则先换行） */
 static void Prompt(void) {
     gLen = 0;
+    if (!gAtLineStart) {
+        ConsoleWrite("\n");
+    }
     HalConsoleWriteSerial("toyos> ");
+    gAtLineStart = 0;
     if (HalConsoleVideoReady()) {
         ConsoleDrawString("toyos> ", COLOR_CYAN);
     }
@@ -172,6 +210,7 @@ static void CommandClear(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
     gLen = 0;
+    gAtLineStart = 1;
     GuiFocusClearClient();
 }
 
