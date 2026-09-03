@@ -60,10 +60,11 @@ static UINT32 gSaveH;
 static UINT32 gUnder[CURSOR_BOX * CURSOR_BOX];
 static int    gCursorVisible;
 
-/* 标题栏拖动：按下时记录窗口下标与光标相对偏移 */
+/* 标题栏拖动：按下时记录窗口下标与光标相对偏移；移动后才抓备份 */
 static int    gDragWin = -1;
 static INT32  gDragOffX;
 static INT32  gDragOffY;
+static int    gDragArmed;
 static GUI_WINDOW gWinSwap;
 
 /* PR-G4：拖动时整窗备份（GuiInit 预分配），每帧轨迹合成重画 */
@@ -599,8 +600,11 @@ static void FillDesktopRectClipped(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 }
 
 static void ResetDragState(void) {
-    int i;
-
+    /*
+     * 只清拖动合成用的 snap/under/dirty。
+     * 绝不能清 gWinBackupValid：单击标题栏也会进 GuiDragEnd，若无重叠会走这里，
+     * 清掉后备份后 SyncWindowVisuals 只能 DrawWindowAt，Settings/Shell 文字全没。
+     */
     if (gScreenSnap != 0) {
         PhysicalMemoryFreePages(gScreenSnap, gScreenSnapPages);
         gScreenSnap = 0;
@@ -621,9 +625,6 @@ static void ResetDragState(void) {
     gUnderDragValid = 0;
     gDragStartW = 0;
     gDragStartH = 0;
-    for (i = 0; i < MAX_WINS; i++) {
-        gWinBackupValid[i] = 0;
-    }
     gDragHasBackup = 0;
 }
 
@@ -1985,12 +1986,13 @@ int GuiOpenSettings(void) {
     gWins[Idx].InputLine[0] = 0;
 
     DrawWindowAt(Idx);
+    gFocusWin = Idx;
+    SettingsUiOpen();
     BackupWindowAt(Idx);
     GuiFocusSave();
     RaiseWindow(Idx);
     SyncWindowVisuals();
     GuiFocusApply();
-    SettingsUiOpen();
     BackupWindowAt(gFocusWin);
     DebugWrite("gui: open settings idx=");
     DebugHex32((UINT32)gFocusWin);
@@ -2103,7 +2105,12 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             gDragWin = gFocusWin;
             gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
             gDragOffY = (INT32)Y - (INT32)gWins[gFocusWin].Y;
-            StartDragBackups(gDragWin);
+            gDragArmed = 1;
+            /* 真正移动后再 StartDragBackups；纯点击只置顶 */
+        }
+        /* 置顶后 Settings 菜单若不在备份里则补画 */
+        if (GuiFocusKind() == GUI_WIN_SETTINGS) {
+            SettingsUiRepaint();
         }
         return 1;
     }
@@ -2137,33 +2144,47 @@ static void GuiDragUpdate(UINT32 X, UINT32 Y) {
     if ((UINT32)Dx < DRAG_MIN_STEP && (UINT32)Dy < DRAG_MIN_STEP) {
         return;
     }
+    if (gDragArmed) {
+        StartDragBackups(gDragWin);
+        gDragArmed = 0;
+    }
     MoveWindowTo(gDragWin, (UINT32)Nx, (UINT32)Ny);
 }
 
 static void GuiDragEnd(void) {
     int DragIdx = gDragWin;
+    int DidDrag = gDragHasBackup;
 
     gDragWin = -1;
+    gDragArmed = 0;
     if (DragIdx >= 0 && gWins[DragIdx].Active) {
-        INT32 Nx = (INT32)gCursorX - gDragOffX;
-        INT32 Ny = (INT32)gCursorY - gDragOffY;
+        if (DidDrag) {
+            INT32 Nx = (INT32)gCursorX - gDragOffX;
+            INT32 Ny = (INT32)gCursorY - gDragOffY;
 
-        ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
-        MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
-        RaiseWindow(DragIdx);
-        /* RaiseWindow 后焦点在 gFocusWin；下层 chrome 遮挡裁剪，勿整窗贴备份 */
-        HalIrqDisable();
-        if (gCursorVisible) {
-            CursorRestore();
+            ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
+            MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
+            RaiseWindow(DragIdx);
+            HalIrqDisable();
+            if (gCursorVisible) {
+                CursorRestore();
+            }
+            HalVideoClearClip();
+            if (gFocusWin >= 0) {
+                RefreshOtherChrome(gFocusWin);
+                DrawWindowChromeAt(gFocusWin);
+                GuiFocusApplyClip();
+            }
+            CursorPaint();
+            HalIrqEnable();
         }
-        HalVideoClearClip();
-        if (gFocusWin >= 0) {
-            RefreshOtherChrome(gFocusWin);
-            DrawWindowChromeAt(gFocusWin);
-            GuiFocusApplyClip();
+        /* 纯点击置顶：补画 Settings，并刷新备份 */
+        if (gWins[DragIdx].Kind == GUI_WIN_SETTINGS) {
+            SettingsUiRepaint();
         }
-        CursorPaint();
-        HalIrqEnable();
+        if (gWins[DragIdx].Active) {
+            BackupWindowAt(DragIdx);
+        }
     }
     if (!AnyWindowsOverlap()) {
         ResetDragState();

@@ -13,6 +13,8 @@
 void SettingsUiOpen(void);
 /* ThemeApply / GuiRedraw 后若 Settings 仍开着，重绘菜单 */
 void SettingsUiRefresh(void);
+/* 仅重绘菜单（不 Raise）；置顶后备份缺失时补内容 */
+void SettingsUiRepaint(void);
 /* 焦点在 Settings 时处理输入：Digit='0'..'9'；Esc 返回上级 */
 void SettingsUiOnDigit(char Digit);
 void SettingsUiOnEscape(void);

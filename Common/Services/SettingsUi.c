@@ -353,6 +353,17 @@ static void ApplyDisplayChoice(int Index) {
     PaintMenu();
 }
 
+int SettingsUiIsFocused(void) {
+    return GuiFocusKind() == GUI_WIN_SETTINGS;
+}
+
+void SettingsUiRepaint(void) {
+    if (!SettingsUiIsFocused()) {
+        return;
+    }
+    PaintMenu();
+}
+
 void SettingsUiOpen(void) {
     gPage = SETTINGS_PAGE_MAIN;
     gRebootHint = 0;
@@ -375,10 +386,6 @@ void SettingsUiRefresh(void) {
         PaintMenu();
         return;
     }
-}
-
-int SettingsUiIsFocused(void) {
-    return GuiFocusKind() == GUI_WIN_SETTINGS;
 }
 
 void SettingsUiOnEscape(void) {
