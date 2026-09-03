@@ -104,6 +104,8 @@ static void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
 /* 保存进入绘制区前的 IF，避免在中断/异常里 ConsoleWrite 后误 sti 嵌套中断 */
 static int    gGfxLockDepth;
 static int    gGfxHadIrq;
+/* G7：长合成开中断时禁止嵌套 GuiOnMouse，避免 Capture 半成品进备份 */
+static int    gComposeBusy;
 
 static void GfxIrqEnter(void) {
     if (gGfxLockDepth++ == 0) {
@@ -117,6 +119,16 @@ static void GfxIrqEnter(void) {
 static void GfxIrqLeave(void) {
     if (gGfxLockDepth > 0 && --gGfxLockDepth == 0 && gGfxHadIrq) {
         HalIrqEnable();
+    }
+}
+
+static void ComposeBegin(void) {
+    gComposeBusy++;
+}
+
+static void ComposeEnd(void) {
+    if (gComposeBusy > 0) {
+        gComposeBusy--;
     }
 }
 
@@ -316,31 +328,46 @@ static void RefreshOtherChrome(int SkipIdx) {
     }
 }
 
-static void SyncWindowVisuals(void) {
+/*
+ * ClearDesktop：先铺桌面再贴窗。拖动结束后必须清底，否则旧 footprint 外的
+ * 标题栏/关闭钮残影不会被「只贴窗矩形」的路径擦掉。
+ */
+static void SyncWindowVisualsEx(int ClearDesktop) {
     int i;
 
-    /*
-     * 按 z 序从备份贴回。无备份时切勿对「被挡住的窗」DrawWindowAt：
-     * FillRectOccluded 只会填露出的客户区，把 Shell 文字抹成灰底（只剩被
-     * Settings 盖住的那一块还在）。
-     */
-    HalIrqDisable();
+    ComposeBegin();
+    GfxIrqEnter();
     CursorRestore();
+    GfxIrqLeave();
     HalVideoClearClip();
+    if (ClearDesktop) {
+        UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+        DesktopDraw();
+    }
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWins[i].Active) {
             continue;
         }
         if (gWinBackupValid[i] && gWinBackup[i] != 0) {
             PaintWindowFromBackup(i);
-        } else if (WindowOccludedByOther(i)) {
+        } else if (!ClearDesktop && WindowOccludedByOther(i)) {
+            /*
+             * 未清桌面时：被挡窗勿 DrawWindowAt（会把露出客户区抹灰）。
+             * 已清桌面时：必须满窗覆盖，否则桌面图标会透进客户区（空色块）。
+             */
             DrawWindowChromeAt(i);
         } else {
             DrawWindowAt(i);
         }
     }
+    GfxIrqEnter();
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
+    ComposeEnd();
+}
+
+static void SyncWindowVisuals(void) {
+    SyncWindowVisualsEx(0);
 }
 
 static void CloseWindow(int Idx) {
@@ -376,8 +403,11 @@ static void CloseWindow(int Idx) {
             }
         }
     }
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorRestore();
+    GfxIrqLeave();
+    ComposeBegin();
+    HalVideoClearClip();
     UiFillRectangle(X, Y, Ww, Wh, ThemeDesktopBg());
     DesktopDrawRect(X, Y, Ww, Wh);
     for (i = 0; i < MAX_WINS; i++) {
@@ -390,8 +420,10 @@ static void CloseWindow(int Idx) {
             PaintWindowFromBackup(i);
         }
     }
+    ComposeEnd();
+    GfxIrqEnter();
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
     GuiFocusApply();
     DebugWrite("gui: closed window\n");
 }
@@ -449,6 +481,10 @@ static void CursorPaint(void) {
     UINT32 Dy;
     UINT32 Dx;
 
+    /* 已可见时禁止直接再画：否则 gUnder 会采到十字，Restore 后留下印记 */
+    if (gCursorVisible) {
+        CursorRestore();
+    }
     CursorBox(gCursorX, gCursorY, &gSaveX, &gSaveY, &gSaveW, &gSaveH);
     for (Dy = 0; Dy < gSaveH; Dy++) {
         for (Dx = 0; Dx < gSaveW; Dx++) {
@@ -474,21 +510,21 @@ static void CursorMove(UINT32 X, UINT32 Y) {
     /* 拖动时只跟踪坐标；若光标仍可见则先擦掉，避免十字残影 */
     if (gDragWin >= 0) {
         if (gCursorVisible) {
-            HalIrqDisable();
+            GfxIrqEnter();
             CursorRestore();
-            HalIrqEnable();
+            GfxIrqLeave();
         }
         gCursorX = X;
         gCursorY = Y;
         return;
     }
 
-    HalIrqDisable();
+    GfxIrqEnter();
     CursorRestore();
     gCursorX = X;
     gCursorY = Y;
     CursorPaint();
-    HalIrqEnable();
+    GfxIrqLeave();
 }
 
 static void DrawWindowAt(int Idx) {
@@ -721,6 +757,7 @@ static void BackupWindowAt(int Idx) {
     UINT32 *OldBuf;
     UINT32 Row;
     UINT32 Col;
+    int WasVisible;
 
     if (Idx < 0 || Idx >= MAX_WINS || !Win->Active) {
         return;
@@ -752,12 +789,28 @@ static void BackupWindowAt(int Idx) {
     }
 
     /*
+     * 采屏前必须擦光标：Sync/拖尾结束后常 CursorPaint 再 Backup，
+     * 否则十字会烙进备份，贴回后客户区留下「鼠标印」。
+     */
+    WasVisible = gCursorVisible;
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+
+    /*
      * 被上层遮住时禁止整窗 ReadRect：否则会把 Settings 文字烙进 Shell 备份，
      * 随后 PaintWindowFromBackup / under-drag 永久印脏。
      */
     if (WindowOccludedByOther(Idx)) {
         if (!HadValid) {
             gWinBackupValid[Idx] = 0;
+            if (WasVisible) {
+                GfxIrqEnter();
+                CursorPaint();
+                GfxIrqLeave();
+            }
+            ComposeEnd();
             return;
         }
         Bw = gWinBackupW[Idx];
@@ -780,6 +833,12 @@ static void BackupWindowAt(int Idx) {
         gWinBackupW[Idx] = Rw;
         gWinBackupH[Idx] = Rh;
         gWinBackupValid[Idx] = 1;
+        if (WasVisible) {
+            GfxIrqEnter();
+            CursorPaint();
+            GfxIrqLeave();
+        }
+        ComposeEnd();
         return;
     }
 
@@ -787,6 +846,12 @@ static void BackupWindowAt(int Idx) {
     gWinBackupW[Idx] = Rw;
     gWinBackupH[Idx] = Rh;
     gWinBackupValid[Idx] = 1;
+    if (WasVisible) {
+        GfxIrqEnter();
+        CursorPaint();
+        GfxIrqLeave();
+    }
+    ComposeEnd();
 }
 
 /* 与 DrawWindowAt 布局一致；仅作无备份时的回退 */
@@ -1010,13 +1075,15 @@ static void BeginDragBackups(int DragIdx) {
 }
 
 static void StartDragBackups(int DragIdx) {
-    HalIrqDisable();
+    /* G7：抓屏/合成不关中断，只锁光标擦除；ComposeBusy 防嵌套鼠标 */
+    ComposeBegin();
+    GfxIrqEnter();
     CursorRestore();
+    GfxIrqLeave();
     GuiFocusSave();
     if (gDragHasBackup && AllActiveWindowsHaveValidBackup()) {
         int i;
 
-        /* 屏上内容已正确：只刷新顶层备份并抓快照，避免整屏重贴闪一下 */
         HalVideoClearClip();
         for (i = 0; i < MAX_WINS; i++) {
             if (!gWins[i].Active) {
@@ -1030,7 +1097,7 @@ static void StartDragBackups(int DragIdx) {
     } else {
         BeginDragBackups(DragIdx);
     }
-    HalIrqEnable();
+    ComposeEnd();
 }
 
 static void PaintWindowFromBackup(int Idx) {
@@ -1228,7 +1295,10 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                     CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
             }
         }
+        /* Present：短临界区 */
+        GfxIrqEnter();
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
+        GfxIrqLeave();
         return;
     }
     /* 离屏缓冲不足：按 DRAG_ROW_MAX 横向分块写，禁止静默截断右侧 */
@@ -1251,7 +1321,9 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                     gDragRowBuf[Col] =
                         CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
                 }
+                GfxIrqEnter();
                 HalVideoWriteRect(DuX + Col0, Py, ChunkW, 1, gDragRowBuf);
+                GfxIrqLeave();
             }
         }
     }
@@ -1364,14 +1436,16 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         return;
     }
 
-    HalIrqDisable();
+    /* G7：合成开中断；仅光标 erase/paint 进 GfxIrq（Present 在 Composite 内短锁） */
+    ComposeBegin();
+    GfxIrqEnter();
     if (gCursorVisible) {
         CursorRestore();
     }
+    GfxIrqLeave();
     if (gDragHasBackup) {
         W->X = NewX;
         W->Y = NewY;
-        /* TermX/Y 为客户区相对坐标，随窗移动无需累加 Dx */
         RedrawDragFrame(Idx, Ox, Oy);
     } else if (gDragWin >= 0) {
         W->X = NewX;
@@ -1392,9 +1466,11 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         DrawWindowChromeAt(Idx);
     }
     if (gDragWin < 0) {
+        GfxIrqEnter();
         CursorPaint();
+        GfxIrqLeave();
     }
-    HalIrqEnable();
+    ComposeEnd();
 }
 
 /* 将窗口移到最前（数组后部 = 绘制在上层） */
@@ -1801,19 +1877,21 @@ void GuiFocusHome(void) {
 void GuiRedraw(void) {
     int i;
 
-    /*
-     * 整屏刷新保持关中断，避免 USB 鼠标 IRQ 插在半屏状态里造成闪烁。
-     * DesktopDraw 用快速 Raw 路径（不逐像素避让），cli 时间短，不拖死鼠标。
-     */
+    /* G7：桌面/窗体开中断绘制；ComposeBusy 丢弃嵌套鼠标；只锁光标 */
+    ComposeBegin();
     GfxIrqEnter();
     CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
     UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
     DesktopDraw();
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindowAt(i);
     }
+    GfxIrqEnter();
     CursorPaint();
     GfxIrqLeave();
+    ComposeEnd();
 }
 
 void GuiApplyThemeColors(void) {
@@ -1926,8 +2004,15 @@ int GuiOpenShell(void) {
     gWins[Idx].PromptShown = 1;
     gWins[Idx].InputLine[0] = 0;
 
+    /* M3/G7：备份前必擦光标，避免十字烙进窗备份 */
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
     DrawWindowAt(Idx);
     BackupWindowAt(Idx);
+    ComposeEnd();
     GuiFocusSave();
     RaiseWindow(Idx);
     SyncWindowVisuals();
@@ -1988,7 +2073,13 @@ int GuiOpenSettings(void) {
     gWins[Idx].PromptShown = 0;
     gWins[Idx].InputLine[0] = 0;
 
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
     DrawWindowAt(Idx);
+    ComposeEnd();
     gFocusWin = Idx;
     RaiseWindow(Idx);
     SyncWindowVisuals();
@@ -2100,9 +2191,9 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
 
         if (PointInTitle(&gWins[gFocusWin], X, Y) &&
             !PointOnAnyClose(X, Y)) {
-            HalIrqDisable();
+            GfxIrqEnter();
             CursorRestore();
-            HalIrqEnable();
+            GfxIrqLeave();
             RaiseWindow(gFocusWin);
             gDragWin = gFocusWin;
             gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
@@ -2170,22 +2261,33 @@ static void GuiDragEnd(void) {
             ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
             MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
             RaiseWindow(DragIdx);
-            HalIrqDisable();
-            if (gCursorVisible) {
-                CursorRestore();
-            }
-            HalVideoClearClip();
-            if (gFocusWin >= 0) {
-                RefreshOtherChrome(gFocusWin);
-                DrawWindowChromeAt(gFocusWin);
-                GuiFocusApplyClip();
-            }
-            CursorPaint();
-            HalIrqEnable();
+            /*
+             * 残影：拖动路径上旧 chrome 落在「当前窗矩形之外」，只贴窗擦不掉。
+             * 先铺桌面再按备份贴回，清轨迹；空色块若已烙进备份则随后 Settings/Shell 重画补。
+             */
+            SyncWindowVisualsEx(1);
+            GuiFocusApply();
         }
-        /* 纯点击置顶：补画 Settings，并刷新备份 */
         if (gWins[DragIdx].Kind == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
+        } else if (gWins[DragIdx].Kind == GUI_WIN_SHELL &&
+                   !gWinBackupValid[DragIdx]) {
+            ConsoleOnShellOpened();
+        }
+        /* 清桌面合成后：无备份的 Shell 客户区是空壳，补画控制台 */
+        if (DidDrag) {
+            int i;
+
+            for (i = 0; i < MAX_WINS; i++) {
+                if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL &&
+                    !gWinBackupValid[i]) {
+                    int Prev = gFocusWin;
+
+                    gFocusWin = i;
+                    ConsoleOnShellOpened();
+                    gFocusWin = Prev;
+                }
+            }
         }
         if (gWins[DragIdx].Active) {
             BackupWindowAt(DragIdx);
@@ -2236,6 +2338,21 @@ void GuiCursorShow(void) {
 
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     static UINT8 PrevBtn;
+
+    /* 合成进行中只跟踪坐标/钮，避免嵌套 Move/Capture 采到半成品 FB。
+     * 若光标仍画在旧位置，先擦掉，否则 Compose 期间移动会留下十字印。 */
+    if (gComposeBusy) {
+        if (gCursorVisible &&
+            (Mouse->X != gCursorX || Mouse->Y != gCursorY)) {
+            GfxIrqEnter();
+            CursorRestore();
+            GfxIrqLeave();
+        }
+        gCursorX = Mouse->X;
+        gCursorY = Mouse->Y;
+        gCursorBtn = Mouse->Buttons;
+        return;
+    }
 
     gCursorBtn = Mouse->Buttons;
     GuiPointerMove(Mouse->X, Mouse->Y);

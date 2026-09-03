@@ -1,9 +1,9 @@
 # ToyKernel 代码审阅（侧重 GUI / 闪屏）
 
-**日期**：2026-09-03（G6 落地后修订）  
-**基线**：PR-D7 后；**PR-G6 ✅**（under-drag/关窗用窗备份；`DesktopSamplePixel` 含标签；`DRAG_ROW_MAX` 分块写出）  
+**日期**：2026-09-03（G7 落地后修订）  
+**基线**：PR-D7 后；**PR-G6 ✅**；**PR-G7 ✅**（短 `GfxIrq`；Capture/合成开中断；开窗擦光标；拖尾清桌面合成）  
 **范围**：以 `Gui.c` / `Desktop.c` / `Theme.c` / `Console.c` / `SettingsUi.c` / `Video.c` 为主；顺带列出可改进点。  
-**结论**：G6 已修合成露底语义；仍是 **单缓冲直写 GOP** + **长 cli（→G7）** + **Theme 多遍重绘（→G8）**；撕裂级闪屏待 **G9 backbuffer**。
+**结论**：G6/G7 已修合成露底与长 cli；仍是 **单缓冲直写 GOP** + **Theme 多遍重绘（→G8）**；撕裂级闪屏待 **G9 backbuffer**。
 
 ---
 
@@ -14,10 +14,10 @@
 | 层 | 问题 | 用户体感 | 状态 |
 |----|------|----------|------|
 | **呈现** | 直接写 scanout FB，无 backbuffer / vsync | 多段更新被扫描线看到 → 撕裂、灰闪 | → G9 |
-| **同步** | 用长 `cli`（`HalIrqDisable`）冒充「帧原子性」 | USB 鼠标 IRQ 饿死 → 卡顿、跳变 | → G7 |
+| **同步** | 用长 `cli`（`HalIrqDisable`）冒充「帧原子性」 | USB 鼠标 IRQ 饿死 → 卡顿、跳变 | **G7 ✅** |
 | **合成语义** | 起始 footprint under-drag / 关窗露底 | 拖开后下层文字抹掉 | **G6 ✅** |
 | **更新策略** | Theme / 关窗走「破坏性重绘」而非同一套 Compose | 中间帧对用户可见 | → G8（关窗客户区 G6 已用备份） |
-| **光标/备份** | 开窗等路径未统一擦光标再备份 | 十字残影烙进窗备份 | → G7 |
+| **光标/备份** | 开窗等路径未统一擦光标再备份 | 十字残影烙进窗备份 | **G7 ✅** |
 
 已做好、应保留：整窗备份保留客户区文字；拖动脏区离屏一次 `WriteRect`；`GuiRedraw` 用 Raw 图标；**G6** under-drag 抓取时贴备份、合成采样含标签。
 
@@ -56,14 +56,9 @@ Backbuffer → GOP（有条件再等 VBlank）
 - **位置**：`Gui.c` `CloseWindow`  
 - **落地**：相交窗 `PaintWindowFromBackup`。
 
-### H3. 裸 `HalIrqDisable` 临界区过长 → USB 鼠标饿死
+### H3. 裸 `HalIrqDisable` 临界区过长 → USB 鼠标饿死 — **G7 ✅**
 
-- **位置**：`MoveWindowTo`、`StartDragBackups` / `CaptureDragRestoreData`（含全屏 `ReadRect` + 逐像素 under-drag）、`CloseWindow`、`CursorMove` / `RedrawWindowChrome` 等；对比可嵌套的 `GfxIrqEnter/Leave`（约 107–119）  
-- **问题**：`cli` 期间 XHCI 鼠标 IRQ 不递送。脏区可达旧∪新窗，再叠加 `DesktopDrawRect` 逐像素避让（`Desktop.c` `FillRectFree`），cli 可持续数 ms～数十 ms。注释已承认避让在关中断下会拖死 USB（`Desktop.c` 约 162），但拖动脏区仍在 cli 下调用 `DesktopDrawRect`。  
-- **方向**：  
-  1. 统一 `GfxIrqEnter/Leave`，禁止散落 `HalIrqEnable` 破坏嵌套。  
-  2. 只保护光标与单次 `WriteRect`；合成写离屏缓冲时开中断。  
-  3. 全屏 snap / under-drag 构建移出 cli 或分片。
+- **落地**：`MoveWindowTo` / `Capture` / `Sync` / `GuiRedraw` 合成开中断；仅光标与 `WriteRect` Present 走 `GfxIrq*`；`gComposeBusy` 丢弃嵌套鼠标；拖尾 `SyncWindowVisualsEx(1)` 清桌面残影。
 
 ### H4. ThemeApply 多遍全屏/多窗重绘，闪屏几乎必然
 
@@ -89,11 +84,9 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 - **落地**：采样含标签字形，几何与 `DrawOneIcon*` 一致。
 
-### M3. 开窗不隐藏光标、不走统一 IRQ 锁
+### M3. 开窗不隐藏光标、不走统一 IRQ 锁 — **G7 ✅**
 
-- **位置**：`GuiOpenShell` / `GuiOpenSettings`  
-- **问题**：`DrawWindowAt` / `BackupWindowAt` 时十字可烙进窗与备份；随后 chrome 刷新可能残影。  
-- **方向**：与 `GuiPaintWindow` 一样：`GfxIrqEnter` + `CursorRestore` … `CursorPaint`。
+- **落地**：`GuiOpenShell` / `GuiOpenSettings` 在 `DrawWindowAt`/`BackupWindowAt` 前 `GfxIrqEnter` + `CursorRestore`。
 
 ### M4. `DrawWindowAt` 标题无逐像素遮挡
 
@@ -119,11 +112,9 @@ Backbuffer → GOP（有条件再等 VBlank）
 - **问题**：`DuW` 截到行缓冲上限，右侧未更新 → 残影。  
 - **方向**：预分配失败则拒绝备份拖动并回退；或分 tile 写，禁止静默截断。
 
-### M8. 裸 `HalIrqEnable` 与 `GfxIrq*` 嵌套冲突
+### M8. 裸 `HalIrqEnable` 与 `GfxIrq*` 嵌套冲突 — **G7 ✅**
 
-- **位置**：`CloseWindow` / `MoveWindowTo` 等 vs `GuiFrameBufferBegin`  
-- **问题**：嵌套时末尾 `Enable` 可在 `gGfxLockDepth>0` 时误开中断；亦不保存进入前 IF。  
-- **方向**：全部改 `GfxIrqEnter/Leave`。
+- **落地**：`Gui.c` 热点路径仅经 `GfxIrqEnter/Leave`（保存 IF、可嵌套）。
 
 ### M9. 换字体后布局变、中间写穿可能进备份
 
