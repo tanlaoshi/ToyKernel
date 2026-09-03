@@ -1,9 +1,9 @@
 # ToyKernel 代码审阅（侧重 GUI / 闪屏）
 
-**日期**：2026-09-03  
-**基线**：`main` @ `72ebc1e`（PR-D6 + 拖窗图标恢复）  
+**日期**：2026-09-03（G6 落地后修订）  
+**基线**：PR-D7 后；**PR-G6 ✅**（under-drag/关窗用窗备份；`DesktopSamplePixel` 含标签；`DRAG_ROW_MAX` 分块写出）  
 **范围**：以 `Gui.c` / `Desktop.c` / `Theme.c` / `Console.c` / `SettingsUi.c` / `Video.c` 为主；顺带列出可改进点。  
-**结论**：拖动路径已有「脏区离屏一次写出」（PR-G5）等正确方向，但仍是 **单缓冲直写 GOP** + **关中断临界区过长** + **合成语义不完整** 的组合；重叠窗拖动 / 关窗 / 换主题时仍易闪屏、撕裂或内容残缺。
+**结论**：G6 已修合成露底语义；仍是 **单缓冲直写 GOP** + **长 cli（→G7）** + **Theme 多遍重绘（→G8）**；撕裂级闪屏待 **G9 backbuffer**。
 
 ---
 
@@ -11,15 +11,15 @@
 
 ### 0.1 根因分层
 
-| 层 | 问题 | 用户体感 |
-|----|------|----------|
-| **呈现** | 直接写 scanout FB，无 backbuffer / vsync | 多段更新被扫描线看到 → 撕裂、灰闪 |
-| **同步** | 用长 `cli`（`HalIrqDisable`）冒充「帧原子性」 | USB 鼠标 IRQ 饿死 → 卡顿、跳变，松手后「闪一下追上」 |
-| **合成语义** | 起始 footprint 的 under-drag 用 **解析像素**（空壳窗），不读下层备份 | 拖开重叠窗后下层文字被抹掉；再局部补画 → 二次闪 |
-| **更新策略** | Theme / 关窗走「破坏性重绘」而非同一套 Compose | 中间帧对用户可见（清屏→写穿→盖回） |
-| **光标/备份** | 开窗等路径未统一擦光标再备份 | 十字残影烙进窗备份 |
+| 层 | 问题 | 用户体感 | 状态 |
+|----|------|----------|------|
+| **呈现** | 直接写 scanout FB，无 backbuffer / vsync | 多段更新被扫描线看到 → 撕裂、灰闪 | → G9 |
+| **同步** | 用长 `cli`（`HalIrqDisable`）冒充「帧原子性」 | USB 鼠标 IRQ 饿死 → 卡顿、跳变 | → G7 |
+| **合成语义** | 起始 footprint under-drag / 关窗露底 | 拖开后下层文字抹掉 | **G6 ✅** |
+| **更新策略** | Theme / 关窗走「破坏性重绘」而非同一套 Compose | 中间帧对用户可见 | → G8（关窗客户区 G6 已用备份） |
+| **光标/备份** | 开窗等路径未统一擦光标再备份 | 十字残影烙进窗备份 | → G7 |
 
-已做好、应保留：整窗备份保留客户区文字；拖动脏区离屏一次 `WriteRect`；`GuiRedraw` 用 Raw 图标避免 cli 下逐像素避让。
+已做好、应保留：整窗备份保留客户区文字；拖动脏区离屏一次 `WriteRect`；`GuiRedraw` 用 Raw 图标；**G6** under-drag 抓取时贴备份、合成采样含标签。
 
 ### 0.2 推荐目标架构（可渐进）
 
@@ -46,17 +46,15 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 ## 1. High
 
-### H1. under-drag 用解析像素盖掉下层真实内容
+### H1. under-drag 用解析像素盖掉下层真实内容 — **G6 ✅**
 
-- **位置**：`Gui.c` `AnalyticWindowPixel` / `TopmostBelowDragPixel`（约 728–773）；`CaptureDragRestoreData`；`CompositeDragPixel` 优先 under-drag  
-- **问题**：拖走后原位置应露出「被拖窗下方」的场景。当前用标题栏色/客户区底色/边框 **解析生成**，不读下层 `gWinBackup`。下层 Shell 文字、Settings 菜单在起始 footprint 重叠区会被抹成空窗。全屏 snap 有正确像素，但在起始 footprint 被 under-drag 抢先。  
-- **方向**：`TopmostBelowDragPixel` 优先 `SampleWindowBackupPixel`；仅备份无效时退回 analytic。或抓 under-drag 时按 z 序从各窗备份合成。
+- **位置**：`Gui.c` `CaptureDragRestoreData` / `TopmostBelowDragPixel` / `CompositeDragPixel`  
+- **落地**：抓 under-drag 时暂时 deactivate 拖窗 → 桌面 + `PaintWindowFromBackup` 相交窗 → `ReadRect`；合成优先 under-drag / screen snap / 窗备份；`AnalyticWindowPixel` 仅无备份回退。
 
-### H2. 关窗只填桌面 + 重画 chrome，不恢复客户区
+### H2. 关窗只填桌面 + 重画 chrome，不恢复客户区 — **G6 ✅**
 
-- **位置**：`Gui.c` `CloseWindow`（约 318–364）  
-- **问题**：`UiFillRectangle` 桌面色 → `DesktopDrawRect` → 对剩余窗只 `DrawWindowChromeAt`。被关窗盖住的下层 **客户区文字不会从备份恢复**。  
-- **方向**：对 footprint 相交的窗 `PaintWindowFromBackup`（或整窗贴回 + chrome）；无备份则 `DrawWindowAt` + Shell/Settings 内容回调。
+- **位置**：`Gui.c` `CloseWindow`  
+- **落地**：相交窗 `PaintWindowFromBackup`。
 
 ### H3. 裸 `HalIrqDisable` 临界区过长 → USB 鼠标饿死
 
@@ -83,17 +81,13 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 ## 2. Medium
 
-### M1. 合成后再 `DesktopDrawRect`：二次写屏 + 拉长 cli
+### M1. 合成后再 `DesktopDrawRect`：二次写屏 + 拉长 cli — **G6 部分 ✅**
 
-- **位置**：`Gui.c` `CompositeDragDirtyRegion` 末尾；`Desktop.c` occluded 路径  
-- **问题**：为补 `DesktopSamplePixel` 不含标签，提交后再避让重画图标。第二次写 FB、cli 更长。  
-- **方向**：合成阶段完整采样 icon+label（或 icon atlas）；提交后不再 `DesktopDrawRect`，或仅在 sti 后补标签子矩形。
+- **落地**：`gDragHasBackup` 路径只 `CompositeDragDirtyRegion`，提交后不再 `DesktopDrawRect`；fallback 路径仍可能走 `ClearOldDragFootprint`。
 
-### M2. `DesktopSamplePixel` 与真实绘制不一致
+### M2. `DesktopSamplePixel` 与真实绘制不一致 — **G6 ✅**
 
-- **位置**：`Desktop.c` 采样 vs `DrawOneIconRaw` / `Occluded`  
-- **问题**：只还原 48×48 色块；标签依赖事后重画；拖过图标时文字易闪。  
-- **方向**：采样含字形，或与绘制共用几何/预渲染。
+- **落地**：采样含标签字形，几何与 `DrawOneIcon*` 一致。
 
 ### M3. 开窗不隐藏光标、不走统一 IRQ 锁
 

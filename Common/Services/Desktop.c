@@ -255,42 +255,111 @@ void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 }
 
 /*
- * 拖窗 under-drag 合成用：只解析方块几何（文字仍靠 DesktopDrawRect 补画）。
+ * 拖窗 under-drag / 合成采样：方块 + 边框 + 角标 + 标签字形（与 DrawOneIcon 几何一致）。
+ * 命中任一不透明图标像素返回 1；否则 0（调用方用桌面底色）。
  */
 int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     int i;
     UINT32 Border;
+    UINT32 LabelW;
+    UINT32 LabelX;
+    UINT32 LabelY;
+    const char *P;
+    UINT32 Cx;
+    UINT32 AdvX;
+    UINT32 CellW;
+    UINT32 CellH;
+    const FONT_FACE *Face;
+    UINT32 Scale;
 
     if (!Out) {
         return 0;
     }
+    AdvX = FontAdvanceX();
+    CellW = FontCellW();
+    CellH = FontCellH();
+    Face = FontGetCurrent();
+    Scale = (Face && Face->Scale) ? Face->Scale : 1u;
+
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
         const DESKTOP_ICON *Icon = &gIcons[i];
         int Selected = (i == gSelected);
+        UINT32 Ix;
+        UINT32 Iy;
+        UINT32 Iw;
+        UINT32 Ih;
 
-        if (X < Icon->X || Y < Icon->Y ||
-            X >= Icon->X + DESKTOP_ICON_SIZE ||
-            Y >= Icon->Y + DESKTOP_ICON_SIZE) {
+        IconBounds(Icon, &Ix, &Iy, &Iw, &Ih);
+        if (X < Ix || Y < Iy || X >= Ix + Iw || Y >= Iy + Ih) {
             continue;
         }
-        Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
-        if (X >= Icon->X + DESKTOP_ICON_SIZE - 14 && Y < Icon->Y + 14) {
-            *Out = COLOR_LIGHT_GRAY;
+
+        /* 48×48 色块 */
+        if (X >= Icon->X && Y >= Icon->Y &&
+            X < Icon->X + DESKTOP_ICON_SIZE &&
+            Y < Icon->Y + DESKTOP_ICON_SIZE) {
+            Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
+            if (X >= Icon->X + DESKTOP_ICON_SIZE - 14 && Y < Icon->Y + 14) {
+                *Out = COLOR_LIGHT_GRAY;
+                return 1;
+            }
+            if (X == Icon->X || X == Icon->X + DESKTOP_ICON_SIZE - 1 ||
+                Y == Icon->Y || Y == Icon->Y + DESKTOP_ICON_SIZE - 1) {
+                *Out = Border;
+                return 1;
+            }
+            if (Selected &&
+                (X == Icon->X + 1 || X == Icon->X + DESKTOP_ICON_SIZE - 2 ||
+                 Y == Icon->Y + 1 || Y == Icon->Y + DESKTOP_ICON_SIZE - 2)) {
+                *Out = COLOR_YELLOW;
+                return 1;
+            }
+            *Out = Icon->IconColor;
             return 1;
         }
-        if (X == Icon->X || X == Icon->X + DESKTOP_ICON_SIZE - 1 ||
-            Y == Icon->Y || Y == Icon->Y + DESKTOP_ICON_SIZE - 1) {
-            *Out = Border;
-            return 1;
+
+        /* 标签区：与 DrawOneIcon* 同几何，采样字形前景像素 */
+        if (!Icon->Label || Face == 0) {
+            continue;
         }
-        if (Selected &&
-            (X == Icon->X + 1 || X == Icon->X + DESKTOP_ICON_SIZE - 2 ||
-             Y == Icon->Y + 1 || Y == Icon->Y + DESKTOP_ICON_SIZE - 2)) {
-            *Out = COLOR_YELLOW;
-            return 1;
+        LabelW = 0;
+        for (P = Icon->Label; *P; P++) {
+            LabelW += AdvX;
         }
-        *Out = Icon->IconColor;
-        return 1;
+        LabelX = Icon->X;
+        if (LabelW < DESKTOP_ICON_SIZE) {
+            LabelX = Icon->X + (DESKTOP_ICON_SIZE - LabelW) / 2;
+        }
+        LabelY = Icon->Y + DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD;
+        if (Y < LabelY || Y >= LabelY + CellH) {
+            continue;
+        }
+        Cx = LabelX;
+        for (P = Icon->Label; *P; P++) {
+            if (*P != '\n' && X >= Cx && X < Cx + AdvX) {
+                const UINT8 *Glyph = FontGlyph(*P);
+                UINT32 RelX = X - Cx;
+                UINT32 RelY = Y - LabelY;
+                UINT32 Gx;
+                UINT32 Gy;
+
+                if (Glyph != 0 && RelX < CellW && RelY < CellH) {
+                    Gx = RelX / Scale;
+                    Gy = RelY / Scale;
+                    if (Gx < Face->Width && Gy < Face->Height) {
+                        UINT8 Byte = Glyph[Gy * Face->BytesPerRow + (Gx / 8)];
+                        int Bit = 7 - (int)(Gx % 8);
+
+                        if (Byte & (1 << Bit)) {
+                            *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
+                            return 1;
+                        }
+                    }
+                }
+                return 0; /* 在该字单元格内但非前景 → 透出桌面 */
+            }
+            Cx += AdvX;
+        }
     }
     return 0;
 }

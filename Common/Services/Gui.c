@@ -899,7 +899,8 @@ static void CaptureDragRestoreData(int DragIdx) {
         }
         if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
                            gDragStartX, gDragStartY, gDragStartW, gDragStartH)) {
-            DrawWindowAt(i);
+            /* 必须贴备份（含客户区文字），禁止 DrawWindowAt 空壳 */
+            PaintWindowFromBackup(i);
         }
     }
     HalVideoReadRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH, gUnderDrag);
@@ -915,16 +916,7 @@ static void CaptureDragRestoreData(int DragIdx) {
         DrawWindowAt(DragIdx);
     }
 
-    /* 同步被重画过的其它窗备份，供后续合成/关窗 */
-    for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active || i == DragIdx) {
-            continue;
-        }
-        if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
-                           gDragStartX, gDragStartY, gDragStartW, gDragStartH)) {
-            BackupWindowAt(i);
-        }
-    }
+    /* 相交窗已从备份恢复，无需再 BackupWindowAt（以免读到瞬时脏 FB） */
 }
 
 static void BeginDragBackups(int DragIdx) {
@@ -1181,19 +1173,29 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
         return;
     }
-    if (DuW > DRAG_ROW_MAX) {
-        DuW = DRAG_ROW_MAX;
-    }
-    for (Row = 0; Row < DuH; Row++) {
-        UINT32 Py = DuY + Row;
-        UINT32 Col;
+    /* 离屏缓冲不足：按 DRAG_ROW_MAX 横向分块写，禁止静默截断右侧 */
+    {
+        UINT32 Col0;
 
-        for (Col = 0; Col < DuW; Col++) {
-            UINT32 Px = DuX + Col;
+        for (Col0 = 0; Col0 < DuW; Col0 += DRAG_ROW_MAX) {
+            UINT32 ChunkW = DuW - Col0;
 
-            gDragRowBuf[Col] = CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
+            if (ChunkW > DRAG_ROW_MAX) {
+                ChunkW = DRAG_ROW_MAX;
+            }
+            for (Row = 0; Row < DuH; Row++) {
+                UINT32 Py = DuY + Row;
+                UINT32 Col;
+
+                for (Col = 0; Col < ChunkW; Col++) {
+                    UINT32 Px = DuX + Col0 + Col;
+
+                    gDragRowBuf[Col] =
+                        CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
+                }
+                HalVideoWriteRect(DuX + Col0, Py, ChunkW, 1, gDragRowBuf);
+            }
         }
-        HalVideoWriteRect(DuX, Py, DuW, 1, gDragRowBuf);
     }
 }
 

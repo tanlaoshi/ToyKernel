@@ -12,8 +12,8 @@ void DesktopDraw(void);
 /* 仅重绘与矩形相交的图标（关窗擦除区域） */
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /*
- * 采样桌面图标像素（含方块/边框/角标；不含文字字形）。
- * 命中图标区返回 1 并写 *Out；否则返回 0（调用方用桌面底色）。
+ * 采样桌面图标像素（方块/边框/角标/标签字形，与绘制一致）。
+ * 命中不透明像素返回 1 并写 *Out；否则返回 0（调用方用桌面底色）。
  */
 int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out);
 /*
