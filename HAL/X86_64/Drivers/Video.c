@@ -1,7 +1,7 @@
 /*
- * Video.c — GOP 帧缓冲驱动
+ * Video.c — GOP 帧缓冲驱动（PR-G9：可选 backbuffer + 脏矩形 Present）
  *
- * 提供像素级绘制与终端式字符输出（自动换行、滚屏、退格擦除）。
+ * 绘制写入后缓冲（若已启用）；VideoPresent 将脏区一次 blit 到 scanout。
  * 字形经 Font_*（Fonts/），不直接绑定某一份点阵表。
  */
 #include "Video.h"
@@ -16,7 +16,72 @@ static UINT32 gClipW;
 static UINT32 gClipH;
 static UINT32 gClipBg;
 
-/* 从 BOOT_CONFIG 设置全局屏幕参数 */
+/* scanout（GOP）与后缓冲 */
+static UINT32 *gFront;
+static UINT32  gFrontPitch;
+static UINT32 *gBack;
+static UINT32  gBackPitch;
+static UINT32  gBackPages;
+static int     gBackOn;
+
+/* 脏矩形 [gDx0,gDx1) x [gDy0,gDy1) */
+static int     gDirty;
+static UINT32  gDx0;
+static UINT32  gDy0;
+static UINT32  gDx1;
+static UINT32  gDy1;
+
+static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    UINT32 X1;
+    UINT32 Y1;
+
+    if (!W || !H || gScreen.Width == 0 || gScreen.Height == 0) {
+        return;
+    }
+    if (X >= gScreen.Width || Y >= gScreen.Height) {
+        return;
+    }
+    X1 = X + W;
+    Y1 = Y + H;
+    if (X1 > gScreen.Width) {
+        X1 = gScreen.Width;
+    }
+    if (Y1 > gScreen.Height) {
+        Y1 = gScreen.Height;
+    }
+    if (X >= X1 || Y >= Y1) {
+        return;
+    }
+    if (!gDirty) {
+        gDx0 = X;
+        gDy0 = Y;
+        gDx1 = X1;
+        gDy1 = Y1;
+        gDirty = 1;
+        return;
+    }
+    if (X < gDx0) {
+        gDx0 = X;
+    }
+    if (Y < gDy0) {
+        gDy0 = Y;
+    }
+    if (X1 > gDx1) {
+        gDx1 = X1;
+    }
+    if (Y1 > gDy1) {
+        gDy1 = Y1;
+    }
+}
+
+static UINT32 *DrawBase(void) {
+    return gBackOn ? gBack : gFront;
+}
+
+static UINT32 DrawPitch(void) {
+    return gBackOn ? gBackPitch : gFrontPitch;
+}
+
 void VideoSet(VIDEO_CONFIG *VideoConfig) {
     gScreen.Width = VideoConfig->HorizontalResolution;
     gScreen.Height = VideoConfig->VerticalResolution;
@@ -25,6 +90,80 @@ void VideoSet(VIDEO_CONFIG *VideoConfig) {
     gScreen.FrameBufferSize = VideoConfig->FrameBufferSize;
     gScreen.CursorX = 0;
     gScreen.CursorY = 0;
+    gFront = (UINT32 *)(UINTN)VideoConfig->FrameBufferBase;
+    gFrontPitch = VideoConfig->PixelsPerScanLine;
+    gBack = 0;
+    gBackPitch = 0;
+    gBackPages = 0;
+    gBackOn = 0;
+    gDirty = 0;
+}
+
+/*
+ * 启用与屏同尺寸的后缓冲（紧密 pitch=Width）。Buf 由调用方 PMM 分配。
+ * Pages 仅记录；失败/空指针则保持直写 GOP。
+ */
+void VideoSetBackbuffer(UINT32 *Buf, UINT32 Pages) {
+    if (!Buf || gScreen.Width == 0 || gScreen.Height == 0 || !gFront) {
+        gBack = 0;
+        gBackPages = 0;
+        gBackOn = 0;
+        return;
+    }
+    gBack = Buf;
+    gBackPitch = gScreen.Width;
+    gBackPages = Pages;
+    gBackOn = 1;
+    /*
+     * 不从 GOP 全屏拷：InitVideo 紧接着 ClearScreen+Present。
+     * 后缓冲内容以后续绘制为准。
+     */
+    gDirty = 0;
+}
+
+int VideoBackbufferEnabled(void) {
+    return gBackOn;
+}
+
+UINT32 VideoBackbufferPages(void) {
+    return gBackPages;
+}
+
+/* 将脏区（或全屏若从未标记）blit 到 GOP；无后缓冲时为空操作 */
+void VideoPresent(void) {
+    UINT32 Y;
+    UINT32 X;
+    UINT32 X0;
+    UINT32 Y0;
+    UINT32 X1;
+    UINT32 Y1;
+
+    if (!gBackOn || !gBack || !gFront) {
+        gDirty = 0;
+        return;
+    }
+    if (!gDirty) {
+        return;
+    }
+    X0 = gDx0;
+    Y0 = gDy0;
+    X1 = gDx1;
+    Y1 = gDy1;
+    if (X1 > gScreen.Width) {
+        X1 = gScreen.Width;
+    }
+    if (Y1 > gScreen.Height) {
+        Y1 = gScreen.Height;
+    }
+    for (Y = Y0; Y < Y1; Y++) {
+        UINT32 *Src = &gBack[Y * gBackPitch + X0];
+        UINT32 *Dst = &gFront[Y * gFrontPitch + X0];
+
+        for (X = X0; X < X1; X++) {
+            *Dst++ = *Src++;
+        }
+    }
+    gDirty = 0;
 }
 
 void VideoGetSize(UINT32 *Width, UINT32 *Height) {
@@ -70,7 +209,6 @@ void VideoClearClip(void) {
     gClipOn = 0;
 }
 
-/* 在 (X,Y) 绘制一个 ASCII 字符（按当前字体 Scale 放大） */
 void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
     const FONT_FACE *F;
     const UINT8 *Glyph;
@@ -123,20 +261,22 @@ void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     }
 }
 
-/* 无视 clip：鼠标光标等必须能画在客户区外 */
 void VideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color) {
-    UINT32 *Framebuffer;
+    UINT32 *Fb;
+    UINT32 Pitch;
 
     if (X >= gScreen.Width || Y >= gScreen.Height) {
         return;
     }
-    Framebuffer = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
-    if (Framebuffer) {
-        Framebuffer[Y * gScreen.PixelsPerScanLine + X] = Color;
+    Fb = DrawBase();
+    Pitch = DrawPitch();
+    if (!Fb || Pitch == 0) {
+        return;
     }
+    Fb[Y * Pitch + X] = Color;
+    DirtyUnion(X, Y, 1, 1);
 }
 
-/* 在 (X,Y) 绘制一个像素（ARGB 格式，越界忽略；开启 clip 时裁到客户区） */
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {
     if (gClipOn) {
         if (X < gClipX || Y < gClipY ||
@@ -148,50 +288,61 @@ void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {
 }
 
 UINT32 VideoReadPixel(UINT32 X, UINT32 Y) {
+    UINT32 *Fb;
+    UINT32 Pitch;
+
     if (X >= gScreen.Width || Y >= gScreen.Height) {
         return 0;
     }
-    UINT32 *Framebuffer = (UINT32*)(UINTN)gScreen.FrameBufferBase;
-    if (!Framebuffer) {
+    Fb = DrawBase();
+    Pitch = DrawPitch();
+    if (!Fb || Pitch == 0) {
         return 0;
     }
-    return Framebuffer[Y * gScreen.PixelsPerScanLine + X];
+    return Fb[Y * Pitch + X];
 }
 
 void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color) {
-    UINT32 *Framebuffer;
+    UINT32 *Fb;
+    UINT32 Pitch;
     UINT32 Row;
     UINT32 Col;
+    UINT32 CopyW;
+    UINT32 CopyH;
 
     if (!Width || !Height) {
         return;
     }
-    Framebuffer = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
-    if (!Framebuffer) {
+    Fb = DrawBase();
+    Pitch = DrawPitch();
+    if (!Fb || Pitch == 0) {
         return;
     }
-    for (Row = 0; Row < Height; Row++) {
-        UINT32 Py = Y + Row;
-        if (Py >= gScreen.Height) {
-            break;
-        }
-        for (Col = 0; Col < Width; Col++) {
-            UINT32 Px = X + Col;
-            if (Px >= gScreen.Width) {
-                break;
-            }
-            Framebuffer[Py * gScreen.PixelsPerScanLine + Px] = Color;
+    if (X >= gScreen.Width || Y >= gScreen.Height) {
+        return;
+    }
+    CopyW = Width;
+    CopyH = Height;
+    if (X + CopyW > gScreen.Width) {
+        CopyW = gScreen.Width - X;
+    }
+    if (Y + CopyH > gScreen.Height) {
+        CopyH = gScreen.Height - Y;
+    }
+    for (Row = 0; Row < CopyH; Row++) {
+        UINT32 *Line = &Fb[(Y + Row) * Pitch + X];
+
+        for (Col = 0; Col < CopyW; Col++) {
+            Line[Col] = Color;
         }
     }
+    DirtyUnion(X, Y, CopyW, CopyH);
 }
 
-/*
- * 拷贝矩形像素（可重叠）。用于窗口拖动时整体平移，保留客户区文字。
- */
 void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
                    UINT32 Width, UINT32 Height) {
-    UINT32 *Fb = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
-    UINT32 Pitch;
+    UINT32 *Fb = DrawBase();
+    UINT32 Pitch = DrawPitch();
     INT32 Y;
     INT32 X;
     INT32 W;
@@ -199,16 +350,13 @@ void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
     UINT32 CopyW = Width;
     UINT32 CopyH = Height;
 
-    if (!Fb || !Width || !Height) {
+    if (!Fb || !Width || !Height || Pitch == 0) {
         return;
     }
     if (SrcX >= gScreen.Width || SrcY >= gScreen.Height ||
         DstX >= gScreen.Width || DstY >= gScreen.Height) {
         return;
     }
-    Pitch = gScreen.PixelsPerScanLine;
-
-    /* 源与目标各自可拷贝的宽高取交集，避免一边裁切导致错位 */
     if (SrcX + CopyW > gScreen.Width) {
         CopyW = gScreen.Width - SrcX;
     }
@@ -242,16 +390,17 @@ void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
             }
         }
     }
+    DirtyUnion(DstX, DstY, (UINT32)W, (UINT32)H);
 }
 
 void VideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out) {
-    UINT32 *Fb = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
-    UINT32 Pitch;
+    UINT32 *Fb = DrawBase();
+    UINT32 Pitch = DrawPitch();
     UINT32 Row;
     UINT32 Col;
     UINT32 i = 0;
 
-    if (!Fb || !Out || !Width || !Height) {
+    if (!Fb || !Out || !Width || !Height || Pitch == 0) {
         return;
     }
     if (X >= gScreen.Width || Y >= gScreen.Height) {
@@ -263,7 +412,6 @@ void VideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out)
     if (Y + Height > gScreen.Height) {
         Height = gScreen.Height - Y;
     }
-    Pitch = gScreen.PixelsPerScanLine;
     for (Row = 0; Row < Height; Row++) {
         for (Col = 0; Col < Width; Col++) {
             Out[i++] = Fb[(Y + Row) * Pitch + X + Col];
@@ -272,20 +420,19 @@ void VideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out)
 }
 
 void VideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT32 *In) {
-    UINT32 *Fb = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
-    UINT32 Pitch;
+    UINT32 *Fb = DrawBase();
+    UINT32 Pitch = DrawPitch();
     UINT32 Row;
     UINT32 SrcStride;
     UINT32 CopyW;
     UINT32 CopyH;
 
-    if (!Fb || !In || !Width || !Height) {
+    if (!Fb || !In || !Width || !Height || Pitch == 0) {
         return;
     }
     if (X >= gScreen.Width || Y >= gScreen.Height) {
         return;
     }
-    /* 源缓冲按调用方 Width 紧密排列；裁剪后仍须用原 stride 换行 */
     SrcStride = Width;
     CopyW = Width;
     CopyH = Height;
@@ -295,7 +442,6 @@ void VideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT3
     if (Y + CopyH > gScreen.Height) {
         CopyH = gScreen.Height - Y;
     }
-    Pitch = gScreen.PixelsPerScanLine;
     for (Row = 0; Row < CopyH; Row++) {
         UINT32 *Dst = &Fb[(Y + Row) * Pitch + X];
         const UINT32 *Src = &In[Row * SrcStride];
@@ -305,11 +451,11 @@ void VideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT3
             Dst[Col] = Src[Col];
         }
     }
+    DirtyUnion(X, Y, CopyW, CopyH);
 }
 
-/* 用指定颜色填充整个屏幕并重置光标 */
 void VideoClearScreen(UINT32 Color) {
-    if (!gScreen.FrameBufferBase) {
+    if (!gFront && !gBack) {
         return;
     }
     VideoFillRect(0, 0, gScreen.Width, gScreen.Height, Color);
@@ -318,36 +464,42 @@ void VideoClearScreen(UINT32 Color) {
     gBackground = Color;
 }
 
-/* 文本区域向上滚动一行 */
 static void ScrollClip(void) {
-    UINT32 *Framebuffer = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
+    UINT32 *Fb = DrawBase();
+    UINT32 Pitch = DrawPitch();
     UINT32 LineHeight = FontAdvanceY();
     UINT32 Y;
     UINT32 X;
     UINT32 XEnd;
     UINT32 YEnd;
 
-    if (!Framebuffer || gClipW == 0 || gClipH <= LineHeight) {
+    if (!Fb || Pitch == 0 || gClipW == 0 || gClipH <= LineHeight) {
         return;
     }
     XEnd = gClipX + gClipW;
     YEnd = gClipY + gClipH;
     for (Y = gClipY; Y + LineHeight < YEnd; Y++) {
         for (X = gClipX; X < XEnd; X++) {
-            Framebuffer[Y * gScreen.PixelsPerScanLine + X] =
-                Framebuffer[(Y + LineHeight) * gScreen.PixelsPerScanLine + X];
+            Fb[Y * Pitch + X] = Fb[(Y + LineHeight) * Pitch + X];
         }
     }
     for (Y = YEnd - LineHeight; Y < YEnd; Y++) {
         for (X = gClipX; X < XEnd; X++) {
-            Framebuffer[Y * gScreen.PixelsPerScanLine + X] = gClipBg;
+            Fb[Y * Pitch + X] = gClipBg;
         }
     }
+    DirtyUnion(gClipX, gClipY, gClipW, gClipH);
 }
 
 static void ScrollScreen(void) {
-    UINT32 *Framebuffer = (UINT32*)(UINTN)gScreen.FrameBufferBase;
-    if (!Framebuffer) {
+    UINT32 *Fb = DrawBase();
+    UINT32 Pitch = DrawPitch();
+    UINT32 LineHeight;
+    UINT32 Y;
+    UINT32 X;
+    UINT32 W;
+
+    if (!Fb || Pitch == 0) {
         return;
     }
     if (gClipOn) {
@@ -355,33 +507,30 @@ static void ScrollScreen(void) {
         return;
     }
 
-    UINT32 LineHeight = FontAdvanceY();
-    
-    for (UINT32 Y = 0; Y < gScreen.Height - LineHeight; Y++) {
-        for (UINT32 X = 0; X < gScreen.PixelsPerScanLine; X++) {
-            Framebuffer[Y * gScreen.PixelsPerScanLine + X] = 
-                Framebuffer[(Y + LineHeight) * gScreen.PixelsPerScanLine + X];
+    LineHeight = FontAdvanceY();
+    W = gScreen.Width;
+    for (Y = 0; Y < gScreen.Height - LineHeight; Y++) {
+        for (X = 0; X < W; X++) {
+            Fb[Y * Pitch + X] = Fb[(Y + LineHeight) * Pitch + X];
         }
     }
-    
-    for (UINT32 Y = gScreen.Height - LineHeight; Y < gScreen.Height; Y++) {
-        for (UINT32 X = 0; X < gScreen.PixelsPerScanLine; X++) {
-            Framebuffer[Y * gScreen.PixelsPerScanLine + X] = gBackground;
+    for (Y = gScreen.Height - LineHeight; Y < gScreen.Height; Y++) {
+        for (X = 0; X < W; X++) {
+            Fb[Y * Pitch + X] = gBackground;
         }
     }
+    DirtyUnion(0, 0, gScreen.Width, gScreen.Height);
 }
 
-/* 换行：光标移到下一行，必要时滚屏 */
 void VideoNewLine(void) {
     UINT32 LineHeight = FontAdvanceY();
 
-    if (!gScreen.FrameBufferBase || gScreen.Height == 0 || gScreen.Width == 0) {
+    if ((!gFront && !gBack) || gScreen.Height == 0 || gScreen.Width == 0) {
         return;
     }
 
     if (gClipOn) {
         if (gClipH <= LineHeight) {
-            /* 仍回到行首，避免 \n 被吞后提示符粘在同一行 */
             gScreen.CursorX = gClipX;
             return;
         }
@@ -411,7 +560,6 @@ void VideoNewLine(void) {
     }
 }
 
-/* 在当前光标处绘制一个 ASCII 字符 */
 void VideoDrawChar(char c, UINT32 Color) {
     UINT32 MaxX;
     UINT32 MaxY;
@@ -419,7 +567,7 @@ void VideoDrawChar(char c, UINT32 Color) {
     if (c < 32 || c > 126) {
         return;
     }
-    if (!gScreen.FrameBufferBase || gScreen.Width == 0 || gScreen.Height == 0) {
+    if ((!gFront && !gBack) || gScreen.Width == 0 || gScreen.Height == 0) {
         return;
     }
 
@@ -436,20 +584,19 @@ void VideoDrawChar(char c, UINT32 Color) {
         MaxX = gScreen.Width;
         MaxY = gScreen.Height;
     }
-    
+
     if (gScreen.CursorX + FontAdvanceX() > MaxX) {
         VideoNewLine();
     }
-    
+
     if (gScreen.CursorY + FontCellH() > MaxY) {
         VideoNewLine();
     }
-    
+
     VideoDrawCharAt(gScreen.CursorX, gScreen.CursorY, c, Color);
     gScreen.CursorX += FontAdvanceX();
 }
 
-/* 擦除光标前一个字符（用背景色覆盖） */
 void VideoEraseLastChar(void) {
     UINT32 Step = FontAdvanceX();
     UINT32 MinX = gClipOn ? gClipX : 0;
@@ -465,7 +612,6 @@ void VideoEraseLastChar(void) {
     }
 }
 
-/* 绘制字符串，支持 \n 换行 */
 void VideoDrawString(const char *Text, UINT32 Color) {
     while (*Text) {
         if (*Text == '\n') {

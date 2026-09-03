@@ -62,6 +62,15 @@ static void DelayLoops(volatile UINT32 N) {
     }
 }
 
+/*
+ * INIT/SIPI 间距：SDM 对真机约 10ms / 200µs。QEMU/KVM 上 AP 几乎立刻
+ * Ready，原先 10M+10M pause 会无意义地拖慢启动（TCG 下尤甚）。
+ * 用短延时 + Ready 早退；未就绪再补第二次 SIPI。
+ */
+#define SMP_INIT_GAP_LOOPS   150000u
+#define SMP_SIPI_GAP_LOOPS    30000u
+#define SMP_READY_POLL_MAX  200000u
+
 static void LapicWaitIcr(void) {
     while (LapicRead(LAPIC_ICR_LO) & (1u << 12)) {
         __asm__ volatile ("pause");
@@ -192,19 +201,24 @@ static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
     Param->LogicalCpu = LogicalCpu;
     Param->Ready = 0;
 
-    /* INIT assert (level) → deassert → SIPI×2 */
+    /* INIT assert (level) → deassert → SIPI（必要时再发一次） */
     LapicSendIpi(ApicId, 0x0000C500u);
-    DelayLoops(10000000);
+    DelayLoops(SMP_INIT_GAP_LOOPS);
     LapicSendIpi(ApicId, 0x00008500u);
-    DelayLoops(10000000);
+    DelayLoops(SMP_INIT_GAP_LOOPS);
 
     LapicSendIpi(ApicId, 0x00000600u | SMP_SIPI_VECTOR);
-    DelayLoops(2000000);
-    LapicSendIpi(ApicId, 0x00000600u | SMP_SIPI_VECTOR);
-
-    Tries = 1000000;
+    Tries = (int)SMP_READY_POLL_MAX;
     while (Param->Ready == 0 && Tries-- > 0) {
         __asm__ volatile ("pause");
+    }
+    if (Param->Ready == 0) {
+        DelayLoops(SMP_SIPI_GAP_LOOPS);
+        LapicSendIpi(ApicId, 0x00000600u | SMP_SIPI_VECTOR);
+        Tries = (int)SMP_READY_POLL_MAX;
+        while (Param->Ready == 0 && Tries-- > 0) {
+            __asm__ volatile ("pause");
+        }
     }
     if (Param->Ready == 0) {
         SmpLog("smp: AP timeout apic=");
@@ -300,16 +314,16 @@ int HalSmpStartAps(void) {
     SmpLog("\n");
 
     /*
-     * PR-S2：短轮询等 AP tick（勿用超大 DelayLoops——QEMU TCG + -smp 2
-     * 下 BSP 易被饿死，看起来像卡死且永远到不了 gui/shell）。
+     * PR-S2：Ready 已证明 AP 起来；此处只短等第一个 tick 方便串口日志。
+     * 勿用超大 DelayLoops——QEMU TCG + -smp 下 BSP 易被饿死。
      */
-    {
+    if (Started > 0) {
         int Wait;
-        for (Wait = 0; Wait < 200; Wait++) {
-            if (Started > 0 && gCpuTicks[1] != 0) {
+        for (Wait = 0; Wait < 40; Wait++) {
+            if (gCpuTicks[1] != 0) {
                 break;
             }
-            DelayLoops(100000);
+            DelayLoops(20000);
         }
     }
     SmpLog("smp: ticks");

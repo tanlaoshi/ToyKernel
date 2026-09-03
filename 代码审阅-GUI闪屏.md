@@ -1,9 +1,9 @@
 # ToyKernel 代码审阅（侧重 GUI / 闪屏）
 
-**日期**：2026-09-03（G8 落地后修订）  
-**基线**：PR-D7 后；**PR-G6 ✅**；**PR-G7 ✅**；**PR-G8 ✅**（Theme 一次 Compose）  
+**日期**：2026-09-03（G9 落地后修订）  
+**基线**：PR-D7 后；**PR-G6～G9 ✅**（G10 可选拆分）  
 **范围**：以 `Gui.c` / `Desktop.c` / `Theme.c` / `Console.c` / `SettingsUi.c` / `Video.c` 为主；顺带列出可改进点。  
-**结论**：G6～G8 已修合成露底、长 cli、Theme 多遍闪屏；仍是 **单缓冲直写 GOP**；撕裂级闪屏待 **G9 backbuffer**。
+**结论**：G6～G8 修合成/cli/Theme；**G9** 已挂与屏同尺寸后缓冲 + 脏矩形 Present（QEMU 无真 VBlank，靠脏区一次 blit 减撕裂）。
 
 ---
 
@@ -13,7 +13,7 @@
 
 | 层 | 问题 | 用户体感 | 状态 |
 |----|------|----------|------|
-| **呈现** | 直接写 scanout FB，无 backbuffer / vsync | 多段更新被扫描线看到 → 撕裂、灰闪 | → G9 |
+| **呈现** | 直接写 scanout FB，无 backbuffer / vsync | 多段更新被扫描线看到 → 撕裂、灰闪 | **G9 ✅**（脏 Present；无硬件 VBlank） |
 | **同步** | 用长 `cli`（`HalIrqDisable`）冒充「帧原子性」 | USB 鼠标 IRQ 饿死 → 卡顿、跳变 | **G7 ✅** |
 | **合成语义** | 起始 footprint under-drag / 关窗露底 | 拖开后下层文字抹掉 | **G6 ✅** |
 | **更新策略** | Theme / 关窗走「破坏性重绘」而非同一套 Compose | 中间帧对用户可见 | **G8 ✅**（关窗客户区 G6 已用备份） |
@@ -39,7 +39,7 @@ Backbuffer → GOP（有条件再等 VBlank）
 2. **H2** `CloseWindow` 用备份恢复相交窗客户区  
 3. **H3** 缩短 cli：`MoveWindowTo` 只锁 Present；抓 snap 移出临界区；拖动中去掉或延后 `DesktopDrawRect`  
 4. **H4** Theme：重绘到备份 → 一次 Compose，去掉 Shell 穿透写屏  
-5. **H5** Backbuffer（消除撕裂）  
+5. **H5** Backbuffer（消除撕裂）— **G9 ✅**  
 6. 统一光标 / `GfxIrq*`（M3 / M8）
 
 ---
@@ -64,11 +64,10 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 - **落地**：`GuiApplyThemeColors` 只改属性；`GuiComposeThemeScene` 自下而上 `DrawWindowAt` + Shell/Settings 内容后一次备份；标题逐字 occlusion（M4）；`ThemeSettingsClientBg`（M10）。
 
-### H5. 无双缓冲 / 无 vsync
+### H5. 无双缓冲 / 无 vsync — **G9 ✅**
 
-- **位置**：`Video.c` `VideoDrawPixel` / `FillRect` / `WriteRect`；GUI 最终落点  
-- **问题**：关窗填色后再画 chrome、Theme 多遍、拖动行缓冲回退逐行写等中间状态会被扫描线看到。`gDragDirty` 一次写出只缓解拖动，不消除撕裂。  
-- **方向**：与屏同尺寸（或脏矩形）backbuffer；Present 一次 blit；条件允许等 VBlank。
+- **位置**：`Video.c` / `HalVideo`；`Gui.c` 帧边界  
+- **落地**：`HalVideoInitBackbuffer`（PMM）→ 绘制进后缓冲 + `DirtyUnion`；`HalVideoPresent` 脏矩形 blit 到 GOP。`GuiFrameBufferEnd` / `Sync` / Theme / 拖动 `WriteRect` / 光标路径提交 Present。QEMU 无真 VBlank；分配失败则回退直写 GOP。
 
 ---
 
@@ -169,4 +168,4 @@ Backbuffer → GOP（有条件再等 VBlank）
 3. 长 `cli` 与 USB 鼠标打架；  
 4. 单缓冲直出。
 
-按 §0.3 顺序修，可在不大改教学架构下明显改善拖动与换主题；完整消撕裂需要 backbuffer 级 Present。
+按 §0.3 顺序：G6～G8 修合成与 cli；**G9** 已加后缓冲 + 脏 Present（QEMU 下无硬件 VBlank）。

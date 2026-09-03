@@ -106,6 +106,8 @@ static int    gGfxLockDepth;
 static int    gGfxHadIrq;
 /* G7：长合成开中断时禁止嵌套 GuiOnMouse，避免 Capture 半成品进备份 */
 static int    gComposeBusy;
+/* 主题一次合成：推迟 Present，避免下层 Shell 中途盖住上层 Settings */
+static int    gDeferPresent;
 
 static void GfxIrqEnter(void) {
     if (gGfxLockDepth++ == 0) {
@@ -132,8 +134,18 @@ static void ComposeEnd(void) {
     }
 }
 
+/* 主题合成中推迟 Present；拖动等路径仍立即提交 */
+static void GfxPresent(void) {
+    if (gDeferPresent) {
+        return;
+    }
+    HalVideoPresent();
+}
+
 static void DrawWindowAt(int Idx);
+static void DrawWindowAtEx(int Idx, int Occlude);
 static void BackupWindowAt(int Idx);
+static void BackupWindowAtEx(int Idx, int ForceFull);
 static void RaiseWindow(int Idx);
 static int RectIntersects(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
                           UINT32 Bx, UINT32 By, UINT32 Bw, UINT32 Bh);
@@ -362,6 +374,7 @@ static void SyncWindowVisualsEx(int ClearDesktop) {
     }
     GfxIrqEnter();
     CursorPaint();
+    HalVideoPresent(); /* PR-G9：合成结束提交脏区 */
     GfxIrqLeave();
     ComposeEnd();
 }
@@ -423,6 +436,7 @@ static void CloseWindow(int Idx) {
     ComposeEnd();
     GfxIrqEnter();
     CursorPaint();
+    HalVideoPresent();
     GfxIrqLeave();
     GuiFocusApply();
     DebugWrite("gui: closed window\n");
@@ -512,6 +526,7 @@ static void CursorMove(UINT32 X, UINT32 Y) {
         if (gCursorVisible) {
             GfxIrqEnter();
             CursorRestore();
+            HalVideoPresent();
             GfxIrqLeave();
         }
         gCursorX = X;
@@ -524,6 +539,7 @@ static void CursorMove(UINT32 X, UINT32 Y) {
     gCursorX = X;
     gCursorY = Y;
     CursorPaint();
+    HalVideoPresent();
     GfxIrqLeave();
 }
 
@@ -554,7 +570,7 @@ static void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
     }
 }
 
-static void DrawWindowAt(int Idx) {
+static void DrawWindowAtEx(int Idx, int Occlude) {
     const GUI_WINDOW *W = &gWins[Idx];
 
     if (!W->Active) {
@@ -562,23 +578,70 @@ static void DrawWindowAt(int Idx) {
     }
     /* 标题在客户区外；若仍开着 Shell/Settings clip，DrawString 会被裁掉 */
     HalVideoClearClip();
-    FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
-    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
-                      COLOR_WHITE);
-    DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
-    DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
-                      COLOR_WHITE);
+    if (Occlude) {
+        FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
+        DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
+        DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
+                          COLOR_WHITE);
+        DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
+        DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
+                          COLOR_WHITE);
+        if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
+            FillRectOccluded(Idx, W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
+                             W->Height - TITLE_HEIGHT - 1, W->Background);
+        }
+        DrawTitleStringOccluded(Idx, W);
+        DrawCloseButton(Idx, W);
+        return;
+    }
     /*
-     * 客户区贴齐 1px 白边内侧（X+1 .. Width-2，底边到 Height-2）。
-     * 旧几何 X+2 / Height-TITLE-2 会在边框旁留 1px 缝，透出桌面色。
+     * 不透明整窗（主题自下而上合成用）：上层稍后覆盖，勿 Occlude，
+     * 否则重叠区不画 → 标题镂空、客户区换色不全。
      */
+    HalVideoFillRect(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
+    HalVideoFillRect(W->X, W->Y, W->Width, 1, COLOR_WHITE);
+    HalVideoFillRect(W->X, W->Y + W->Height - 1, W->Width, 1, COLOR_WHITE);
+    HalVideoFillRect(W->X, W->Y, 1, W->Height, COLOR_WHITE);
+    HalVideoFillRect(W->X + W->Width - 1, W->Y, 1, W->Height, COLOR_WHITE);
     if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
-        FillRectOccluded(Idx, W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
+        HalVideoFillRect(W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
                          W->Height - TITLE_HEIGHT - 1, W->Background);
     }
-    DrawTitleStringOccluded(Idx, W);
-    DrawCloseButton(Idx, W);
+    if (W->Title != 0 && W->Title[0] != 0) {
+        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    }
+    /* 关闭钮也整块画，勿 Occlude（否则未聚焦 Shell 的 × 可能缺块） */
+    {
+        UINT32 Bx;
+        UINT32 By;
+        UINT32 Bw;
+        UINT32 Bh;
+        UINT32 Pad;
+        UINT32 I;
+        UINT32 Span;
+
+        CloseButtonRect(W, &Bx, &By, &Bw, &Bh);
+        HalVideoFillRect(Bx, By, Bw, Bh, COLOR_RED);
+        if (Bw >= 2 && Bh >= 2) {
+            HalVideoFillRect(Bx, By, Bw, 1, COLOR_WHITE);
+            HalVideoFillRect(Bx, By + Bh - 1, Bw, 1, COLOR_WHITE);
+            HalVideoFillRect(Bx, By, 1, Bh, COLOR_WHITE);
+            HalVideoFillRect(Bx + Bw - 1, By, 1, Bh, COLOR_WHITE);
+        }
+        Pad = 7;
+        if (Bw > Pad * 2 + 2 && Bh > Pad * 2 + 2) {
+            Span = Bw - 1 - Pad * 2;
+            for (I = 0; I <= Span; I++) {
+                HalVideoDrawPixelRaw(Bx + Pad + I, By + Pad + I, COLOR_WHITE);
+                HalVideoDrawPixelRaw(Bx + Bw - 1 - Pad - I, By + Pad + I,
+                                     COLOR_WHITE);
+            }
+        }
+    }
+}
+
+static void DrawWindowAt(int Idx) {
+    DrawWindowAtEx(Idx, 1);
 }
 
 /* 仅重绘标题栏与边框，保留客户区已有文字；不画到上层窗口上 */
@@ -777,7 +840,11 @@ static void PreallocWindowBackups(void) {
 
 static void CaptureDragRestoreData(int DragIdx);
 
-static void BackupWindowAt(int Idx) {
+/*
+ * ForceFull：主题自下而上刚画完本窗、上层尚未覆盖时，必须整窗 ReadRect，
+ * 否则 Occluded 路径会跳过重叠区，备份镂空，透视桌面/抬窗花屏。
+ */
+static void BackupWindowAtEx(int Idx, int ForceFull) {
     const GUI_WINDOW *Win = &gWins[Idx];
     UINT32 Rw;
     UINT32 Rh;
@@ -813,25 +880,16 @@ static void BackupWindowAt(int Idx) {
         return;
     }
     if (gWinBackup[Idx] != OldBuf) {
-        /* 缓冲区重分配，旧像素已丢 */
         HadValid = 0;
     }
 
-    /*
-     * 采屏前必须擦光标：Sync/拖尾结束后常 CursorPaint 再 Backup，
-     * 否则十字会烙进备份，贴回后客户区留下「鼠标印」。
-     */
     WasVisible = gCursorVisible;
     ComposeBegin();
     GfxIrqEnter();
     CursorRestore();
     GfxIrqLeave();
 
-    /*
-     * 被上层遮住时禁止整窗 ReadRect：否则会把 Settings 文字烙进 Shell 备份，
-     * 随后 PaintWindowFromBackup / under-drag 永久印脏。
-     */
-    if (WindowOccludedByOther(Idx)) {
+    if (!ForceFull && WindowOccludedByOther(Idx)) {
         if (!HadValid) {
             gWinBackupValid[Idx] = 0;
             if (WasVisible) {
@@ -881,6 +939,10 @@ static void BackupWindowAt(int Idx) {
         GfxIrqLeave();
     }
     ComposeEnd();
+}
+
+static void BackupWindowAt(int Idx) {
+    BackupWindowAtEx(Idx, 0);
 }
 
 /* 与 DrawWindowAt 布局一致；仅作无备份时的回退 */
@@ -1105,6 +1167,7 @@ static void StartDragBackups(int DragIdx) {
     ComposeBegin();
     GfxIrqEnter();
     CursorRestore();
+    HalVideoPresent();
     GfxIrqLeave();
     GuiFocusSave();
     if (gDragHasBackup && AllActiveWindowsHaveValidBackup()) {
@@ -1321,9 +1384,10 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                     CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
             }
         }
-        /* Present：短临界区 */
+        /* Present：短临界区写后缓冲再提交到 GOP（PR-G9） */
         GfxIrqEnter();
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
+        HalVideoPresent();
         GfxIrqLeave();
         return;
     }
@@ -1347,11 +1411,12 @@ static void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                     gDragRowBuf[Col] =
                         CompositeDragPixel(Px, Py, DragIdx, Nx, Ny, Ww, Wh);
                 }
-                GfxIrqEnter();
                 HalVideoWriteRect(DuX + Col0, Py, ChunkW, 1, gDragRowBuf);
-                GfxIrqLeave();
             }
         }
+        GfxIrqEnter();
+        HalVideoPresent();
+        GfxIrqLeave();
     }
 }
 
@@ -1462,17 +1527,19 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         return;
     }
 
-    /* G7：合成开中断；仅光标 erase/paint 进 GfxIrq（Present 在 Composite 内短锁） */
+    /* G7：合成开中断；仅光标 erase/paint 与 Present 进 GfxIrq */
     ComposeBegin();
     GfxIrqEnter();
     if (gCursorVisible) {
         CursorRestore();
+        HalVideoPresent();
     }
     GfxIrqLeave();
     if (gDragHasBackup) {
         W->X = NewX;
         W->Y = NewY;
         RedrawDragFrame(Idx, Ox, Oy);
+        /* RedrawDragFrame / Composite 路径内已 Present */
     } else if (gDragWin >= 0) {
         W->X = NewX;
         W->Y = NewY;
@@ -1482,6 +1549,9 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         } else {
             ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
             PaintAllWindowsDraw(Idx);
+            GfxIrqEnter();
+            HalVideoPresent();
+            GfxIrqLeave();
         }
     } else {
         HalVideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
@@ -1494,6 +1564,7 @@ static void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     if (gDragWin < 0) {
         GfxIrqEnter();
         CursorPaint();
+        HalVideoPresent();
         GfxIrqLeave();
     }
     ComposeEnd();
@@ -1822,6 +1893,10 @@ void GuiFocusClearClient(void) {
     }
     GfxIrqEnter();
     CursorRestore();
+    /*
+     * 整块清客户区。主题合成靠 gDeferPresent + 上层后画，勿 FillRectOccluded，
+     * 否则重叠区不换色，抬窗后备份镂空。
+     */
     HalVideoFillRect(X, Y, W, H, Bg);
     HalVideoSetClipOrigin(X, Y, W, H, Bg);
     Win = &gWins[gFocusWin];
@@ -1830,6 +1905,7 @@ void GuiFocusClearClient(void) {
     Win->TermSet = 1;
     GuiBackupSyncRect(X, Y, W, H);
     CursorPaint();
+    GfxPresent();
     GfxIrqLeave();
 }
 
@@ -1917,6 +1993,7 @@ void GuiRedraw(void) {
     }
     GfxIrqEnter();
     CursorPaint();
+    HalVideoPresent();
     GfxIrqLeave();
     ComposeEnd();
 }
@@ -1943,23 +2020,30 @@ void GuiApplyThemeColors(void) {
 }
 
 /*
- * PR-G8：主题一次合成。先自下而上画窗（含客户区），再只填「窗外」桌面缝隙；
- * 禁止先 UiFill 整屏——那会抹掉所有窗一帧，换色时必然灰闪。
+ * PR-G8/G9：主题一次合成（painter's algorithm，后缓冲上完成再 Present）：
+ * 1) 整屏桌面 + 图标；2) 自下而上不透明整窗 + 内容；每窗立刻 ForceFull 备份；
+ * gDeferPresent 避免中间态刷到 GOP（灰闪 / 下层盖上层）。
  */
 void GuiComposeThemeScene(void) {
     int i;
     int SavedFocus = gFocusWin;
 
+    gDeferPresent = 1;
     ComposeBegin();
     GfxIrqEnter();
     CursorRestore();
     GfxIrqLeave();
     HalVideoClearClip();
+
+    /* 先铺底：有 DeferPresent 时整屏 wipe 不会露到屏幕 */
+    UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+    DesktopDraw();
+
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWins[i].Active) {
             continue;
         }
-        DrawWindowAt(i);
+        DrawWindowAtEx(i, 0);
         if (gWins[i].Kind == GUI_WIN_SHELL) {
             gFocusWin = i;
             ConsolePaintShellWindow(i);
@@ -1967,15 +2051,10 @@ void GuiComposeThemeScene(void) {
             gFocusWin = i;
             SettingsUiPaintFocused();
         }
+        /* 上层尚未画上：整窗备份，避免重叠区镂空透视 */
+        BackupWindowAtEx(i, 1);
     }
-    /* 新桌面色只写到未被窗盖住的像素，再补图标（避让窗） */
-    FillDesktopRectClipped(0, 0, gScreenW, gScreenH);
-    DesktopDrawRect(0, 0, gScreenW, gScreenH);
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active) {
-            BackupWindowAt(i);
-        }
-    }
+
     gFocusWin = SavedFocus;
     if (SavedFocus >= 0 && SavedFocus < MAX_WINS && gWins[SavedFocus].Active) {
         GuiFocusApply();
@@ -1986,6 +2065,10 @@ void GuiComposeThemeScene(void) {
     CursorPaint();
     GfxIrqLeave();
     ComposeEnd();
+    gDeferPresent = 0;
+    GfxIrqEnter();
+    HalVideoPresent();
+    GfxIrqLeave();
 }
 
 void GuiPaintWindow(int Idx) {
@@ -1996,6 +2079,7 @@ void GuiPaintWindow(int Idx) {
     CursorRestore();
     DrawWindowAt(Idx);
     CursorPaint();
+    HalVideoPresent();
     GfxIrqLeave();
 }
 
@@ -2385,9 +2469,10 @@ void GuiFrameBufferBegin(void) {
     CursorRestore();
 }
 
-/* 帧缓冲绘制后：重画光标；仅恢复进入 Begin 前已开启的中断 */
+/* 帧缓冲绘制后：重画光标、Present；仅恢复进入 Begin 前已开启的中断 */
 void GuiFrameBufferEnd(void) {
     CursorPaint();
+    GfxPresent();
     GfxIrqLeave();
 }
 
@@ -2395,18 +2480,21 @@ void GuiCursorPaint(void) {
     GfxIrqEnter();
     CursorRestore();
     CursorPaint();
+    GfxPresent();
     GfxIrqLeave();
 }
 
 void GuiCursorHide(void) {
     GfxIrqEnter();
     CursorRestore();
+    GfxPresent();
     GfxIrqLeave();
 }
 
 void GuiCursorShow(void) {
     GfxIrqEnter();
     CursorPaint();
+    GfxPresent();
     GfxIrqLeave();
 }
 
@@ -2420,6 +2508,7 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
             (Mouse->X != gCursorX || Mouse->Y != gCursorY)) {
             GfxIrqEnter();
             CursorRestore();
+            HalVideoPresent();
             GfxIrqLeave();
         }
         gCursorX = Mouse->X;

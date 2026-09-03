@@ -18,6 +18,12 @@ typedef struct {
 } SCREEN_INFO;
 
 void VideoSet(VIDEO_CONFIG *VideoConfig);
+/* PR-G9：启用后缓冲；Buf 为 Width*Height 个 UINT32，Pages 供记录 */
+void VideoSetBackbuffer(UINT32 *Buf, UINT32 Pages);
+int VideoBackbufferEnabled(void);
+UINT32 VideoBackbufferPages(void);
+/* 脏矩形 blit 到 GOP；无后缓冲时为空操作 */
+void VideoPresent(void);
 void VideoGetSize(UINT32 *Width, UINT32 *Height);
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略文字 clip，供光标等全屏叠层 */

@@ -61,7 +61,10 @@ static int InitVideo(void) {
     FontInit();
     ThemeInit();
     HalVideoSet(&V);
+    /* PR-G9：PMM 已就绪，挂后缓冲；失败则仍直写 GOP */
+    HalVideoInitBackbuffer();
     HalVideoClearScreen(ThemeDesktopBg());
+    HalVideoPresent();
     return 0;
 }
 
