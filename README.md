@@ -112,9 +112,13 @@ cd ../ToyBoot && ./build.sh
 
 ```bash
 cd ../ToyImage
-./run-split.sh        # 唯一入口：盘0 ESP，盘1 rootfs/（Kernel/THEME）
-# ./run.sh            # 已转发到 run-split.sh
+./run-split.sh                 # 唯一入口：盘0 ESP，盘1 rootfs/
+./run-split.sh --kill-qemu     # 清残留 QEMU（防 SIPI/AP 超时）
+TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
+./smoke-boot.sh                # 无头冒烟，等到 ToyOS ready
 ```
+
+详见 [`ToyImage/QUICK_START.md`](../ToyImage/QUICK_START.md)。
 
 `run-split.sh` 使用发行版 OVMF pflash、USB 键鼠、virtio-net（含 UDP/TCP hostfwd）。串口输出在启动终端（`toyos>` 提示符）。启动前会把 cwd 上的 `Kernel.elf`/`THEME.CFG` 等暂存，强制 Guest 只从第二盘加载。
 
