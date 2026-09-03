@@ -5,6 +5,7 @@
 
 static const FONT_FACE *gFonts[] = {
     &gFontFaceTerminus16x32,
+    &gFontFaceTerminusX2,
 };
 
 static UINT32 gCurrentId;

@@ -36,6 +36,11 @@ void GuiOnArrowKey(UINT8 Key);
 void GuiRedraw(void);
 /* PR-D2：按 Theme 刷新已开窗客户区底色并重绘 */
 void GuiApplyThemeColors(void);
+/* 按当前几何重画整窗（标题栏+客户区底）；不画 Shell 文字 / Settings 菜单 */
+void GuiPaintWindow(int Idx);
+void GuiBackupAllWindows(void);
+/* 点是否落在任一应用窗内（桌面图标绘制避让） */
+int GuiPointInAnyWindow(UINT32 X, UINT32 Y);
 int GuiHandleClick(UINT32 X, UINT32 Y);
 int GuiFocusClient(UINT32 *X, UINT32 *Y, UINT32 *Width, UINT32 *Height, UINT32 *Background);
 void GuiFocusSave(void);
@@ -49,6 +54,8 @@ void GuiFocusHome(void);
 void GuiPollMouse(void);
 int GuiShellWindowActive(int Idx);
 void GuiSetFocusWin(int Idx);
+/* 当前焦点窗下标；无焦点返回 -1 */
+int GuiFocusIndex(void);
 
 /* PR-D3：打开应用窗；成功返回槽位，失败 -1 */
 int GuiOpenShell(void);

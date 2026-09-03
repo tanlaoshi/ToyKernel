@@ -25,6 +25,8 @@ typedef struct FONT_FACE {
 
 /* Terminus 16×32（Fonts/terminus16x32.c） */
 extern const FONT_FACE gFontFaceTerminus16x32;
+/* 同字形 Scale=2（PR-D5） */
+extern const FONT_FACE gFontFaceTerminusX2;
 
 void FontInit(void);
 UINT32 FontCount(void);

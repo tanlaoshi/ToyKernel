@@ -972,3 +972,18 @@ const FONT_FACE gFontFaceTerminus16x32 = {
     .FirstChar = 32,
 };
 
+/* PR-D5：同一字形 Scale=2，供 Settings 切换字体演示 */
+const FONT_FACE gFontFaceTerminusX2 = {
+    .Name = "Terminus x2",
+    .Width = 16,
+    .Height = 32,
+    .BytesPerGlyph = 64,
+    .BytesPerRow = 2,
+    .CharSpacing = 2,
+    .LineSpacing = 4,
+    .Scale = 2,
+    .Glyphs = &gFontTerminus16x32[0][0],
+    .GlyphCount = 95,
+    .FirstChar = 32,
+};
+

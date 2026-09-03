@@ -24,6 +24,8 @@ void ConsoleCancelInput(void);
 void ConsoleBindFocus(void);
 /* PR-D3：新开 Shell 窗后打印欢迎语与提示符 */
 void ConsoleOnShellOpened(void);
+/* PR-D5：ThemeApply/GuiRedraw 后立刻重画所有 Shell，避免等再点标题栏 */
+void ConsoleRepaintShellWindows(void);
 
 /* PR-G2：焦点切换时保存/恢复当前窗输入行（由 GuiFocusSave/Apply 调用） */
 void ConsoleFocusSave(void);

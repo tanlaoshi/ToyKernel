@@ -104,6 +104,54 @@ static int PointInIcon(const DESKTOP_ICON *Icon, UINT32 X, UINT32 Y) {
     return X >= Ix && X < Ix + Iw && Y >= Iy && Y < Iy + Ih;
 }
 
+/* 只画不被窗口盖住的像素，避免拖动/关窗后图标盖到窗上或盖住另一图标区的窗 */
+static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (W == 0 || H == 0) {
+        return;
+    }
+    for (Row = 0; Row < H; Row++) {
+        InRun = 0;
+        RunStart = 0;
+        for (Col = 0; Col < W; Col++) {
+            int Free = !GuiPointInAnyWindow(X + Col, Y + Row);
+            if (Free && !InRun) {
+                RunStart = Col;
+                InRun = 1;
+            } else if (!Free && InRun) {
+                HalVideoFillRect(X + RunStart, Y + Row, Col - RunStart, 1, Color);
+                InRun = 0;
+            }
+        }
+        if (InRun) {
+            HalVideoFillRect(X + RunStart, Y + Row, W - RunStart, 1, Color);
+        }
+    }
+}
+
+static void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
+    UINT32 Cx = X;
+    const char *P;
+    char One[2];
+
+    if (!Text) {
+        return;
+    }
+    One[1] = 0;
+    for (P = Text; *P; P++) {
+        One[0] = *P;
+        /* 字形左上角未被窗挡住才画，减少写穿 */
+        if (!GuiPointInAnyWindow(Cx, Y)) {
+            HalVideoDrawStringAt(Cx, Y, One, Color);
+        }
+        Cx += FontAdvanceX();
+    }
+}
+
 static void DrawOneIcon(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelX;
     UINT32 LabelY;
@@ -111,22 +159,23 @@ static void DrawOneIcon(const DESKTOP_ICON *Icon, int Selected) {
     const char *P;
     UINT32 Border;
 
-    UiFillRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
-                    Icon->IconColor);
+    FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
+                 Icon->IconColor);
     Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
-    UiDrawRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
-                    Border);
+    /* 边框用细填充近似，同样避让窗口 */
+    FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, 1, Border);
+    FillRectFree(Icon->X, Icon->Y + DESKTOP_ICON_SIZE - 1, DESKTOP_ICON_SIZE, 1,
+                 Border);
+    FillRectFree(Icon->X, Icon->Y, 1, DESKTOP_ICON_SIZE, Border);
+    FillRectFree(Icon->X + DESKTOP_ICON_SIZE - 1, Icon->Y, 1, DESKTOP_ICON_SIZE,
+                 Border);
     if (Selected) {
-        UiDrawRectangle(Icon->X + 1, Icon->Y + 1,
-                        DESKTOP_ICON_SIZE - 2, DESKTOP_ICON_SIZE - 2,
-                        COLOR_YELLOW);
+        FillRectFree(Icon->X + 1, Icon->Y + 1, DESKTOP_ICON_SIZE - 2, 1, Border);
+        FillRectFree(Icon->X + 1, Icon->Y + DESKTOP_ICON_SIZE - 2,
+                     DESKTOP_ICON_SIZE - 2, 1, Border);
     }
-    UiFillRectangle(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y,
-                    14, 14, COLOR_LIGHT_GRAY);
-    UiDrawLine(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y,
-               Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y + 14, Border);
-    UiDrawLine(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y + 14,
-               Icon->X + DESKTOP_ICON_SIZE, Icon->Y + 14, Border);
+    FillRectFree(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y, 14, 14,
+                 COLOR_LIGHT_GRAY);
 
     LabelW = 0;
     if (Icon->Label) {
@@ -140,8 +189,8 @@ static void DrawOneIcon(const DESKTOP_ICON *Icon, int Selected) {
     }
     LabelY = Icon->Y + DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD;
     if (Icon->Label) {
-        HalVideoDrawStringAt(LabelX, LabelY, Icon->Label,
-                             Selected ? COLOR_YELLOW : COLOR_WHITE);
+        DrawStringFree(LabelX, LabelY, Icon->Label,
+                       Selected ? COLOR_YELLOW : COLOR_WHITE);
     }
 }
 

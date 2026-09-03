@@ -6,6 +6,7 @@
 #include "HIDKeyboard.h"
 #include "Console.h"
 #include "Gui.h"
+#include "SettingsUi.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "LwIp.h"
@@ -32,6 +33,26 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
             }
         }
         if (WasDown) {
+            continue;
+        }
+
+        /* Settings 文字菜单：数字选择 / Esc 返回 */
+        if (SettingsUiIsFocused()) {
+            if (Key == HID_KEY_ESCAPE) {
+                SettingsUiOnEscape();
+                continue;
+            }
+            if (Key == HID_KEY_LEFT || Key == HID_KEY_RIGHT ||
+                Key == HID_KEY_UP || Key == HID_KEY_DOWN) {
+                GuiOnArrowKey(Key);
+                continue;
+            }
+            {
+                char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
+                if (C >= '0' && C <= '9') {
+                    SettingsUiOnDigit(C);
+                }
+            }
             continue;
         }
 
@@ -83,6 +104,14 @@ void ShellTask(void) {
     for (;;) {
         while (HalSerialDataReady()) {
             char C = HalSerialReadChar();
+            if (SettingsUiIsFocused()) {
+                if (C == 0x1B) {
+                    SettingsUiOnEscape();
+                } else if (C >= '0' && C <= '9') {
+                    SettingsUiOnDigit(C);
+                }
+                continue;
+            }
             if (C == '\r' || C == '\n') {
                 ConsoleOnEnter();
             } else if (C == 3) {

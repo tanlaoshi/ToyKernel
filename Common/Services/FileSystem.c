@@ -144,11 +144,13 @@ static int MountBestFat(void) {
     if (!BlockSelect(BestDrive) || !TryMountCurrent()) {
         return 0;
     }
-    ConsoleWrite("fs: mounted drive ");
-    ConsoleHex32(BestDrive);
-    ConsoleWrite(" score=");
-    ConsoleHex32((UINT32)ScoreBest);
-    ConsoleWrite("\n");
+    /* Gui 尚未 Init：勿 ConsoleWrite 上屏，否则 USB 等模块耗时期间灰桌面顶行残留 */
+    HalConsoleWriteSerial("fs: mounted\n");
+    DebugWrite("fs: mounted drive ");
+    DebugHex32(BestDrive);
+    DebugWrite(" score=");
+    DebugHex32((UINT32)ScoreBest);
+    DebugWrite("\n");
     return 1;
 }
 

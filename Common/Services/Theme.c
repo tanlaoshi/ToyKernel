@@ -5,6 +5,8 @@
 #include "UI.h"
 #include "Font.h"
 #include "Gui.h"
+#include "Console.h"
+#include "SettingsUi.h"
 
 static UINT32 gDesktopBg = COLOR_DARK_GRAY;
 static UINT32 gShellClientBg = COLOR_LIGHT_GRAY;
@@ -48,4 +50,11 @@ int ThemeSetFontId(UINT32 Id) {
 void ThemeApply(void) {
     (void)FontSetById(gFontId);
     GuiApplyThemeColors();
+    /*
+     * GuiRedraw 后客户区是空的。先重画 Shell 文字（可能穿透上层窗），
+     * 再整窗重画 Settings（含标题栏）盖回去，最后刷新备份供拖动合成。
+     */
+    ConsoleRepaintShellWindows();
+    SettingsUiRefresh();
+    GuiBackupAllWindows();
 }

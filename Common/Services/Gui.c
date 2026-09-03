@@ -14,6 +14,7 @@
 #include "Theme.h"
 #include "Font.h"
 #include "Desktop.h"
+#include "SettingsUi.h"
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
@@ -1162,11 +1163,12 @@ static void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh
     }
 }
 
-/* 清除整片旧 footprint：先恢复被盖住的其它窗，再填桌面色 */
+/* 清除整片旧 footprint：先恢复被盖住的其它窗，再填桌面色与图标（避让窗口） */
 static void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh,
                                   int DragIdx) {
     RestoreWindowsInFootprint(Ox, Oy, Ww, Wh, DragIdx);
     FillDesktopRectClipped(Ox, Oy, Ww, Wh);
+    DesktopDrawRect(Ox, Oy, Ww, Wh);
 }
 
 /* 按 z 序从备份重贴全部窗口（DragIdx<0 时按数组序；否则被拖窗最后画） */
@@ -1659,6 +1661,10 @@ void GuiSetFocusWin(int Idx) {
     }
 }
 
+int GuiFocusIndex(void) {
+    return gFocusWin;
+}
+
 void GuiFocusHome(void) {
     UINT32 X;
     UINT32 Y;
@@ -1701,9 +1707,42 @@ void GuiApplyThemeColors(void) {
     for (i = 0; i < MAX_WINS; i++) {
         if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL) {
             gWins[i].Background = Bg;
+            /* GuiRedraw 会清空客户区像素；随后 ConsoleRepaint + Settings 整窗重画 */
+            gWins[i].TermSet = 0;
+            gWins[i].TermX = 0;
+            gWins[i].TermY = 0;
+            gWins[i].InputLen = 0;
+            gWins[i].InputLine[0] = 0;
+            gWins[i].PromptShown = 0;
+            gWins[i].WaitPrompt = 0;
         }
     }
     GuiRedraw();
+}
+
+void GuiPaintWindow(int Idx) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+        return;
+    }
+    GfxIrqEnter();
+    CursorRestore();
+    DrawWindowAt(Idx);
+    CursorPaint();
+    GfxIrqLeave();
+}
+
+void GuiBackupAllWindows(void) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active) {
+            BackupWindowAt(i);
+        }
+    }
+}
+
+int GuiPointInAnyWindow(UINT32 X, UINT32 Y) {
+    return PointInAnyActiveWindow(X, Y);
 }
 
 static int AllocWindowSlot(void) {
@@ -1767,7 +1806,8 @@ int GuiOpenShell(void) {
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
     gWins[Idx].WaitPrompt = 0;
-    gWins[Idx].PromptShown = 0;
+    /* 先标已 prompt，避免 FocusApply→FocusLoad 抢画；OnShellOpened 再清客户区重画 */
+    gWins[Idx].PromptShown = 1;
     gWins[Idx].InputLine[0] = 0;
 
     DrawWindowAt(Idx);
@@ -1795,8 +1835,8 @@ int GuiOpenSettings(void) {
         return -1;
     }
     /* 靠右放置，避免盖住左侧已开的 Shell */
-    W = 480;
-    H = 360;
+    W = 520;
+    H = 400;
     if (W + Margin * 2 > gScreenW) {
         W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
     }
@@ -1825,24 +1865,8 @@ int GuiOpenSettings(void) {
     RaiseWindow(Idx);
     SyncWindowVisuals();
     GuiFocusApply();
-    /* 占位文案；D5 再换交互控件（勿走 Console/Prompt，以免画到本窗） */
-    {
-        UINT32 Cx;
-        UINT32 Cy;
-        UINT32 Cw;
-        UINT32 Ch;
-        UINT32 Bg;
-
-        if (GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
-            HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
-            HalVideoDrawStringAt(Cx + 12, Cy + 12, "Settings (PR-D5)", COLOR_BLACK);
-            HalVideoDrawStringAt(Cx + 12, Cy + 12 + FontAdvanceY(),
-                                 "font / colors soon", COLOR_BLACK);
-            GuiBackupSyncRect(Cx, Cy, Cw, Ch);
-            BackupWindowAt(gFocusWin);
-            HalVideoClearClip();
-        }
-    }
+    SettingsUiOpen();
+    BackupWindowAt(gFocusWin);
     DebugWrite("gui: open settings idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");

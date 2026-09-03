@@ -296,15 +296,24 @@ void ConsoleFocusLoad(void) {
     if (GuiConsoleHasDisplay()) {
         GuiFocusApplyClip();
         if (GuiConsoleNeedsPrompt()) {
+            ConsoleWrite("ToyOS console. Type help.\n");
             Prompt();
             GuiConsoleMarkPrompt();
+            GuiFocusSave();
         }
         return;
     }
     /*
-     * 新 Shell 窗：欢迎语由 ConsoleOnShellOpened 画，此处不自动 Prompt，
-     * 避免与欢迎语叠字。
+     * 无客户区光标：主题清空后的 Shell，或尚未 OnShellOpened 的新窗。
+     * 新窗 OpenShell 先 PromptShown=1 抑制此处；OnShellOpened 再画。
      */
+    if (GuiConsoleNeedsPrompt()) {
+        GuiFocusHome();
+        ConsoleWrite("ToyOS console. Type help.\n");
+        Prompt();
+        GuiConsoleMarkPrompt();
+        GuiFocusSave();
+    }
 }
 
 /* 注册 help / clear / echo（须在 ShellCommands 之前调用） */
@@ -340,6 +349,30 @@ void ConsoleOnShellOpened(void) {
     Prompt();
     GuiConsoleMarkPrompt();
     GuiFocusSave();
+}
+
+void ConsoleRepaintShellWindows(void) {
+    int Saved;
+    int i;
+    GUI_WIN_KIND SavedKind;
+
+    Saved = GuiFocusIndex();
+    SavedKind = GuiFocusKind();
+
+    for (i = 0; i < GUI_MAX_WINS; i++) {
+        if (GuiWindowKind(i) != GUI_WIN_SHELL) {
+            continue;
+        }
+        GuiSetFocusWin(i);
+        ConsoleOnShellOpened();
+    }
+
+    if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
+        GuiSetFocusWin(Saved);
+        if (SavedKind == GUI_WIN_SHELL) {
+            ConsoleFocusLoad();
+        }
+    }
 }
 
 /*
