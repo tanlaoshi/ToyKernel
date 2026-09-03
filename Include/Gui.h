@@ -27,6 +27,8 @@ void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);
 void GuiOnArrowKey(UINT8 Key);
 void GuiRedraw(void);
+/* PR-D2：按 Theme 刷新已开窗客户区底色并重绘 */
+void GuiApplyThemeColors(void);
 int GuiHandleClick(UINT32 X, UINT32 Y);
 int GuiFocusClient(UINT32 *X, UINT32 *Y, UINT32 *Width, UINT32 *Height, UINT32 *Background);
 void GuiFocusSave(void);

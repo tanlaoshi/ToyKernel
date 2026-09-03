@@ -11,6 +11,7 @@
 #include "Debug.h"
 #include "Console.h"
 #include "PhysicalMemory.h"
+#include "Theme.h"
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
@@ -343,7 +344,7 @@ static void CloseWindow(int Idx) {
     }
     HalIrqDisable();
     CursorRestore();
-    UiFillRectangle(X, Y, Ww, Wh, COLOR_DARK_GRAY);
+    UiFillRectangle(X, Y, Ww, Wh, ThemeDesktopBg());
     for (i = 0; i < MAX_WINS; i++) {
         if (gWins[i].Active) {
             DrawWindowChromeAt(i);
@@ -548,13 +549,13 @@ static void FillDesktopRectClipped(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             } else if (Cover && InRun) {
                 if (Col > RunStart) {
                     HalVideoFillRect(RunStart, Row, Col - RunStart, 1,
-                                  COLOR_DARK_GRAY);
+                                  ThemeDesktopBg());
                 }
                 InRun = 0;
             }
         }
         if (InRun && X + W > RunStart) {
-            HalVideoFillRect(RunStart, Row, X + W - RunStart, 1, COLOR_DARK_GRAY);
+            HalVideoFillRect(RunStart, Row, X + W - RunStart, 1, ThemeDesktopBg());
         }
     }
 }
@@ -723,10 +724,10 @@ static UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     UINT32 Ly;
 
     if (!W->Active) {
-        return COLOR_DARK_GRAY;
+        return ThemeDesktopBg();
     }
     if (Px < W->X || Py < W->Y || Px >= W->X + W->Width || Py >= W->Y + W->Height) {
-        return COLOR_DARK_GRAY;
+        return ThemeDesktopBg();
     }
     Lx = Px - W->X;
     Ly = Py - W->Y;
@@ -756,7 +757,7 @@ static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
             return AnalyticWindowPixel(i, Px, Py);
         }
     }
-    return COLOR_DARK_GRAY;
+    return ThemeDesktopBg();
 }
 
 static int EnsureDragDirtyBuf(UINT32 Ww, UINT32 Hh) {
@@ -997,17 +998,17 @@ static UINT32 SampleWindowBackupPixel(int Idx, UINT32 Px, UINT32 Py) {
     UINT32 Ly;
 
     if (!gWinBackupValid[Idx] || gWinBackup[Idx] == 0 || !W->Active) {
-        return COLOR_DARK_GRAY;
+        return ThemeDesktopBg();
     }
     Bw = gWinBackupW[Idx];
     Bh = gWinBackupH[Idx];
     if (Px < W->X || Py < W->Y) {
-        return COLOR_DARK_GRAY;
+        return ThemeDesktopBg();
     }
     Lx = Px - W->X;
     Ly = Py - W->Y;
     if (Lx >= Bw || Ly >= Bh) {
-        return COLOR_DARK_GRAY;
+        return ThemeDesktopBg();
     }
     return gWinBackup[Idx][Ly * Bw + Lx];
 }
@@ -1062,7 +1063,7 @@ static UINT32 CompositeDragPixel(UINT32 Px, UINT32 Py, int DragIdx,
             return SampleWindowBackupPixel(i, Px, Py);
         }
     }
-    return COLOR_DARK_GRAY;
+    return ThemeDesktopBg();
 }
 
 /* 旧/新 footprint 并集一次扫描线写出，避免先清灰再全窗重贴的两步闪屏 */
@@ -1664,12 +1665,24 @@ void GuiRedraw(void) {
 
     GfxIrqEnter();
     CursorRestore();
-    UiFillRectangle(0, 0, gScreenW, gScreenH, COLOR_DARK_GRAY);
+    UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindowAt(i);
     }
     CursorPaint();
     GfxIrqLeave();
+}
+
+void GuiApplyThemeColors(void) {
+    int i;
+    UINT32 Bg = ThemeShellClientBg();
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active) {
+            gWins[i].Background = Bg;
+        }
+    }
+    GuiRedraw();
 }
 
 void GuiInit(void) {
@@ -1698,7 +1711,7 @@ void GuiInit(void) {
         gWins[0].Y = Margin;
         gWins[0].Width = ShellW;
         gWins[0].Height = ShellH;
-        gWins[0].Background = COLOR_LIGHT_GRAY;
+        gWins[0].Background = ThemeShellClientBg();
         gWins[0].Title = "ToyOS Shell";
         gWins[0].TermSet = 0;
         gWins[0].InputLen = 0;

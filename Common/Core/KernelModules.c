@@ -17,6 +17,7 @@
 #include "ShellCommands.h"
 #include "Debug.h"
 #include "Font.h"
+#include "Theme.h"
 
 static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
@@ -58,8 +59,9 @@ static int InitVideo(void) {
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
     FontInit();
+    ThemeInit();
     HalVideoSet(&V);
-    HalVideoClearScreen(COLOR_DARK_GRAY);
+    HalVideoClearScreen(ThemeDesktopBg());
     return 0;
 }
 
