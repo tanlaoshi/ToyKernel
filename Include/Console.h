@@ -24,6 +24,8 @@ void ConsoleCancelInput(void);
 void ConsoleBindFocus(void);
 /* PR-D3：新开 Shell 窗后打印欢迎语与提示符 */
 void ConsoleOnShellOpened(void);
+/* PR-G8：按窗下标重画 Shell 客户区（主题合成用，不 Raise） */
+void ConsolePaintShellWindow(int Idx);
 /* PR-D5：ThemeApply/GuiRedraw 后立刻重画所有 Shell，避免等再点标题栏 */
 void ConsoleRepaintShellWindows(void);
 

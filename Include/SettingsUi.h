@@ -15,6 +15,8 @@ void SettingsUiOpen(void);
 void SettingsUiRefresh(void);
 /* 仅重绘菜单（不 Raise）；置顶后备份缺失时补内容 */
 void SettingsUiRepaint(void);
+/* PR-G8：焦点已是 Settings 时画菜单，绝不 Raise */
+void SettingsUiPaintFocused(void);
 /* 焦点在 Settings 时处理输入：Digit='0'..'9'；Esc 返回上级 */
 void SettingsUiOnDigit(char Digit);
 void SettingsUiOnEscape(void);

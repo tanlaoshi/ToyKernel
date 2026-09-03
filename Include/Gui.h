@@ -34,8 +34,10 @@ void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);
 void GuiOnArrowKey(UINT8 Key);
 void GuiRedraw(void);
-/* PR-D2：按 Theme 刷新已开窗客户区底色并重绘 */
+/* PR-D2：按 Theme 刷新已开窗客户区底色（不立即重绘） */
 void GuiApplyThemeColors(void);
+/* PR-G8：桌面+各窗内容自下而上一次合成并备份 */
+void GuiComposeThemeScene(void);
 /* 按当前几何重画整窗（标题栏+客户区底）；不画 Shell 文字 / Settings 菜单 */
 void GuiPaintWindow(int Idx);
 void GuiBackupAllWindows(void);

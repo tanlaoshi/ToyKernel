@@ -166,8 +166,10 @@ static void PaintMenu(void) {
     UINT32 PrefH;
     int HasPref;
 
-    if (!FocusSettingsWindow()) {
-        return;
+    if (GuiFocusKind() != GUI_WIN_SETTINGS) {
+        if (!FocusSettingsWindow()) {
+            return;
+        }
     }
     if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
         return;
@@ -362,6 +364,14 @@ void SettingsUiRepaint(void) {
     }
     PaintMenu();
     GuiBackupFocusWindow();
+}
+
+/* PR-G8：焦点已在 Settings 时只画菜单，不 Raise（主题一次合成） */
+void SettingsUiPaintFocused(void) {
+    if (!SettingsUiIsFocused()) {
+        return;
+    }
+    PaintMenu();
 }
 
 void SettingsUiOpen(void) {

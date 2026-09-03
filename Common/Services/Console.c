@@ -341,6 +341,18 @@ void ConsoleOnShellOpened(void) {
     if (!GuiShellAcceptsInput()) {
         return;
     }
+    ConsolePaintShellWindow(GuiFocusIndex());
+}
+
+/* PR-G8：主题合成时按窗下标画 Shell，不要求当前可输入/未遮挡 */
+void ConsolePaintShellWindow(int Idx) {
+    int Saved;
+
+    if (!GuiShellWindowActive(Idx)) {
+        return;
+    }
+    Saved = GuiFocusIndex();
+    GuiSetFocusWin(Idx);
     gLen = 0;
     gWaitPrompt = 0;
     gAtLineStart = 1;
@@ -351,8 +363,10 @@ void ConsoleOnShellOpened(void) {
     GuiConsoleMarkPrompt();
     GuiFocusSave();
     HalVideoClearClip();
-    /* 整窗备份：Sync 置顶其它窗时靠这份恢复，勿只留空壳 DrawWindowAt */
     GuiBackupFocusWindow();
+    if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
+        GuiSetFocusWin(Saved);
+    }
 }
 
 void ConsoleRepaintShellWindows(void) {

@@ -1,9 +1,9 @@
 # ToyKernel 代码审阅（侧重 GUI / 闪屏）
 
-**日期**：2026-09-03（G7 落地后修订）  
-**基线**：PR-D7 后；**PR-G6 ✅**；**PR-G7 ✅**（短 `GfxIrq`；Capture/合成开中断；开窗擦光标；拖尾清桌面合成）  
+**日期**：2026-09-03（G8 落地后修订）  
+**基线**：PR-D7 后；**PR-G6 ✅**；**PR-G7 ✅**；**PR-G8 ✅**（Theme 一次 Compose）  
 **范围**：以 `Gui.c` / `Desktop.c` / `Theme.c` / `Console.c` / `SettingsUi.c` / `Video.c` 为主；顺带列出可改进点。  
-**结论**：G6/G7 已修合成露底与长 cli；仍是 **单缓冲直写 GOP** + **Theme 多遍重绘（→G8）**；撕裂级闪屏待 **G9 backbuffer**。
+**结论**：G6～G8 已修合成露底、长 cli、Theme 多遍闪屏；仍是 **单缓冲直写 GOP**；撕裂级闪屏待 **G9 backbuffer**。
 
 ---
 
@@ -16,7 +16,7 @@
 | **呈现** | 直接写 scanout FB，无 backbuffer / vsync | 多段更新被扫描线看到 → 撕裂、灰闪 | → G9 |
 | **同步** | 用长 `cli`（`HalIrqDisable`）冒充「帧原子性」 | USB 鼠标 IRQ 饿死 → 卡顿、跳变 | **G7 ✅** |
 | **合成语义** | 起始 footprint under-drag / 关窗露底 | 拖开后下层文字抹掉 | **G6 ✅** |
-| **更新策略** | Theme / 关窗走「破坏性重绘」而非同一套 Compose | 中间帧对用户可见 | → G8（关窗客户区 G6 已用备份） |
+| **更新策略** | Theme / 关窗走「破坏性重绘」而非同一套 Compose | 中间帧对用户可见 | **G8 ✅**（关窗客户区 G6 已用备份） |
 | **光标/备份** | 开窗等路径未统一擦光标再备份 | 十字残影烙进窗备份 | **G7 ✅** |
 
 已做好、应保留：整窗备份保留客户区文字；拖动脏区离屏一次 `WriteRect`；`GuiRedraw` 用 Raw 图标；**G6** under-drag 抓取时贴备份、合成采样含标签。
@@ -60,11 +60,9 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 - **落地**：`MoveWindowTo` / `Capture` / `Sync` / `GuiRedraw` 合成开中断；仅光标与 `WriteRect` Present 走 `GfxIrq*`；`gComposeBusy` 丢弃嵌套鼠标；拖尾 `SyncWindowVisualsEx(1)` 清桌面残影。
 
-### H4. ThemeApply 多遍全屏/多窗重绘，闪屏几乎必然
+### H4. ThemeApply 多遍全屏/多窗重绘，闪屏几乎必然 — **G8 ✅**
 
-- **位置**：`Theme.c` `ThemeApply`（约 58–69）；`GuiApplyThemeColors` → `GuiRedraw`；`ConsoleRepaintShellWindows`；`SettingsUiRefresh`  
-- **问题**：整屏重画（客户区清空）→ Shell 文字重画（**可穿透上层窗**，Theme 注释已写明）→ Settings 整窗盖回 → 再 `GuiBackupAllWindows`。用户可见灰闪、文字闪、写穿再覆盖。  
-- **方向**：单次场景合成；Shell 只画进本窗备份再 blit；勿先清空再拼。
+- **落地**：`GuiApplyThemeColors` 只改属性；`GuiComposeThemeScene` 自下而上 `DrawWindowAt` + Shell/Settings 内容后一次备份；标题逐字 occlusion（M4）；`ThemeSettingsClientBg`（M10）。
 
 ### H5. 无双缓冲 / 无 vsync
 
@@ -88,11 +86,9 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 - **落地**：`GuiOpenShell` / `GuiOpenSettings` 在 `DrawWindowAt`/`BackupWindowAt` 前 `GfxIrqEnter` + `CursorRestore`。
 
-### M4. `DrawWindowAt` 标题无逐像素遮挡
+### M4. `DrawWindowAt` 标题无逐像素遮挡 — **G8 ✅**
 
-- **位置**：完整 `DrawWindowAt` vs chrome 路径有 occlusion  
-- **问题**：Theme / 开窗 / `PaintAllWindowsDraw` 回退时标题可写穿上层客户区。  
-- **方向**：occlusion，或只 blit 本窗备份。
+- **落地**：`DrawTitleStringOccluded` 逐字 `PixelOccludedByAbove`。
 
 ### M5. Clip「名不副实」：绝对坐标绘制无视 clip
 

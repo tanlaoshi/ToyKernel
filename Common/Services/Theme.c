@@ -11,8 +11,6 @@
 #include "UI.h"
 #include "Font.h"
 #include "Gui.h"
-#include "Console.h"
-#include "SettingsUi.h"
 #include "Fat.h"
 #include "Hal.h"
 #include "Debug.h"
@@ -38,6 +36,11 @@ UINT32 ThemeDesktopBg(void) {
 
 UINT32 ThemeShellClientBg(void) {
     return gShellClientBg;
+}
+
+/* Settings 客户区底色（M10）；暂与默认浅灰一致，不单独持久化 */
+UINT32 ThemeSettingsClientBg(void) {
+    return COLOR_LIGHT_GRAY;
 }
 
 UINT32 ThemeFontId(void) {
@@ -85,14 +88,8 @@ int ThemeSetFontId(UINT32 Id) {
 void ThemeApply(void) {
     (void)FontSetById(gFontId);
     GuiApplyThemeColors();
-    /*
-     * GuiRedraw 后客户区是空的。先重画 Shell 文字（可能穿透上层窗），
-     * 再整窗重画 Settings（含标题栏）盖回去，最后刷新备份供拖动合成。
-     */
-    ConsoleRepaintShellWindows();
-    SettingsUiRefresh();
-    HalVideoClearClip();
-    GuiBackupAllWindows();
+    /* PR-G8：属性已更新 → 一次自下而上合成 → 备份；勿 GuiRedraw+Raise 多遍 */
+    GuiComposeThemeScene();
     (void)ThemeSave();
 }
 

@@ -527,6 +527,33 @@ static void CursorMove(UINT32 X, UINT32 Y) {
     GfxIrqLeave();
 }
 
+static void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
+    const char *S;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 Adv;
+
+    if (W->Title == 0 || W->Title[0] == 0) {
+        return;
+    }
+    S = W->Title;
+    X = W->X + 8;
+    Y = W->Y + 4;
+    Adv = FontAdvanceX();
+    if (Adv == 0) {
+        Adv = 8;
+    }
+    while (*S) {
+        /* 逐字避让上层，避免标题写穿（M4） */
+        if (!PixelOccludedByAbove(Idx, X, Y) &&
+            !PixelOccludedByAbove(Idx, X + Adv / 2, Y)) {
+            HalVideoDrawCharAt(X, Y, *S, COLOR_WHITE);
+        }
+        X += Adv;
+        S++;
+    }
+}
+
 static void DrawWindowAt(int Idx) {
     const GUI_WINDOW *W = &gWins[Idx];
 
@@ -544,9 +571,7 @@ static void DrawWindowAt(int Idx) {
                       COLOR_WHITE);
     FillRectOccluded(Idx, W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
                      W->Height - TITLE_HEIGHT - 2, W->Background);
-    if (!PixelOccludedByAbove(Idx, W->X + 8, W->Y + 4)) {
-        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
-    }
+    DrawTitleStringOccluded(Idx, W);
     DrawCloseButton(Idx, W);
 }
 
@@ -565,9 +590,7 @@ static void DrawWindowChromeAt(int Idx) {
     DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
     DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
                       COLOR_WHITE);
-    if (!PixelOccludedByAbove(Idx, W->X + 8, W->Y + 4)) {
-        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
-    }
+    DrawTitleStringOccluded(Idx, W);
     DrawCloseButton(Idx, W);
 }
 
@@ -1898,10 +1921,10 @@ void GuiApplyThemeColors(void) {
     int i;
     UINT32 Bg = ThemeShellClientBg();
 
+    /* 只更新属性；整屏提交见 GuiComposeThemeScene（PR-G8） */
     for (i = 0; i < MAX_WINS; i++) {
         if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL) {
             gWins[i].Background = Bg;
-            /* GuiRedraw 会清空客户区像素；随后 ConsoleRepaint + Settings 整窗重画 */
             gWins[i].TermSet = 0;
             gWins[i].TermX = 0;
             gWins[i].TermY = 0;
@@ -1909,9 +1932,55 @@ void GuiApplyThemeColors(void) {
             gWins[i].InputLine[0] = 0;
             gWins[i].PromptShown = 0;
             gWins[i].WaitPrompt = 0;
+        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SETTINGS) {
+            gWins[i].Background = ThemeSettingsClientBg();
         }
     }
-    GuiRedraw();
+}
+
+/*
+ * PR-G8：主题一次合成。自下而上 DrawWindowAt + 客户区内容，再备份。
+ * 下层 Shell 字可能短暂写到上层区域，随即被上层窗盖住；禁止 Raise/多遍 GuiRedraw。
+ */
+void GuiComposeThemeScene(void) {
+    int i;
+    int SavedFocus = gFocusWin;
+
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
+    UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+    DesktopDraw();
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active) {
+            continue;
+        }
+        DrawWindowAt(i);
+        if (gWins[i].Kind == GUI_WIN_SHELL) {
+            gFocusWin = i;
+            ConsolePaintShellWindow(i);
+        } else if (gWins[i].Kind == GUI_WIN_SETTINGS) {
+            gFocusWin = i;
+            SettingsUiPaintFocused();
+        }
+    }
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active) {
+            BackupWindowAt(i);
+        }
+    }
+    gFocusWin = SavedFocus;
+    if (SavedFocus >= 0 && SavedFocus < MAX_WINS && gWins[SavedFocus].Active) {
+        GuiFocusApply();
+    } else {
+        HalVideoClearClip();
+    }
+    GfxIrqEnter();
+    CursorPaint();
+    GfxIrqLeave();
+    ComposeEnd();
 }
 
 void GuiPaintWindow(int Idx) {
@@ -2065,7 +2134,7 @@ int GuiOpenSettings(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = COLOR_LIGHT_GRAY;
+    gWins[Idx].Background = ThemeSettingsClientBg();
     gWins[Idx].Title = "Settings";
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;

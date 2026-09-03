@@ -15,6 +15,7 @@ void ThemeInit(void);
 
 UINT32 ThemeDesktopBg(void);
 UINT32 ThemeShellClientBg(void);
+UINT32 ThemeSettingsClientBg(void);
 UINT32 ThemeFontId(void);
 
 void ThemeSetDesktopBg(UINT32 Color);
@@ -32,7 +33,7 @@ int ThemeHasDisplayPref(void);
 void ThemeSetDisplayMode(UINT32 Width, UINT32 Height);
 void ThemeClearDisplayMode(void);
 
-/* 应用 FontId，并把 Shell 客户区底色刷到已开窗，再 GuiRedraw；并尝试 ThemeSave */
+/* 应用 FontId 与窗属性，再 GuiComposeThemeScene 一次提交；并 ThemeSave */
 void ThemeApply(void);
 
 /* PR-D6/D7：从 FAT 读 THEME.CFG；成功 0，无文件/解析失败 -1（保持当前值） */
