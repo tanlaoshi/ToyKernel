@@ -123,7 +123,6 @@ static void GfxIrqLeave(void) {
 static void DrawWindowAt(int Idx);
 static void BackupWindowAt(int Idx);
 static void RaiseWindow(int Idx);
-static void RedrawWindowChrome(void);
 static int RectIntersects(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
                           UINT32 Bx, UINT32 By, UINT32 Bw, UINT32 Bh);
 static void RefreshOtherChrome(int SkipIdx);
@@ -135,6 +134,7 @@ static void DrawWindowChromeAt(int Idx);
 static void PaintWindowFromBackup(int Idx);
 static int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py);
 static int PixelOccludedByAbove(int Idx, UINT32 X, UINT32 Y);
+static int WindowOccludedByOther(int Idx);
 void GuiFocusApply(void);
 void GuiFocusApplyClip(void);
 void GuiFocusSyncCursor(void);
@@ -320,8 +320,9 @@ static void SyncWindowVisuals(void) {
     int i;
 
     /*
-     * Raise 后若只重画标题栏，上层窗客户区仍留在 FB 上，看起来像
-     * 「Settings 印在 Shell 上」。按 z 序从备份整窗贴回。
+     * 按 z 序从备份贴回。无备份时切勿对「被挡住的窗」DrawWindowAt：
+     * FillRectOccluded 只会填露出的客户区，把 Shell 文字抹成灰底（只剩被
+     * Settings 盖住的那一块还在）。
      */
     HalIrqDisable();
     CursorRestore();
@@ -331,6 +332,8 @@ static void SyncWindowVisuals(void) {
         }
         if (gWinBackupValid[i] && gWinBackup[i] != 0) {
             PaintWindowFromBackup(i);
+        } else if (WindowOccludedByOther(i)) {
+            DrawWindowChromeAt(i);
         } else {
             DrawWindowAt(i);
         }
@@ -527,24 +530,6 @@ static void DrawWindowChromeAt(int Idx) {
         HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
     }
     DrawCloseButton(Idx, W);
-}
-
-static void RedrawWindowChrome(void) {
-    int i;
-    int Last = gFocusWin;
-
-    HalIrqDisable();
-    CursorRestore();
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && i != Last) {
-            DrawWindowChromeAt(i);
-        }
-    }
-    if (Last >= 0 && Last < MAX_WINS && gWins[Last].Active) {
-        DrawWindowChromeAt(Last);
-    }
-    CursorPaint();
-    HalIrqEnable();
 }
 
 static int PointInWindow(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
@@ -1760,6 +1745,12 @@ void GuiSetFocusWin(int Idx) {
     }
 }
 
+void GuiBackupFocusWindow(void) {
+    if (gFocusWin >= 0 && gFocusWin < MAX_WINS && gWins[gFocusWin].Active) {
+        BackupWindowAt(gFocusWin);
+    }
+}
+
 /* 置顶并按备份重合成，避免只改焦点却在下层写穿 */
 void GuiRaiseToFront(int Idx) {
     if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
@@ -1768,6 +1759,15 @@ void GuiRaiseToFront(int Idx) {
     RaiseWindow(Idx);
     SyncWindowVisuals();
     GuiFocusApply();
+    /* 顶层无有效备份时补内容，再抓一份干净备份 */
+    if (gWins[Idx].Kind == GUI_WIN_SETTINGS) {
+        SettingsUiRepaint();
+        BackupWindowAt(Idx);
+    } else if (gWins[Idx].Kind == GUI_WIN_SHELL && !gWinBackupValid[Idx]) {
+        /* 欢迎语级恢复；完整历史需备份一直有效 */
+        ConsoleOnShellOpened();
+        BackupWindowAt(Idx);
+    }
 }
 
 int GuiFocusIndex(void) {
@@ -1987,11 +1987,10 @@ int GuiOpenSettings(void) {
 
     DrawWindowAt(Idx);
     gFocusWin = Idx;
-    SettingsUiOpen();
-    BackupWindowAt(Idx);
-    GuiFocusSave();
     RaiseWindow(Idx);
     SyncWindowVisuals();
+    SettingsUiOpen();
+    BackupWindowAt(Idx);
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     DebugWrite("gui: open settings idx=");
@@ -2106,11 +2105,14 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
             gDragOffY = (INT32)Y - (INT32)gWins[gFocusWin].Y;
             gDragArmed = 1;
-            /* 真正移动后再 StartDragBackups；纯点击只置顶 */
         }
-        /* 置顶后 Settings 菜单若不在备份里则补画 */
         if (GuiFocusKind() == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
+        } else if (GuiFocusKind() == GUI_WIN_SHELL &&
+                   !gWinBackupValid[gFocusWin]) {
+            ConsoleOnShellOpened();
+        } else if (gFocusWin >= 0) {
+            BackupWindowAt(gFocusWin);
         }
         return 1;
     }

@@ -351,6 +351,8 @@ void ConsoleOnShellOpened(void) {
     GuiConsoleMarkPrompt();
     GuiFocusSave();
     HalVideoClearClip();
+    /* 整窗备份：Sync 置顶其它窗时靠这份恢复，勿只留空壳 DrawWindowAt */
+    GuiBackupFocusWindow();
 }
 
 void ConsoleRepaintShellWindows(void) {

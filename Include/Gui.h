@@ -48,6 +48,8 @@ void GuiFocusApply(void);
 void GuiFocusApplyClip(void);
 void GuiFocusSyncCursor(void);
 void GuiBackupSyncRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
+/* 把焦点窗当前帧缓冲整窗抓进备份（Shell/Settings 画完内容后调用） */
+void GuiBackupFocusWindow(void);
 void GuiFocusClearClient(void);
 int GuiShellAcceptsInput(void);
 void GuiFocusHome(void);

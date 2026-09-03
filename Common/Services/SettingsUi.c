@@ -68,8 +68,7 @@ static int FocusSettingsWindow(void) {
     int i;
 
     if (GuiFocusKind() == GUI_WIN_SETTINGS) {
-        /* 仅有焦点不够：可能被 Shell 压住仍写穿 */
-        GuiRaiseToFront(GuiFocusIndex());
+        /* 已是焦点则不再 Raise，避免 SettingsUiRepaint→PaintMenu→Raise 递归 */
         return 1;
     }
     for (i = 0; i < GUI_MAX_WINS; i++) {
@@ -362,6 +361,7 @@ void SettingsUiRepaint(void) {
         return;
     }
     PaintMenu();
+    GuiBackupFocusWindow();
 }
 
 void SettingsUiOpen(void) {
