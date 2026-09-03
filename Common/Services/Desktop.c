@@ -21,10 +21,11 @@
 #define DESKTOP_DBLCLICK_SLOP 16u
 
 /*
- * 双击时限：用 BSP 的 LAPIC tick 计数（HalCpuTickInc），与 CPU 主频无关。
- * 约 400 次周期定时中断 ≈ 常见双击窗（具体秒数随 TIMER_INIT 略变）。
+ * 双击时限：BSP LAPIC tick（HalCpuTickInc）。
+ * QEMU 上周期定时极快（可达数万～数十万/秒），400 会短到无法双击；
+ * 取 2e6 约数百毫秒～数秒，覆盖常见手感。
  */
-#define DESKTOP_DBLCLICK_MAX  400ULL
+#define DESKTOP_DBLCLICK_MAX  2000000ULL
 
 typedef enum {
     DESKTOP_ACT_SHELL = 0,
