@@ -112,16 +112,13 @@ Backbuffer → GOP（有条件再等 VBlank）
 
 - **落地**：`Gui.c` 热点路径仅经 `GfxIrqEnter/Leave`（保存 IF、可嵌套）。
 
-### M9. 换字体后布局变、中间写穿可能进备份
+### M9. 换字体后布局变、中间写穿可能进备份 — **G8 ✅**
 
-- **位置**：`ThemeApply` 顺序  
-- **问题**：最终有 `GuiBackupAllWindows`，但中间 Shell 穿透写屏若被备份则拖动带脏像素。  
-- **方向**：先画对（occlusion / 只写备份）再 backup。
+- **落地**：合成结束后再 `BackupWindowAt`；中间帧不单独备份穿透层。
 
-### M10. Settings 背景写死，与 Theme 不同步
+### M10. Settings 背景写死，与 Theme 不同步 — **G8 ✅**
 
-- **位置**：`GuiOpenSettings` `Background = COLOR_LIGHT_GRAY`  
-- **方向**：纳入 `Theme*` 或独立键（体验一致性，非闪屏主因）。
+- **落地**：`ThemeSettingsClientBg()`；`GuiOpenSettings` / `GuiApplyThemeColors` 使用之。
 
 ---
 
