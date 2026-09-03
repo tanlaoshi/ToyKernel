@@ -2,9 +2,10 @@
  * Video.c — GOP 帧缓冲驱动
  *
  * 提供像素级绘制与终端式字符输出（自动换行、滚屏、退格擦除）。
+ * 字形经 Font_*（Fonts/），不直接绑定某一份点阵表。
  */
 #include "Video.h"
-#include "FontData.h"
+#include "Font.h"
 
 static SCREEN_INFO gScreen = {0};
 static UINT32 gBackground = 0x00000000;
@@ -69,29 +70,35 @@ void VideoClearClip(void) {
     gClipOn = 0;
 }
 
-/* 在 (X,Y) 绘制一个 ASCII 字符（按 FONT_PIXEL_SCALE 放大） */
+/* 在 (X,Y) 绘制一个 ASCII 字符（按当前字体 Scale 放大） */
 void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
-    int Row;
-    int Col;
-    int Sy;
-    int Sx;
+    const FONT_FACE *F;
+    const UINT8 *Glyph;
+    UINT32 Scale;
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 Sy;
+    UINT32 Sx;
 
-    if (C < 32 || C > 126) {
+    F = FontGetCurrent();
+    Glyph = FontGlyph(C);
+    if (F == 0 || Glyph == 0) {
         return;
     }
-    const UINT8 *Glyph = FontData[C - 32];
-    for (Row = 0; Row < FONT_HEIGHT; Row++) {
-        for (Col = 0; Col < FONT_WIDTH; Col++) {
-            UINT8 Byte = Glyph[Row * FONT_BYTES_PER_ROW + (Col / 8)];
-            int Bit = 7 - (Col % 8);
+    Scale = F->Scale ? F->Scale : 1u;
+
+    for (Row = 0; Row < F->Height; Row++) {
+        for (Col = 0; Col < F->Width; Col++) {
+            UINT8 Byte = Glyph[Row * F->BytesPerRow + (Col / 8)];
+            int Bit = 7 - (int)(Col % 8);
             if ((Byte & (1 << Bit)) == 0) {
                 continue;
             }
-            for (Sy = 0; Sy < FONT_PIXEL_SCALE; Sy++) {
-                for (Sx = 0; Sx < FONT_PIXEL_SCALE; Sx++) {
+            for (Sy = 0; Sy < Scale; Sy++) {
+                for (Sx = 0; Sx < Scale; Sx++) {
                     VideoDrawPixel(
-                        X + (UINT32)(Col * FONT_PIXEL_SCALE + Sx),
-                        Y + (UINT32)(Row * FONT_PIXEL_SCALE + Sy),
+                        X + Col * Scale + Sx,
+                        Y + Row * Scale + Sy,
                         Color);
                 }
             }
@@ -101,13 +108,16 @@ void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
 
 void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     UINT32 CurX = X;
+    UINT32 AdvX = FontAdvanceX();
+    UINT32 AdvY = FontAdvanceY();
+
     while (*Text) {
         if (*Text == '\n') {
             CurX = X;
-            Y += FONT_ADVANCE_Y;
+            Y += AdvY;
         } else {
             VideoDrawCharAt(CurX, Y, *Text, Color);
-            CurX += FONT_ADVANCE_X;
+            CurX += AdvX;
         }
         Text++;
     }
@@ -296,7 +306,7 @@ void VideoClearScreen(UINT32 Color) {
 /* 文本区域向上滚动一行 */
 static void ScrollClip(void) {
     UINT32 *Framebuffer = (UINT32 *)(UINTN)gScreen.FrameBufferBase;
-    UINT32 LineHeight = FONT_ADVANCE_Y;
+    UINT32 LineHeight = FontAdvanceY();
     UINT32 Y;
     UINT32 X;
     UINT32 XEnd;
@@ -330,7 +340,7 @@ static void ScrollScreen(void) {
         return;
     }
 
-    UINT32 LineHeight = FONT_ADVANCE_Y;
+    UINT32 LineHeight = FontAdvanceY();
     
     for (UINT32 Y = 0; Y < gScreen.Height - LineHeight; Y++) {
         for (UINT32 X = 0; X < gScreen.PixelsPerScanLine; X++) {
@@ -348,7 +358,7 @@ static void ScrollScreen(void) {
 
 /* 换行：光标移到下一行，必要时滚屏 */
 void VideoNewLine(void) {
-    UINT32 LineHeight = FONT_ADVANCE_Y;
+    UINT32 LineHeight = FontAdvanceY();
 
     if (!gScreen.FrameBufferBase || gScreen.Height == 0 || gScreen.Width == 0) {
         return;
@@ -362,7 +372,7 @@ void VideoNewLine(void) {
         }
         gScreen.CursorX = gClipX;
         gScreen.CursorY += LineHeight;
-        while (gScreen.CursorY + FONT_CELL_H > gClipY + gClipH) {
+        while (gScreen.CursorY + FontCellH() > gClipY + gClipH) {
             ScrollClip();
             if (gScreen.CursorY < LineHeight) {
                 gScreen.CursorY = gClipY;
@@ -376,7 +386,7 @@ void VideoNewLine(void) {
     gScreen.CursorX = 0;
     gScreen.CursorY += LineHeight;
 
-    while (gScreen.CursorY + FONT_CELL_H > gScreen.Height) {
+    while (gScreen.CursorY + FontCellH() > gScreen.Height) {
         ScrollScreen();
         if (gScreen.CursorY < LineHeight) {
             gScreen.CursorY = 0;
@@ -412,28 +422,28 @@ void VideoDrawChar(char c, UINT32 Color) {
         MaxY = gScreen.Height;
     }
     
-    if (gScreen.CursorX + FONT_ADVANCE_X > MaxX) {
+    if (gScreen.CursorX + FontAdvanceX() > MaxX) {
         VideoNewLine();
     }
     
-    if (gScreen.CursorY + FONT_CELL_H > MaxY) {
+    if (gScreen.CursorY + FontCellH() > MaxY) {
         VideoNewLine();
     }
     
     VideoDrawCharAt(gScreen.CursorX, gScreen.CursorY, c, Color);
-    gScreen.CursorX += FONT_ADVANCE_X;
+    gScreen.CursorX += FontAdvanceX();
 }
 
 /* 擦除光标前一个字符（用背景色覆盖） */
 void VideoEraseLastChar(void) {
-    UINT32 Step = FONT_ADVANCE_X;
+    UINT32 Step = FontAdvanceX();
     UINT32 MinX = gClipOn ? gClipX : 0;
 
     if (gScreen.CursorX < MinX + Step) {
         return;
     }
     gScreen.CursorX -= Step;
-    for (UINT32 Row = 0; Row < FONT_CELL_H; Row++) {
+    for (UINT32 Row = 0; Row < FontCellH(); Row++) {
         for (UINT32 Col = 0; Col < Step; Col++) {
             VideoDrawPixel(gScreen.CursorX + Col, gScreen.CursorY + Row, gBackground);
         }

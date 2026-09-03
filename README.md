@@ -71,6 +71,7 @@ ToyKernel/
 │   │   └── Drivers/     # Ata、Serial、XHCI、Net、Video
 │   ├── RiscV/           # 占位
 │   └── Arm64/           # 占位
+├── Fonts/               # 点阵字体数据 + 注册表（Font_* API 见 Include/Font.h）
 ├── User/                # Ring 3 示例程序
 ├── Makefile
 └── build.sh

@@ -16,6 +16,7 @@
 #include "Tcp.h"
 #include "ShellCommands.h"
 #include "Debug.h"
+#include "Font.h"
 
 static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
@@ -56,6 +57,7 @@ static int InitVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
+    FontInit();
     HalVideoSet(&V);
     HalVideoClearScreen(COLOR_DARK_GRAY);
     return 0;

@@ -27,6 +27,7 @@ endif
 
 INCLUDES_COMMON = -IInclude \
                   -ICommon/Library \
+                  -IFonts \
                   -IHAL/$(HAL_ARCH)
 INCLUDES_HAL    = $(INCLUDES_COMMON) \
                   -IHAL/$(HAL_ARCH)/Drivers
@@ -84,6 +85,7 @@ BUILDDIR = Build
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
+FONT_SRCS     := $(wildcard Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
 ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
 ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
@@ -92,6 +94,7 @@ ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S,$(ARCH_ASM_ALL))
 CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
+FONT_OBJS     := $(patsubst Fonts/%.c,$(BUILDDIR)/Fonts/%.o,$(FONT_SRCS))
 DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o,$(DRIVER_SRCS))
 ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_SRCS))
 ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_ASM))
@@ -125,7 +128,7 @@ USER_SYSFORK_OBJ = User/sysfork.o
 USER_LD = User/user.ld
 endif
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(BUILDDIR)/Kernel.elf
 
 .PHONY: all clean
@@ -152,6 +155,10 @@ $(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+
+$(BUILDDIR)/Fonts/%.o: Fonts/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 

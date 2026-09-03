@@ -11,7 +11,7 @@
 #include "UI.h"
 #include "Hal.h"
 #include "Gui.h"
-#include "FontData.h"
+#include "Font.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -61,8 +61,8 @@ static void ConsoleDrawString(const char *Text, UINT32 Color) {
     HalConsoleGetTextCursor(&X1, &Y1);
     L = X0 < X1 ? X0 : X1;
     T = Y0 < Y1 ? Y0 : Y1;
-    R = (X0 > X1 ? X0 : X1) + FONT_ADVANCE_X;
-    B = (Y0 > Y1 ? Y0 : Y1) + FONT_ADVANCE_Y;
+    R = (X0 > X1 ? X0 : X1) + FontAdvanceX();
+    B = (Y0 > Y1 ? Y0 : Y1) + FontAdvanceY();
     if (R > L && B > T) {
         GuiBackupSyncRect(L, T, R - L, B - T);
     }
@@ -78,7 +78,7 @@ static void ConsoleDrawChar(char C, UINT32 Color) {
     GuiFocusApplyClip();
     HalConsoleGetTextCursor(&X, &Y);
     HalConsoleDrawChar(C, Color);
-    GuiBackupSyncRect(X, Y, FONT_CELL_W, FONT_CELL_H);
+    GuiBackupSyncRect(X, Y, FontCellW(), FontCellH());
     GuiFocusSyncCursor();
     GuiFrameBufferEnd();
 }
@@ -372,7 +372,7 @@ void ConsoleOnBackspace(void) {
             UINT32 Y;
 
             HalConsoleGetTextCursor(&X, &Y);
-            GuiBackupSyncRect(X, Y, FONT_ADVANCE_X, FONT_CELL_H);
+            GuiBackupSyncRect(X, Y, FontAdvanceX(), FontCellH());
         }
         GuiFocusSyncCursor();
         GuiFrameBufferEnd();
