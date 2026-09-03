@@ -30,7 +30,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ### 存储与启动
 
-- **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32（8.3 + LFN，子路径，写 ≤64K）
+- **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32（8.3 + LFN，`.`/`..`，`mkdir`/`rmdir`，写 ≤1MB）
 - **卷选择**：优先挂载含 `TOYOS.ID` 的 FAT 卷
 - **双盘 QEMU**：`ToyImage/run-split.sh` — 盘 0 为 Boot/ESP，盘 1 为 `rootfs/`（系统文件唯一来源）
 
@@ -175,7 +175,7 @@ echo hello | nc -u 127.0.0.1 5555
 
 ## 已知限制
 
-- FAT：8.3 + LFN；写 ≤64K；无完整 Unicode 控制台渲染
+- FAT：8.3 + LFN；`mkdir`/`rmdir`；写 ≤1MB；无完整 Unicode 控制台渲染
 - TCP：无重传与滑动窗口
 - fork：COW 用户页；`wait` 支持 `WNOHANG`
 - 最多 8 个任务槽

@@ -9,8 +9,10 @@
 #define SECTOR 512
 #define FAT32_EOC 0x0FFFFFF8u
 #define FAT16_EOC 0xFFF8u
-#define FAT_WRITE_MAX (64 * 1024)
+/* PR-FS1：多分簇写稳；上限防误写撑爆 vvfat（FD 层仍可能更小） */
+#define FAT_WRITE_MAX (1024 * 1024)
 #define FAT_NAME_MAX 255
+#define FAT_PATH_DEPTH 16
 #define FAT_ATTR_RO   0x01
 #define FAT_ATTR_HID  0x02
 #define FAT_ATTR_SYS  0x04
@@ -190,6 +192,18 @@ static int StrEqIgnoreCase(const char *A, const char *B) {
         B++;
     }
     return *A == *B;
+}
+
+static int CompIsDot(const char *N) {
+    return N && N[0] == '.' && N[1] == 0;
+}
+
+static int CompIsDotDot(const char *N) {
+    return N && N[0] == '.' && N[1] == '.' && N[2] == 0;
+}
+
+static int CompIsDotOrDotDot(const char *N) {
+    return CompIsDot(N) || CompIsDotDot(N);
 }
 
 static UINT8 Fat83Checksum(const UINT8 *Name83) {
@@ -502,37 +516,46 @@ static int LookupInDir(FAT_DIR_CTX Dir, const char *Name,
 }
 
 static int ResolvePathAsDir(const char *Path, FAT_DIR_CTX *OutDir) {
-    FAT_DIR_CTX Cur = FatRootCtx();
+    FAT_DIR_CTX Stack[FAT_PATH_DEPTH];
+    int Sp = 0;
     char Comp[FAT_NAME_MAX + 1];
-    const char *P = Path;
+    const char *P = Path ? Path : "";
 
-    if (!Path || !Path[0]) {
-        *OutDir = Cur;
-        return 1;
-    }
+    Stack[0] = FatRootCtx();
     while (CopyPathComponent(&P, Comp, sizeof(Comp))) {
         UINT32 SubCluster = 0;
         UINT32 SubSize = 0;
         UINT8 Attr = 0;
 
-        if (!LookupInDir(Cur, Comp, &SubCluster, &SubSize, &Attr)) {
+        if (CompIsDot(Comp)) {
+            continue;
+        }
+        if (CompIsDotDot(Comp)) {
+            if (Sp > 0) {
+                Sp--;
+            }
+            continue;
+        }
+        if (!LookupInDir(Stack[Sp], Comp, &SubCluster, &SubSize, &Attr)) {
             return 0;
         }
         if (!(Attr & FAT_ATTR_DIR)) {
             return 0;
         }
-        Cur.IsFat16Root = 0;
-        Cur.Cluster = SubCluster;
-        if (!*P || (*P == '/' && P[1] == 0)) {
-            *OutDir = Cur;
-            return 1;
+        if (Sp + 1 >= FAT_PATH_DEPTH) {
+            return 0;
         }
+        Sp++;
+        Stack[Sp].IsFat16Root = 0;
+        Stack[Sp].Cluster = SubCluster;
     }
-    return 0;
+    *OutDir = Stack[Sp];
+    return 1;
 }
 
 static int ResolvePathParentLeaf(const char *Path, FAT_DIR_CTX *OutParent, char *Leaf) {
-    FAT_DIR_CTX Cur = FatRootCtx();
+    FAT_DIR_CTX Stack[FAT_PATH_DEPTH];
+    int Sp = 0;
     char Comp[FAT_NAME_MAX + 1];
     const char *P = Path;
     char Last[FAT_NAME_MAX + 1];
@@ -542,6 +565,7 @@ static int ResolvePathParentLeaf(const char *Path, FAT_DIR_CTX *OutParent, char 
     if (!Path || !Path[0]) {
         return 0;
     }
+    Stack[0] = FatRootCtx();
     Last[0] = 0;
     while (CopyPathComponent(&P, Comp, sizeof(Comp))) {
         if (!*P || (*P == '/' && P[1] == 0)) {
@@ -554,18 +578,31 @@ static int ResolvePathParentLeaf(const char *Path, FAT_DIR_CTX *OutParent, char 
             HasLast = 1;
             break;
         }
+        if (CompIsDot(Comp)) {
+            continue;
+        }
+        if (CompIsDotDot(Comp)) {
+            if (Sp > 0) {
+                Sp--;
+            }
+            continue;
+        }
         {
             UINT32 SubCluster = 0;
             UINT32 SubSize = 0;
             UINT8 Attr = 0;
-            if (!LookupInDir(Cur, Comp, &SubCluster, &SubSize, &Attr)) {
+            if (!LookupInDir(Stack[Sp], Comp, &SubCluster, &SubSize, &Attr)) {
                 return 0;
             }
             if (!(Attr & FAT_ATTR_DIR)) {
                 return 0;
             }
-            Cur.IsFat16Root = 0;
-            Cur.Cluster = SubCluster;
+            if (Sp + 1 >= FAT_PATH_DEPTH) {
+                return 0;
+            }
+            Sp++;
+            Stack[Sp].IsFat16Root = 0;
+            Stack[Sp].Cluster = SubCluster;
         }
     }
     if (!HasLast) {
@@ -577,7 +614,7 @@ static int ResolvePathParentLeaf(const char *Path, FAT_DIR_CTX *OutParent, char 
             break;
         }
     }
-    *OutParent = Cur;
+    *OutParent = Stack[Sp];
     return 1;
 }
 
@@ -708,6 +745,23 @@ static int DirMaxIndex(FAT_DIR_CTX Dir) {
 
 static int NameIsDot(const UINT8 *E) {
     return E[0] == '.' && (E[1] == ' ' || (E[1] == '.' && E[2] == ' '));
+}
+
+const char *FatStrError(int Err) {
+    switch (Err) {
+    case FAT_OK:            return "ok";
+    case FAT_ERR_IO:        return "I/O error";
+    case FAT_ERR_NOENT:     return "not found";
+    case FAT_ERR_NOSPC:     return "no space";
+    case FAT_ERR_NOTDIR:    return "not a directory";
+    case FAT_ERR_ISDIR:     return "is a directory";
+    case FAT_ERR_NOTEMPTY:  return "directory not empty";
+    case FAT_ERR_EXIST:     return "exists";
+    case FAT_ERR_INVAL:     return "invalid";
+    case FAT_ERR_NAMETOOLONG: return "name too long";
+    case FAT_ERR_FBIG:      return "file too large";
+    default:                return "error";
+    }
 }
 
 /*
@@ -1009,6 +1063,171 @@ static int FindFreeRun(FAT_DIR_CTX Dir, int Need, int *OutIndex) {
     return 0;
 }
 
+/* FAT32/子目录：目录簇满时追加新簇；FAT16 根不可扩展 */
+static int DirGrow(FAT_DIR_CTX Dir) {
+    UINT32 Tail;
+    UINT32 Next;
+    UINT32 New;
+    UINT32 z;
+    UINT32 Cb;
+
+    if (Dir.IsFat16Root) {
+        return 0;
+    }
+    Tail = Dir.Cluster;
+    if (Tail < 2) {
+        return 0;
+    }
+    for (;;) {
+        Next = FatNext(Tail);
+        if (Next == 0xFFFFFFFFu) {
+            return 0;
+        }
+        if (ClusterEnd(Next)) {
+            break;
+        }
+        if (Next < 2) {
+            return 0;
+        }
+        Tail = Next;
+    }
+    New = FatAllocCluster();
+    if (New < 2) {
+        return 0;
+    }
+    Cb = ClusterBytes();
+    for (z = 0; z < Cb; z++) {
+        gCluster[z] = 0;
+    }
+    if (!StoreCluster(New)) {
+        FatSet(New, 0);
+        return 0;
+    }
+    if (!FatSet(Tail, New)) {
+        FatSet(New, 0);
+        return 0;
+    }
+    return 1;
+}
+
+static int DirFindSlots(FAT_DIR_CTX Dir, int Need, int *OutIndex) {
+    int Grow;
+
+    for (Grow = 0; Grow < 8; Grow++) {
+        if (FindFreeRun(Dir, Need, OutIndex)) {
+            return 1;
+        }
+        if (!DirGrow(Dir)) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static void FillSfnEntry(UINT8 *E, const UINT8 Name83[11], UINT8 Attr, UINT32 Cluster,
+                         UINT32 Size) {
+    UINT32 i;
+
+    for (i = 0; i < 32; i++) {
+        E[i] = 0;
+    }
+    for (i = 0; i < 11; i++) {
+        E[i] = Name83[i];
+    }
+    E[11] = Attr;
+    if (gFatType == 32) {
+        Write16(E + 20, (UINT16)((Cluster >> 16) & 0xFFFF));
+    }
+    Write16(E + 26, (UINT16)(Cluster & 0xFFFF));
+    Write32(E + 28, Size);
+}
+
+static UINT32 ParentClusterForDotDot(FAT_DIR_CTX Parent) {
+    if (Parent.IsFat16Root) {
+        return 0;
+    }
+    if (gFatType == 32 && Parent.Cluster == gRootCluster) {
+        return 0;
+    }
+    return Parent.Cluster;
+}
+
+/* 在 Parent 中写入 LFN+SFN；Existing 时覆盖。成功 FAT_OK */
+static int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
+                          UINT32 Cluster, UINT32 Size) {
+    UINT8 Name83[11];
+    int UseLfn;
+    int LfnCount;
+    int Need;
+    int Index = 0;
+    int Existing = 0;
+    UINT32 OldCluster = 0;
+    UINT8 OldAttr = 0;
+    UINT8 E[32];
+    UINT8 Cksum;
+    int SfnIndex;
+    int Ord;
+
+    if (!Leaf || !Leaf[0] || CompIsDotOrDotDot(Leaf)) {
+        return FAT_ERR_INVAL;
+    }
+    UseLfn = !PathTo83(Leaf, Name83);
+    if (UseLfn) {
+        if (!Make83Alias(Parent, Leaf, Name83)) {
+            return FAT_ERR_NOSPC;
+        }
+        LfnCount = LfnEntryCountForName(Leaf);
+        if (LfnCount <= 0 || LfnCount > 20) {
+            return FAT_ERR_NAMETOOLONG;
+        }
+        Need = LfnCount + 1;
+    } else {
+        LfnCount = 0;
+        Need = 1;
+    }
+
+    if (!FindDirIndex(Parent, Leaf, Need, &Index, &Existing, &OldCluster, &OldAttr)) {
+        if (!DirFindSlots(Parent, Need, &Index)) {
+            return FAT_ERR_NOSPC;
+        }
+        Existing = 0;
+    }
+
+    if (Existing) {
+        UINT8 Old[32];
+        if (!DirReadEntry(Parent, (UINT32)Index, Old)) {
+            return FAT_ERR_IO;
+        }
+        DeleteLfnPrefix(Parent, Index, Fat83Checksum(Old));
+        if (OldCluster >= 2 && !FatFreeChain(OldCluster)) {
+            return FAT_ERR_IO;
+        }
+        Old[0] = 0xE5;
+        if (!DirWriteEntry(Parent, (UINT32)Index, Old)) {
+            return FAT_ERR_IO;
+        }
+        if (!DirFindSlots(Parent, Need, &Index)) {
+            return FAT_ERR_NOSPC;
+        }
+    }
+
+    SfnIndex = Index + LfnCount;
+    Cksum = Fat83Checksum(Name83);
+    if (UseLfn) {
+        for (Ord = LfnCount; Ord >= 1; Ord--) {
+            FillLfnEntry(E, Ord, Ord == LfnCount, Cksum, Leaf);
+            if (!DirWriteEntry(Parent, (UINT32)(SfnIndex - Ord), E)) {
+                return FAT_ERR_IO;
+            }
+        }
+    }
+    FillSfnEntry(E, Name83, Attr, Cluster, Size);
+    if (!DirWriteEntry(Parent, (UINT32)SfnIndex, E)) {
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
+}
+
 static int ReadFileClusters(UINT32 Cluster, UINT32 Size, void *Buffer, UINTN MaxSize,
                             UINTN *OutSize) {
     UINT8 *Dst = (UINT8 *)Buffer;
@@ -1046,7 +1265,7 @@ int FatInit(UINT32 StartLba) {
 
     gStartLba = StartLba;
     if (!LoadSector(StartLba)) {
-        return 0;
+        return FAT_ERR_IO;
     }
     gBytesPerSector = Read16(gSector + 11);
     gSectorsPerCluster = gSector[13];
@@ -1055,7 +1274,7 @@ int FatInit(UINT32 StartLba) {
     gFatType = 0;
 
     if (gBytesPerSector != SECTOR || gSectorsPerCluster == 0 || gSectorsPerCluster > 128) {
-        return 0;
+        return FAT_ERR_INVAL;
     }
 
     TotSec = Read16(gSector + 19);
@@ -1077,7 +1296,7 @@ int FatInit(UINT32 StartLba) {
         DebugWrite("FAT32 root cluster ");
         DebugHex32(gRootCluster);
         DebugWrite("\n");
-        return 1;
+        return FAT_OK;
     }
 
     gSectorsPerFat = Read16(gSector + 22);
@@ -1097,7 +1316,7 @@ int FatInit(UINT32 StartLba) {
     DebugWrite("FAT16 root LBA ");
     DebugHex32(gRootLba);
     DebugWrite("\n");
-    return 1;
+    return FAT_OK;
 }
 
 int FatListRoot(void) {
@@ -1108,10 +1327,12 @@ int FatListDir(const char *Path) {
     FAT_DIR_CTX Dir;
 
     if (!ResolvePathAsDir(Path ? Path : "", &Dir)) {
-        ConsoleWrite("fat: dir not found\n");
-        return 0;
+        return FAT_ERR_NOENT;
     }
-    return ForEachDir(Dir, 1, 0, 0, 0, 0);
+    if (!ForEachDir(Dir, 1, 0, 0, 0, 0)) {
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
 }
 
 int FatReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
@@ -1121,95 +1342,60 @@ int FatReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
     UINT32 Size = 0;
     UINT8 Attr = 0;
 
-    if (!Path || !Path[0]) {
-        return 0;
+    if (!Path || !Path[0] || !Buffer) {
+        return FAT_ERR_INVAL;
     }
     if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
-        return 0;
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDotOrDotDot(Leaf)) {
+        return FAT_ERR_ISDIR;
     }
     if (!LookupInDir(Parent, Leaf, &Cluster, &Size, &Attr)) {
-        return 0;
+        return FAT_ERR_NOENT;
     }
     if (Attr & FAT_ATTR_DIR) {
-        return 0;
+        return FAT_ERR_ISDIR;
     }
-    return ReadFileClusters(Cluster, Size, Buffer, MaxSize, OutSize);
+    if (!ReadFileClusters(Cluster, Size, Buffer, MaxSize, OutSize)) {
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
 }
 
 int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     FAT_DIR_CTX Parent;
     char Leaf[FAT_NAME_MAX + 1];
-    UINT8 Name83[11];
-    int UseLfn;
-    int LfnCount;
-    int Need;
-    int Index = 0;
-    int Existing = 0;
-    UINT32 OldCluster = 0;
     UINT32 FirstCluster = 0;
     UINT32 PrevCluster = 0;
     UINT32 NeedClusters;
     UINT32 Cb;
     UINT32 Written = 0;
     const UINT8 *Src = (const UINT8 *)Buffer;
-    UINT8 E[32];
     UINT32 i;
-    UINT8 Cksum;
-    int SfnIndex;
-    int Ord;
+    int Rc;
+    int Existing = 0;
+    int Index = 0;
+    UINT32 OldCluster = 0;
+    UINT8 OldAttr = 0;
 
     if (!Path || (!Buffer && Size > 0)) {
-        return 0;
+        return FAT_ERR_INVAL;
     }
     if (Size > FAT_WRITE_MAX) {
-        ConsoleWrite("fat: write too large (max 64K)\n");
-        return 0;
+        return FAT_ERR_FBIG;
     }
     if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
-        ConsoleWrite("fat: bad path\n");
-        return 0;
+        return FAT_ERR_NOENT;
     }
-    UseLfn = !PathTo83(Leaf, Name83);
-    if (UseLfn) {
-        if (!Make83Alias(Parent, Leaf, Name83)) {
-            ConsoleWrite("fat: no 8.3 alias\n");
-            return 0;
-        }
-        LfnCount = LfnEntryCountForName(Leaf);
-        if (LfnCount <= 0 || LfnCount > 20) {
-            ConsoleWrite("fat: name too long\n");
-            return 0;
-        }
-        Need = LfnCount + 1;
-    } else {
-        LfnCount = 0;
-        Need = 1;
+    if (CompIsDotOrDotDot(Leaf)) {
+        return FAT_ERR_INVAL;
     }
-
-    if (!FindDirIndex(Parent, Leaf, Need, &Index, &Existing, &OldCluster, 0)) {
-        ConsoleWrite("fat: no dir slot\n");
-        return 0;
-    }
-
-    if (Existing) {
-        UINT8 Old[32];
-        if (!DirReadEntry(Parent, (UINT32)Index, Old)) {
-            return 0;
-        }
-        DeleteLfnPrefix(Parent, Index, Fat83Checksum(Old));
-        if (OldCluster >= 2 && !FatFreeChain(OldCluster)) {
-            return 0;
-        }
-        Old[0] = 0xE5;
-        if (!DirWriteEntry(Parent, (UINT32)Index, Old)) {
-            return 0;
-        }
-        if (!FindFreeRun(Parent, Need, &Index)) {
-            ConsoleWrite("fat: no dir slot for LFN\n");
-            return 0;
+    if (FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &OldCluster, &OldAttr) && Existing) {
+        if (OldAttr & FAT_ATTR_DIR) {
+            return FAT_ERR_ISDIR;
         }
     }
-    SfnIndex = Index + LfnCount;
 
     Cb = ClusterBytes();
     NeedClusters = Size == 0 ? 0 : (UINT32)((Size + Cb - 1) / Cb);
@@ -1218,17 +1404,16 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         UINT32 Cl = FatAllocCluster();
         UINT32 Chunk;
         if (Cl < 2) {
-            ConsoleWrite("fat: no free cluster\n");
             if (FirstCluster >= 2) {
                 FatFreeChain(FirstCluster);
             }
-            return 0;
+            return FAT_ERR_NOSPC;
         }
         if (i == 0) {
             FirstCluster = Cl;
         } else if (!FatSet(PrevCluster, Cl)) {
             FatFreeChain(FirstCluster);
-            return 0;
+            return FAT_ERR_IO;
         }
         PrevCluster = Cl;
 
@@ -1244,43 +1429,19 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         }
         if (!StoreCluster(Cl)) {
             FatFreeChain(FirstCluster);
-            return 0;
+            return FAT_ERR_IO;
         }
         Written += Chunk;
     }
 
-    Cksum = Fat83Checksum(Name83);
-    if (UseLfn) {
-        for (Ord = LfnCount; Ord >= 1; Ord--) {
-            FillLfnEntry(E, Ord, Ord == LfnCount, Cksum, Leaf);
-            if (!DirWriteEntry(Parent, (UINT32)(SfnIndex - Ord), E)) {
-                if (FirstCluster >= 2) {
-                    FatFreeChain(FirstCluster);
-                }
-                return 0;
-            }
-        }
-    }
-
-    for (i = 0; i < 32; i++) {
-        E[i] = 0;
-    }
-    for (i = 0; i < 11; i++) {
-        E[i] = Name83[i];
-    }
-    E[11] = FAT_ATTR_ARCH;
-    if (gFatType == 32) {
-        Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
-    }
-    Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
-    Write32(E + 28, (UINT32)Size);
-    if (!DirWriteEntry(Parent, (UINT32)SfnIndex, E)) {
+    Rc = DirCreateEntry(Parent, Leaf, FAT_ATTR_ARCH, FirstCluster, (UINT32)Size);
+    if (Rc != FAT_OK) {
         if (FirstCluster >= 2) {
             FatFreeChain(FirstCluster);
         }
-        return 0;
+        return Rc;
     }
-    return 1;
+    return FAT_OK;
 }
 
 int FatDeleteFile(const char *Path) {
@@ -1293,32 +1454,150 @@ int FatDeleteFile(const char *Path) {
     UINT8 E[32];
 
     if (!Path || !Path[0]) {
-        return 0;
+        return FAT_ERR_INVAL;
     }
     if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
-        ConsoleWrite("fat: bad path\n");
-        return 0;
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDotOrDotDot(Leaf)) {
+        return FAT_ERR_INVAL;
     }
     if (!FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &Cluster, &Attr) || !Existing) {
-        ConsoleWrite("fat: not found\n");
-        return 0;
+        return FAT_ERR_NOENT;
     }
     if (Attr & FAT_ATTR_DIR) {
         FAT_DIR_CTX Sub;
         Sub.IsFat16Root = 0;
         Sub.Cluster = Cluster;
+        if (Cluster < 2) {
+            return FAT_ERR_INVAL;
+        }
         if (!DirIsEmpty(Sub)) {
-            ConsoleWrite("fat: dir not empty\n");
-            return 0;
+            return FAT_ERR_NOTEMPTY;
         }
     }
     if (!DirReadEntry(Parent, (UINT32)Index, E)) {
-        return 0;
+        return FAT_ERR_IO;
     }
     DeleteLfnPrefix(Parent, Index, Fat83Checksum(E));
     if (Cluster >= 2 && !FatFreeChain(Cluster)) {
-        return 0;
+        return FAT_ERR_IO;
     }
     E[0] = 0xE5;
-    return DirWriteEntry(Parent, (UINT32)Index, E);
+    if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
+}
+
+int FatMkdir(const char *Path) {
+    FAT_DIR_CTX Parent;
+    char Leaf[FAT_NAME_MAX + 1];
+    UINT32 NewCl;
+    UINT32 DotDotCl;
+    UINT8 NameDot[11];
+    UINT8 NameDotDot[11];
+    UINT8 E[32];
+    UINT32 z;
+    UINT32 Cb;
+    int Index = 0;
+    int Existing = 0;
+    UINT32 OldCluster = 0;
+    int Rc;
+
+    if (!Path || !Path[0]) {
+        return FAT_ERR_INVAL;
+    }
+    if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDotOrDotDot(Leaf)) {
+        return FAT_ERR_INVAL;
+    }
+    if (FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &OldCluster, 0) && Existing) {
+        return FAT_ERR_EXIST;
+    }
+
+    NewCl = FatAllocCluster();
+    if (NewCl < 2) {
+        return FAT_ERR_NOSPC;
+    }
+    Cb = ClusterBytes();
+    for (z = 0; z < Cb; z++) {
+        gCluster[z] = 0;
+    }
+    for (z = 0; z < 11; z++) {
+        NameDot[z] = ' ';
+        NameDotDot[z] = ' ';
+    }
+    NameDot[0] = '.';
+    NameDotDot[0] = '.';
+    NameDotDot[1] = '.';
+    DotDotCl = ParentClusterForDotDot(Parent);
+    FillSfnEntry(E, NameDot, FAT_ATTR_DIR, NewCl, 0);
+    for (z = 0; z < 32; z++) {
+        gCluster[z] = E[z];
+    }
+    FillSfnEntry(E, NameDotDot, FAT_ATTR_DIR, DotDotCl, 0);
+    for (z = 0; z < 32; z++) {
+        gCluster[32 + z] = E[z];
+    }
+    if (!StoreCluster(NewCl)) {
+        FatSet(NewCl, 0);
+        return FAT_ERR_IO;
+    }
+
+    Rc = DirCreateEntry(Parent, Leaf, FAT_ATTR_DIR, NewCl, 0);
+    if (Rc != FAT_OK) {
+        FatFreeChain(NewCl);
+        return Rc;
+    }
+    return FAT_OK;
+}
+
+int FatRmdir(const char *Path) {
+    FAT_DIR_CTX Parent;
+    char Leaf[FAT_NAME_MAX + 1];
+    int Index = 0;
+    int Existing = 0;
+    UINT32 Cluster = 0;
+    UINT8 Attr = 0;
+    UINT8 E[32];
+    FAT_DIR_CTX Sub;
+
+    if (!Path || !Path[0]) {
+        return FAT_ERR_INVAL;
+    }
+    if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDotOrDotDot(Leaf)) {
+        return FAT_ERR_INVAL;
+    }
+    if (!FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &Cluster, &Attr) || !Existing) {
+        return FAT_ERR_NOENT;
+    }
+    if (!(Attr & FAT_ATTR_DIR)) {
+        return FAT_ERR_NOTDIR;
+    }
+    if (Cluster < 2) {
+        return FAT_ERR_INVAL;
+    }
+    Sub.IsFat16Root = 0;
+    Sub.Cluster = Cluster;
+    if (!DirIsEmpty(Sub)) {
+        return FAT_ERR_NOTEMPTY;
+    }
+    if (!DirReadEntry(Parent, (UINT32)Index, E)) {
+        return FAT_ERR_IO;
+    }
+    DeleteLfnPrefix(Parent, Index, Fat83Checksum(E));
+    if (!FatFreeChain(Cluster)) {
+        return FAT_ERR_IO;
+    }
+    E[0] = 0xE5;
+    if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
 }

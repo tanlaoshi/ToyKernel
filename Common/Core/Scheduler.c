@@ -193,7 +193,7 @@ static void TaskClearFds(TASK *T) {
 
 static void FdFlush(TASK_FD *F) {
     if (F->Used && F->Dirty && F->Path[0] && F->Data) {
-        FatWriteFile(F->Path, F->Data, F->Size);
+        (void)FatWriteFile(F->Path, F->Data, F->Size);
         F->Dirty = 0;
     }
 }
@@ -242,7 +242,7 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     if (!Buf) {
         return -1;
     }
-    if (!FatReadFile(Path, Buf, FD_MAX_BYTES, &Size)) {
+    if (FatReadFile(Path, Buf, FD_MAX_BYTES, &Size) != FAT_OK) {
         Size = 0;
     }
     T->Fds[Slot].Used = 1;

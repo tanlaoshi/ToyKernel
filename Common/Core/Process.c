@@ -62,7 +62,7 @@ static int ProcessLoadNeeded(VM_ADDR_SPACE *Space, const void *MainImage,
             return -1;
         }
         Size = 0;
-        if (!FatReadFile(Needed[i], Buf, ELF_MAX_SIZE, &Size) || Size < 64) {
+        if (FatReadFile(Needed[i], Buf, ELF_MAX_SIZE, &Size) != FAT_OK || Size < 64) {
             ConsoleWrite("exec: missing shared lib: ");
             ConsoleWrite(Needed[i]);
             ConsoleWrite("\n");
@@ -131,7 +131,7 @@ int ProcessExec(const char *Path) {
         return -1;
     }
 
-    if (!FatReadFile(Path, Buf, ELF_MAX_SIZE, &Size)) {
+    if (FatReadFile(Path, Buf, ELF_MAX_SIZE, &Size) != FAT_OK) {
         ConsoleWrite("exec: file not found: ");
         ConsoleWrite(Path);
         ConsoleWrite("\n");

@@ -9,22 +9,35 @@
 #include "Debug.h"
 #include "Hal.h"
 
+static void FatReport(const char *Cmd, int Err) {
+    ConsoleWrite(Cmd);
+    ConsoleWrite(": ");
+    ConsoleWrite(FatStrError(Err));
+    ConsoleWrite("\n");
+}
+
 /* Shell 命令 ls：列出 FAT 目录（可选路径） */
 static void CommandLs(int Argc, char **Argv) {
     const char *Path = (Argc >= 2) ? Argv[1] : 0;
-    FatListDir(Path);
+    int Err = FatListDir(Path);
+    if (Err != FAT_OK) {
+        FatReport("ls", Err);
+    }
 }
 
 /* Shell 命令 cat：读取文件内容并打印（支持 DIR/FILE） */
 static void CommandCat(int Argc, char **Argv) {
+    static UINT8 Buf[4096];
+    UINTN Size = 0;
+    int Err;
+
     if (Argc < 2) {
         ConsoleWrite("usage: cat <file>\n");
         return;
     }
-    static UINT8 Buf[4096];
-    UINTN Size = 0;
-    if (!FatReadFile(Argv[1], Buf, sizeof(Buf) - 1, &Size)) {
-        ConsoleWrite("cat: not found\n");
+    Err = FatReadFile(Argv[1], Buf, sizeof(Buf) - 1, &Size);
+    if (Err != FAT_OK) {
+        FatReport("cat", Err);
         return;
     }
     Buf[Size] = 0;
@@ -40,6 +53,7 @@ static void CommandWrite(int Argc, char **Argv) {
     UINTN Len = 0;
     int a;
     int first = 1;
+    int Err;
 
     if (Argc < 3) {
         ConsoleWrite("usage: write <file> <text...>\n");
@@ -62,8 +76,9 @@ static void CommandWrite(int Argc, char **Argv) {
         Buf[Len++] = '\n';
     }
     Buf[Len] = 0;
-    if (!FatWriteFile(Argv[1], Buf, Len)) {
-        ConsoleWrite("write: failed\n");
+    Err = FatWriteFile(Argv[1], Buf, Len);
+    if (Err != FAT_OK) {
+        FatReport("write", Err);
         return;
     }
     ConsoleWrite("write: ok ");
@@ -73,15 +88,48 @@ static void CommandWrite(int Argc, char **Argv) {
 
 /* Shell 命令 rm：删除文件或空目录 */
 static void CommandRm(int Argc, char **Argv) {
+    int Err;
+
     if (Argc < 2) {
         ConsoleWrite("usage: rm <file>\n");
         return;
     }
-    if (!FatDeleteFile(Argv[1])) {
-        ConsoleWrite("rm: failed\n");
+    Err = FatDeleteFile(Argv[1]);
+    if (Err != FAT_OK) {
+        FatReport("rm", Err);
         return;
     }
     ConsoleWrite("rm: ok\n");
+}
+
+static void CommandMkdir(int Argc, char **Argv) {
+    int Err;
+
+    if (Argc < 2) {
+        ConsoleWrite("usage: mkdir <dir>\n");
+        return;
+    }
+    Err = FatMkdir(Argv[1]);
+    if (Err != FAT_OK) {
+        FatReport("mkdir", Err);
+        return;
+    }
+    ConsoleWrite("mkdir: ok\n");
+}
+
+static void CommandRmdir(int Argc, char **Argv) {
+    int Err;
+
+    if (Argc < 2) {
+        ConsoleWrite("usage: rmdir <dir>\n");
+        return;
+    }
+    Err = FatRmdir(Argv[1]);
+    if (Err != FAT_OK) {
+        FatReport("rmdir", Err);
+        return;
+    }
+    ConsoleWrite("rmdir: ok\n");
 }
 
 /* 在当前 Block 盘上挂载 FAT；成功返回 1 */
@@ -90,7 +138,7 @@ static int TryMountCurrent(void) {
     if (!GptFindFatStart(&Start)) {
         return 0;
     }
-    if (!FatInit(Start)) {
+    if (FatInit(Start) != FAT_OK) {
         return 0;
     }
     return 1;
@@ -125,10 +173,10 @@ static int MountBestFat(void) {
         }
 
         Score = 0;
-        if (FatReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz)) {
+        if (FatReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
             Score = 100 + (int)d;
-        } else if (FatReadFile("HELLO.ELF", Tmp, sizeof(Tmp), &Sz) ||
-                   FatReadFile("COUNT.ELF", Tmp, sizeof(Tmp), &Sz)) {
+        } else if (FatReadFile("HELLO.ELF", Tmp, sizeof(Tmp), &Sz) == FAT_OK ||
+                   FatReadFile("COUNT.ELF", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
             /* 同有用户程序时偏向从盘，避开 fat:rw:. 启动目录 */
             Score = 10 + (int)d;
         }
@@ -166,6 +214,8 @@ int FileSystemInit(void) {
     ConsoleRegister("cat", "print file", CommandCat);
     ConsoleRegister("write", "write file text", CommandWrite);
     ConsoleRegister("rm", "remove file or empty dir", CommandRm);
-    DebugWrite("FS ready (ls, cat, write, rm)\n");
+    ConsoleRegister("mkdir", "create directory", CommandMkdir);
+    ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);
+    DebugWrite("FS ready (ls, cat, write, rm, mkdir, rmdir)\n");
     return 0;
 }
