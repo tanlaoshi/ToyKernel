@@ -2043,6 +2043,11 @@ void GuiComposeThemeScene(void) {
         if (!gWins[i].Active) {
             continue;
         }
+        /*
+         * 标题栏颜色看 gFocusWin。画 Shell 内容时会暂把焦点设到该窗；
+         * 若不先恢复 SavedFocus，后画的 Settings 标题会被画成灰色（失焦）。
+         */
+        gFocusWin = SavedFocus;
         DrawWindowAtEx(i, 0);
         if (gWins[i].Kind == GUI_WIN_SHELL) {
             gFocusWin = i;

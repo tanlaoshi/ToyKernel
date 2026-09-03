@@ -47,7 +47,12 @@ SyscallEntry:
     push rax
 
     mov rdi, rsp
+    /* call 前 16 字节对齐（与 IsrCommon 相同） */
+    mov rbx, rsp
+    sub rsp, 8
+    and rsp, -16
     call SyscallDispatch
+    mov rsp, rbx
 
     test rax, rax
     jz .Lsysret

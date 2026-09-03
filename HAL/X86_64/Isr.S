@@ -97,7 +97,12 @@ IsrCommon:
     push rbx
     push rax
     mov rdi, rsp
+    /* SysV：call 前 RSP≡0(mod16)；任务栈按 ABI 入口≡8 时此处常为≡8 */
+    mov rbx, rsp
+    sub rsp, 8
+    and rsp, -16
     call InterruptDispatch
+    mov rsp, rbx
     test rax, rax
     jz 4f
     test al, 1
@@ -134,11 +139,12 @@ IsrCommon:
     add rsp, 16
     iretq
 
-/* 内核任务首次进入：rdi=INT_FRAME*，直接 jmp Rip 并切换 RSP */
+/* 内核任务首次进入：rdi=INT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16） */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* Rip */
-    mov rsp, [rdi + 160]    /* Rsp */
+    mov rsp, [rdi + 160]    /* Rsp（创建时为 16 字节对齐栈顶） */
+    push rax                /* 占位返回地址 → RSP≡8，满足 SysV / SSE */
     jmp rax
 
 /* 用户态首次进入：rdi=INT_FRAME*，构造 iretq 帧 */
