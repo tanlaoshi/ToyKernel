@@ -32,7 +32,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 - **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32（8.3 + LFN，子路径，写 ≤64K）
 - **卷选择**：优先挂载含 `TOYOS.ID` 的 FAT 卷
-- **双盘 QEMU**：`ToyImage/run-split.sh` — 盘 0 为 Boot/ESP，盘 1 为 `rootfs/`
+- **双盘 QEMU**：`ToyImage/run-split.sh` — 盘 0 为 Boot/ESP，盘 1 为 `rootfs/`（系统文件唯一来源）
 
 ### 图形与输入
 
@@ -112,14 +112,13 @@ cd ../ToyBoot && ./build.sh
 
 ```bash
 cd ../ToyImage
-
-./run.sh              # 单盘：当前目录整盘映射为 FAT
-./run-split.sh        # 双盘：盘 0 Boot，盘 1 rootfs/
+./run-split.sh        # 唯一入口：盘0 ESP，盘1 rootfs/（Kernel/THEME）
+# ./run.sh            # 已转发到 run-split.sh
 ```
 
-`run.sh` / `run-split.sh` 使用发行版 OVMF pflash、USB 键鼠、virtio-net（含 UDP/TCP hostfwd）。串口输出在启动终端（`toyos>` 提示符）。
+`run-split.sh` 使用发行版 OVMF pflash、USB 键鼠、virtio-net（含 UDP/TCP hostfwd）。串口输出在启动终端（`toyos>` 提示符）。启动前会把 cwd 上的 `Kernel.elf`/`THEME.CFG` 等暂存，强制 Guest 只从第二盘加载。
 
-首次或变量盘损坏时，`run-split.sh` 会从 `OVMF_VARS.fd.clean` 恢复 NVRAM。
+首次或变量盘损坏时，可用 `./run-split.sh --clean-nvram` 从 `OVMF_VARS.fd.clean` 恢复 NVRAM。
 
 ---
 

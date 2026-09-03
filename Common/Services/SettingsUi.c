@@ -2,7 +2,8 @@
  * SettingsUi.c — Settings 一级/二级文字菜单（PR-D5）+ 分辨率（PR-D7）
  *
  * 分辨率只写 THEME.CFG mode=WxH。
- * QEMU：退出后 ./run.sh（edid）；真机：Guest reboot。勿依赖 Guest reboot 在 QEMU 上换分辨率。
+ * QEMU：退出后 ./run-split.sh（edid from rootfs）；真机：Guest reboot。
+ * 勿依赖 Guest reboot 在 QEMU 上换分辨率。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -223,7 +224,7 @@ static void PaintMenu(void) {
         DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
         DrawLine(&X, &Y, X0, MaxBottom, "1-4 open  Esc/0 back", COLOR_DARK_GRAY);
         if (gRebootHint) {
-            DrawLine(&X, &Y, X0, MaxBottom, "Saved. QEMU: quit+./run.sh", COLOR_BLUE);
+            DrawLine(&X, &Y, X0, MaxBottom, "Saved. QEMU: quit+./run-split.sh", COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
         CurColor = ThemeDesktopBg();
@@ -297,7 +298,7 @@ static void PaintMenu(void) {
         DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
         DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
         if (gRebootHint) {
-            DrawLine(&X, &Y, X0, MaxBottom, "Saved. QEMU: quit+./run.sh", COLOR_BLUE);
+            DrawLine(&X, &Y, X0, MaxBottom, "Saved. QEMU: quit+./run-split.sh", COLOR_BLUE);
         }
     }
 
@@ -349,7 +350,7 @@ static void ApplyDisplayChoice(int Index) {
         return;
     }
     gRebootHint = 1;
-    HalConsoleWriteSerial("settings: display saved; QEMU: quit and ./run.sh (edid); HW: reboot\n");
+    HalConsoleWriteSerial("settings: display saved; QEMU: quit and ./run-split.sh (edid); HW: reboot\n");
     DebugWrite("settings: display pref saved (relaunch QEMU on VM)\n");
     PaintMenu();
 }

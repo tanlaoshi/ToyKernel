@@ -602,7 +602,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("exec", "load ELF from FAT", CommandExec);
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
-    ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run.sh)", CommandReboot);
+    ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
     ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);

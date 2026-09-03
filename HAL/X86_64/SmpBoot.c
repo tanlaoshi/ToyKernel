@@ -26,6 +26,9 @@
 #define SMP_GDT_PHYS     0x7F00ULL
 #define SMP_SIPI_VECTOR  0x08u   /* start @ 0x8000 */
 
+/* Ready 用魔数，避免软重启后 0x7E00 残留非 0 被误判为 AP 已就绪 */
+#define SMP_READY_MAGIC  0x534D5052u  /* 'SMPR' */
+
 typedef struct {
     UINT64 Cr3;
     UINT64 StackTop;
@@ -63,13 +66,12 @@ static void DelayLoops(volatile UINT32 N) {
 }
 
 /*
- * INIT/SIPI 间距：SDM 对真机约 10ms / 200µs。QEMU/KVM 上 AP 几乎立刻
- * Ready，原先 10M+10M pause 会无意义地拖慢启动（TCG 下尤甚）。
- * 用短延时 + Ready 早退；未就绪再补第二次 SIPI。
+ * INIT/SIPI：QEMU 上通常很快 Ready；宿主被其它 QEMU 占满时短轮询会误超时，
+ * 迟到的 AP 再跑半初始化路径会三 fault → 整机复位（timeout 后无限重启）。
  */
-#define SMP_INIT_GAP_LOOPS   150000u
-#define SMP_SIPI_GAP_LOOPS    30000u
-#define SMP_READY_POLL_MAX  200000u
+#define SMP_INIT_GAP_LOOPS    400000u
+#define SMP_SIPI_GAP_LOOPS    100000u
+#define SMP_READY_POLL_MAX   2000000u
 
 static void LapicWaitIcr(void) {
     while (LapicRead(LAPIC_ICR_LO) & (1u << 12)) {
@@ -82,6 +84,27 @@ static void LapicSendIpi(UINT8 ApicId, UINT32 Lo) {
     LapicWrite(LAPIC_ICR_HI, ((UINT32)ApicId) << 24);
     LapicWrite(LAPIC_ICR_LO, Lo);
     LapicWaitIcr();
+}
+
+/* 超时后把跳板改成 cli;hlt，迟到 SIPI 也只会停住 */
+static void NeutralizeTrampoline(void) {
+    UINT8 *P = (UINT8 *)(UINTN)SMP_TRAMP_PHYS;
+    SMP_BOOT_PARAM *Param = (SMP_BOOT_PARAM *)(UINTN)SMP_PARAM_PHYS;
+
+    P[0] = 0xFAu; /* cli */
+    P[1] = 0xF4u; /* hlt */
+    P[2] = 0xEBu; /* jmp short */
+    P[3] = 0xFCu; /* -4 */
+    Param->Entry = 0;
+    Param->Ready = 0;
+    Param->StackTop = 0;
+}
+
+static void ParkAp(UINT8 ApicId) {
+    NeutralizeTrampoline();
+    LapicSendIpi(ApicId, 0x0000C500u);
+    DelayLoops(SMP_INIT_GAP_LOOPS);
+    LapicSendIpi(ApicId, 0x00008500u);
 }
 
 static void MemCopy(void *Dst, const void *Src, UINTN Len) {
@@ -142,7 +165,8 @@ void SmpApEntry(void) {
     SmpLogHex32(Id);
     SmpLog("\n");
     gApHelloCount++;
-    Param->Ready = 1;
+    __asm__ volatile ("" ::: "memory");
+    Param->Ready = SMP_READY_MAGIC;
 
     __asm__ volatile ("sti" ::: "memory");
     /* 等 BSP SchedulerStart 后进入本核 idle（PR-S3） */
@@ -209,21 +233,22 @@ static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
 
     LapicSendIpi(ApicId, 0x00000600u | SMP_SIPI_VECTOR);
     Tries = (int)SMP_READY_POLL_MAX;
-    while (Param->Ready == 0 && Tries-- > 0) {
+    while (Param->Ready != SMP_READY_MAGIC && Tries-- > 0) {
         __asm__ volatile ("pause");
     }
-    if (Param->Ready == 0) {
+    if (Param->Ready != SMP_READY_MAGIC) {
         DelayLoops(SMP_SIPI_GAP_LOOPS);
         LapicSendIpi(ApicId, 0x00000600u | SMP_SIPI_VECTOR);
         Tries = (int)SMP_READY_POLL_MAX;
-        while (Param->Ready == 0 && Tries-- > 0) {
+        while (Param->Ready != SMP_READY_MAGIC && Tries-- > 0) {
             __asm__ volatile ("pause");
         }
     }
-    if (Param->Ready == 0) {
+    if (Param->Ready != SMP_READY_MAGIC) {
         SmpLog("smp: AP timeout apic=");
         SmpLogHex32(ApicId);
         SmpLog("\n");
+        ParkAp(ApicId);
         return -1;
     }
     return 0;
@@ -307,6 +332,9 @@ int HalSmpStartAps(void) {
             Started++;
         }
     }
+    /* 只统计实际起来的核，避免调度器以为有幽灵 AP */
+    gCpuCount = 1 + Started;
+
     SmpLog("smp: APs started=");
     SmpLogHex32((UINT32)Started);
     SmpLog(" hellos=");
@@ -327,12 +355,15 @@ int HalSmpStartAps(void) {
         }
     }
     SmpLog("smp: ticks");
-    for (i = 0; i < Count && i < HAL_MAX_CPUS; i++) {
+    for (i = 0; i < gCpuCount && i < HAL_MAX_CPUS; i++) {
         SmpLog(" cpu");
         SmpLogHex32((UINT32)i);
         SmpLog("=");
         SmpLogHex64(gCpuTicks[i]);
     }
     SmpLog("\n");
+    if (Started == 0 && Count > 1) {
+        SmpLog("smp: continue single-CPU (AP failed)\n");
+    }
     return 0;
 }
