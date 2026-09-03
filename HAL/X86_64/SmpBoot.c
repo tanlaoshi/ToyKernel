@@ -123,6 +123,8 @@ void SmpApEntry(void) {
 
     ArchApInit(Logical);
     TimerStart();
+    /* AP 验证用慢定时器，避免 QEMU 下高频 IRQ 拖死启动路径 */
+    *(volatile UINT32 *)(UINTN)(LAPIC_BASE + 0x380) = 5000000u;
 
     SmpLog("smp: hello cpu=");
     SmpLogHex32(Logical);
@@ -291,8 +293,19 @@ int HalSmpStartAps(void) {
     SmpLogHex32(gApHelloCount);
     SmpLog("\n");
 
-    /* PR-S2：等 AP timer 跑一会儿，确认每核 ticks */
-    DelayLoops(50000000);
+    /*
+     * PR-S2：短轮询等 AP tick（勿用超大 DelayLoops——QEMU TCG + -smp 2
+     * 下 BSP 易被饿死，看起来像卡死且永远到不了 gui/shell）。
+     */
+    {
+        int Wait;
+        for (Wait = 0; Wait < 200; Wait++) {
+            if (Started > 0 && gCpuTicks[1] != 0) {
+                break;
+            }
+            DelayLoops(100000);
+        }
+    }
     SmpLog("smp: ticks");
     for (i = 0; i < Count && i < HAL_MAX_CPUS; i++) {
         SmpLog(" cpu");
