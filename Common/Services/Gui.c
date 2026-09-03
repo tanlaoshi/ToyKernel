@@ -326,6 +326,7 @@ static void SyncWindowVisuals(void) {
      */
     HalIrqDisable();
     CursorRestore();
+    HalVideoClearClip();
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWins[i].Active) {
             continue;
@@ -496,6 +497,8 @@ static void DrawWindowAt(int Idx) {
     if (!W->Active) {
         return;
     }
+    /* 标题在客户区外；若仍开着 Shell/Settings clip，DrawString 会被裁掉 */
+    HalVideoClearClip();
     FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
     DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
     DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
@@ -518,6 +521,7 @@ static void DrawWindowChromeAt(int Idx) {
     if (!W->Active) {
         return;
     }
+    HalVideoClearClip();
     FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
     DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
     DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
@@ -525,7 +529,6 @@ static void DrawWindowChromeAt(int Idx) {
     DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
     DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
                       COLOR_WHITE);
-    /* 标题文字无逐像素遮挡；起点被盖住则跳过，避免写穿上层客户区 */
     if (!PixelOccludedByAbove(Idx, W->X + 8, W->Y + 4)) {
         HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
     }
