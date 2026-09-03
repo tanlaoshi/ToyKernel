@@ -1939,8 +1939,8 @@ void GuiApplyThemeColors(void) {
 }
 
 /*
- * PR-G8：主题一次合成。自下而上 DrawWindowAt + 客户区内容，再备份。
- * 下层 Shell 字可能短暂写到上层区域，随即被上层窗盖住；禁止 Raise/多遍 GuiRedraw。
+ * PR-G8：主题一次合成。先自下而上画窗（含客户区），再只填「窗外」桌面缝隙；
+ * 禁止先 UiFill 整屏——那会抹掉所有窗一帧，换色时必然灰闪。
  */
 void GuiComposeThemeScene(void) {
     int i;
@@ -1951,8 +1951,6 @@ void GuiComposeThemeScene(void) {
     CursorRestore();
     GfxIrqLeave();
     HalVideoClearClip();
-    UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
-    DesktopDraw();
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWins[i].Active) {
             continue;
@@ -1966,6 +1964,9 @@ void GuiComposeThemeScene(void) {
             SettingsUiPaintFocused();
         }
     }
+    /* 新桌面色只写到未被窗盖住的像素，再补图标（避让窗） */
+    FillDesktopRectClipped(0, 0, gScreenW, gScreenH);
+    DesktopDrawRect(0, 0, gScreenW, gScreenH);
     for (i = 0; i < MAX_WINS; i++) {
         if (gWins[i].Active) {
             BackupWindowAt(i);
