@@ -132,6 +132,8 @@ static void SyncWindowVisuals(void);
 static UINT32 SampleWindowBackupPixel(int Idx, UINT32 Px, UINT32 Py);
 static void DrawWindowChromeAt(int Idx);
 static void PaintWindowFromBackup(int Idx);
+static int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py);
+static int PixelOccludedByAbove(int Idx, UINT32 X, UINT32 Y);
 void GuiFocusApply(void);
 void GuiFocusApplyClip(void);
 void GuiFocusSyncCursor(void);
@@ -314,7 +316,26 @@ static void RefreshOtherChrome(int SkipIdx) {
 }
 
 static void SyncWindowVisuals(void) {
-    RedrawWindowChrome();
+    int i;
+
+    /*
+     * Raise 后若只重画标题栏，上层窗客户区仍留在 FB 上，看起来像
+     * 「Settings 印在 Shell 上」。按 z 序从备份整窗贴回。
+     */
+    HalIrqDisable();
+    CursorRestore();
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active) {
+            continue;
+        }
+        if (gWinBackupValid[i] && gWinBackup[i] != 0) {
+            PaintWindowFromBackup(i);
+        } else {
+            DrawWindowAt(i);
+        }
+    }
+    CursorPaint();
+    HalIrqEnable();
 }
 
 static void CloseWindow(int Idx) {
@@ -479,7 +500,9 @@ static void DrawWindowAt(int Idx) {
                       COLOR_WHITE);
     FillRectOccluded(Idx, W->X + 2, W->Y + TITLE_HEIGHT, W->Width - 4,
                      W->Height - TITLE_HEIGHT - 2, W->Background);
-    HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    if (!PixelOccludedByAbove(Idx, W->X + 8, W->Y + 4)) {
+        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+    }
     DrawCloseButton(Idx, W);
 }
 
@@ -703,8 +726,12 @@ static void BackupWindowAt(int Idx) {
     const GUI_WINDOW *Win = &gWins[Idx];
     UINT32 Rw;
     UINT32 Rh;
+    UINT32 Bw;
+    int HadValid;
+    UINT32 *OldBuf;
+    UINT32 Row;
+    UINT32 Col;
 
-    gWinBackupValid[Idx] = 0;
     if (Idx < 0 || Idx >= MAX_WINS || !Win->Active) {
         return;
     }
@@ -722,9 +749,50 @@ static void BackupWindowAt(int Idx) {
     if (Rw == 0 || Rh == 0) {
         return;
     }
+
+    HadValid = gWinBackupValid[Idx];
+    OldBuf = gWinBackup[Idx];
     if (!EnsureWindowBackupBuf(Idx)) {
+        gWinBackupValid[Idx] = 0;
         return;
     }
+    if (gWinBackup[Idx] != OldBuf) {
+        /* 缓冲区重分配，旧像素已丢 */
+        HadValid = 0;
+    }
+
+    /*
+     * 被上层遮住时禁止整窗 ReadRect：否则会把 Settings 文字烙进 Shell 备份，
+     * 随后 PaintWindowFromBackup / under-drag 永久印脏。
+     */
+    if (WindowOccludedByOther(Idx)) {
+        if (!HadValid) {
+            gWinBackupValid[Idx] = 0;
+            return;
+        }
+        Bw = gWinBackupW[Idx];
+        if (Bw == 0) {
+            Bw = Rw;
+        }
+        for (Row = 0; Row < Rh; Row++) {
+            for (Col = 0; Col < Rw; Col++) {
+                UINT32 Px = Win->X + Col;
+                UINT32 Py = Win->Y + Row;
+
+                if (PixelCoveredByHigherWindow(Idx, Px, Py)) {
+                    continue;
+                }
+                if (Row < gWinBackupH[Idx] && Col < Bw) {
+                    gWinBackup[Idx][Row * Bw + Col] = HalVideoReadPixel(Px, Py);
+                }
+            }
+        }
+        gWinBackupW[Idx] = Rw;
+        gWinBackupH[Idx] = Rh;
+        gWinBackupValid[Idx] = 1;
+        return;
+    }
+
     HalVideoReadRect(Win->X, Win->Y, Rw, Rh, gWinBackup[Idx]);
     gWinBackupW[Idx] = Rw;
     gWinBackupH[Idx] = Rh;
