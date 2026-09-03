@@ -8,7 +8,7 @@
 #include "VirtualMemory.h"
 #include "Hal.h"
 
-#define MAX_TASKS 8
+#define MAX_TASKS 16
 #define MAX_FDS   4
 #define FD_MAX_BYTES (64 * 1024)
 
@@ -49,6 +49,8 @@ typedef struct TASK {
     INT32                  ParentId;   /* -1 = 无父进程 */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
+    INT32                  Affinity;   /* -1=任意 CPU；否则逻辑 CpuId */
+    INT32                  OnCpu;      /* 正在跑的逻辑 CPU；未跑为 -1 */
     TASK_FD                Fds[MAX_FDS];
 } TASK;
 
@@ -56,12 +58,16 @@ void SchedulerInit(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VM_ADDR_SPACE *Space);
+void SchedulerSetAffinity(int TaskId, INT32 Cpu);
 UINT64 SchedulerOnTimer(HAL_FRAME *Frame);
 UINT64 SchedulerExitUser(HAL_FRAME *Frame);
 UINT64 SchedulerFork(HAL_FRAME *Frame);
 UINT64 SchedulerWait(HAL_FRAME *Frame);
 UINT64 SchedulerYield(HAL_FRAME *Frame);
 void SchedulerStart(void);
+/* AP：等 BSP SchedulerStart 后进入本核 idle（不返回） */
+void SchedulerApStart(void);
+int SchedulerIsOnline(void);
 
 void SchedulerFdCloseAll(TASK *T);
 int SchedulerFdOpen(TASK *T, const char *Path);

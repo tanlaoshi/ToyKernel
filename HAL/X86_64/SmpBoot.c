@@ -5,6 +5,7 @@
 #include "Hal.h"
 #include "Platform.h"
 #include "HalPort.h"
+#include "Scheduler.h"
 
 /* PR-S1/S2 验证日志始终走串口（不受 TOY_DEBUG 开关影响） */
 #define SmpLog(Text)      HalDebugWrite(Text)
@@ -135,6 +136,11 @@ void SmpApEntry(void) {
     Param->Ready = 1;
 
     __asm__ volatile ("sti" ::: "memory");
+    /* 等 BSP SchedulerStart 后进入本核 idle（PR-S3） */
+    while (!SchedulerIsOnline()) {
+        __asm__ volatile ("pause");
+    }
+    SchedulerApStart();
     for (;;) {
         __asm__ volatile ("hlt");
     }

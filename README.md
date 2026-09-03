@@ -15,7 +15,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
 | 图形界面 | ≈ 可用 | 多窗口、USB 键鼠、**标题栏拖动** |
 | 网络 | 进行中 | virtio-net；builtin TCP/UDP（legacy）+ 可选 lwIP |
-| 多核 SMP | 未开始 | — |
+| 多核 SMP | 进行中 | PR-S1～S3：MADT/SIPI、每核 timer、调度大锁 + AP idle |
 
 ---
 

@@ -11,14 +11,33 @@
 #include "PhysicalMemory.h"
 #include "LwIp.h"
 #include "Socket.h"
+#include "SpinLock.h"
 
 #define SCHED_TAG_KERNEL_FIRST 1ULL
 #define SCHED_TAG_USER_FIRST   2ULL
 
 static TASK gTasks[MAX_TASKS];
-static TASK *gCurrent;
+static TASK *gCurrentCpu[HAL_MAX_CPUS];
+static TASK *gIdleTask[HAL_MAX_CPUS];
+static SPIN_LOCK gSchedLock;
+static volatile int gSchedOnline;
 static int gTaskCount;
 static int gLastPick;
+
+static TASK *CurrentTask(void) {
+    UINT32 Id = HalCpuId();
+    if (Id >= HAL_MAX_CPUS) {
+        return 0;
+    }
+    return gCurrentCpu[Id];
+}
+
+static void SetCurrentTask(TASK *T) {
+    UINT32 Id = HalCpuId();
+    if (Id < HAL_MAX_CPUS) {
+        gCurrentCpu[Id] = T;
+    }
+}
 
 static INT32 TaskSlot(const TASK *T) {
     if (!T) {
@@ -295,6 +314,14 @@ int SchedulerFdClose(TASK *T, int Fd) {
 }
 
 void SchedulerInit(void) {
+    int c;
+
+    SpinLockInit(&gSchedLock);
+    gSchedOnline = 0;
+    for (c = 0; c < HAL_MAX_CPUS; c++) {
+        gCurrentCpu[c] = 0;
+        gIdleTask[c] = 0;
+    }
     for (int i = 0; i < MAX_TASKS; i++) {
         gTasks[i].State = TASK_UNUSED;
         gTasks[i].Frame = 0;
@@ -308,9 +335,10 @@ void SchedulerInit(void) {
         gTasks[i].ParentId = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].Affinity = -1;
+        gTasks[i].OnCpu = -1;
         TaskClearFds(&gTasks[i]);
     }
-    gCurrent = 0;
     gTaskCount = 0;
     gLastPick = 0;
 }
@@ -324,7 +352,14 @@ static void CopyName(TASK *T, const char *Name) {
     T->Name[n] = 0;
 }
 
+static void IdleTask(void) {
+    for (;;) {
+        HalCpuHalt();
+    }
+}
+
 int SchedulerCreate(const char *Name, void (*Entry)(void)) {
+    SpinLockAcquire(&gSchedLock);
     for (int i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State != TASK_UNUSED) {
             continue;
@@ -352,16 +387,24 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].ParentId = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].Affinity = -1;
+        gTasks[i].OnCpu = -1;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
+        SpinLockRelease(&gSchedLock);
         return i;
     }
+    SpinLockRelease(&gSchedLock);
     return -1;
 }
 
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VM_ADDR_SPACE *Space) {
+    TASK *Cur;
+
+    SpinLockAcquire(&gSchedLock);
+    Cur = CurrentTask();
     for (int i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State != TASK_UNUSED) {
             continue;
@@ -386,33 +429,70 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].IsUser = 1;
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = Space;
-        gTasks[i].ParentId = gCurrent ? TaskSlot(gCurrent) : -1;
+        gTasks[i].ParentId = Cur ? TaskSlot(Cur) : -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].Affinity = 0; /* 用户态暂绑 BSP（单 TSS） */
+        gTasks[i].OnCpu = -1;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
+        SpinLockRelease(&gSchedLock);
         return i;
     }
+    SpinLockRelease(&gSchedLock);
     return -1;
 }
 
-static int TaskRunnable(TASK_STATE S) {
-    return S == TASK_READY || S == TASK_RUNNING;
+void SchedulerSetAffinity(int TaskId, INT32 Cpu) {
+    if (TaskId < 0 || TaskId >= MAX_TASKS) {
+        return;
+    }
+    SpinLockAcquire(&gSchedLock);
+    if (gTasks[TaskId].State != TASK_UNUSED) {
+        gTasks[TaskId].Affinity = Cpu;
+    }
+    SpinLockRelease(&gSchedLock);
 }
 
-static TASK *PickNext(void) {
-    if (gTaskCount <= 1) {
-        return gCurrent;
+static int TaskFitsCpu(const TASK *T, UINT32 Cpu) {
+    if (!T || T->State != TASK_READY) {
+        return 0;
     }
-    for (int n = 1; n <= MAX_TASKS; n++) {
+    if (T->Affinity >= 0 && (UINT32)T->Affinity != Cpu) {
+        return 0;
+    }
+    /* 用户态与 console/gui 热点：仅 BSP（Affinity 已限制；双保险） */
+    if (T->IsUser && Cpu != 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static TASK *PickNext(UINT32 Cpu) {
+    TASK *Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
+    int n;
+
+    for (n = 1; n <= MAX_TASKS; n++) {
         int i = (gLastPick + n) % MAX_TASKS;
-        if (TaskRunnable(gTasks[i].State)) {
-            gLastPick = i;
-            return &gTasks[i];
+        if (!TaskFitsCpu(&gTasks[i], Cpu)) {
+            continue;
         }
+        /* 勿抢走其它核的 idle */
+        if (Idle && &gTasks[i] == Idle) {
+            continue;
+        }
+        gLastPick = i;
+        return &gTasks[i];
     }
-    return gCurrent;
+    if (Idle && Idle->State != TASK_UNUSED) {
+        if (Idle->State == TASK_RUNNING || Idle->State == TASK_READY) {
+            return Idle;
+        }
+        Idle->State = TASK_READY;
+        return Idle;
+    }
+    return CurrentTask();
 }
 
 static UINT64 SchedResumeFrame(TASK *T) {
@@ -433,8 +513,16 @@ static UINT64 SchedResumeFrame(TASK *T) {
 
 /* Ring3 中断/系统调用走 TSS.RSP0；每用户任务必须用自己的内核栈 */
 static void ActivateTask(TASK *T) {
-    gCurrent = T;
+    UINT32 Cpu = HalCpuId();
+    TASK *Prev = CurrentTask();
+
+    if (Prev && Prev != T && Prev->State == TASK_RUNNING) {
+        Prev->State = TASK_READY;
+        Prev->OnCpu = -1;
+    }
+    SetCurrentTask(T);
     T->State = TASK_RUNNING;
+    T->OnCpu = (INT32)Cpu;
     if (T->IsUser) {
         ArchSetRsp0((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
     }
@@ -443,21 +531,8 @@ static void ActivateTask(TASK *T) {
     }
 }
 
-static TASK *FindRunnable(void) {
-    for (int n = 1; n <= MAX_TASKS; n++) {
-        int i = (gLastPick + n) % MAX_TASKS;
-        if (TaskRunnable(gTasks[i].State)) {
-            gLastPick = i;
-            return &gTasks[i];
-        }
-    }
-    for (int i = 0; i < MAX_TASKS; i++) {
-        if (TaskRunnable(gTasks[i].State)) {
-            gLastPick = i;
-            return &gTasks[i];
-        }
-    }
-    return 0;
+static TASK *FindRunnable(UINT32 Cpu) {
+    return PickNext(Cpu);
 }
 
 static void ReapZombie(TASK *Z) {
@@ -493,6 +568,7 @@ static int ParentIsUserWaiter(INT32 ParentSlot) {
 void SchedulerReapOrphanZombies(void) {
     int i;
 
+    SpinLockAcquire(&gSchedLock);
     for (i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State != TASK_ZOMBIE || !gTasks[i].IsUser) {
             continue;
@@ -501,6 +577,7 @@ void SchedulerReapOrphanZombies(void) {
             ReapZombie(&gTasks[i]);
         }
     }
+    SpinLockRelease(&gSchedLock);
 }
 
 /* 若父进程正阻塞在 wait：把僵尸结果写入其 Frame 并唤醒，返回 1 表示已收尸 */
@@ -530,35 +607,56 @@ static int WakeWaitingParent(TASK *Zombie) {
 }
 
 UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
-    if (gCurrent == 0) {
-        return 0;
-    }
-    gCurrent->Frame = Frame;
-    gCurrent->Ticks++;
+    TASK *Cur;
+    TASK *Next;
+    UINT32 Cpu;
+    UINT64 Ret;
 
-    TASK *Next = PickNext();
-    if (Next == gCurrent) {
+    if (!gSchedOnline) {
         return 0;
     }
-    if (gCurrent->State == TASK_RUNNING) {
-        gCurrent->State = TASK_READY;
+    Cpu = HalCpuId();
+    SpinLockAcquire(&gSchedLock);
+    Cur = CurrentTask();
+    if (Cur == 0) {
+        SpinLockRelease(&gSchedLock);
+        return 0;
+    }
+    Cur->Frame = Frame;
+    Cur->Ticks++;
+
+    Next = PickNext(Cpu);
+    if (Next == Cur || Next == 0) {
+        SpinLockRelease(&gSchedLock);
+        return 0;
+    }
+    if (Cur->State == TASK_RUNNING) {
+        Cur->State = TASK_READY;
+        Cur->OnCpu = -1;
     }
     ActivateTask(Next);
-    return SchedResumeFrame(gCurrent);
+    Ret = SchedResumeFrame(Next);
+    SpinLockRelease(&gSchedLock);
+    return Ret;
 }
 
 UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     INT32 Code;
     TASK *Exiting;
     TASK *Next;
+    UINT32 Cpu;
+    UINT64 Ret;
+    int ShowPrompt = 0;
 
-    if (gCurrent == 0 || !gCurrent->IsUser) {
+    SpinLockAcquire(&gSchedLock);
+    Exiting = CurrentTask();
+    if (Exiting == 0 || !Exiting->IsUser) {
+        SpinLockRelease(&gSchedLock);
         for (;;) {
             HalCpuPark();
         }
     }
 
-    Exiting = gCurrent;
     Code = (INT32)Frame->Rdi;
     DebugWrite("syscall: exit ");
     DebugWrite(Exiting->Name);
@@ -574,6 +672,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     Exiting->ExitCode = Code;
     Exiting->PageRoot = VirtualMemoryKernelRoot();
     Exiting->Waiting = 0;
+    Exiting->OnCpu = -1;
 
     if (ParentIsUserWaiter(Exiting->ParentId)) {
         Exiting->State = TASK_ZOMBIE;
@@ -581,26 +680,29 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
             /* 父用户进程稍后 wait */
         }
     } else {
-        int ShowPrompt = Exiting->IsUser && !ParentIsUserWaiter(Exiting->ParentId);
+        ShowPrompt = Exiting->IsUser && !ParentIsUserWaiter(Exiting->ParentId);
         Exiting->State = TASK_UNUSED;
         Exiting->Frame = 0;
         Exiting->ParentId = -1;
         gTaskCount--;
-        if (ShowPrompt) {
-            ConsoleShowPrompt();
-        }
     }
 
-    Next = FindRunnable();
+    Cpu = HalCpuId();
+    Next = FindRunnable(Cpu);
     if (!Next) {
+        SpinLockRelease(&gSchedLock);
         ConsoleWrite("sched: no runnable task after exit\n");
         for (;;) {
             HalCpuPark();
         }
     }
-    gCurrent = Next;
-    ActivateTask(gCurrent);
-    return SchedResumeFrame(gCurrent);
+    ActivateTask(Next);
+    Ret = SchedResumeFrame(Next);
+    SpinLockRelease(&gSchedLock);
+    if (ShowPrompt) {
+        ConsoleShowPrompt();
+    }
+    return Ret;
 }
 
 UINT64 SchedulerFork(HAL_FRAME *Frame) {
@@ -612,10 +714,12 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     HAL_FRAME *CF;
     UINTN j;
 
-    Parent = gCurrent;
+    SpinLockAcquire(&gSchedLock);
+    Parent = CurrentTask();
     ParentSlot = TaskSlot(Parent);
     if (Parent == 0 || ParentSlot < 0 || !Parent->IsUser || !Parent->UserSpace) {
         Frame->Rax = (UINT64)(INT64)-1;
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
 
@@ -628,14 +732,24 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     }
     if (Child < 0) {
         Frame->Rax = (UINT64)(INT64)-1;
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
 
-    /* clone 栈较深，先写父返回值；ParentSlot 不依赖可能被栈踩踏的 Parent 指针 */
     Frame->Rax = (UINT64)(UINT32)(Child + 1);
+    SpinLockRelease(&gSchedLock);
 
     ChildSpace = VirtualMemorySpaceClone(Parent->UserSpace);
     if (!ChildSpace) {
+        Frame->Rax = (UINT64)(INT64)-1;
+        return 0;
+    }
+
+    SpinLockAcquire(&gSchedLock);
+    /* 槽位仍应空闲；若竞态被占则放弃 */
+    if (gTasks[Child].State != TASK_UNUSED) {
+        SpinLockRelease(&gSchedLock);
+        VirtualMemorySpaceDestroy(ChildSpace);
         Frame->Rax = (UINT64)(INT64)-1;
         return 0;
     }
@@ -645,7 +759,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     for (j = 0; j < sizeof(HAL_FRAME); j++) {
         ((UINT8 *)CF)[j] = ((UINT8 *)Frame)[j];
     }
-    CF->Rax = 0; /* 子进程 fork 返回 0 */
+    CF->Rax = 0;
 
     gTasks[Child].Frame = CF;
     gTasks[Child].State = TASK_READY;
@@ -657,12 +771,15 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTasks[Child].ParentId = ParentSlot;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
+    gTasks[Child].Affinity = 0;
+    gTasks[Child].OnCpu = -1;
     TaskClearFds(&gTasks[Child]);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;
 
     Frame->Rax = (UINT64)(UINT32)(Child + 1);
     Parent->Frame = Frame;
+    SpinLockRelease(&gSchedLock);
     return 0;
 }
 
@@ -673,10 +790,14 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     int Live = 0;
     TASK *Next;
     UINT64 Options;
+    UINT32 Cpu;
+    UINT64 Ret;
 
-    Self = gCurrent;
+    SpinLockAcquire(&gSchedLock);
+    Self = CurrentTask();
     if (Self == 0 || !Self->IsUser) {
         Frame->Rax = (UINT64)(INT64)-1;
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
     MyId = TaskSlot(Self);
@@ -689,6 +810,7 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
             ReapZombie(&gTasks[i]);
             Frame->Rax = (UINT64)(UINT32)Cid;
             Frame->Rdx = (UINT64)(UINT32)Code;
+            SpinLockRelease(&gSchedLock);
             return 0;
         }
     }
@@ -702,62 +824,167 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
         }
     }
     if (!Live) {
-        Frame->Rax = (UINT64)(INT64)-1; /* 无子进程 */
+        Frame->Rax = (UINT64)(INT64)-1;
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
 
-    /* WNOHANG：有存活子进程但尚无僵尸 → 立即返回 0 */
     if (Options & (UINT64)WNOHANG) {
         Frame->Rax = 0;
         Frame->Rdx = 0;
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
 
-    /* 有存活子进程：阻塞，直到某子进程 exit 经 WakeWaitingParent 写入 Frame */
     Self->Frame = Frame;
     Self->Waiting = 1;
     Self->State = TASK_BLOCKED;
+    Self->OnCpu = -1;
 
-    Next = FindRunnable();
+    Cpu = HalCpuId();
+    Next = FindRunnable(Cpu);
     if (!Next) {
+        SpinLockRelease(&gSchedLock);
         ConsoleWrite("sched: wait with no runnable task\n");
         for (;;) {
             HalCpuPark();
         }
     }
-    gCurrent = Next;
-    ActivateTask(gCurrent);
-    return SchedResumeFrame(gCurrent);
+    ActivateTask(Next);
+    Ret = SchedResumeFrame(Next);
+    SpinLockRelease(&gSchedLock);
+    return Ret;
 }
 
-/* 主动让出 CPU */
 UINT64 SchedulerYield(HAL_FRAME *Frame) {
+    TASK *Cur;
     TASK *Next;
+    UINT32 Cpu;
+    UINT64 Ret;
 
-    if (gCurrent == 0) {
+    SpinLockAcquire(&gSchedLock);
+    Cur = CurrentTask();
+    if (Cur == 0) {
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
-    gCurrent->Frame = Frame;
-    if (gCurrent->State == TASK_RUNNING) {
-        gCurrent->State = TASK_READY;
+    Cur->Frame = Frame;
+    if (Cur->State == TASK_RUNNING) {
+        Cur->State = TASK_READY;
+        Cur->OnCpu = -1;
     }
-    Next = PickNext();
-    if (Next == gCurrent) {
-        gCurrent->State = TASK_RUNNING;
+    Cpu = HalCpuId();
+    Next = PickNext(Cpu);
+    if (Next == Cur || Next == 0) {
+        Cur->State = TASK_RUNNING;
+        Cur->OnCpu = (INT32)Cpu;
+        SpinLockRelease(&gSchedLock);
         return 0;
     }
-    gCurrent = Next;
-    ActivateTask(gCurrent);
-    return SchedResumeFrame(gCurrent);
+    ActivateTask(Next);
+    Ret = SchedResumeFrame(Next);
+    SpinLockRelease(&gSchedLock);
+    return Ret;
+}
+
+static int CreateIdleForCpu(UINT32 Cpu) {
+    char Name[12];
+    int Id;
+
+    Name[0] = 'i';
+    Name[1] = 'd';
+    Name[2] = 'l';
+    Name[3] = 'e';
+    Name[4] = (char)('0' + (Cpu % 10));
+    Name[5] = 0;
+    Id = SchedulerCreate(Name, IdleTask);
+    if (Id < 0) {
+        return -1;
+    }
+    SchedulerSetAffinity(Id, (INT32)Cpu);
+    gIdleTask[Cpu] = &gTasks[Id];
+    return Id;
+}
+
+int SchedulerIsOnline(void) {
+    return gSchedOnline;
+}
+
+void SchedulerApStart(void) {
+    UINT32 Cpu;
+    TASK *Idle;
+    UINT64 Ret;
+
+    Cpu = HalCpuId();
+    while (!gSchedOnline) {
+        __asm__ volatile ("pause");
+    }
+    SpinLockAcquire(&gSchedLock);
+    Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
+    if (!Idle) {
+        SpinLockRelease(&gSchedLock);
+        HalDebugWrite("sched: AP has no idle\n");
+        for (;;) {
+            HalCpuPark();
+        }
+    }
+    ActivateTask(Idle);
+    Idle->Started = 1;
+    Ret = (UINT64)(UINTN)Idle->Frame;
+    SpinLockRelease(&gSchedLock);
+    HalDebugWrite("sched: AP entered idle cpu=");
+    HalDebugHex32(Cpu);
+    HalDebugWrite("\n");
+    SchedulerEnter(Idle->Frame);
+    (void)Ret;
+    for (;;) {
+        HalCpuPark();
+    }
 }
 
 void SchedulerStart(void) {
     TASK *First = 0;
-    for (int i = 0; i < MAX_TASKS; i++) {
-        if (gTasks[i].State == TASK_READY) {
-            First = &gTasks[i];
-            break;
+    int Cpus;
+    int c;
+    int i;
+
+    Cpus = HalCpuCount();
+    if (Cpus < 1) {
+        Cpus = 1;
+    }
+    if (Cpus > HAL_MAX_CPUS) {
+        Cpus = HAL_MAX_CPUS;
+    }
+    for (c = 0; c < Cpus; c++) {
+        if (CreateIdleForCpu((UINT32)c) < 0) {
+            ConsoleWrite("sched: idle create failed\n");
+            for (;;) {
+                HalCpuPark();
+            }
         }
+    }
+
+    /* shell/gui 绑 BSP；worker 可任意核（演示偷任务） */
+    for (i = 0; i < MAX_TASKS; i++) {
+        if (gTasks[i].State == TASK_UNUSED) {
+            continue;
+        }
+        if (gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') {
+            gTasks[i].Affinity = 0;
+        } else if (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u') {
+            gTasks[i].Affinity = 0;
+        }
+    }
+
+    for (i = 0; i < MAX_TASKS; i++) {
+        if (gTasks[i].State != TASK_READY) {
+            continue;
+        }
+        if (gIdleTask[0] && &gTasks[i] == gIdleTask[0]) {
+            continue;
+        }
+        First = &gTasks[i];
+        break;
     }
     if (!First) {
         ConsoleWrite("sched: no tasks\n");
@@ -765,20 +992,20 @@ void SchedulerStart(void) {
             HalCpuPark();
         }
     }
-    gCurrent = First;
-    gCurrent->State = TASK_RUNNING;
-    if (gCurrent->PageRoot != 0) {
-        VirtualMemoryLoadPageTable(gCurrent->PageRoot);
-    }
+
     HalIrqDisable();
+    SpinLockAcquire(&gSchedLock);
+    ActivateTask(First);
+    First->Started = 1;
+    gSchedOnline = 1;
+    SpinLockRelease(&gSchedLock);
     HalTimerStart();
-    gCurrent->Started = 1;
-    DebugWrite("sched: timer on, entering tasks\n");
-    SchedulerEnter(gCurrent->Frame);
+    DebugWrite("sched: online, entering tasks\n");
+    SchedulerEnter(First->Frame);
 }
 
 TASK *SchedulerCurrent(void) {
-    return gCurrent;
+    return CurrentTask();
 }
 
 int SchedulerTaskCount(void) {

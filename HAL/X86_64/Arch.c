@@ -280,8 +280,8 @@ UINT64 InterruptDispatch(HAL_FRAME *F) {
     if (F->Vector == VEC_TIMER) {
         LapicEoi();
         HalCpuTickInc();
-        /* PR-S2：AP 只计 tick，不进共享调度（S3 再多核安全） */
-        if (!HalCpuIsBsp()) {
+        /* PR-S3：调度上线后所有核进 SchedulerOnTimer（大锁保护） */
+        if (!SchedulerIsOnline()) {
             return 0;
         }
         return SchedulerOnTimer(F);

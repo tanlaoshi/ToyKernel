@@ -23,5 +23,6 @@ void KernelMain(void) {
     SchedulerCreate("shell", ShellTask);
     SchedulerCreate("gui", GuiTask);
     SchedulerCreate("worker", WorkerTask);
+    /* shell/gui 在 SchedulerStart 内绑 BSP；worker Affinity=-1 可被 AP 抢走 */
     SchedulerStart();
 }
