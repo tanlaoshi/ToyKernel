@@ -8,6 +8,7 @@
 
 #define VIRTIO_DEV_BLOCK 2u
 #define VIRTIO_DEV_INPUT 18u
+#define VIRTIO_DEV_NET   1u
 
 #define VIRTIO_STATUS_ACK         1u
 #define VIRTIO_STATUS_DRIVER      2u
@@ -68,11 +69,21 @@ void VirtioMmioWrite64(UINT64 Base, UINT32 Off, UINT64 Val);
 /* 扫描平台 virtio-mmio 槽；对每个非 0 DeviceId 调 Cb。返回发现设备数 */
 int VirtioMmioScan(void (*Cb)(UINT64 Base, UINT32 DeviceId, void *Ctx), void *Ctx);
 
+/* 复位 + ACK/DRIVER + 特性协商（FEATURES_OK）；不建队列、不 DRIVER_OK */
+int VirtioMmioNegotiate(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
+                        UINT64 DriverFeatures);
+
+/* 在已 Negotiate 的设备上配置 QueueId（可多次）；不置 DRIVER_OK */
+int VirtioMmioSetupOneQueue(VIRTIO_MMIO_DEV *Dev, UINT16 QueueId, UINT16 WantSize);
+
+void VirtioMmioDriverOk(VIRTIO_MMIO_DEV *Dev);
+
 /* 完成 ACK/DRIVER/FEATURES_OK + 单队列（QID=0）就绪；成功 0 */
 int VirtioMmioSetupQueue(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
                          UINT16 WantSize, UINT64 DriverFeatures);
 
 void VirtioMmioNotify(VIRTIO_MMIO_DEV *Dev);
+void VirtioMmioNotifyQueue(VIRTIO_MMIO_DEV *Dev, UINT16 QueueId);
 void VirtioMmioAckInterrupt(VIRTIO_MMIO_DEV *Dev);
 
 #endif

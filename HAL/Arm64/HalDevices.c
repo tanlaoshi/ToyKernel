@@ -1,9 +1,10 @@
 /*
- * HalDevices.c — Arm64：virtio-blk + virtio-input（PR-V3/V4）
+ * HalDevices.c — Arm64：virtio-blk + virtio-input + virtio-net（PR-V3/V4/N9）
  */
 #include "Hal.h"
 #include "VirtioBlk.h"
 #include "VirtioInput.h"
+#include "VirtioNet.h"
 
 int HalBlockInit(void) {
     return VirtioBlkInit();
@@ -35,69 +36,49 @@ int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
 }
 
 int HalNetInit(void) {
-    return 0;
+    return VirtioNetInit();
 }
 
 int HalNetReady(void) {
-    return 0;
+    return VirtioNetReady();
 }
 
 void HalNetPoll(void) {
+    VirtioNetPoll();
 }
 
 void HalNetGetMac(UINT8 Mac[6]) {
-    int i;
-    for (i = 0; i < 6; i++) {
-        Mac[i] = 0;
-    }
+    VirtioNetGetMac(Mac);
 }
 
 UINT32 HalNetGetIp(void) {
-    return 0;
+    return VirtioNetGetIp();
 }
 
 void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
-    (void)Ip;
-    if (BufLen > 0) {
-        Buf[0] = 0;
-    }
+    VirtioNetFormatIp(Ip, Buf, BufLen);
 }
 
 int HalNetParseIp(const char *Text, UINT32 *Ip) {
-    (void)Text;
-    (void)Ip;
-    return -1;
+    return VirtioNetParseIp(Text, Ip);
 }
 
 int HalNetPing(const char *Host, int TimeoutMs) {
-    (void)Host;
-    (void)TimeoutMs;
-    return -1;
+    return VirtioNetPing(Host, TimeoutMs);
 }
 
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
-    if (TxDone) {
-        *TxDone = 0;
-    }
-    if (RxFrames) {
-        *RxFrames = 0;
-    }
+    VirtioNetGetStats(TxDone, RxFrames);
 }
 
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
-    (void)DstIp;
-    (void)Proto;
-    (void)Payload;
-    (void)PayloadLen;
-    return -1;
+    return VirtioNetSendIp(DstIp, Proto, Payload, PayloadLen);
 }
 
 UINT16 HalNetChecksum(const void *Data, UINTN Len) {
-    (void)Data;
-    (void)Len;
-    return 0;
+    return VirtioNetChecksum(Data, Len);
 }
 
 void HalNetSetLwIpRx(int Enable) {
-    (void)Enable;
+    VirtioNetSetLwIpRx(Enable);
 }

@@ -103,21 +103,10 @@ static void WireRingPtrs(VIRTIO_MMIO_DEV *Dev, UINT64 DescPa, UINT64 AvailPa,
     Dev->UsedRing = (volatile VRING_USED_ELEM *)(UINTN)(UsedPa + 4);
 }
 
-int VirtioMmioSetupQueue(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
-                         UINT16 WantSize, UINT64 DriverFeatures) {
-    UINT32 Max;
-    UINT16 Qsz;
-    UINT8 *Pages;
+int VirtioMmioNegotiate(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
+                        UINT64 DriverFeatures) {
     UINT32 Ver;
     UINT32 FeatLo;
-    UINTN DescBytes;
-    UINTN AvailBytes;
-    UINTN UsedBytes;
-    UINTN Align = PAGE_SIZE;
-    UINT64 DescPa;
-    UINT64 AvailPa;
-    UINT64 UsedPa;
-    UINT32 PagesN;
 
     if (!Dev || Base == 0) {
         return -1;
@@ -158,8 +147,32 @@ int VirtioMmioSetupQueue(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
     if (Ver == 1) {
         VirtioMmioWrite32(Base, VIRTIO_MMIO_GUEST_PAGE_SIZE, PAGE_SIZE);
     }
+    return 0;
+}
 
-    VirtioMmioWrite32(Base, VIRTIO_MMIO_QUEUE_SEL, 0);
+int VirtioMmioSetupOneQueue(VIRTIO_MMIO_DEV *Dev, UINT16 QueueId,
+                            UINT16 WantSize) {
+    UINT64 Base;
+    UINT32 Max;
+    UINT16 Qsz;
+    UINT8 *Pages;
+    UINT32 Ver;
+    UINTN DescBytes;
+    UINTN AvailBytes;
+    UINTN UsedBytes;
+    UINTN Align = PAGE_SIZE;
+    UINT64 DescPa;
+    UINT64 AvailPa;
+    UINT64 UsedPa;
+    UINT32 PagesN;
+
+    if (!Dev || Dev->Base == 0) {
+        return -1;
+    }
+    Base = Dev->Base;
+    Ver = VirtioMmioRead32(Base, VIRTIO_MMIO_VERSION);
+
+    VirtioMmioWrite32(Base, VIRTIO_MMIO_QUEUE_SEL, QueueId);
     Max = VirtioMmioRead32(Base, VIRTIO_MMIO_QUEUE_NUM_MAX);
     if (Max == 0) {
         return -1;
@@ -179,7 +192,6 @@ int VirtioMmioSetupQueue(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
     UsedBytes = 4u + (UINTN)Qsz * sizeof(VRING_USED_ELEM) + 2u;
 
     if (Ver == 1) {
-        /* legacy：连续 vring，used 按 QueueAlign 对齐 */
         UINTN Size0 = DescBytes + AvailBytes;
         UINTN UsedOff = (Size0 + Align - 1) & ~(Align - 1);
         UINTN Total = UsedOff + UsedBytes;
@@ -222,21 +234,45 @@ int VirtioMmioSetupQueue(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
         VirtioMmioWrite32(Base, VIRTIO_MMIO_QUEUE_READY, 1);
     }
 
-    VirtioMmioWrite32(Base, VIRTIO_MMIO_STATUS,
-                      VIRTIO_STATUS_ACK | VIRTIO_STATUS_DRIVER |
-                          (Ver >= 2 ? VIRTIO_STATUS_FEATURES_OK : 0) |
-                          VIRTIO_STATUS_DRIVER_OK);
-
     Dev->NextAvail = 0;
     Dev->LastUsed = 0;
     return 0;
 }
 
-void VirtioMmioNotify(VIRTIO_MMIO_DEV *Dev) {
+void VirtioMmioDriverOk(VIRTIO_MMIO_DEV *Dev) {
+    UINT32 Ver;
+    UINT32 St;
+
+    if (!Dev || Dev->Base == 0) {
+        return;
+    }
+    Ver = VirtioMmioRead32(Dev->Base, VIRTIO_MMIO_VERSION);
+    St = VIRTIO_STATUS_ACK | VIRTIO_STATUS_DRIVER |
+         (Ver >= 2 ? VIRTIO_STATUS_FEATURES_OK : 0) | VIRTIO_STATUS_DRIVER_OK;
+    VirtioMmioWrite32(Dev->Base, VIRTIO_MMIO_STATUS, St);
+}
+
+int VirtioMmioSetupQueue(VIRTIO_MMIO_DEV *Dev, UINT64 Base, UINT32 DeviceId,
+                         UINT16 WantSize, UINT64 DriverFeatures) {
+    if (VirtioMmioNegotiate(Dev, Base, DeviceId, DriverFeatures) != 0) {
+        return -1;
+    }
+    if (VirtioMmioSetupOneQueue(Dev, 0, WantSize) != 0) {
+        return -1;
+    }
+    VirtioMmioDriverOk(Dev);
+    return 0;
+}
+
+void VirtioMmioNotifyQueue(VIRTIO_MMIO_DEV *Dev, UINT16 QueueId) {
     if (!Dev) {
         return;
     }
-    VirtioMmioWrite32(Dev->Base, VIRTIO_MMIO_QUEUE_NOTIFY, 0);
+    VirtioMmioWrite32(Dev->Base, VIRTIO_MMIO_QUEUE_NOTIFY, QueueId);
+}
+
+void VirtioMmioNotify(VIRTIO_MMIO_DEV *Dev) {
+    VirtioMmioNotifyQueue(Dev, 0);
 }
 
 void VirtioMmioAckInterrupt(VIRTIO_MMIO_DEV *Dev) {
