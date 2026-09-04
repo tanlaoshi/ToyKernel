@@ -21,7 +21,8 @@ TOOLS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/tools/extract)
 
 ifeq ($(ARCH),x86_64)
 HAL_ARCH = X86_64
-ARCH_CFLAGS = -m64 -mno-red-zone
+# -mgeneral-regs-only：禁止内核生成 SSE/AVX（未开 CR4.OSFXSR 时 pxor %xmm 会 #UD）
+ARCH_CFLAGS = -m64 -mno-red-zone -mgeneral-regs-only
 USER_BLOB_FMT = elf64-x86-64
 LDFLAGS_ARCH =
 endif
@@ -161,6 +162,7 @@ USER_SYSFORK_ELF = User/sysfork.elf
 USER_EXECDEMO_ELF = User/execdemo.elf
 USER_PIPEDEMO_ELF = User/pipedemo.elf
 USER_BRKDEMO_ELF = User/brkdemo.elf
+USER_KILLDEMO_ELF = User/killdemo.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
@@ -176,6 +178,7 @@ USER_SYSFORK_OBJ = User/sysfork.o
 USER_EXECDEMO_OBJ = User/execdemo.o
 USER_PIPEDEMO_OBJ = User/pipedemo.o
 USER_BRKDEMO_OBJ = User/brkdemo.o
+USER_KILLDEMO_OBJ = User/killdemo.o
 USER_LD = User/user.ld
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
@@ -212,7 +215,7 @@ ifneq ($(BRINGUP),1)
 all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF) \
-	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF)
+	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF)
 endif
 endif
 
@@ -317,6 +320,13 @@ $(USER_BRKDEMO_OBJ): User/brkdemo.c User/include/stdio.h User/include/stdlib.h \
 $(USER_BRKDEMO_ELF): $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS)
 
+$(USER_KILLDEMO_OBJ): User/killdemo.c User/include/stdio.h User/include/unistd.h \
+		User/include/signal.h
+	$(CC) $(USER_CFLAGS) -c User/killdemo.c -o $@
+
+$(USER_KILLDEMO_ELF): $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS)
+
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
 
@@ -393,10 +403,10 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_WAITNH_OBJ)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
 	rm -f $(USER_NETDEMO_OBJ) $(USER_NETSRV_OBJ) $(USER_SYSHELLO_OBJ) $(USER_SYSFORK_OBJ)
-	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ)
+	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_KILLDEMO_OBJ)
 	rm -f $(USER_CRT_OBJS)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 	rm -f $(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF)
-	rm -f $(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF)
+	rm -f $(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF)
 endif

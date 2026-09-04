@@ -670,6 +670,7 @@ void SchedulerInit(void) {
         gTasks[i].ParentId = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].PendingKill = 0;
         gTasks[i].Affinity = -1;
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
@@ -714,6 +715,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].ParentId = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].PendingKill = 0;
         gTasks[i].Affinity = -1;
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
@@ -756,6 +758,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].ParentId = Cur ? TaskSlot(Cur) : -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].PendingKill = 0;
         gTasks[i].Affinity = -1; /* PR-S4：每核 TSS，用户态可上 AP */
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
@@ -908,6 +911,7 @@ static void ReapZombie(TASK *Z) {
     Z->Started = 0;
     Z->ParentId = -1;
     Z->Waiting = 0;
+    Z->PendingKill = 0;
     Z->OnCpu = -1;
     Z->InRunq = 0;
     gTaskCount--;
@@ -970,11 +974,84 @@ static int WakeWaitingParent(TASK *Zombie) {
     return 1;
 }
 
+/*
+ * 持锁：结束用户任务（exit / kill 共用）。
+ * *ShowPrompt：无用户父、立即回收时置 1。
+ * 返回 1：目标是当前任务，调用方须切走；0：目标非当前。
+ */
+static int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt) {
+    if (!Exiting || !Exiting->IsUser) {
+        return 0;
+    }
+    if (ShowPrompt) {
+        *ShowPrompt = 0;
+    }
+
+    SchedulerFdCloseAll(Exiting);
+    if (Exiting->UserSpace) {
+        VirtualMemorySpaceDestroy(Exiting->UserSpace);
+        Exiting->UserSpace = 0;
+    }
+    Exiting->ExitCode = Code;
+    Exiting->PageRoot = VirtualMemoryKernelRoot();
+    Exiting->Waiting = 0;
+    Exiting->PendingKill = 0;
+    Exiting->OnCpu = -1;
+    RunqRemove(Exiting);
+
+    if (ParentIsUserWaiter(Exiting->ParentId)) {
+        Exiting->State = TASK_ZOMBIE;
+        if (!WakeWaitingParent(Exiting)) {
+            /* 父用户进程稍后 wait */
+        }
+    } else {
+        if (ShowPrompt) {
+            *ShowPrompt = 1;
+        }
+        Exiting->State = TASK_UNUSED;
+        Exiting->Frame = 0;
+        Exiting->ParentId = -1;
+        gTaskCount--;
+    }
+
+    return Exiting == CurrentTask() ? 1 : 0;
+}
+
+static int SignalDefaultTerminates(INT32 Sig) {
+    return Sig == SIGKILL || Sig == SIGTERM || Sig == SIGINT;
+}
+
+/* 持锁：对用户任务投递默认终止。返回：0 成功且勿切；1 成功且须切走；-1 失败 */
+static int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt) {
+    INT32 Code;
+    UINT32 CurCpu;
+
+    if (!T || !T->IsUser || !SignalDefaultTerminates(Sig)) {
+        return -1;
+    }
+    if (T->State == TASK_UNUSED || T->State == TASK_ZOMBIE) {
+        return -1;
+    }
+
+    Code = 128 + Sig;
+    CurCpu = HalCpuId();
+
+    /* 他核 RUNNING：挂起，待该核 timer/syscall 入口完成终止（避免拆用户页表竞态） */
+    if (T->State == TASK_RUNNING && T->OnCpu >= 0 &&
+        (UINT32)T->OnCpu != CurCpu && T != CurrentTask()) {
+        T->PendingKill = Sig;
+        return 0;
+    }
+
+    return TerminateUserLocked(T, Code, ShowPrompt);
+}
+
 UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
     TASK *Cur;
     TASK *Next;
     UINT32 Cpu;
     UINT64 Ret;
+    int ShowPrompt = 0;
 
     if (!gSchedOnline) {
         return 0;
@@ -988,6 +1065,28 @@ UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
     }
     Cur->Frame = Frame;
     Cur->Ticks++;
+
+    if (Cur->IsUser && Cur->PendingKill > 0) {
+        INT32 Sig = Cur->PendingKill;
+        Cur->PendingKill = 0;
+        if (TerminateUserLocked(Cur, 128 + Sig, &ShowPrompt)) {
+            Next = FindRunnable(Cpu);
+            if (!Next) {
+                SpinLockRelease(&gSchedLock);
+                ConsoleWrite("sched: no runnable after pending kill\n");
+                for (;;) {
+                    HalCpuPark();
+                }
+            }
+            ActivateTask(Next);
+            Ret = SchedResumeFrame(Next);
+            SpinLockRelease(&gSchedLock);
+            if (ShowPrompt) {
+                ConsoleShowPrompt();
+            }
+            return Ret;
+        }
+    }
 
     Next = PickNext(Cpu);
     if (Next == Cur || Next == 0) {
@@ -1024,29 +1123,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     DebugHex32((UINT32)Code);
     DebugWrite("\n");
 
-    SchedulerFdCloseAll(Exiting);
-    if (Exiting->UserSpace) {
-        VirtualMemorySpaceDestroy(Exiting->UserSpace);
-        Exiting->UserSpace = 0;
-    }
-    Exiting->ExitCode = Code;
-    Exiting->PageRoot = VirtualMemoryKernelRoot();
-    Exiting->Waiting = 0;
-    Exiting->OnCpu = -1;
-
-    if (ParentIsUserWaiter(Exiting->ParentId)) {
-        Exiting->State = TASK_ZOMBIE;
-        if (!WakeWaitingParent(Exiting)) {
-            /* 父用户进程稍后 wait */
-        }
-    } else {
-        ShowPrompt = Exiting->IsUser && !ParentIsUserWaiter(Exiting->ParentId);
-        RunqRemove(Exiting);
-        Exiting->State = TASK_UNUSED;
-        Exiting->Frame = 0;
-        Exiting->ParentId = -1;
-        gTaskCount--;
-    }
+    (void)TerminateUserLocked(Exiting, Code, &ShowPrompt);
 
     Cpu = HalCpuId();
     Next = FindRunnable(Cpu);
@@ -1129,6 +1206,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTasks[Child].ParentId = ParentSlot;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
+    gTasks[Child].PendingKill = 0;
     gTasks[Child].Affinity = -1;
     gTasks[Child].OnCpu = -1;
     gTasks[Child].HomeCpu = 0;
@@ -1215,6 +1293,113 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     Ret = SchedResumeFrame(Next);
     SpinLockRelease(&gSchedLock);
     return Ret;
+}
+
+UINT64 SchedulerKill(HAL_FRAME *Frame) {
+    INT32 Pid;
+    INT32 Sig;
+    INT32 Slot;
+    TASK *T;
+    TASK *Next;
+    UINT32 Cpu;
+    UINT64 Ret;
+    int ShowPrompt = 0;
+    int Deliver;
+
+    SpinLockAcquire(&gSchedLock);
+    Pid = (INT32)HalFrameArg0(Frame);
+    Sig = (INT32)HalFrameArg1(Frame);
+    if (Pid <= 0 || !SignalDefaultTerminates(Sig)) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedLock);
+        return 0;
+    }
+    Slot = Pid - 1;
+    if (Slot < 0 || Slot >= MAX_TASKS) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedLock);
+        return 0;
+    }
+    T = &gTasks[Slot];
+    Deliver = DeliverKillLocked(T, Sig, &ShowPrompt);
+    if (Deliver < 0) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedLock);
+        return 0;
+    }
+    if (Deliver == 0) {
+        HalFrameSetReturn(Frame, 0);
+        SpinLockRelease(&gSchedLock);
+        return 0;
+    }
+
+    /* 杀自身：切到其他可运行任务 */
+    Cpu = HalCpuId();
+    Next = FindRunnable(Cpu);
+    if (!Next) {
+        SpinLockRelease(&gSchedLock);
+        ConsoleWrite("sched: no runnable after self-kill\n");
+        for (;;) {
+            HalCpuPark();
+        }
+    }
+    ActivateTask(Next);
+    Ret = SchedResumeFrame(Next);
+    SpinLockRelease(&gSchedLock);
+    if (ShowPrompt) {
+        ConsoleShowPrompt();
+    }
+    return Ret;
+}
+
+int SchedulerKillPid(INT32 Pid, INT32 Sig) {
+    INT32 Slot;
+    TASK *T;
+    int ShowPrompt = 0;
+    int Deliver;
+    TASK *Cur;
+    TASK *Next;
+    UINT32 Cpu;
+    UINT64 Ret;
+
+    if (Pid <= 0 || !SignalDefaultTerminates(Sig)) {
+        return -1;
+    }
+    Slot = Pid - 1;
+    if (Slot < 0 || Slot >= MAX_TASKS) {
+        return -1;
+    }
+
+    SpinLockAcquire(&gSchedLock);
+    T = &gTasks[Slot];
+    Cur = CurrentTask();
+    Deliver = DeliverKillLocked(T, Sig, &ShowPrompt);
+    if (Deliver < 0) {
+        SpinLockRelease(&gSchedLock);
+        return -1;
+    }
+    if (Deliver == 0 || T != Cur) {
+        SpinLockRelease(&gSchedLock);
+        if (ShowPrompt) {
+            ConsoleShowPrompt();
+        }
+        return 0;
+    }
+
+    Cpu = HalCpuId();
+    Next = FindRunnable(Cpu);
+    if (!Next) {
+        SpinLockRelease(&gSchedLock);
+        return -1;
+    }
+    ActivateTask(Next);
+    Ret = SchedResumeFrame(Next);
+    (void)Ret;
+    SpinLockRelease(&gSchedLock);
+    if (ShowPrompt) {
+        ConsoleShowPrompt();
+    }
+    return 0;
 }
 
 UINT64 SchedulerYield(HAL_FRAME *Frame) {

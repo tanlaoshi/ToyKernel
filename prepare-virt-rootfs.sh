@@ -10,7 +10,7 @@ mkdir -p "$ROOT"
 IMG_ROOT="../ToyImage/rootfs"
 if [ -d "$IMG_ROOT" ]; then
     for F in TOYOS.ID THEME.CFG HELLO.ELF CAT.ELF WRITE.ELF \
-             SYSHELLO.ELF EXECDEMO.ELF PIPEDEMO.ELF BRKDEMO.ELF TOYOS.DB; do
+             SYSHELLO.ELF EXECDEMO.ELF PIPEDEMO.ELF BRKDEMO.ELF KILLDEMO.ELF TOYOS.DB; do
         if [ -f "$IMG_ROOT/$F" ]; then
             cp -f "$IMG_ROOT/$F" "$ROOT/$F"
         fi

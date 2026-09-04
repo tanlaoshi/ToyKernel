@@ -139,3 +139,18 @@ void *brk(void *addr) {
     }
     return (void *)r;
 }
+
+int kill(pid_t pid, int sig) {
+    long r;
+
+    if (pid <= 0 || (sig != SIGKILL && sig != SIGTERM && sig != SIGINT)) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_kill(pid, sig);
+    if (r < 0) {
+        errno = ESRCH;
+        return -1;
+    }
+    return 0;
+}

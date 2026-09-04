@@ -7,6 +7,7 @@
 #include "PhysicalMemory.h"
 #include "Process.h"
 #include "Scheduler.h"
+#include "Syscall.h"
 #include "Tasks.h"
 #include "Hal.h"
 #include "Udp.h"
@@ -118,7 +119,9 @@ static void CommandPs(int Argc, char **Argv) {
         if (!T) {
             continue;
         }
-        ConsoleWrite("  ");
+        ConsoleWrite("  pid=");
+        ConsoleHex32((UINT32)(i + 1));
+        ConsoleWrite(" ");
         ConsoleWrite(T->Name);
         if (T->IsUser) {
             ConsoleWrite(" user");
@@ -152,6 +155,48 @@ static void CommandPs(int Argc, char **Argv) {
     ConsoleWrite(" steals=");
     ConsoleHex64(SchedulerStealCount());
     ConsoleWrite("\n");
+}
+
+static int ParseDecInt(const char *S, INT32 *Out) {
+    INT32 V = 0;
+    if (!S || !S[0] || !Out) {
+        return -1;
+    }
+    for (; *S; S++) {
+        if (*S < '0' || *S > '9') {
+            return -1;
+        }
+        V = V * 10 + (*S - '0');
+    }
+    *Out = V;
+    return 0;
+}
+
+/* PR-P4：kill <pid> [sig]；pid 与 ps / fork 一致（槽位+1）；默认 SIGTERM */
+static void CommandKill(int Argc, char **Argv) {
+    INT32 Pid = 0;
+    INT32 Sig = SIGTERM;
+
+    if (Argc < 2) {
+        ConsoleWrite("usage: kill <pid> [sig]\n");
+        ConsoleWrite("  sig: 2=INT 9=KILL 15=TERM (default)\n");
+        return;
+    }
+    if (ParseDecInt(Argv[1], &Pid) != 0 || Pid <= 0) {
+        ConsoleWrite("kill: bad pid\n");
+        return;
+    }
+    if (Argc >= 3) {
+        if (ParseDecInt(Argv[2], &Sig) != 0) {
+            ConsoleWrite("kill: bad sig\n");
+            return;
+        }
+    }
+    if (SchedulerKillPid(Pid, Sig) != 0) {
+        ConsoleWrite("kill: failed (user only; INT/KILL/TERM)\n");
+        return;
+    }
+    ConsoleWrite("kill: ok\n");
 }
 
 static void CommandNet(int Argc, char **Argv) {
@@ -659,6 +704,7 @@ void ShellCommandsRegisterVirtMin(void) {
     ConsoleRegister("ps", "list tasks", CommandPs);
     ConsoleRegister("mem", "physical memory stats", CommandMem);
     ConsoleRegister("exec", "load ELF (TOYOS:FILE)", CommandExec);
+    ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
 }
 
@@ -669,6 +715,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("memtest", "alloc/verify/free one page", CommandMemtest);
     ConsoleRegister("runuser", "run embedded hello ELF", CommandRunuser);
     ConsoleRegister("exec", "load ELF (TOYOS:FILE / A:FILE)", CommandExec);
+    ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);

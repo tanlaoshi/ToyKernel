@@ -53,6 +53,7 @@ typedef struct TASK {
     INT32                  ParentId;   /* -1 = 无父进程 */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
+    INT32                  PendingKill; /* PR-P4：>0 待默认终止（跨核 RUNNING） */
     INT32                  Affinity;   /* -1=任意 CPU；否则逻辑 CpuId */
     INT32                  OnCpu;      /* 正在跑的逻辑 CPU；未跑为 -1 */
     INT32                  HomeCpu;    /* 首选运行队列（PR-S4） */
@@ -72,6 +73,10 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame);
 UINT64 SchedulerFork(HAL_FRAME *Frame);
 UINT64 SchedulerWait(HAL_FRAME *Frame);
 UINT64 SchedulerYield(HAL_FRAME *Frame);
+/* PR-P4：rdi=pid rsi=sig；杀内核/idle 失败。非当前任务返回 0；杀自身则切走 */
+UINT64 SchedulerKill(HAL_FRAME *Frame);
+/* Shell：pid=槽位+1；默认终止用户任务。成功 0，失败 -1 */
+int SchedulerKillPid(INT32 Pid, INT32 Sig);
 void SchedulerStart(void);
 /* AP：等 BSP SchedulerStart 后进入本核 idle（不返回） */
 void SchedulerApStart(void);

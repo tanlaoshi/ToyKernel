@@ -21,14 +21,21 @@
 #define SYS_PIPE    14
 #define SYS_DUP     15
 #define SYS_BRK     16
+#define SYS_KILL    17
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1
+
+/* PR-P4 简单信号（无 sigaction / mask / 停止作业） */
+#define SIGINT  2
+#define SIGKILL 9
+#define SIGTERM 15
 
 /* SYS_EXECVE：rdi=path rsi=argv rdx=envp（envp 可忽略）；成功不返回 */
 /* SYS_PIPE：rdi=int[2] 用户指针 → [0]读 [1]写；成功返回 0 */
 /* SYS_DUP：rdi=fd → 新 fd（P2 仅管道） */
 /* SYS_BRK：rdi=new_brk（0=查询）；成功返回当前/新 break，失败 -1 */
+/* SYS_KILL：rdi=pid（与 fork 返回值一致 = 槽位+1）rsi=sig；成功 0，失败 -1 */
 /* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type(SOCK_STREAM=1) rdx=protocol
  * SYS_CONNECT：rdi=fd rsi=ip(host-order u32) rdx=port
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port

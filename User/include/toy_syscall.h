@@ -22,8 +22,13 @@
 #define SYS_PIPE    14
 #define SYS_DUP     15
 #define SYS_BRK     16
+#define SYS_KILL    17
 
 #define WNOHANG 1
+
+#define SIGINT  2
+#define SIGKILL 9
+#define SIGTERM 15
 
 typedef long ssize_t;
 typedef unsigned long size_t;
@@ -78,6 +83,10 @@ static inline long toy_dup(int fd) {
 
 static inline long toy_brk(long addr) {
     return toy_syscall(SYS_BRK, addr, 0, 0);
+}
+
+static inline long toy_kill(long pid, long sig) {
+    return toy_syscall(SYS_KILL, pid, sig, 0);
 }
 
 #endif

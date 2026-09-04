@@ -19,5 +19,6 @@ extern int errno;
 #define EMFILE  24
 #define EAGAIN  11
 #define ECHILD  10
+#define ESRCH   3
 
 #endif

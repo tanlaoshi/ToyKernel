@@ -393,6 +393,8 @@ UINT64 ProcessBrk(UINT64 NewBrk) {
 int ProcessExec(const char *Path) {
     VM_ADDR_SPACE *Space;
     ELF_LOAD_RESULT Info;
+    UINT64 NewRsp;
+    char Dummy[1][EXEC_ARG_LEN];
 
     if (!Path || !Path[0]) {
         ConsoleWrite("exec: empty path\n");
@@ -401,6 +403,14 @@ int ProcessExec(const char *Path) {
     if (ProcessLoadPath(Path, &Space, &Info) != 0) {
         return -1;
     }
+    /* CRT _start 读 (%rsp)=argc；须把 rsp 落到已映射栈页内（与 execve 一致） */
+    if (ProcessSetupArgvStack(Space, Info.StackTop, Dummy, 0, &NewRsp) != 0) {
+        VirtualMemorySpaceDestroy(Space);
+        ConsoleWrite("exec: argv stack failed\n");
+        return -1;
+    }
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+    Info.StackTop = NewRsp;
     HalUserInstall();
     SchedulerReapOrphanZombies();
     return ProcessStartElf(Space, &Info, Path);

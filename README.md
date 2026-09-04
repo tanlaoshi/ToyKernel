@@ -25,8 +25,9 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 ### 进程与用户态（阶段 2）
 
 - **fork / wait / yield**：`VirtualMemorySpaceClone`（COW）；子进程 exit 变 zombie；`wait` 默认可阻塞，`rdi=WNOHANG` 非阻塞
-- **系统调用扩展**：`open` / `read` / `close` / `fork` / `wait`；每任务 FD 表（打开时整文件读入内核缓冲）
-- **用户程序**：`HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`
+- **简单信号（PR-P4）**：`SYS_KILL`；`SIGKILL`/`SIGTERM`/`SIGINT` 默认终止；CRT `kill`；Shell `kill <pid>`；`KILLDEMO.ELF`
+- **系统调用扩展**：`open` / `read` / `close` / `fork` / `wait` / `kill`；每任务 FD 表（打开时整文件读入内核缓冲）
+- **用户程序**：`HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`、`KILLDEMO.ELF` 等
 - **多任务内核栈修复**：每个用户任务切换时设置独立 TSS `RSP0`（`ArchSetRsp0`），避免子进程 syscall 覆盖父进程中断帧导致 `exec FORK.ELF` 失败
 
 ### 存储与启动
@@ -135,7 +136,7 @@ TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
 
 ### Arm64 / RiscV（自有 Boot virt — PR-V6 / N10）
 
-**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) 1.2e / 文末 N10、G11 归档。
+**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) **1.2e** ✅（文末 N10/G11/P4 归档）；下一阶段 **1.2f**。
 
 ```bash
 cd ToyKernel
