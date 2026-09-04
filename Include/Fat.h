@@ -22,6 +22,9 @@
 #define FAT_ERR_FBIG       (-10)  /* 超过写大小上限 */
 #define FAT_ERR_ROFS       (-11)  /* 只读卷（PR-FS2 ESP 等） */
 
+/* PR-FS3：单次 FatWriteFile 上限（须有顶）；超过 → FAT_ERR_FBIG */
+#define FAT_WRITE_MAX      (8u * 1024u * 1024u)
+
 #define FAT_ATTR_DIR        0x10
 #define FAT_ENT_NAME_MAX    64
 #define FAT_LIST_MAX        64

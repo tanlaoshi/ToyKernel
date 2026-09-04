@@ -9,8 +9,10 @@
 #define SECTOR 512
 #define FAT32_EOC 0x0FFFFFF8u
 #define FAT16_EOC 0xFFF8u
-/* PR-FS1：多分簇写稳；上限防误写撑爆 vvfat（FD 层仍可能更小） */
-#define FAT_WRITE_MAX (1024 * 1024)
+/* PR-FS3：与 Include/Fat.h 中 FAT_WRITE_MAX 保持一致 */
+#ifndef FAT_WRITE_MAX
+#define FAT_WRITE_MAX (8 * 1024 * 1024)
+#endif
 #define FAT_NAME_MAX 255
 #define FAT_PATH_DEPTH 16
 #define FAT_ATTR_RO   0x01
@@ -1212,13 +1214,17 @@ static int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
 
     if (Existing) {
         UINT8 Old[32];
+        UINT32 DeferredFree;
+
         if (!DirReadEntry(Parent, (UINT32)Index, Old)) {
             return FAT_ERR_IO;
         }
+        /*
+         * PR-FS3：先腾槽位再写新项，最后才释放旧簇。
+         * 若在释放后 FindSlots/写项失败，会丢目录项。
+         */
+        DeferredFree = OldCluster;
         DeleteLfnPrefix(Parent, Index, Fat83Checksum(Old));
-        if (OldCluster >= 2 && !FatFreeChain(OldCluster)) {
-            return FAT_ERR_IO;
-        }
         Old[0] = 0xE5;
         if (!DirWriteEntry(Parent, (UINT32)Index, Old)) {
             return FAT_ERR_IO;
@@ -1226,6 +1232,22 @@ static int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
         if (!DirFindSlots(Parent, Need, &Index)) {
             return FAT_ERR_NOSPC;
         }
+        SfnIndex = Index + LfnCount;
+        Cksum = Fat83Checksum(Name83);
+        for (Ord = LfnCount; Ord >= 1; Ord--) {
+            FillLfnEntry(E, Ord, Ord == LfnCount, Cksum, Leaf);
+            if (!DirWriteEntry(Parent, (UINT32)(SfnIndex - Ord), E)) {
+                return FAT_ERR_IO;
+            }
+        }
+        FillSfnEntry(E, Name83, Attr, Cluster, Size);
+        if (!DirWriteEntry(Parent, (UINT32)SfnIndex, E)) {
+            return FAT_ERR_IO;
+        }
+        if (DeferredFree >= 2 && DeferredFree != Cluster) {
+            FatFreeChain(DeferredFree);
+        }
+        return FAT_OK;
     }
 
     SfnIndex = Index + LfnCount;
@@ -1446,6 +1468,9 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     }
     NeedClusters = (UINT32)((Size + Cb - 1) / Cb);
 
+    /*
+     * 先写全新簇链，目录项仍指向旧文件；失败只回滚新链，旧项保留（PR-FS3）。
+     */
     for (i = 0; i < NeedClusters; i++) {
         UINT32 Cl = FatAllocCluster();
         UINT32 Chunk;
@@ -1478,6 +1503,30 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
             return FAT_ERR_IO;
         }
         Written += Chunk;
+    }
+
+    if (Existing) {
+        UINT8 E[32];
+
+        /* 同名覆盖：就地改 SFN 的簇/大小，再释放旧链 */
+        if (!DirReadEntry(Parent, (UINT32)Index, E)) {
+            FatFreeChain(FirstCluster);
+            return FAT_ERR_IO;
+        }
+        E[11] = FAT_ATTR_ARCH;
+        if (gFatType == 32) {
+            Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
+        }
+        Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
+        Write32(E + 28, (UINT32)Size);
+        if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
+            FatFreeChain(FirstCluster);
+            return FAT_ERR_IO;
+        }
+        if (OldCluster >= 2 && OldCluster != FirstCluster) {
+            FatFreeChain(OldCluster);
+        }
+        return FAT_OK;
     }
 
     Rc = DirCreateEntry(Parent, Leaf, FAT_ATTR_ARCH, FirstCluster, (UINT32)Size);

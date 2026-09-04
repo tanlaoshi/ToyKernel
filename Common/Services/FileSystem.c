@@ -8,6 +8,7 @@
 #include "Console.h"
 #include "Debug.h"
 #include "Hal.h"
+#include "PhysicalMemory.h"
 
 typedef struct {
     UINT32 Drive;
@@ -378,6 +379,90 @@ static void CommandWrite(int Argc, char **Argv) {
     ConsoleWrite(" bytes\n");
 }
 
+/* PR-FS3：大文件写验收（默认 ~2MiB，上限 FAT_WRITE_MAX） */
+static void CommandWrbig(int Argc, char **Argv) {
+    UINT32 SizeKb = 2048;
+    UINTN Size;
+    UINT32 Pages;
+    UINT8 *Buf;
+    UINTN i;
+    UINTN OutSize = 0;
+    int Err;
+    int Ok = 1;
+
+    if (Argc < 2) {
+        ConsoleWrite("usage: wrbig <file> [size_kb]\n");
+        return;
+    }
+    if (Argc >= 3) {
+        SizeKb = 0;
+        for (const char *P = Argv[2]; *P; P++) {
+            if (*P < '0' || *P > '9') {
+                ConsoleWrite("wrbig: bad size_kb\n");
+                return;
+            }
+            SizeKb = SizeKb * 10u + (UINT32)(*P - '0');
+        }
+        if (SizeKb == 0) {
+            ConsoleWrite("wrbig: size_kb must be > 0\n");
+            return;
+        }
+    }
+    if ((UINT64)SizeKb * 1024u > (UINT64)FAT_WRITE_MAX) {
+        SizeKb = (UINT32)(FAT_WRITE_MAX / 1024u);
+    }
+    Size = (UINTN)SizeKb * 1024u;
+    Pages = (UINT32)((Size + PAGE_SIZE - 1) / PAGE_SIZE);
+    Buf = (UINT8 *)PhysicalMemoryAllocatePages(Pages);
+    if (!Buf) {
+        ConsoleWrite("wrbig: alloc failed\n");
+        return;
+    }
+    for (i = 0; i < Size; i++) {
+        Buf[i] = (UINT8)((i * 131u + 17u) & 0xFFu);
+    }
+    Err = FsWriteFile(Argv[1], Buf, Size);
+    if (Err != FAT_OK) {
+        FatReport("wrbig", Err);
+        PhysicalMemoryFreePages(Buf, Pages);
+        return;
+    }
+    for (i = 0; i < Size; i++) {
+        Buf[i] = 0;
+    }
+    Err = FsReadFile(Argv[1], Buf, Size, &OutSize);
+    if (Err != FAT_OK) {
+        FatReport("wrbig", Err);
+        PhysicalMemoryFreePages(Buf, Pages);
+        return;
+    }
+    if (OutSize != Size) {
+        ConsoleWrite("wrbig: fail size want=");
+        ConsoleHex32((UINT32)Size);
+        ConsoleWrite(" got=");
+        ConsoleHex32((UINT32)OutSize);
+        ConsoleWrite("\n");
+        Ok = 0;
+    } else {
+        for (i = 0; i < Size; i++) {
+            UINT8 Expect = (UINT8)((i * 131u + 17u) & 0xFFu);
+            if (Buf[i] != Expect) {
+                ConsoleWrite("wrbig: fail pattern at ");
+                ConsoleHex32((UINT32)i);
+                ConsoleWrite("\n");
+                Ok = 0;
+                break;
+            }
+        }
+    }
+    PhysicalMemoryFreePages(Buf, Pages);
+    if (Ok) {
+        ConsoleWrite("wrbig: ok ");
+        ConsoleHex32((UINT32)Size);
+        ConsoleWrite(" bytes\n");
+    }
+}
+
 static void CommandRm(int Argc, char **Argv) {
     int Err;
 
@@ -593,11 +678,12 @@ int FileSystemInit(void) {
     ConsoleRegister("ls", "list directory (TOYOS: / A:)", CommandLs);
     ConsoleRegister("cat", "print file", CommandCat);
     ConsoleRegister("write", "write file text", CommandWrite);
+    ConsoleRegister("wrbig", "write+verify large file (PR-FS3)", CommandWrbig);
     ConsoleRegister("rm", "remove file or empty dir", CommandRm);
     ConsoleRegister("mkdir", "create directory", CommandMkdir);
     ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);
     ConsoleRegister("mv", "rename/move file or dir", CommandMv);
     ConsoleRegister("vols", "list mounted volumes", CommandVols);
-    DebugWrite("FS ready (ls, cat, write, rm, mkdir, rmdir, mv, vols)\n");
+    DebugWrite("FS ready (ls, cat, write, wrbig, rm, mkdir, rmdir, mv, vols)\n");
     return 0;
 }

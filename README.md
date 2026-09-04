@@ -163,6 +163,7 @@ toyos> help
 toyos> ls
 toyos> write NOTE.TXT hello
 toyos> cat NOTE.TXT
+toyos> wrbig BIG.BIN        # PR-FS3：默认 ~2MiB 写+读回校验（上限 FAT_WRITE_MAX=8MiB）
 
 toyos> runuser              # 内嵌 hello
 toyos> exec FORK.ELF        # 预期：C → P → done（调度顺序可能交错）
