@@ -409,7 +409,8 @@ static void CommandWrbig(int Argc, char **Argv) {
         }
     }
     if ((UINT64)SizeKb * 1024u > (UINT64)FAT_WRITE_MAX) {
-        SizeKb = (UINT32)(FAT_WRITE_MAX / 1024u);
+        FatReport("wrbig", FAT_ERR_FBIG);
+        return;
     }
     Size = (UINTN)SizeKb * 1024u;
     Pages = (UINT32)((Size + PAGE_SIZE - 1) / PAGE_SIZE);
