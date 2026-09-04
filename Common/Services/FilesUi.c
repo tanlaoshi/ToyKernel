@@ -619,7 +619,8 @@ static void DoPromptCommit(void) {
         Err = FsMkdir(Path);
         SetStatus(Err == FAT_OK ? "mkdir ok" : FatStrError(Err));
     } else if (gPromptKind == FILES_PROMPT_NEWFILE) {
-        Err = FsWriteFile(Path, "", 0);
+        /* vvfat：0 字节文件常不落宿主盘，重开即消失；写 1 字节换行可持久化 */
+        Err = FsWriteFile(Path, "\n", 1);
         SetStatus(Err == FAT_OK ? "file ok" : FatStrError(Err));
     } else {
         if (!JoinPath(OldPath, sizeof(OldPath), gCwd, gEnts[gSelected].Name)) {

@@ -1174,7 +1174,6 @@ static UINT32 ParentClusterForDotDot(FAT_DIR_CTX Parent) {
 static int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
                           UINT32 Cluster, UINT32 Size) {
     UINT8 Name83[11];
-    int UseLfn;
     int LfnCount;
     int Need;
     int Index = 0;
@@ -1189,20 +1188,20 @@ static int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
     if (!Leaf || !Leaf[0] || CompIsDotOrDotDot(Leaf)) {
         return FAT_ERR_INVAL;
     }
-    UseLfn = !PathTo83(Leaf, Name83);
-    if (UseLfn) {
+    /*
+     * 始终写 LFN：纯 8.3 短名会 ToUpper，QEMU vvfat 宿主侧又常显示成小写，
+     * 重启后列表大小写与用户输入不一致。LFN 保留原始大小写。
+     */
+    if (!PathTo83(Leaf, Name83)) {
         if (!Make83Alias(Parent, Leaf, Name83)) {
             return FAT_ERR_NOSPC;
         }
-        LfnCount = LfnEntryCountForName(Leaf);
-        if (LfnCount <= 0 || LfnCount > 20) {
-            return FAT_ERR_NAMETOOLONG;
-        }
-        Need = LfnCount + 1;
-    } else {
-        LfnCount = 0;
-        Need = 1;
     }
+    LfnCount = LfnEntryCountForName(Leaf);
+    if (LfnCount <= 0 || LfnCount > 20) {
+        return FAT_ERR_NAMETOOLONG;
+    }
+    Need = LfnCount + 1;
 
     if (!FindDirIndex(Parent, Leaf, Need, &Index, &Existing, &OldCluster, &OldAttr)) {
         if (!DirFindSlots(Parent, Need, &Index)) {
@@ -1231,12 +1230,10 @@ static int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
 
     SfnIndex = Index + LfnCount;
     Cksum = Fat83Checksum(Name83);
-    if (UseLfn) {
-        for (Ord = LfnCount; Ord >= 1; Ord--) {
-            FillLfnEntry(E, Ord, Ord == LfnCount, Cksum, Leaf);
-            if (!DirWriteEntry(Parent, (UINT32)(SfnIndex - Ord), E)) {
-                return FAT_ERR_IO;
-            }
+    for (Ord = LfnCount; Ord >= 1; Ord--) {
+        FillLfnEntry(E, Ord, Ord == LfnCount, Cksum, Leaf);
+        if (!DirWriteEntry(Parent, (UINT32)(SfnIndex - Ord), E)) {
+            return FAT_ERR_IO;
         }
     }
     FillSfnEntry(E, Name83, Attr, Cluster, Size);
@@ -1438,7 +1435,16 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     }
 
     Cb = ClusterBytes();
-    NeedClusters = Size == 0 ? 0 : (UINT32)((Size + Cb - 1) / Cb);
+    /*
+     * Size==0：仍分配 1 簇并写 1 字节 0，目录项 Size=1。
+     * 纯 cluster=0 空文件在 QEMU vvfat 上常不创建宿主文件，重开目录即消失。
+     */
+    if (Size == 0) {
+        static const UINT8 Pad[1] = { 0 };
+        Src = Pad;
+        Size = 1;
+    }
+    NeedClusters = (UINT32)((Size + Cb - 1) / Cb);
 
     for (i = 0; i < NeedClusters; i++) {
         UINT32 Cl = FatAllocCluster();
