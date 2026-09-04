@@ -5,15 +5,19 @@
 #include "HalSerial.h"
 
 void HalConsolePutChar(char C) {
-    (void)C;
+    char Buf[2];
+
+    Buf[0] = C;
+    Buf[1] = 0;
+    HalSerialWrite(Buf);
 }
 
 char HalConsoleGetChar(void) {
-    return 0;
+    return HalSerialDataReady() ? HalSerialReadChar() : 0;
 }
 
 int HalConsoleHasChar(void) {
-    return 0;
+    return HalSerialDataReady();
 }
 
 int HalConsoleVideoReady(void) {
@@ -24,7 +28,9 @@ void HalConsoleWriteSerial(const char *Text) {
     HalSerialWrite(Text);
 }
 
-void HalConsoleBackspaceSerial(void) { }
+void HalConsoleBackspaceSerial(void) {
+    HalSerialWrite("\b \b");
+}
 
 void HalConsoleDrawString(const char *Text, UINT32 Color) {
     (void)Text;

@@ -457,6 +457,9 @@ void ConsoleRepaintShellWindows(void) {
  * 返回：0 失败；1 已有可输入 Shell；2 刚打开（调用方应吞掉触发键，勿写入行缓冲）。
  */
 static int ConsoleEnsureShell(void) {
+    if (HalPlatformVirtConsole()) {
+        return 1;
+    }
     if (GuiShellAcceptsInput()) {
         return 1;
     }
@@ -498,7 +501,7 @@ void ConsoleOnChar(char C) {
 
 /* 处理退格键 */
 void ConsoleOnBackspace(void) {
-    if (!GuiShellAcceptsInput()) {
+    if (!HalPlatformVirtConsole() && !GuiShellAcceptsInput()) {
         return;
     }
     if (gLen <= 0) {
@@ -523,7 +526,7 @@ void ConsoleOnBackspace(void) {
 }
 
 void ConsoleCancelInput(void) {
-    if (!GuiShellAcceptsInput() || gLen <= 0) {
+    if ((!HalPlatformVirtConsole() && !GuiShellAcceptsInput()) || gLen <= 0) {
         return;
     }
     while (gLen > 0) {
@@ -540,7 +543,7 @@ static void ConsolePromptAfterCommand(void) {
     if (gWaitPrompt != 0 || ConsolePromptSuspended()) {
         return;
     }
-    if (GuiShellAcceptsInput()) {
+    if (HalPlatformVirtConsole() || GuiShellAcceptsInput()) {
         Prompt();
         return;
     }
@@ -563,4 +566,26 @@ void ConsoleOnEnter(void) {
     ConsoleWrite("\n");
     RunLine();
     ConsolePromptAfterCommand();
+}
+
+/* PR-A9：virt 串口轮询（Common 调 Hal*；不进 HAL） */
+void ConsoleSerialRun(void) {
+    HalConsoleWriteSerial("virt: serial shell (help/mem/ps/halt)\n");
+    Prompt();
+    for (;;) {
+        HalTimerPoll();
+        if (HalSerialDataReady()) {
+            char C = HalSerialReadChar();
+            if (C == '\r' || C == '\n') {
+                ConsoleOnEnter();
+            } else if (C == '\b' || C == 127) {
+                ConsoleOnBackspace();
+            } else if (C == 3) {
+                ConsoleCancelInput();
+            } else {
+                ConsoleOnChar(C);
+            }
+        }
+        HalCpuRelax();
+    }
 }

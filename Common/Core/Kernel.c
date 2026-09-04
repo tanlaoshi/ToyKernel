@@ -6,6 +6,7 @@
 #include "Scheduler.h"
 #include "KernelModules.h"
 #include "Tasks.h"
+#include "Console.h"
 
 void KernelMain(void) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -20,10 +21,10 @@ void KernelMain(void) {
         }
     }
 
-    /* PR-A8：virt 无 GOP/块设备 — 不启 shell/gui，进串口空闲循环 */
+    /* PR-A8/A9：virt 无 GOP/块设备 — 串口命令循环（不启桌面任务） */
     if (HalPlatformVirtConsole()) {
         HalTimerStart();
-        HalVirtIdleLoop();
+        ConsoleSerialRun();
         return;
     }
 

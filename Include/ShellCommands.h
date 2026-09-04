@@ -5,6 +5,8 @@
 #define SHELL_COMMANDS_H
 
 void ShellCommandsRegister(void);
+/* PR-A9：virt 串口最小集 help(已内置)/mem/ps/halt */
+void ShellCommandsRegisterVirtMin(void);
 void ShellOnInterrupt(void);
 
 #endif

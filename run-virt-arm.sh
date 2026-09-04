@@ -1,5 +1,5 @@
 #!/bin/bash
-# QEMU virt aarch64：PR-A8 模块子集 / PR-A6 hello
+# QEMU virt aarch64：PR-A9 串口命令 / PR-A6 hello
 set -e
 cd "$(dirname "$0")"
 
@@ -31,13 +31,18 @@ cleanup() {
 trap cleanup EXIT
 
 echo "run: $QEMU -M virt -cpu cortex-a72 -nographic -kernel $ELF"
-"$QEMU" -M virt -cpu cortex-a72 -m 256M -nographic -kernel "$ELF" \
-    < /dev/null >"$OUT" 2>&1 &
+# 喂 help/mem/ps/halt；BRINGUP hello 忽略 stdin
+printf 'help\nmem\nps\nhalt\n' | "$QEMU" -M virt -cpu cortex-a72 -m 256M -nographic -kernel "$ELF" \
+    >"$OUT" 2>&1 &
 QPID=$!
-# hello=A6；idle=A8（勿单认 ready/[mod]，会在 idle 前过早退出）
-PAT='ToyOS Arm64 virt: hello|virt: idle loop'
 for _ in $(seq 1 80); do
-    if grep -qE "$PAT" "$OUT" 2>/dev/null; then
+    if grep -q 'ToyOS Arm64 virt: hello' "$OUT" 2>/dev/null; then
+        cat "$OUT"
+        exit 0
+    fi
+    if grep -q 'virt: serial shell' "$OUT" 2>/dev/null \
+        && grep -q 'commands:' "$OUT" 2>/dev/null \
+        && grep -q 'physical memory' "$OUT" 2>/dev/null; then
         cat "$OUT"
         exit 0
     fi

@@ -43,4 +43,7 @@ void ConsoleResumePrompt(void);
 int  ConsolePromptSuspended(void);
 void ConsoleNotify(const char *Text);
 
+/* PR-A9：virt 串口 Shell（轮询 HalSerial + HalTimerPoll） */
+void ConsoleSerialRun(void);
+
 #endif

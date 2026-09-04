@@ -116,7 +116,9 @@ static int InitConsole(void) {
     /* virt 子集无 gui：仍要 Locale；x86 上 Gui 已调过，再调无妨 */
     LocaleInit();
     ConsoleRegisterBuiltins();
-    if (!HalPlatformVirtConsole()) {
+    if (HalPlatformVirtConsole()) {
+        ShellCommandsRegisterVirtMin();
+    } else {
         ShellCommandsRegister();
     }
     ConsoleInit();

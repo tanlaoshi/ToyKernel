@@ -131,7 +131,9 @@ static void CommandPs(int Argc, char **Argv) {
         }
         ConsoleWrite("\n");
     }
-    ConsoleWrite("worker loops=");
+    ConsoleWrite("cpu ticks=");
+    ConsoleHex64(HalCpuTicks(0));
+    ConsoleWrite(" worker loops=");
     ConsoleHex32(WorkerLoopCount());
     ConsoleWrite(" steals=");
     ConsoleHex64(SchedulerStealCount());
@@ -632,6 +634,19 @@ static void CommandLang(int Argc, char **Argv) {
     ConsoleWrite(LocStr(MSG_LANG_BAD));
 }
 
+static void CommandHalt(int Argc, char **Argv) {
+    (void)Argc;
+    (void)Argv;
+    ConsoleWrite("halt\n");
+    HalCpuHalt();
+}
+
+void ShellCommandsRegisterVirtMin(void) {
+    ConsoleRegister("ps", "list tasks", CommandPs);
+    ConsoleRegister("mem", "physical memory stats", CommandMem);
+    ConsoleRegister("halt", "stop CPU", CommandHalt);
+}
+
 void ShellCommandsRegister(void) {
     ConsoleRegister("info", "boot framebuffer info", CommandInfo);
     ConsoleRegister("ps", "list tasks", CommandPs);
@@ -645,6 +660,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "set UI language en|zh", CommandLang);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
+    ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
     ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);

@@ -150,10 +150,6 @@ static int GptFatLbaEx(UINT32 *OutLba, int *OutIsEsp) {
     return 0;
 }
 
-static int GptFatLba(UINT32 *OutLba) {
-    return GptFatLbaEx(OutLba, 0);
-}
-
 /* 查找 FAT 卷起始 LBA（superfloppy / MBR / GPT 三选一） */
 int GptFindFatStartEx(UINT32 *OutLba, int *OutIsEsp) {
     if (OutIsEsp) {

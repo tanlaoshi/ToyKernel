@@ -82,12 +82,10 @@ int HalPlatformVirtConsole(void) {
 }
 
 void HalVirtIdleLoop(void) {
-    HalSerialWrite("virt: idle loop (serial poll)\n");
+    /* A9：正式路径走 ConsoleSerialRun；此处仅作误入 sched 的兜底 */
+    HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
         HalTimerPoll();
-        if (HalSerialDataReady()) {
-            (void)HalSerialReadChar(); /* A9：再接到命令解析 */
-        }
         HalCpuRelax();
     }
 }
