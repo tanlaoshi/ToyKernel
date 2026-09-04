@@ -1,5 +1,8 @@
 /*
- * FilesUi.c — 文件浏览器（PR-FB1）
+ * FilesUi.c — 文件浏览器（PR-FB1 只读 + PR-FB2 写操作）
+ *
+ * 列表：进目录 / 开 ELF / 预览文本
+ * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
  */
 #include "FilesUi.h"
 #include "Gui.h"
@@ -13,13 +16,22 @@
 
 #define FILES_PATH_MAX     96
 #define FILES_VIEW_MAX     2048
+#define FILES_NAME_MAX     48
 #define FILES_DBLCLICK_MAX 2000000ULL
 #define FILES_DBLCLICK_SLOP 16u
 
 typedef enum {
     FILES_MODE_LIST = 0,
-    FILES_MODE_VIEW
+    FILES_MODE_VIEW,
+    FILES_MODE_CONFIRM,
+    FILES_MODE_PROMPT
 } FILES_MODE;
+
+typedef enum {
+    FILES_PROMPT_MKDIR = 0,
+    FILES_PROMPT_NEWFILE,
+    FILES_PROMPT_RENAME
+} FILES_PROMPT_KIND;
 
 static char gCwd[FILES_PATH_MAX];
 static FAT_DIR_ENT gEnts[FAT_LIST_MAX];
@@ -30,6 +42,11 @@ static FILES_MODE gMode;
 static char gView[FILES_VIEW_MAX];
 static UINTN gViewLen;
 static char gViewTitle[FAT_ENT_NAME_MAX];
+
+static FILES_PROMPT_KIND gPromptKind;
+static char gPrompt[FILES_NAME_MAX];
+static int gPromptLen;
+static char gStatus[80];
 
 static int gClickSel = -1;
 static UINT64 gClickClock;
@@ -96,6 +113,29 @@ static void CopyStr(char *Dst, int Max, const char *Src) {
     Dst[i] = 0;
 }
 
+static void SetStatus(const char *S) {
+    CopyStr(gStatus, sizeof(gStatus), S ? S : "");
+}
+
+static int NameOk(const char *N) {
+    int i;
+    if (!N || !N[0]) {
+        return 0;
+    }
+    if (N[0] == '.' && (N[1] == 0 || (N[1] == '.' && N[2] == 0))) {
+        return 0;
+    }
+    for (i = 0; N[i]; i++) {
+        char C = N[i];
+        int Ok = (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z') ||
+                 (C >= '0' && C <= '9') || C == '.' || C == '_' || C == '-';
+        if (!Ok || i >= FILES_NAME_MAX - 1) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int JoinPath(char *Out, int Max, const char *Dir, const char *Name) {
     int i = 0;
     int j;
@@ -143,7 +183,7 @@ static int ReloadList(void) {
     Err = FsListEntries(gCwd[0] ? gCwd : "", gEnts, FAT_LIST_MAX, &gCount);
     if (Err != FAT_OK) {
         gCount = 0;
-        DebugWrite("files: list err\n");
+        SetStatus(FatStrError(Err));
         return Err;
     }
     return FAT_OK;
@@ -154,6 +194,53 @@ static void DrawLine(UINT32 X, UINT32 Y, const char *S, UINT32 Fg) {
         return;
     }
     HalVideoDrawStringAt(X, Y, S, Fg);
+}
+
+static void PaintOverlay(const char *Line1, const char *Line2, const char *Line3) {
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Bg;
+    UINT32 LineH;
+    UINT32 BoxX;
+    UINT32 BoxY;
+    UINT32 BoxW;
+    UINT32 BoxH;
+
+    if (!GuiFocusClient(&X, &Y, &W, &H, &Bg)) {
+        return;
+    }
+    LineH = FontAdvanceY();
+    if (LineH < 16) {
+        LineH = 16;
+    }
+    BoxW = W > 40 ? W - 40 : W;
+    BoxH = LineH * 5 + 24;
+    if (BoxH > H - 20) {
+        BoxH = H > 20 ? H - 20 : H;
+    }
+    BoxX = X + (W - BoxW) / 2;
+    BoxY = Y + (H - BoxH) / 2;
+
+    GuiFrameBufferBegin();
+    HalVideoFillRect(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
+    HalVideoFillRect(BoxX, BoxY, BoxW, 2, COLOR_BLACK);
+    HalVideoFillRect(BoxX, BoxY + BoxH - 2, BoxW, 2, COLOR_BLACK);
+    HalVideoFillRect(BoxX, BoxY, 2, BoxH, COLOR_BLACK);
+    HalVideoFillRect(BoxX + BoxW - 2, BoxY, 2, BoxH, COLOR_BLACK);
+    HalVideoSetClipRegion(BoxX + 4, BoxY + 4, BoxW > 8 ? BoxW - 8 : BoxW, BoxH > 8 ? BoxH - 8 : BoxH,
+                          COLOR_LIGHT_GRAY);
+    DrawLine(BoxX + 12, BoxY + 12, Line1 ? Line1 : "", COLOR_BLACK);
+    if (Line2) {
+        DrawLine(BoxX + 12, BoxY + 12 + LineH, Line2, COLOR_BLACK);
+    }
+    if (Line3) {
+        DrawLine(BoxX + 12, BoxY + 12 + LineH * 2, Line3, COLOR_DARK_GRAY);
+    }
+    HalVideoClearClip();
+    GuiBackupFocusWindow();
+    GuiFrameBufferEnd();
 }
 
 static void PaintList(void) {
@@ -196,11 +283,14 @@ static void PaintList(void) {
     }
     DrawLine(X + 8, Y + 8, PathShow, COLOR_BLACK);
     DrawLine(X + 8, Y + 8 + LineH,
-             "Enter/dblclick open  Esc=up  (read-only)", COLOR_DARK_GRAY);
+             "Enter open  d/Del rm  n mkdir  f file  r rename", COLOR_DARK_GRAY);
+    if (gStatus[0]) {
+        DrawLine(X + 8, Y + 8 + LineH * 2, gStatus, COLOR_BLUE);
+    }
 
     Visible = 0;
-    if (H > 8 + LineH * 3) {
-        Visible = (int)((H - 8 - LineH * 3) / LineH);
+    if (H > 8 + LineH * 4) {
+        Visible = (int)((H - 8 - LineH * 4) / LineH);
     }
     if (Visible < 1) {
         Visible = 1;
@@ -215,17 +305,16 @@ static void PaintList(void) {
         gScroll = 0;
     }
 
-    RowY = Y + 8 + LineH * 2 + 4;
+    RowY = Y + 8 + LineH * 3 + 4;
     for (i = 0; i < Visible && gScroll + i < gCount; i++) {
         const FAT_DIR_ENT *E = &gEnts[gScroll + i];
         int Idx = gScroll + i;
-        UINT32 RowBg = (Idx == gSelected) ? COLOR_YELLOW : Bg;
         UINT32 Fg = COLOR_BLACK;
         int k = 0;
         int j;
 
         if (Idx == gSelected) {
-            HalVideoFillRect(X + 4, RowY, W > 8 ? W - 8 : W, LineH, RowBg);
+            HalVideoFillRect(X + 4, RowY, W > 8 ? W - 8 : W, LineH, COLOR_YELLOW);
         }
         if (E->Attr & FAT_ATTR_DIR) {
             Line[k++] = '[';
@@ -331,12 +420,63 @@ static void PaintView(void) {
     GuiFrameBufferEnd();
 }
 
+static void PaintConfirm(void) {
+    char Line2[80];
+    const char *Name = "?";
+
+    if (gSelected >= 0 && gSelected < gCount) {
+        Name = gEnts[gSelected].Name;
+    }
+    CopyStr(Line2, sizeof(Line2), "Delete ");
+    {
+        int n = 0;
+        while (Line2[n]) {
+            n++;
+        }
+        CopyStr(Line2 + n, (int)sizeof(Line2) - n, Name);
+        n = 0;
+        while (Line2[n]) {
+            n++;
+        }
+        CopyStr(Line2 + n, (int)sizeof(Line2) - n, " ?");
+    }
+    PaintList();
+    PaintOverlay("Confirm delete", Line2, "Y = yes   N/Esc = cancel");
+}
+
+static void PaintPrompt(void) {
+    char Title[40];
+    char Line2[FILES_NAME_MAX + 8];
+    int i;
+
+    if (gPromptKind == FILES_PROMPT_MKDIR) {
+        CopyStr(Title, sizeof(Title), "New directory");
+    } else if (gPromptKind == FILES_PROMPT_NEWFILE) {
+        CopyStr(Title, sizeof(Title), "New empty file");
+    } else {
+        CopyStr(Title, sizeof(Title), "Rename to");
+    }
+    Line2[0] = '>';
+    Line2[1] = ' ';
+    for (i = 0; i < gPromptLen && i < FILES_NAME_MAX - 1; i++) {
+        Line2[2 + i] = gPrompt[i];
+    }
+    Line2[2 + i] = '_';
+    Line2[3 + i] = 0;
+    PaintList();
+    PaintOverlay(Title, Line2, "Enter=ok  Esc=cancel  Backspace");
+}
+
 static void Paint(void) {
     if (!FocusFilesWindow()) {
         return;
     }
     if (gMode == FILES_MODE_VIEW) {
         PaintView();
+    } else if (gMode == FILES_MODE_CONFIRM) {
+        PaintConfirm();
+    } else if (gMode == FILES_MODE_PROMPT) {
+        PaintPrompt();
     } else {
         PaintList();
     }
@@ -363,6 +503,7 @@ static void OpenSelected(void) {
             CopyStr(gCwd, sizeof(gCwd), Path);
         }
         gMode = FILES_MODE_LIST;
+        SetStatus("");
         (void)ReloadList();
         Paint();
         return;
@@ -372,18 +513,17 @@ static void OpenSelected(void) {
         return;
     }
     if (EndsWithElf(E->Name)) {
-        DebugWrite("files: exec ");
-        DebugWrite(Path);
-        DebugWrite("\n");
         if (ProcessExec(Path) != 0) {
-            HalConsoleWriteSerial("files: exec failed\n");
+            SetStatus("exec failed");
+            Paint();
         }
         return;
     }
 
     gViewLen = 0;
     if (FsReadFile(Path, gView, sizeof(gView) - 1, &gViewLen) != FAT_OK) {
-        HalConsoleWriteSerial("files: read failed\n");
+        SetStatus("read failed");
+        Paint();
         return;
     }
     gView[gViewLen] = 0;
@@ -392,10 +532,114 @@ static void OpenSelected(void) {
     Paint();
 }
 
+static void BeginConfirmDelete(void) {
+    if (gMode != FILES_MODE_LIST || gSelected < 0 || gSelected >= gCount) {
+        return;
+    }
+    if (gEnts[gSelected].Name[0] == '.' &&
+        (gEnts[gSelected].Name[1] == 0 ||
+         (gEnts[gSelected].Name[1] == '.' && gEnts[gSelected].Name[2] == 0))) {
+        SetStatus("cannot delete . / ..");
+        Paint();
+        return;
+    }
+    gMode = FILES_MODE_CONFIRM;
+    Paint();
+}
+
+static void BeginPrompt(FILES_PROMPT_KIND Kind) {
+    if (gMode != FILES_MODE_LIST) {
+        return;
+    }
+    if (Kind == FILES_PROMPT_RENAME) {
+        if (gSelected < 0 || gSelected >= gCount) {
+            return;
+        }
+        if (gEnts[gSelected].Name[0] == '.' &&
+            (gEnts[gSelected].Name[1] == 0 ||
+             (gEnts[gSelected].Name[1] == '.' && gEnts[gSelected].Name[2] == 0))) {
+            SetStatus("cannot rename . / ..");
+            Paint();
+            return;
+        }
+    }
+    gPromptKind = Kind;
+    gPromptLen = 0;
+    gPrompt[0] = 0;
+    gMode = FILES_MODE_PROMPT;
+    Paint();
+}
+
+static void DoDelete(void) {
+    char Path[FILES_PATH_MAX];
+    int Err;
+    int IsDir;
+
+    if (gSelected < 0 || gSelected >= gCount) {
+        gMode = FILES_MODE_LIST;
+        Paint();
+        return;
+    }
+    IsDir = (gEnts[gSelected].Attr & FAT_ATTR_DIR) != 0;
+    if (!JoinPath(Path, sizeof(Path), gCwd, gEnts[gSelected].Name)) {
+        gMode = FILES_MODE_LIST;
+        Paint();
+        return;
+    }
+    Err = IsDir ? FsRmdir(Path) : FsDeleteFile(Path);
+    gMode = FILES_MODE_LIST;
+    if (Err != FAT_OK) {
+        SetStatus(FatStrError(Err));
+    } else {
+        SetStatus("deleted");
+    }
+    (void)ReloadList();
+    Paint();
+}
+
+static void DoPromptCommit(void) {
+    char Path[FILES_PATH_MAX];
+    char OldPath[FILES_PATH_MAX];
+    int Err = FAT_OK;
+
+    gPrompt[gPromptLen] = 0;
+    if (!NameOk(gPrompt)) {
+        SetStatus("bad name");
+        gMode = FILES_MODE_LIST;
+        Paint();
+        return;
+    }
+    if (!JoinPath(Path, sizeof(Path), gCwd, gPrompt)) {
+        gMode = FILES_MODE_LIST;
+        Paint();
+        return;
+    }
+
+    if (gPromptKind == FILES_PROMPT_MKDIR) {
+        Err = FsMkdir(Path);
+        SetStatus(Err == FAT_OK ? "mkdir ok" : FatStrError(Err));
+    } else if (gPromptKind == FILES_PROMPT_NEWFILE) {
+        Err = FsWriteFile(Path, "", 0);
+        SetStatus(Err == FAT_OK ? "file ok" : FatStrError(Err));
+    } else {
+        if (!JoinPath(OldPath, sizeof(OldPath), gCwd, gEnts[gSelected].Name)) {
+            gMode = FILES_MODE_LIST;
+            Paint();
+            return;
+        }
+        Err = FsRename(OldPath, Path);
+        SetStatus(Err == FAT_OK ? "renamed" : FatStrError(Err));
+    }
+    gMode = FILES_MODE_LIST;
+    (void)ReloadList();
+    Paint();
+}
+
 void FilesUiOpen(void) {
     gCwd[0] = 0;
     gMode = FILES_MODE_LIST;
     gClickSel = -1;
+    SetStatus("");
     (void)ReloadList();
     Paint();
 }
@@ -410,24 +654,27 @@ void FilesUiPaintFocused(void) {
     }
     if (gMode == FILES_MODE_VIEW) {
         PaintView();
+    } else if (gMode == FILES_MODE_CONFIRM) {
+        PaintConfirm();
+    } else if (gMode == FILES_MODE_PROMPT) {
+        PaintPrompt();
     } else {
         PaintList();
     }
 }
 
 void FilesUiRefresh(void) {
-    if (GuiFocusKind() != GUI_WIN_FILES && !FilesUiIsFocused()) {
-        int i;
-        int Found = 0;
-        for (i = 0; i < GUI_MAX_WINS; i++) {
-            if (GuiWindowKind(i) == GUI_WIN_FILES) {
-                Found = 1;
-                break;
-            }
+    int i;
+    int Found = 0;
+
+    for (i = 0; i < GUI_MAX_WINS; i++) {
+        if (GuiWindowKind(i) == GUI_WIN_FILES) {
+            Found = 1;
+            break;
         }
-        if (!Found) {
-            return;
-        }
+    }
+    if (!Found) {
+        return;
     }
     if (gMode == FILES_MODE_LIST) {
         (void)ReloadList();
@@ -451,7 +698,8 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
     UINT32 Dx;
     UINT32 Dy;
 
-    if (gMode == FILES_MODE_VIEW) {
+    if (gMode == FILES_MODE_VIEW || gMode == FILES_MODE_CONFIRM ||
+        gMode == FILES_MODE_PROMPT) {
         return;
     }
     if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
@@ -465,13 +713,13 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
     if (LineH < 16) {
         LineH = 16;
     }
-    ListTop = Cy + 8 + LineH * 2 + 4;
+    ListTop = Cy + 8 + LineH * 3 + 4;
     if (Y < ListTop) {
         return;
     }
     Visible = 0;
-    if (Ch > 8 + LineH * 3) {
-        Visible = (int)((Ch - 8 - LineH * 3) / LineH);
+    if (Ch > 8 + LineH * 4) {
+        Visible = (int)((Ch - 8 - LineH * 4) / LineH);
     }
     if (Visible < 1) {
         Visible = 1;
@@ -512,20 +760,33 @@ void FilesUiOnEscape(void) {
     if (!FilesUiIsFocused()) {
         return;
     }
-    if (gMode == FILES_MODE_VIEW) {
+    if (gMode == FILES_MODE_VIEW || gMode == FILES_MODE_CONFIRM ||
+        gMode == FILES_MODE_PROMPT) {
         gMode = FILES_MODE_LIST;
         Paint();
         return;
     }
     if (gCwd[0]) {
         CwdPop();
+        SetStatus("");
         (void)ReloadList();
         Paint();
     }
 }
 
 void FilesUiOnEnter(void) {
-    if (!FilesUiIsFocused() || gMode != FILES_MODE_LIST) {
+    if (!FilesUiIsFocused()) {
+        return;
+    }
+    if (gMode == FILES_MODE_PROMPT) {
+        DoPromptCommit();
+        return;
+    }
+    if (gMode == FILES_MODE_CONFIRM) {
+        DoDelete();
+        return;
+    }
+    if (gMode != FILES_MODE_LIST) {
         return;
     }
     OpenSelected();
@@ -545,6 +806,62 @@ void FilesUiOnArrow(int Down) {
         }
     }
     PaintList();
+}
+
+void FilesUiOnBackspace(void) {
+    if (!FilesUiIsFocused() || gMode != FILES_MODE_PROMPT) {
+        return;
+    }
+    if (gPromptLen > 0) {
+        gPromptLen--;
+        gPrompt[gPromptLen] = 0;
+        Paint();
+    }
+}
+
+void FilesUiOnChar(char C) {
+    if (!FilesUiIsFocused()) {
+        return;
+    }
+
+    if (gMode == FILES_MODE_CONFIRM) {
+        if (C == 'y' || C == 'Y') {
+            DoDelete();
+        } else if (C == 'n' || C == 'N') {
+            gMode = FILES_MODE_LIST;
+            Paint();
+        }
+        return;
+    }
+
+    if (gMode == FILES_MODE_PROMPT) {
+        if (C >= 32 && C < 127 && gPromptLen < FILES_NAME_MAX - 1) {
+            gPrompt[gPromptLen++] = C;
+            gPrompt[gPromptLen] = 0;
+            Paint();
+        }
+        return;
+    }
+
+    if (gMode != FILES_MODE_LIST) {
+        return;
+    }
+    if (C == 'd' || C == 'D') {
+        BeginConfirmDelete();
+    } else if (C == 'n' || C == 'N') {
+        BeginPrompt(FILES_PROMPT_MKDIR);
+    } else if (C == 'f' || C == 'F') {
+        BeginPrompt(FILES_PROMPT_NEWFILE);
+    } else if (C == 'r' || C == 'R') {
+        BeginPrompt(FILES_PROMPT_RENAME);
+    }
+}
+
+void FilesUiOnDeleteKey(void) {
+    if (!FilesUiIsFocused() || gMode != FILES_MODE_LIST) {
+        return;
+    }
+    BeginConfirmDelete();
 }
 
 int FilesUiIsFocused(void) {

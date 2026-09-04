@@ -57,7 +57,7 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
             continue;
         }
 
-        /* Files：Enter 打开；Esc 返回上级/退出预览 */
+        /* Files：导航 / 写操作快捷键 / 确认与输入 */
         if (FilesUiIsFocused()) {
             if (Key == HID_KEY_ESCAPE) {
                 FilesUiOnEscape();
@@ -70,6 +70,20 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
             if (Key == HID_KEY_UP || Key == HID_KEY_DOWN) {
                 FilesUiOnArrow(Key == HID_KEY_DOWN);
                 continue;
+            }
+            if (Key == HID_KEY_BACKSPACE) {
+                FilesUiOnBackspace();
+                continue;
+            }
+            if (Key == HID_KEY_DELETE) {
+                FilesUiOnDeleteKey();
+                continue;
+            }
+            {
+                char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
+                if (C != 0) {
+                    FilesUiOnChar(C);
+                }
             }
             continue;
         }
@@ -135,6 +149,10 @@ void ShellTask(void) {
                     FilesUiOnEscape();
                 } else if (C == '\r' || C == '\n') {
                     FilesUiOnEnter();
+                } else if (C == '\b' || C == 127) {
+                    FilesUiOnBackspace();
+                } else if (C >= 32 && C <= 126) {
+                    FilesUiOnChar(C);
                 }
                 continue;
             }

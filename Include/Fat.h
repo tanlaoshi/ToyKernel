@@ -44,5 +44,7 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int FatDeleteFile(const char *Path);
 int FatMkdir(const char *Path);
 int FatRmdir(const char *Path);
+/* 同卷改名/移动目录项（不拷贝数据）；成功 FAT_OK */
+int FatRename(const char *OldPath, const char *NewPath);
 
 #endif

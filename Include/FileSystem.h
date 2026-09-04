@@ -37,5 +37,6 @@ int FsWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int FsDeleteFile(const char *Path);
 int FsMkdir(const char *Path);
 int FsRmdir(const char *Path);
+int FsRename(const char *OldPath, const char *NewPath);
 
 #endif

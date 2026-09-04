@@ -250,6 +250,39 @@ int FsRmdir(const char *Path) {
     return FatRmdir(Rel);
 }
 
+int FsRename(const char *OldPath, const char *NewPath) {
+    const char *OldRel;
+    const char *NewRel;
+    int OldVol;
+    int NewVol;
+    int Err;
+
+    if (!OldPath || !NewPath) {
+        return FAT_ERR_INVAL;
+    }
+    Err = FileSystemResolve(OldPath, &OldVol, &OldRel);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    Err = FileSystemResolve(NewPath, &NewVol, &NewRel);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    if (OldVol != NewVol) {
+        return FAT_ERR_INVAL;
+    }
+    Err = FsPrepare(OldPath, &OldRel, 1);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    /* 同卷已 Activate；NewRel 相对路径 */
+    Err = FileSystemResolve(NewPath, &NewVol, &NewRel);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    return FatRename(OldRel, NewRel);
+}
+
 int FileSystemVolCount(void) {
     return gVolCount;
 }
@@ -388,6 +421,21 @@ static void CommandRmdir(int Argc, char **Argv) {
         return;
     }
     ConsoleWrite("rmdir: ok\n");
+}
+
+static void CommandMv(int Argc, char **Argv) {
+    int Err;
+
+    if (Argc < 3) {
+        ConsoleWrite("usage: mv <old> <new>\n");
+        return;
+    }
+    Err = FsRename(Argv[1], Argv[2]);
+    if (Err != FAT_OK) {
+        FatReport("mv", Err);
+        return;
+    }
+    ConsoleWrite("mv: ok\n");
 }
 
 /* PR-FS2：列出已挂载卷 */
@@ -546,7 +594,8 @@ int FileSystemInit(void) {
     ConsoleRegister("rm", "remove file or empty dir", CommandRm);
     ConsoleRegister("mkdir", "create directory", CommandMkdir);
     ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);
+    ConsoleRegister("mv", "rename/move file or dir", CommandMv);
     ConsoleRegister("vols", "list mounted volumes", CommandVols);
-    DebugWrite("FS ready (ls, cat, write, rm, mkdir, rmdir, vols)\n");
+    DebugWrite("FS ready (ls, cat, write, rm, mkdir, rmdir, mv, vols)\n");
     return 0;
 }

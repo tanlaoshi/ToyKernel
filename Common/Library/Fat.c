@@ -1530,6 +1530,75 @@ int FatDeleteFile(const char *Path) {
     return FAT_OK;
 }
 
+/* 仅摘掉目录项，不释放簇（供 Rename） */
+static int DirUnlinkKeepClusters(FAT_DIR_CTX Parent, const char *Leaf) {
+    int Index = 0;
+    int Existing = 0;
+    UINT32 Cluster = 0;
+    UINT8 Attr = 0;
+    UINT8 E[32];
+
+    if (!FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &Cluster, &Attr) || !Existing) {
+        return FAT_ERR_NOENT;
+    }
+    if (!DirReadEntry(Parent, (UINT32)Index, E)) {
+        return FAT_ERR_IO;
+    }
+    DeleteLfnPrefix(Parent, Index, Fat83Checksum(E));
+    E[0] = 0xE5;
+    if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
+}
+
+int FatRename(const char *OldPath, const char *NewPath) {
+    FAT_DIR_CTX OldParent;
+    FAT_DIR_CTX NewParent;
+    char OldLeaf[FAT_NAME_MAX + 1];
+    char NewLeaf[FAT_NAME_MAX + 1];
+    UINT32 Cluster = 0;
+    UINT32 Size = 0;
+    UINT8 Attr = 0;
+    int Index = 0;
+    int Existing = 0;
+    int Rc;
+
+    if (!OldPath || !OldPath[0] || !NewPath || !NewPath[0]) {
+        return FAT_ERR_INVAL;
+    }
+    if (!ResolvePathParentLeaf(OldPath, &OldParent, OldLeaf)) {
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDotOrDotDot(OldLeaf)) {
+        return FAT_ERR_INVAL;
+    }
+    if (!LookupInDir(OldParent, OldLeaf, &Cluster, &Size, &Attr)) {
+        return FAT_ERR_NOENT;
+    }
+    if (!ResolvePathParentLeaf(NewPath, &NewParent, NewLeaf)) {
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDotOrDotDot(NewLeaf)) {
+        return FAT_ERR_INVAL;
+    }
+    if (FindDirIndex(NewParent, NewLeaf, 1, &Index, &Existing, 0, 0) && Existing) {
+        return FAT_ERR_EXIST;
+    }
+
+    Rc = DirCreateEntry(NewParent, NewLeaf, Attr, Cluster, Size);
+    if (Rc != FAT_OK) {
+        return Rc;
+    }
+    Rc = DirUnlinkKeepClusters(OldParent, OldLeaf);
+    if (Rc != FAT_OK) {
+        /* 尽力回滚新名（会误释放簇，尽量避免走到这里） */
+        (void)DirUnlinkKeepClusters(NewParent, NewLeaf);
+        return Rc;
+    }
+    return FAT_OK;
+}
+
 int FatMkdir(const char *Path) {
     FAT_DIR_CTX Parent;
     char Leaf[FAT_NAME_MAX + 1];

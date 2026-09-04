@@ -1,8 +1,7 @@
 /*
- * FilesUi.h — 文件浏览器（PR-FB1：只读列表 + 打开）
+ * FilesUi.h — 文件浏览器（PR-FB1 只读 + PR-FB2 写操作）
  *
- * 进目录；双击/Enter 打开 .ELF（ProcessExec）或文本预览；Esc 退出预览或返回上级。
- * 删除/新建见 PR-FB2。
+ * 进目录；打开 .ELF / 文本预览；删除（确认）、mkdir、新建空文件、重命名。
  */
 #ifndef FILES_UI_H
 #define FILES_UI_H
@@ -13,11 +12,13 @@ void FilesUiOpen(void);
 void FilesUiRepaint(void);
 void FilesUiPaintFocused(void);
 void FilesUiRefresh(void);
-/* 客户区绝对坐标点击（含双击打开） */
 void FilesUiOnClick(UINT32 X, UINT32 Y);
 void FilesUiOnEscape(void);
 void FilesUiOnEnter(void);
 void FilesUiOnArrow(int Down);
+void FilesUiOnBackspace(void);
+void FilesUiOnChar(char C);
+void FilesUiOnDeleteKey(void);
 int FilesUiIsFocused(void);
 
 #endif
