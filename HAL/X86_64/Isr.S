@@ -142,18 +142,18 @@ IsrCommon:
 /* 内核任务首次进入：rdi=INT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16） */
 .global KernelEnter
 KernelEnter:
-    mov rax, [rdi + 136]    /* Rip */
-    mov rsp, [rdi + 160]    /* Rsp（创建时为 16 字节对齐栈顶） */
+    mov rax, [rdi + 136]    /* InstructionPointer */
+    mov rsp, [rdi + 160]    /* StackPointer（创建时为 16 字节对齐栈顶） */
     push rax                /* 占位返回地址 → RSP≡8，满足 SysV / SSE */
     jmp rax
 
 /* 用户态首次进入：rdi=INT_FRAME*，构造 iretq 帧 */
 .global UserEnter
 UserEnter:
-    mov rax, [rdi + 136]    /* Rip */
+    mov rax, [rdi + 136]    /* InstructionPointer */
     mov rcx, [rdi + 144]    /* Cs */
     mov rdx, [rdi + 152]    /* Rflags */
-    mov r11, [rdi + 160]    /* Rsp */
+    mov r11, [rdi + 160]    /* StackPointer */
     mov r10, [rdi + 168]    /* Ss */
     mov rsp, r11
     sub rsp, 40

@@ -220,18 +220,18 @@ void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
         return;
     }
     FrameZero(F);
-    F->Rip = Entry;
-    F->Rsp = StackTop;
+    F->InstructionPointer = Entry;
+    F->StackPointer = StackTop;
     F->Rflags = 0x3c5; /* EL1h + DAIF clear-ish；内核任务不经 eret */
 }
 
-void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserRsp) {
+void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserStackTop) {
     if (!F) {
         return;
     }
     FrameZero(F);
-    F->Rip = Entry;
-    F->Rsp = UserRsp;
+    F->InstructionPointer = Entry;
+    F->StackPointer = UserStackTop;
     F->Rflags = 0; /* EL0t */
     F->Vec = VEC_SYSCALL;
 }
@@ -246,8 +246,8 @@ void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src) {
     }
 }
 
-UINT64 HalFrameGetRip(const HAL_FRAME *F) {
-    return F ? F->Rip : 0;
+UINT64 HalFrameGetInstructionPointer(const HAL_FRAME *F) {
+    return F ? F->InstructionPointer : 0;
 }
 
 /* Linux aarch64 形：x8=号，x0..x2=参数，返回 x0 */
@@ -255,15 +255,15 @@ UINT64 HalFrameSyscallNum(const HAL_FRAME *F) {
     return F ? F->X[8] : 0;
 }
 
-UINT64 HalFrameArg0(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument0(const HAL_FRAME *F) {
     return F ? F->X[0] : 0;
 }
 
-UINT64 HalFrameArg1(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument1(const HAL_FRAME *F) {
     return F ? F->X[1] : 0;
 }
 
-UINT64 HalFrameArg2(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument2(const HAL_FRAME *F) {
     return F ? F->X[2] : 0;
 }
 
@@ -288,12 +288,12 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
     UINT64 Entry;
     UINT64 Stack;
 
-    if (!Frame || Frame->Rip == 0) {
+    if (!Frame || Frame->InstructionPointer == 0) {
         HalVirtIdleLoop();
         return;
     }
-    Entry = Frame->Rip;
-    Stack = Frame->Rsp;
+    Entry = Frame->InstructionPointer;
+    Stack = Frame->StackPointer;
     __asm__ volatile(
         "mov sp, %0\n"
         "br  %1\n"

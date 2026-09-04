@@ -1,8 +1,8 @@
 /*
  * TrapVec.S — PR-A10 缺页 + PR-A11 U-mode ecall
  *
- * HAL_FRAME（HalPort.h）：X[0..31]@0, Vec@256, Err@264, Rip@272, Cs@280,
- *   Rflags@288, Rsp@296, Ss@304；压栈 320 字节。
+ * HAL_FRAME（HalPort.h）：X[0..31]@0, Vec@256, Err@264, InstructionPointer@272, Cs@280,
+ *   Rflags@288, StackPointer@296, Ss@304；压栈 320 字节。
  *
  * sscratch 约定：U 态 = 内核栈顶；S 态 = 0。
  */
@@ -81,7 +81,7 @@ HalTrapVector:
     jr      t0
 
 3:
-    /* 先读 sstatus / Rsp，再恢复 GPR（t0-t2 作临时） */
+    /* 先读 sstatus / StackPointer，再恢复 GPR（t0-t2 作临时） */
     ld      t0, 288(sp)
     ld      t1, 296(sp)
     ld      t2, 272(sp)
@@ -116,7 +116,7 @@ HalTrapVector:
     ld      t4, 232(sp)
     ld      t5, 240(sp)
     ld      t6, 248(sp)
-    /* t0=sstatus t1=Rsp t2=SPP；牺牲帧内 x5/x6/x7（t0-t2）原值 */
+    /* t0=sstatus t1=StackPointer t2=SPP；牺牲帧内 x5/x6/x7（t0-t2）原值 */
 
     bnez    t2, 5f
     /* 回 U：t1=user sp；caller-saved t0-t2 不恢复 */

@@ -324,8 +324,8 @@ static void ExceptionHalt(HAL_FRAME *F) {
     SerialWrite(" err=");
     SerialHexFormat(Buf, (UINT32)F->ErrorCode, 8);
     SerialWrite(Buf);
-    SerialWrite(" rip=");
-    SerialHexFormat(Buf, F->Rip, 16);
+    SerialWrite(" ip=");
+    SerialHexFormat(Buf, F->InstructionPointer, 16);
     SerialWrite(Buf);
     if (F->Vector == 14) {
         UINT64 Cr2;

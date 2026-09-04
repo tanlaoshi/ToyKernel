@@ -108,9 +108,9 @@ UINT64 HalTrapDispatch(HAL_FRAME *Frame) {
     }
 
     if (!FromUser) {
-        UINT64 NewSepc = HalTrapKernelSync(Cause, Stval, Frame->Rip);
+        UINT64 NewSepc = HalTrapKernelSync(Cause, Stval, Frame->InstructionPointer);
         if (NewSepc != 0) {
-            Frame->Rip = NewSepc;
+            Frame->InstructionPointer = NewSepc;
         }
         return 0;
     }
@@ -118,7 +118,7 @@ UINT64 HalTrapDispatch(HAL_FRAME *Frame) {
     /* 用户：ecall = 8（U-mode）或 9（S，不应出现） */
     if (Cause == 8) {
         Frame->Vec = VEC_SYSCALL;
-        Frame->Rip += 4; /* ecall 下一条 */
+        Frame->InstructionPointer += 4; /* ecall 下一条 */
         if (gUserSelfTest && HalFrameSyscallNum(Frame) == SYS_EXIT) {
             HalSerialWrite("user: U-mode syscall ok (exit)\n");
             gUserSelfTest = 0;
@@ -259,8 +259,8 @@ void HalUserSelfTest(void) {
     for (j = 0; j < sizeof(gUserSelfFrame); j++) {
         ((UINT8 *)&gUserSelfFrame)[j] = 0;
     }
-    gUserSelfFrame.Rip = CodeVa;
-    gUserSelfFrame.Rsp = StackTop;
+    gUserSelfFrame.InstructionPointer = CodeVa;
+    gUserSelfFrame.StackPointer = StackTop;
     __asm__ volatile("csrr %0, sstatus" : "=r"(Status));
     Status |= SSTATUS_SUM | SSTATUS_SPIE;
     Status &= ~SSTATUS_SPP;

@@ -219,19 +219,19 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         break;
     case SYS_WRITE:
         HalFrameSetReturn(Frame, (UINT64)(long)SysWrite(
-            (int)HalFrameArg0(Frame), HalFrameArg1(Frame),
-            (UINTN)HalFrameArg2(Frame)));
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
+            (UINTN)HalFrameGetArgument2(Frame)));
         break;
     case SYS_OPEN:
-        HalFrameSetReturn(Frame, (UINT64)(long)SysOpen(HalFrameArg0(Frame)));
+        HalFrameSetReturn(Frame, (UINT64)(long)SysOpen(HalFrameGetArgument0(Frame)));
         break;
     case SYS_READ:
         HalFrameSetReturn(Frame, (UINT64)(long)SysRead(
-            (int)HalFrameArg0(Frame), HalFrameArg1(Frame),
-            (UINTN)HalFrameArg2(Frame)));
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
+            (UINTN)HalFrameGetArgument2(Frame)));
         break;
     case SYS_CLOSE:
-        HalFrameSetReturn(Frame, (UINT64)(long)SysClose((int)HalFrameArg0(Frame)));
+        HalFrameSetReturn(Frame, (UINT64)(long)SysClose((int)HalFrameGetArgument0(Frame)));
         break;
     case SYS_FORK:
         Ret = SchedulerFork(Frame);
@@ -244,29 +244,29 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         break;
     case SYS_SOCKET:
         HalFrameSetReturn(Frame, (UINT64)(long)SysSocket(
-            (int)HalFrameArg0(Frame), (int)HalFrameArg1(Frame),
-            (int)HalFrameArg2(Frame)));
+            (int)HalFrameGetArgument0(Frame), (int)HalFrameGetArgument1(Frame),
+            (int)HalFrameGetArgument2(Frame)));
         break;
     case SYS_CONNECT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysConnect(
-            (int)HalFrameArg0(Frame), (UINT32)HalFrameArg1(Frame),
-            (UINT16)HalFrameArg2(Frame)));
+            (int)HalFrameGetArgument0(Frame), (UINT32)HalFrameGetArgument1(Frame),
+            (UINT16)HalFrameGetArgument2(Frame)));
         break;
     case SYS_BIND:
         HalFrameSetReturn(Frame, (UINT64)(long)SysBind(
-            (int)HalFrameArg0(Frame), (UINT32)HalFrameArg1(Frame),
-            (UINT16)HalFrameArg2(Frame)));
+            (int)HalFrameGetArgument0(Frame), (UINT32)HalFrameGetArgument1(Frame),
+            (UINT16)HalFrameGetArgument2(Frame)));
         break;
     case SYS_LISTEN:
         HalFrameSetReturn(Frame, (UINT64)(long)SysListen(
-            (int)HalFrameArg0(Frame), (int)HalFrameArg1(Frame)));
+            (int)HalFrameGetArgument0(Frame), (int)HalFrameGetArgument1(Frame)));
         break;
     case SYS_ACCEPT:
-        HalFrameSetReturn(Frame, (UINT64)(long)SysAccept((int)HalFrameArg0(Frame)));
+        HalFrameSetReturn(Frame, (UINT64)(long)SysAccept((int)HalFrameGetArgument0(Frame)));
         break;
     case SYS_EXECVE:
-        if (SysExecve(Frame, HalFrameArg0(Frame), HalFrameArg1(Frame),
-                      HalFrameArg2(Frame)) != 0) {
+        if (SysExecve(Frame, HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
+                      HalFrameGetArgument2(Frame)) != 0) {
             HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         }
         /* 成功：Frame 已指向新入口，sysret 进新映像 */
@@ -274,7 +274,7 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     case SYS_PIPE: {
         TASK *T = SchedulerCurrent();
         int Fds[2];
-        UINT64 UserPtr = HalFrameArg0(Frame);
+        UINT64 UserPtr = HalFrameGetArgument0(Frame);
         if (!T || !T->IsUser || SchedulerFdPipe(T, Fds) != 0) {
             HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
             break;
@@ -298,11 +298,11 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
             break;
         }
         HalFrameSetReturn(Frame, (UINT64)(long)SchedulerFdDup(
-            T, (int)HalFrameArg0(Frame)));
+            T, (int)HalFrameGetArgument0(Frame)));
         break;
     }
     case SYS_BRK:
-        HalFrameSetReturn(Frame, ProcessBrk(HalFrameArg0(Frame)));
+        HalFrameSetReturn(Frame, ProcessBrk(HalFrameGetArgument0(Frame)));
         break;
     case SYS_KILL:
         Ret = SchedulerKill(Frame);

@@ -1171,7 +1171,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
         }
     }
 
-    Code = (INT32)HalFrameArg0(Frame);
+    Code = (INT32)HalFrameGetArgument0(Frame);
     DebugWrite("syscall: exit ");
     DebugWrite(Exiting->Name);
     DebugWrite(" code=");
@@ -1307,7 +1307,7 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
         return 0;
     }
     MyId = TaskSlot(Self);
-    Options = HalFrameArg0(Frame);
+    Options = HalFrameGetArgument0(Frame);
 
     for (i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State == TASK_ZOMBIE && gTasks[i].ParentId == MyId) {
@@ -1372,8 +1372,8 @@ UINT64 SchedulerKill(HAL_FRAME *Frame) {
     int Deliver;
 
     SpinLockAcquire(&gSchedLock);
-    Pid = (INT32)HalFrameArg0(Frame);
-    Sig = (INT32)HalFrameArg1(Frame);
+    Pid = (INT32)HalFrameGetArgument0(Frame);
+    Sig = (INT32)HalFrameGetArgument1(Frame);
     if (Pid <= 0 || !SignalDefaultTerminates(Sig)) {
         HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         SpinLockRelease(&gSchedLock);
@@ -1642,5 +1642,5 @@ UINT64 SchedulerTaskRip(const TASK *T) {
     if (!T || !T->Frame) {
         return 0;
     }
-    return HalFrameGetRip(T->Frame);
+    return HalFrameGetInstructionPointer(T->Frame);
 }

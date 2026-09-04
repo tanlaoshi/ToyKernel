@@ -15,10 +15,11 @@ typedef struct HAL_FRAME {
     UINT64 X[31];
     UINT64 Vec;
     UINT64 Err;
-    UINT64 Rip;
+    /* PR-A15：中立名（ELR_EL1 / SPSR_EL1 / SP_EL0 等由 Vectors.S 填） */
+    UINT64 InstructionPointer;
     UINT64 Cs;
     UINT64 Rflags;
-    UINT64 Rsp;
+    UINT64 StackPointer;
     UINT64 Ss;
 } HAL_FRAME;
 

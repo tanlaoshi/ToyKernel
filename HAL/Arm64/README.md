@@ -12,4 +12,6 @@ QEMU virt aarch64：自有 Boot（`-kernel` + DTB）、PL011、ramfb / virtio-*�
 
 **PR-A14**：PSCI `CPU_ON` + 每核 idle；默认 `-smp 2`（`TOY_VIRT_SMP=1` 单核）；`smp: hello` / `sched: AP entered idle`。
 
+**PR-A15**：`HAL_FRAME` 门面字段 `InstructionPointer`/`StackPointer`；`HalFrameGetInstructionPointer` / `HalFrameGetArgument0..2`（去 x86 `Rip`/`Rsp`/`Arg*` 名）。
+
 构建：`./build.sh arm64` → `Build/arm64/Kernel.elf`；验收 `./run-virt-arm.sh` / `./smoke-virt.sh`。

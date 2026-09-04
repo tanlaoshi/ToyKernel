@@ -12,4 +12,6 @@ QEMU virt riscv64：OpenSBI / `-kernel`、UART16550、ramfb / virtio-*。
 
 **PR-A14**：次 hart 在 `KernelEntry` 停车 + soft-release / HSM；每核 idle；默认 `-smp 2`。
 
+**PR-A15**：同上门面帧中立命名（`InstructionPointer`/`StackPointer` + `GetInstructionPointer` / `GetArgument*`）。
+
 构建：`./build.sh riscv` → `Build/riscv/Kernel.elf`；验收 `./run-virt-riscv.sh` / `./smoke-virt.sh`。

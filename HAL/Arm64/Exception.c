@@ -243,8 +243,8 @@ void HalUserSelfTest(void) {
     for (j = 0; j < sizeof(gUserSelfFrame); j++) {
         ((UINT8 *)&gUserSelfFrame)[j] = 0;
     }
-    gUserSelfFrame.Rip = CodeVa;
-    gUserSelfFrame.Rsp = StackTop;
+    gUserSelfFrame.InstructionPointer = CodeVa;
+    gUserSelfFrame.StackPointer = StackTop;
     Spsr = 0;
     gUserSelfFrame.Rflags = Spsr;
 

@@ -64,17 +64,18 @@ UINT64 HalUserVirtEnd(void);
 void HalUserSelfTest(void);
 
 /*
- * PR-A2：可移植任务帧 / 系统调用 ABI。
- * Common 用这些 API，不直接写 Cs/Ss/Rax/Rip 或 GDT 选择子字面量。
+ * PR-A2 / PR-A15：可移植任务帧 / 系统调用 ABI。
+ * Common 用这些 API，不直接写 Cs/Ss/Rax 或 GDT 选择子字面量；
+ * 指令指针 / 栈指针走 InstructionPointer / StackPointer 中立名。
  */
 void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop);
-void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserRsp);
+void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserStackTop);
 void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src);
-UINT64 HalFrameGetRip(const HAL_FRAME *F);
+UINT64 HalFrameGetInstructionPointer(const HAL_FRAME *F);
 UINT64 HalFrameSyscallNum(const HAL_FRAME *F);
-UINT64 HalFrameArg0(const HAL_FRAME *F);
-UINT64 HalFrameArg1(const HAL_FRAME *F);
-UINT64 HalFrameArg2(const HAL_FRAME *F);
+UINT64 HalFrameGetArgument0(const HAL_FRAME *F);
+UINT64 HalFrameGetArgument1(const HAL_FRAME *F);
+UINT64 HalFrameGetArgument2(const HAL_FRAME *F);
 void HalFrameSetReturn(HAL_FRAME *F, UINT64 Value);
 void HalFrameSetReturn2(HAL_FRAME *F, UINT64 A, UINT64 B);
 

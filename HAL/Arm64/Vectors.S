@@ -3,7 +3,7 @@
  * VBAR_EL1 要求 2KiB 对齐；每槽 0x80 字节。
  *
  * HAL_FRAME（与 HalPort.h 一致）：
- *   X[0..30] @0, Vec@248, Err@256, Rip@264, Cs@272, Rflags@280, Rsp@288, Ss@296
+ *   X[0..30] @0, Vec@248, Err@256, InstructionPointer@264, Cs@272, Rflags@280, StackPointer@288, Ss@296
  */
     .section .text
     .align 11
@@ -173,11 +173,11 @@ HalExcLowerSync:
     str     x30, [sp, #240]
 
     mrs     x0, elr_el1
-    str     x0, [sp, #264]          /* Rip */
+    str     x0, [sp, #264]          /* InstructionPointer */
     mrs     x0, spsr_el1
     str     x0, [sp, #280]          /* Rflags */
     mrs     x0, sp_el0
-    str     x0, [sp, #288]          /* Rsp */
+    str     x0, [sp, #288]          /* StackPointer */
     mov     x0, #0
     str     x0, [sp, #248]          /* Vec（C 填） */
     str     x0, [sp, #256]          /* Err */
@@ -198,7 +198,7 @@ HalExcLowerSync:
 .Llower_kern_first:
     and     x0, x0, #0xfffffffffffffffc
     mov     x1, x0
-    ldr     x2, [x1, #264]          /* Entry Rip */
+    ldr     x2, [x1, #264]          /* Entry InstructionPointer */
     ldr     x3, [x1, #288]          /* Stack */
     mov     sp, x3
     br      x2

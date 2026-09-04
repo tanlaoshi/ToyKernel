@@ -18,7 +18,8 @@ typedef struct HAL_FRAME {
     UINT64 Rax, Rbx, Rcx, Rdx, Rsi, Rdi, Rbp;
     UINT64 R8, R9, R10, R11, R12, R13, R14, R15;
     UINT64 Vector, ErrorCode;
-    UINT64 Rip, Cs, Rflags, Rsp, Ss;
+    /* PR-A15：门面用 arch 中立名；布局仍对应硬件 iret 槽（RIP/CS/RFLAGS/RSP/SS） */
+    UINT64 InstructionPointer, Cs, Rflags, StackPointer, Ss;
 } HAL_FRAME;
 
 typedef HAL_FRAME INT_FRAME;

@@ -149,24 +149,24 @@ void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
         return;
     }
     FrameZero(F);
-    F->Rip = Entry;
+    F->InstructionPointer = Entry;
     F->Cs = 0x08;   /* 内核代码段 */
     F->Rflags = 0x202;
-    F->Rsp = StackTop;
+    F->StackPointer = StackTop;
     F->Ss = 0x10;   /* 内核数据段 */
     F->Vector = VEC_TIMER;
     F->ErrorCode = 0;
 }
 
-void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserRsp) {
+void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserStackTop) {
     if (!F) {
         return;
     }
     FrameZero(F);
-    F->Rip = Entry;
+    F->InstructionPointer = Entry;
     F->Cs = 0x23;   /* 用户代码段 */
     F->Rflags = 0x202;
-    F->Rsp = UserRsp;
+    F->StackPointer = UserStackTop;
     F->Ss = 0x1B;   /* 用户数据段 */
     F->Vector = VEC_TIMER;
     F->ErrorCode = 0;
@@ -182,23 +182,23 @@ void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src) {
     }
 }
 
-UINT64 HalFrameGetRip(const HAL_FRAME *F) {
-    return F ? F->Rip : 0;
+UINT64 HalFrameGetInstructionPointer(const HAL_FRAME *F) {
+    return F ? F->InstructionPointer : 0;
 }
 
 UINT64 HalFrameSyscallNum(const HAL_FRAME *F) {
     return F ? F->Rax : 0;
 }
 
-UINT64 HalFrameArg0(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument0(const HAL_FRAME *F) {
     return F ? F->Rdi : 0;
 }
 
-UINT64 HalFrameArg1(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument1(const HAL_FRAME *F) {
     return F ? F->Rsi : 0;
 }
 
-UINT64 HalFrameArg2(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument2(const HAL_FRAME *F) {
     return F ? F->Rdx : 0;
 }
 
