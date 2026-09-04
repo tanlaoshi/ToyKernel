@@ -18,6 +18,15 @@ void HalCpuShutdown(void) { HalCpuPark(); }
 
 void HalIrqEnable(void) { }
 void HalIrqDisable(void) { }
+UINT64 HalIrqSave(void) {
+    return 0;
+}
+void HalIrqRestore(UINT64 Flags) {
+    (void)Flags;
+}
+void HalCpuRelax(void) {
+    __asm__ volatile("" ::: "memory");
+}
 void HalIrqVectorSet(UINT32 Vector, void *Handler, UINT8 Type) {
     (void)Vector; (void)Handler; (void)Type;
 }

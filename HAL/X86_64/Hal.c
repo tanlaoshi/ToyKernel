@@ -44,6 +44,25 @@ void HalIrqDisable(void) {
     ArchCli();
 }
 
+UINT64 HalIrqSave(void) {
+    UINT64 Flags;
+
+    __asm__ volatile ("pushfq; pop %0; cli" : "=r"(Flags) :: "memory");
+    return Flags;
+}
+
+void HalIrqRestore(UINT64 Flags) {
+    if (Flags & (1ULL << 9)) {
+        ArchSti();
+    } else {
+        ArchCli();
+    }
+}
+
+void HalCpuRelax(void) {
+    __asm__ volatile ("pause" ::: "memory");
+}
+
 void HalIrqVectorSet(UINT32 Vector, void *Handler, UINT8 Type) {
     ArchIdtSetGate(Vector, Handler, Type);
 }

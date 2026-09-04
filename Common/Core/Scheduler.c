@@ -1069,7 +1069,7 @@ void SchedulerApStart(void) {
 
     Cpu = HalCpuId();
     while (!gSchedOnline) {
-        __asm__ volatile ("pause");
+        HalCpuRelax();
     }
     SpinLockAcquire(&gSchedLock);
     Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
@@ -1087,7 +1087,7 @@ void SchedulerApStart(void) {
     HalDebugWrite("sched: AP entered idle cpu=");
     HalDebugHex32(Cpu);
     HalDebugWrite("\n");
-    SchedulerEnter(Idle->Frame);
+    HalSchedulerEnter(Idle->Frame);
     (void)Ret;
     for (;;) {
         HalCpuPark();
@@ -1157,7 +1157,7 @@ void SchedulerStart(void) {
     SpinLockRelease(&gSchedLock);
     HalTimerStart();
     DebugWrite("sched: online, entering tasks\n");
-    SchedulerEnter(First->Frame);
+    HalSchedulerEnter(First->Frame);
 }
 
 TASK *SchedulerCurrent(void) {

@@ -98,9 +98,9 @@ static void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
     *Dst = *Src;
 }
 
-/* 保存进入绘制区前的 IF，避免在中断/异常里 ConsoleWrite 后误 sti 嵌套中断 */
+/* 保存进入绘制区前的中断状态，避免误恢复导致嵌套中断（PR-A5：HalIrqSave） */
 static int    gGfxLockDepth;
-static int    gGfxHadIrq;
+static UINT64 gGfxIrqFlags;
 /* G7：长合成开中断时禁止嵌套 GuiOnMouse，避免 Capture 半成品进备份 */
 static int    gComposeBusy;
 /* 主题一次合成：推迟 Present，避免下层 Shell 中途盖住上层 Settings */
@@ -108,16 +108,13 @@ static int    gDeferPresent;
 
 static void GfxIrqEnter(void) {
     if (gGfxLockDepth++ == 0) {
-        UINT64 Flags;
-        __asm__ volatile ("pushfq; pop %0" : "=r"(Flags) :: "memory");
-        gGfxHadIrq = (Flags & (1ULL << 9)) != 0;
-        HalIrqDisable();
+        gGfxIrqFlags = HalIrqSave();
     }
 }
 
 static void GfxIrqLeave(void) {
-    if (gGfxLockDepth > 0 && --gGfxLockDepth == 0 && gGfxHadIrq) {
-        HalIrqEnable();
+    if (gGfxLockDepth > 0 && --gGfxLockDepth == 0) {
+        HalIrqRestore(gGfxIrqFlags);
     }
 }
 

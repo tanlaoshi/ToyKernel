@@ -1,13 +1,14 @@
 /*
- * SpinLock.h — 架构无关自旋锁（PR-S3）
+ * SpinLock.h — 架构无关自旋锁（PR-S3；PR-A5 用 HalCpuRelax）
  *
  * 持锁时间须短；勿在持锁时长时间关中断空转。
- * x86 用 lock xchg；其它架构同样用 __sync_*（GCC 内建）。
+ * 原子操作用 __sync_*（GCC 内建）；等待提示走 HAL。
  */
 #ifndef SPIN_LOCK_H
 #define SPIN_LOCK_H
 
 #include "BootTypes.h"
+#include "Hal.h"
 
 typedef struct {
     volatile UINT32 Locked;
@@ -24,7 +25,7 @@ static inline void SpinLockAcquire(SPIN_LOCK *Lock) {
         return;
     }
     while (__sync_lock_test_and_set(&Lock->Locked, 1u)) {
-        __asm__ volatile ("pause" ::: "memory");
+        HalCpuRelax();
     }
 }
 
