@@ -576,13 +576,14 @@ void ConsoleOnEnter(void) {
 }
 
 /* PR-A9/V3：virt 串口 + virtio-input 键盘（Common 调 Hal*；不进 HAL） */
+/* PR-A13：HalCpuHalt 可被 timer IRQ 唤醒，不再空转 HalTimerPoll */
 void ConsoleSerialRun(void) {
     static HAL_KEYBOARD_REPORT Prev;
     HAL_KEYBOARD_REPORT Report;
     HalConsoleWriteSerial("virt: serial shell (help/mem/ps/halt; kbd via virtio-input)\n");
     Prompt();
     for (;;) {
-        HalTimerPoll();
+        HalCpuHalt();
         HalInputPoll();
         if (HalSerialDataReady()) {
             char C = HalSerialReadChar();

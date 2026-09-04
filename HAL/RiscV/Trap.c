@@ -32,12 +32,8 @@ static UINT64 HalTrapKernelSync(UINT64 Cause, UINT64 Stval, UINT64 Sepc) {
     int IsWrite;
 
     if (Cause & (1ULL << 63)) {
-        HalSerialWrite("vmm: unexpected interrupt cause=");
-        HalDebugHex64(Cause);
-        HalSerialWrite("\n");
-        for (;;) {
-            __asm__ volatile("wfi");
-        }
+        /* 中断应在 HalTrapDispatch 先处理；此处不应到达 */
+        return 0;
     }
 
     if (Cause != 12 && Cause != 13 && Cause != 15) {
@@ -96,6 +92,20 @@ UINT64 HalTrapDispatch(HAL_FRAME *Frame) {
     __asm__ volatile("csrr %0, stval" : "=r"(Stval));
     Status = Frame->Rflags;
     FromUser = (Status & SSTATUS_SPP) == 0;
+
+    /* PR-A13：supervisor timer interrupt（cause 5） */
+    if (Cause & (1ULL << 63)) {
+        UINT64 Code = Cause & 0xFFULL;
+        if (Code == 5) {
+            extern void HalTimerIrq(void);
+            HalTimerIrq();
+            return 0;
+        }
+        HalSerialWrite("vmm: irq cause=");
+        HalDebugHex64(Cause);
+        HalSerialWrite("\n");
+        return 0;
+    }
 
     if (!FromUser) {
         UINT64 NewSepc = HalTrapKernelSync(Cause, Stval, Frame->Rip);

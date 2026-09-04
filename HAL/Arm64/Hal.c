@@ -1,19 +1,35 @@
 /*
- * HAL/arm64/Hal.c — ARM64 HAL（PR-A7 可链接；PR-A8 virt 子集 + 轮询时钟）
+ * HAL/arm64/Hal.c — ARM64 HAL（PR-A7 可链接；PR-A13 GIC + CNTV IRQ）
  */
 #include "Hal.h"
 
 static volatile UINT64 gVirtTicks;
 static UINT64 gCntLast;
 static UINT64 gCntFreq;
+static UINT64 gCntPeriod;
+static UINT32 gTimerMs = 10;
 static int gTimerReady;
+static int gTimerIrq;
+
+extern void HalExceptionVectorsInstall(void);
+extern void HalUserEnter(struct HAL_FRAME *Frame);
+extern void HalGicInit(void);
+extern UINT32 HalGicAck(void);
+extern void HalGicEoi(UINT32 IntId);
+extern int HalGicIsTimer(UINT32 IntId);
 
 int HalInit(void) {
     return 0;
 }
 
 void HalCpuHalt(void) {
-    /* virt：无定时 IRQ，不能 WFI 永睡；供 Shell/Gui 任务轮询返回 */
+    /* PR-A13：开 IRQ + WFI，由 CNTV/GIC 唤醒（对齐 x86 sti;hlt;cli） */
+    if (gTimerIrq) {
+        HalIrqEnable();
+        __asm__ volatile("wfi" ::: "memory");
+        HalIrqDisable();
+        return;
+    }
     HalTimerPoll();
     HalCpuRelax();
 }
@@ -25,13 +41,20 @@ void HalCpuPark(void) {
 void HalCpuReboot(void) { HalCpuPark(); }
 void HalCpuShutdown(void) { HalCpuPark(); }
 
-void HalIrqEnable(void) { }
-void HalIrqDisable(void) { }
+void HalIrqEnable(void) {
+    __asm__ volatile("msr daifclr, #2" ::: "memory");
+}
+void HalIrqDisable(void) {
+    __asm__ volatile("msr daifset, #2" ::: "memory");
+}
 UINT64 HalIrqSave(void) {
-    return 0;
+    UINT64 Flags;
+    __asm__ volatile("mrs %0, daif" : "=r"(Flags));
+    HalIrqDisable();
+    return Flags;
 }
 void HalIrqRestore(UINT64 Flags) {
-    (void)Flags;
+    __asm__ volatile("msr daif, %0" ::"r"(Flags) : "memory");
 }
 void HalCpuRelax(void) {
     __asm__ volatile("yield" ::: "memory");
@@ -43,42 +66,83 @@ void HalIrqRegister(UINT32 Vector, void (*Handler)(void)) {
     (void)Vector; (void)Handler;
 }
 void HalIrqUnregister(UINT32 Vector) { (void)Vector; }
-void HalIrqEoi(UINT32 Vector) { (void)Vector; }
+void HalIrqEoi(UINT32 Vector) {
+    HalGicEoi(Vector);
+}
+
+static void ArmTimerArm(void) {
+    __asm__ volatile("msr cntv_tval_el0, %0" ::"r"(gCntPeriod) : "memory");
+    __asm__ volatile("msr cntv_ctl_el0, %0" ::"r"(1ULL) : "memory");
+    __asm__ volatile("isb" ::: "memory");
+}
 
 void HalTimerInit(void) {
     __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(gCntFreq));
     if (gCntFreq == 0) {
         gCntFreq = 62500000ULL; /* QEMU virt 常见缺省 */
     }
+    gCntPeriod = gCntFreq / 100; /* ~10ms */
+    if (gCntPeriod == 0) {
+        gCntPeriod = 1;
+    }
     __asm__ volatile("mrs %0, cntvct_el0" : "=r"(gCntLast));
     gTimerReady = 1;
 }
 
-void HalTimerSetInterval(UINT32 Milliseconds) { (void)Milliseconds; }
-void HalTimerAck(void) { }
+void HalTimerSetInterval(UINT32 Milliseconds) {
+    if (Milliseconds == 0) {
+        Milliseconds = 10;
+    }
+    gTimerMs = Milliseconds;
+    if (gCntFreq == 0) {
+        return;
+    }
+    gCntPeriod = (gCntFreq * (UINT64)Milliseconds) / 1000ULL;
+    if (gCntPeriod == 0) {
+        gCntPeriod = 1;
+    }
+}
+
+void HalTimerAck(void) {
+    ArmTimerArm();
+}
+
 void HalTimerStart(void) {
-    /* A8：无 GIC 定时 IRQ，由 HalVirtIdleLoop 调 HalTimerPoll */
+    if (!gTimerReady) {
+        HalTimerInit();
+    }
+    HalExceptionVectorsInstall();
+    HalGicInit();
+    HalTimerSetInterval(gTimerMs);
+    ArmTimerArm();
+    gTimerIrq = 1;
+    HalSerialWrite("timer: Arm64 CNTV+GIC irq\n");
 }
 
 void HalTimerPoll(void) {
     UINT64 Now;
-    UINT64 Period;
     UINT64 Delta;
 
-    if (!gTimerReady) {
+    if (!gTimerReady || gTimerIrq) {
         return;
     }
     __asm__ volatile("mrs %0, cntvct_el0" : "=r"(Now));
-    Period = gCntFreq / 100; /* ~10ms */
-    if (Period == 0) {
-        Period = 1;
-    }
     Delta = Now - gCntLast;
-    while (Delta >= Period) {
+    while (Delta >= gCntPeriod) {
         HalCpuTickInc();
-        gCntLast += Period;
-        Delta -= Period;
+        gCntLast += gCntPeriod;
+        Delta -= gCntPeriod;
     }
+}
+
+/* PR-A13：Current/Lower EL IRQ 入口 */
+void HalExceptionIrq(void) {
+    UINT32 Id = HalGicAck();
+    if (HalGicIsTimer(Id)) {
+        HalCpuTickInc();
+        HalTimerAck();
+    }
+    HalGicEoi(Id);
 }
 
 int HalPlatformVirtConsole(void) {
@@ -86,16 +150,11 @@ int HalPlatformVirtConsole(void) {
 }
 
 void HalVirtIdleLoop(void) {
-    /* A9：正式路径走 ConsoleSerialRun；此处仅作误入 sched 的兜底 */
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
-        HalTimerPoll();
-        HalCpuRelax();
+        HalCpuHalt();
     }
 }
-
-extern void HalExceptionVectorsInstall(void);
-extern void HalUserEnter(struct HAL_FRAME *Frame);
 
 void HalUserInstall(void) {
     /* EL0 入口前确保向量表；SP_EL1 由当前内核栈承担 */
@@ -109,7 +168,6 @@ void HalSyscallInit(void) {
 }
 
 void HalSetKernelStack(UINT64 StackTop) {
-    /* EL1 用 SP_EL1：切栈留给调用方；此处记录供将来 IRQ */
     (void)StackTop;
 }
 
@@ -235,7 +293,7 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "aarch64"; }
-const char *HalCpuInfo(void) { return "ARM64 (virt A11)"; }
+const char *HalCpuInfo(void) { return "ARM64 (virt A13)"; }
 
 UINT16 HalElfMachine(void) {
     return 183; /* EM_AARCH64 */

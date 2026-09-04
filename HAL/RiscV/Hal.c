@@ -1,17 +1,24 @@
 /*
- * HAL/riscv/Hal.c — RISC-V HAL（PR-A7 可链接；PR-A8 virt 子集 + 轮询时钟）
+ * HAL/riscv/Hal.c — RISC-V HAL（PR-A7 可链接；PR-A13 SBI timer IRQ）
  */
 #include "Hal.h"
 
 /*
- * OpenSBI 下内核在 S-mode：不可直接读 CLINT mtime（M-mode MMIO → 异常复位环）。
- * 用 S-mode 可读的 time CSR（rdtime）；QEMU virt 常见 10MHz。
+ * OpenSBI 下内核在 S-mode：不可直接读/写 CLINT mtime（M-mode MMIO → 异常复位环）。
+ * 用 rdtime + SBI set_timer；QEMU virt 常见 10MHz。
  */
 #define TIME_HZ 10000000ULL
+#define SSTATUS_SIE (1ULL << 1)
+#define SIE_STIE    (1ULL << 5)
+#define SBI_EXT_TIME 0x54494D45ULL
+#define SBI_EXT_LEGACY_SET_TIMER 0x00ULL
 
 static volatile UINT64 gVirtTicks;
 static UINT64 gTimeLast;
+static UINT64 gTimePeriod;
+static UINT32 gTimerMs = 10;
 static int gTimerReady;
+static int gTimerIrq;
 
 static UINT64 ReadTime(void) {
     UINT64 V;
@@ -19,12 +26,40 @@ static UINT64 ReadTime(void) {
     return V;
 }
 
+static void SbiSetTimer(UINT64 Next) {
+    register UINT64 A0 __asm__("a0") = Next;
+    register UINT64 A6 __asm__("a6") = 0; /* fid */
+    register UINT64 A7 __asm__("a7") = SBI_EXT_TIME;
+    __asm__ volatile("ecall"
+                     : "+r"(A0)
+                     : "r"(A6), "r"(A7)
+                     : "memory", "a1");
+    /* 若 TIME 扩展不可用，回退 legacy set_timer */
+    if ((INT64)A0 < 0) {
+        A0 = Next;
+        A7 = SBI_EXT_LEGACY_SET_TIMER;
+        A6 = 0;
+        __asm__ volatile("ecall" : "+r"(A0) : "r"(A6), "r"(A7) : "memory", "a1");
+    }
+}
+
+static void RiscvTimerArm(void) {
+    UINT64 Next = ReadTime() + gTimePeriod;
+    SbiSetTimer(Next);
+}
+
 int HalInit(void) {
     return 0;
 }
 
 void HalCpuHalt(void) {
-    /* virt：无定时 IRQ，不能 WFI 永睡；供 Shell/Gui 任务轮询返回 */
+    /* PR-A13：开 SIE + WFI，由 SBI timer 唤醒 */
+    if (gTimerIrq) {
+        HalIrqEnable();
+        __asm__ volatile("wfi" ::: "memory");
+        HalIrqDisable();
+        return;
+    }
     HalTimerPoll();
     HalCpuRelax();
 }
@@ -36,13 +71,24 @@ void HalCpuPark(void) {
 void HalCpuReboot(void) { HalCpuPark(); }
 void HalCpuShutdown(void) { HalCpuPark(); }
 
-void HalIrqEnable(void) { }
-void HalIrqDisable(void) { }
+void HalIrqEnable(void) {
+    __asm__ volatile("csrs sstatus, %0" ::"r"(SSTATUS_SIE) : "memory");
+}
+void HalIrqDisable(void) {
+    __asm__ volatile("csrc sstatus, %0" ::"r"(SSTATUS_SIE) : "memory");
+}
 UINT64 HalIrqSave(void) {
-    return 0;
+    UINT64 Status;
+    __asm__ volatile("csrr %0, sstatus" : "=r"(Status));
+    HalIrqDisable();
+    return Status;
 }
 void HalIrqRestore(UINT64 Flags) {
-    (void)Flags;
+    if (Flags & SSTATUS_SIE) {
+        HalIrqEnable();
+    } else {
+        HalIrqDisable();
+    }
 }
 void HalCpuRelax(void) {
     __asm__ volatile("" ::: "memory");
@@ -57,35 +103,63 @@ void HalIrqUnregister(UINT32 Vector) { (void)Vector; }
 void HalIrqEoi(UINT32 Vector) { (void)Vector; }
 
 void HalTimerInit(void) {
+    gTimePeriod = TIME_HZ / 100; /* ~10ms */
+    if (gTimePeriod == 0) {
+        gTimePeriod = 1;
+    }
     gTimeLast = ReadTime();
     gTimerReady = 1;
 }
 
-void HalTimerSetInterval(UINT32 Milliseconds) { (void)Milliseconds; }
-void HalTimerAck(void) { }
+void HalTimerSetInterval(UINT32 Milliseconds) {
+    if (Milliseconds == 0) {
+        Milliseconds = 10;
+    }
+    gTimerMs = Milliseconds;
+    gTimePeriod = (TIME_HZ * (UINT64)Milliseconds) / 1000ULL;
+    if (gTimePeriod == 0) {
+        gTimePeriod = 1;
+    }
+}
+
+void HalTimerAck(void) {
+    RiscvTimerArm();
+}
+
 void HalTimerStart(void) {
-    /* A8：无 PLIC/CLINT IRQ，由 HalVirtIdleLoop 调 HalTimerPoll */
+    extern void HalTrapVectorInstall(void);
+
+    if (!gTimerReady) {
+        HalTimerInit();
+    }
+    HalTrapVectorInstall();
+    HalTimerSetInterval(gTimerMs);
+    __asm__ volatile("csrs sie, %0" ::"r"(SIE_STIE) : "memory");
+    RiscvTimerArm();
+    gTimerIrq = 1;
+    HalSerialWrite("timer: RiscV SBI timer irq\n");
 }
 
 void HalTimerPoll(void) {
     UINT64 Now;
-    UINT64 Period;
     UINT64 Delta;
 
-    if (!gTimerReady) {
+    if (!gTimerReady || gTimerIrq) {
         return;
     }
     Now = ReadTime();
-    Period = TIME_HZ / 100; /* ~10ms */
-    if (Period == 0) {
-        Period = 1;
-    }
     Delta = Now - gTimeLast;
-    while (Delta >= Period) {
+    while (Delta >= gTimePeriod) {
         HalCpuTickInc();
-        gTimeLast += Period;
-        Delta -= Period;
+        gTimeLast += gTimePeriod;
+        Delta -= gTimePeriod;
     }
+}
+
+/* PR-A13：S-mode / U-mode 定时中断 */
+void HalTimerIrq(void) {
+    HalCpuTickInc();
+    HalTimerAck();
 }
 
 int HalPlatformVirtConsole(void) {
@@ -93,11 +167,9 @@ int HalPlatformVirtConsole(void) {
 }
 
 void HalVirtIdleLoop(void) {
-    /* A9：正式路径走 ConsoleSerialRun；此处仅作误入 sched 的兜底 */
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
-        HalTimerPoll();
-        HalCpuRelax();
+        HalCpuHalt();
     }
 }
 
@@ -247,7 +319,7 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "riscv64"; }
-const char *HalCpuInfo(void) { return "RISC-V (virt A11)"; }
+const char *HalCpuInfo(void) { return "RISC-V (virt A13)"; }
 
 UINT16 HalElfMachine(void) {
     return 243; /* EM_RISCV */

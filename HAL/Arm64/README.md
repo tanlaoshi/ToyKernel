@@ -8,6 +8,8 @@ QEMU virt aarch64：自有 Boot（`-kernel` + DTB）、PL011、ramfb / virtio-*�
 
 **PR-A12**：`HalElfRelocKind` + `HalSyncICache`；本 arch `HELLO.ELF`（`Build/arm64/user/`）；virt `exec HELLO.ELF` → `Hello Ring3`（协作 drain）。
 
-仍欠（见路线图 1.2f）：GIC/timer（A13）、SMP（A14）。
+**PR-A13**：virt **GICv2** + **CNTV**（PPI 27）；`HalCpuHalt` = IRQ + `WFI`；横幅 `timer: Arm64 CNTV+GIC irq`。脚本强制 `-M virt,gic-version=2`。
+
+仍欠（见路线图 1.2f）：SMP（A14）。
 
 构建：`./build.sh arm64` → `Build/arm64/Kernel.elf`；验收 `./run-virt-arm.sh` / `./smoke-virt.sh`。

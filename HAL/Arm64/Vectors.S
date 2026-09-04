@@ -20,11 +20,11 @@ HalExceptionVectors:
     .org HalExceptionVectors + 0x180
     b       HalExcUnexpected
 
-    /* Current EL with SP_ELx（内核缺页） */
+    /* Current EL with SP_ELx（内核缺页 / IRQ） */
     .org HalExceptionVectors + 0x200
     b       HalExcSync
     .org HalExceptionVectors + 0x280
-    b       HalExcUnexpected
+    b       HalExcIrq
     .org HalExceptionVectors + 0x300
     b       HalExcUnexpected
     .org HalExceptionVectors + 0x380
@@ -34,7 +34,7 @@ HalExceptionVectors:
     .org HalExceptionVectors + 0x400
     b       HalExcLowerSync
     .org HalExceptionVectors + 0x480
-    b       HalExcUnexpected
+    b       HalExcIrq
     .org HalExceptionVectors + 0x500
     b       HalExcUnexpected
     .org HalExceptionVectors + 0x580
@@ -86,6 +86,50 @@ HalExcSync:
     cbz     x0, 2f
     msr     elr_el1, x0
 2:
+    ldr     x30, [sp, #240]
+    ldp     x28, x29, [sp, #224]
+    ldp     x26, x27, [sp, #208]
+    ldp     x24, x25, [sp, #192]
+    ldp     x22, x23, [sp, #176]
+    ldp     x20, x21, [sp, #160]
+    ldp     x18, x19, [sp, #144]
+    ldp     x16, x17, [sp, #128]
+    ldp     x14, x15, [sp, #112]
+    ldp     x12, x13, [sp, #96]
+    ldp     x10, x11, [sp, #80]
+    ldp     x8, x9, [sp, #64]
+    ldp     x6, x7, [sp, #48]
+    ldp     x4, x5, [sp, #32]
+    ldp     x2, x3, [sp, #16]
+    ldp     x0, x1, [sp, #0]
+    add     sp, sp, #256
+    eret
+
+/*
+ * PR-A13：IRQ（Current EL 或 Lower EL）— 保存易失寄存器，调 HalExceptionIrq。
+ * 用户态抢占仍靠协作 drain（A12）；此处保证 tick + WFI 唤醒。
+ */
+HalExcIrq:
+    sub     sp, sp, #256
+    stp     x0, x1, [sp, #0]
+    stp     x2, x3, [sp, #16]
+    stp     x4, x5, [sp, #32]
+    stp     x6, x7, [sp, #48]
+    stp     x8, x9, [sp, #64]
+    stp     x10, x11, [sp, #80]
+    stp     x12, x13, [sp, #96]
+    stp     x14, x15, [sp, #112]
+    stp     x16, x17, [sp, #128]
+    stp     x18, x19, [sp, #144]
+    stp     x20, x21, [sp, #160]
+    stp     x22, x23, [sp, #176]
+    stp     x24, x25, [sp, #192]
+    stp     x26, x27, [sp, #208]
+    stp     x28, x29, [sp, #224]
+    str     x30, [sp, #240]
+
+    bl      HalExceptionIrq
+
     ldr     x30, [sp, #240]
     ldp     x28, x29, [sp, #224]
     ldp     x26, x27, [sp, #208]

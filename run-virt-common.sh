@@ -183,14 +183,14 @@ toy_virt_run_interactive() {
     if [ "$TOY_VIRT_ARCH" = "arm64" ]; then
         local DTB Ec
         DTB=$(mktemp)
-        "$TOY_VIRT_QEMU" -M virt,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" >/dev/null 2>&1 || true
+        "$TOY_VIRT_QEMU" -M virt,gic-version=2,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" >/dev/null 2>&1 || true
         if [ ! -s "$DTB" ]; then
             rm -f "$DTB"
             echo "error: dumpdtb failed" >&2
             exit 1
         fi
         set +e
-        "$TOY_VIRT_QEMU" -M virt -cpu cortex-a72 -m "$MEM" \
+        "$TOY_VIRT_QEMU" -M virt,gic-version=2 -cpu cortex-a72 -m "$MEM" \
             "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}" \
             -kernel "$TOY_VIRT_ELF" \
             -device loader,addr=0x4a000000,file="$DTB"
@@ -238,6 +238,10 @@ toy_virt_smoke_ok() {
     if ! grep -qE 'default=TOYOS|TOYOS:|THEME' "$Out" 2>/dev/null; then
         return 1
     fi
+    # PR-A13：真 timer IRQ 横幅
+    if ! grep -aqE 'timer: (Arm64 CNTV\+GIC|RiscV SBI timer) irq' "$Out" 2>/dev/null; then
+        return 1
+    fi
     # PR-A12：本 arch exec HELLO.ELF
     grep -qE 'Hello Ring3' "$Out" 2>/dev/null
 }
@@ -259,12 +263,12 @@ toy_virt_run_headless() {
     local Cmd=()
     if [ "$TOY_VIRT_ARCH" = "arm64" ]; then
         DTB=$(mktemp)
-        "$TOY_VIRT_QEMU" -M virt,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" >/dev/null 2>&1 || true
+        "$TOY_VIRT_QEMU" -M virt,gic-version=2,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" >/dev/null 2>&1 || true
         if [ ! -s "$DTB" ]; then
             echo "error: dumpdtb failed" >&2
             exit 1
         fi
-        Cmd=("$TOY_VIRT_QEMU" -M virt -cpu cortex-a72 -m "$MEM"
+        Cmd=("$TOY_VIRT_QEMU" -M virt,gic-version=2 -cpu cortex-a72 -m "$MEM"
              "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}"
              -kernel "$TOY_VIRT_ELF"
              -device loader,addr=0x4a000000,file="$DTB")
