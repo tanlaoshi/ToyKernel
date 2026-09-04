@@ -1,6 +1,5 @@
 /*
- * link.ld — QEMU virt riscv64（-kernel ELF，无 ToyBoot）
- * RAM 基址 0x80000000（virt 机器约定）
+ * link.ld — QEMU virt riscv64（-kernel ELF，配合 -bios none）
  */
 OUTPUT_FORMAT(elf64-littleriscv)
 OUTPUT_ARCH(riscv)
@@ -11,6 +10,7 @@ SECTIONS
     . = 0x80000000;
 
     .text : {
+        KEEP(*(.text.boot))
         *(.text*)
     }
 
@@ -20,11 +20,21 @@ SECTIONS
 
     .data : {
         *(.data*)
+        *(.sdata*)
     }
 
     .bss : {
+        __bss_start = .;
+        *(.sbss*)
         *(.bss*)
         *(COMMON)
+        __bss_end = .;
+    }
+
+    .bootstack (NOLOAD) : {
+        . = ALIGN(16);
+        gBootStack = .;
+        . = . + 65536;
     }
 
     __kernel_end = .;

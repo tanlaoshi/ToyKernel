@@ -1,10 +1,10 @@
 /*
- * HAL/riscv/Hal.c — RISC-V HAL 占位（未链接进当前内核）
+ * HAL/riscv/Hal.c — RISC-V HAL（PR-A7：可链接完整 Common）
  */
 #include "Hal.h"
 
 int HalInit(void) {
-    return -1;
+    return 0;
 }
 
 void HalCpuHalt(void) {
@@ -110,50 +110,19 @@ UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
     (void)Frame;
     return 0;
 }
-void HalSchedulerEnter(struct HAL_FRAME *Frame) { (void)Frame; }
+void HalSchedulerEnter(struct HAL_FRAME *Frame) {
+    (void)Frame;
+    HalDebugWrite("sched: enter (virt stub park)\n");
+    for (;;) {
+        HalCpuPark();
+    }
+}
 void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }
 
-void HalFlushTlb(UINT64 VirtualAddress) { (void)VirtualAddress; }
-void HalLoadPageTable(UINT64 Root) { (void)Root; }
-UINT64 HalGetPageTable(void) { return 0; }
-void HalPagingEnable(UINT64 RootPhys) { (void)RootPhys; }
-
-int HalPageKernelSetup(UINTN IdentityMegabytes) { (void)IdentityMegabytes; return -1; }
-UINT64 HalPageKernelRoot(void) { return 0; }
-UINT64 HalPageRootCreate(HalPageAllocateFunction Alloc, void *Ctx) {
-    (void)Alloc; (void)Ctx; return 0;
-}
-void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
-    (void)DstRoot; (void)SrcRoot;
-}
-int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
-    (void)Root; (void)Index; (void)Alloc; (void)Ctx; return -1;
-}
-int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
-    (void)Root; (void)Alloc; (void)Ctx; return -1;
-}
-int HalPageIsCow(UINT64 Pte) {
-    (void)Pte;
-    return 0;
-}
-UINT64 HalPageMarkCow(UINT64 Flags) {
-    return Flags & ~HAL_PAGE_WRITABLE;
-}
-int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
-               HalPageAllocateFunction Alloc, void *Ctx) {
-    (void)Root; (void)VirtualAddress; (void)PhysicalAddress; (void)Flags; (void)Alloc; (void)Ctx;
-    return -1;
-}
-int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End) {
-    (void)Root; (void)Start; (void)End; return 0;
-}
-UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
-    (void)Root; (void)Virt; return 0;
-}
-UINT64 HalPageGetEntryCurrent(UINT64 Virt) { (void)Virt; return 0; }
+/* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "riscv64"; }
-const char *HalCpuInfo(void) { return "RISC-V (virt bringup)"; }
+const char *HalCpuInfo(void) { return "RISC-V (virt A7)"; }
 
 UINT16 HalElfMachine(void) {
     return 243; /* EM_RISCV */

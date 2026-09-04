@@ -1,21 +1,22 @@
 /*
- * Startup.S — QEMU virt riscv64 -kernel 入口（PR-A6）
+ * Startup.S — QEMU virt riscv64 -kernel 入口
  */
-    .section .text
+    .section .text.boot, "ax"
     .global KernelEntry
     .type KernelEntry, @function
 KernelEntry:
-    lla     sp, gBringupStack
-    li      t0, 8192
+    lla     sp, gBootStack
+    li      t0, 65536
     add     sp, sp, t0
-    call    BringupMain
-1:  wfi
-    j       1b
-    .size KernelEntry, .-KernelEntry
 
-    .section .bss
-    .align 4
-    .global gBringupStack
-gBringupStack:
-    .space 8192
-    .size gBringupStack, 8192
+    lla     t0, __bss_start
+    lla     t1, __bss_end
+1:  bgeu    t0, t1, 2f
+    sd      zero, 0(t0)
+    addi    t0, t0, 8
+    j       1b
+2:
+    call    StartupMain
+3:  wfi
+    j       3b
+    .size KernelEntry, .-KernelEntry

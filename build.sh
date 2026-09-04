@@ -3,12 +3,12 @@ set -e
 cd "$(dirname "$0")"
 
 # 用法:
-#   ./build.sh              # ARCH=x86_64，关闭调试日志（默认）
-#   ./build.sh DEBUG=1      # 打开 DebugWrite 串口日志
-#   ./build.sh riscv        # PR-A6：virt bringup（默认 BRINGUP=1）
-#   ./build.sh arm64
-#   ./build.sh riscv BRINGUP=0  # 尝试完整 Common（需 PR-A7）
-#   ./build.sh LWIP=1      # 嵌入 lwIP（需 ThirdParty/lwip）
+#   ./build.sh              # ARCH=x86_64
+#   ./build.sh DEBUG=1
+#   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0）
+#   ./build.sh riscv
+#   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
+#   ./build.sh LWIP=1
 ARCH=x86_64
 DEBUG=0
 LWIP=0
@@ -26,11 +26,7 @@ for Arg in "$@"; do
 done
 
 if [ -z "$BRINGUP" ]; then
-    if [ "$ARCH" = "x86_64" ]; then
-        BRINGUP=0
-    else
-        BRINGUP=1
-    fi
+    BRINGUP=0
 fi
 
 echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
@@ -82,7 +78,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     fi
     echo "Copied Build/Kernel.elf -> ../ToyImage/"
 else
-    echo "Bringup ELF (not copied to ToyImage): $ELF"
+    echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
 fi
 
 ls -lh "$ELF"

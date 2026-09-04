@@ -90,8 +90,9 @@ cd ToyKernel
 
 ./build.sh              # ARCH=x86_64，默认关闭调试日志
 ./build.sh DEBUG=1      # 打开 DebugWrite 串口输出
-./build.sh riscv        # PR-A6：virt bringup（BRINGUP=1）
+./build.sh riscv        # PR-A7：完整 Common → KernelMain（virt）
 ./build.sh arm64
+./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
 ```
 
 产物：

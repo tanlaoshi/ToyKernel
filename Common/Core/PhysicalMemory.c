@@ -1,5 +1,5 @@
 /*
- * PhysicalMemory.c — 物理页分配器（位图实现）
+ * PhysicalMemory.c — 物理页分配器（位图；PR-A7：PhysBase 支持高位 RAM）
  */
 #include "PhysicalMemory.h"
 #include "BootInfo.h"
@@ -12,6 +12,18 @@ static UINT8  gBitmap[PHYSICAL_MEMORY_MAX_PAGES / 8];
 static UINT16 gRefCount[PHYSICAL_MEMORY_MAX_PAGES];
 static UINT32 gMaxPage;
 static UINT64 gFreePages;
+static UINT64 gPhysBase; /* 页对齐；PFN 0 对应此物理地址（x86 常为 0） */
+
+static UINT32 PhysToPfn(UINT64 Phys) {
+    if (Phys < gPhysBase) {
+        return gMaxPage;
+    }
+    return (UINT32)((Phys - gPhysBase) >> PAGE_SHIFT);
+}
+
+static UINT64 PfnToPhys(UINT32 Pfn) {
+    return gPhysBase + ((UINT64)Pfn << PAGE_SHIFT);
+}
 
 static int PageUsed(UINT32 Pfn) {
     if (Pfn >= gMaxPage) {
@@ -44,7 +56,7 @@ static void ReserveRange(UINT64 Phys, UINT64 Size) {
     UINT64 Start = Phys & ~(UINT64)(PAGE_SIZE - 1);
     UINT64 End = Phys + Size;
     while (Start < End) {
-        SetPage((UINT32)(Start >> PAGE_SHIFT), 1);
+        SetPage(PhysToPfn(Start), 1);
         Start += PAGE_SIZE;
     }
 }
@@ -52,7 +64,7 @@ static void ReserveRange(UINT64 Phys, UINT64 Size) {
 static void AddFreeRange(UINT64 Phys, UINT64 Size) {
     UINT64 End = Phys + Size;
     while (Phys < End) {
-        UINT32 Pfn = (UINT32)(Phys >> PAGE_SHIFT);
+        UINT32 Pfn = PhysToPfn(Phys);
         if (Pfn < gMaxPage) {
             SetPage(Pfn, 0);
         }
@@ -60,21 +72,37 @@ static void AddFreeRange(UINT64 Phys, UINT64 Size) {
     }
 }
 
-static UINT32 ComputeMaxPage(const BOOT_INFO *Info) {
-    UINT32 Max = 0;
+static void ComputeBaseAndMax(const BOOT_INFO *Info, UINT64 *OutBase, UINT32 *OutMax) {
+    UINT64 Base = ~(UINT64)0;
+    UINT64 EndMax = 0;
     UINT32 i;
+    UINT32 Span;
 
     for (i = 0; i < Info->RegionCount; i++) {
-        UINT64 End = Info->Regions[i].Phys + Info->Regions[i].Size;
-        UINT32 Pfn = (UINT32)(End >> PAGE_SHIFT);
-        if (Pfn > Max) {
-            Max = Pfn;
+        UINT64 P = Info->Regions[i].Phys;
+        UINT64 E = P + Info->Regions[i].Size;
+        if (P < Base) {
+            Base = P;
+        }
+        if (E > EndMax) {
+            EndMax = E;
         }
     }
-    if (Max > PHYSICAL_MEMORY_MAX_PAGES) {
-        Max = PHYSICAL_MEMORY_MAX_PAGES;
+    if (Base == ~(UINT64)0) {
+        Base = 0;
     }
-    return Max;
+    Base &= ~(UINT64)(PAGE_SIZE - 1);
+    if (EndMax <= Base) {
+        *OutBase = Base;
+        *OutMax = 0;
+        return;
+    }
+    Span = (UINT32)((EndMax - Base + PAGE_SIZE - 1) >> PAGE_SHIFT);
+    if (Span > PHYSICAL_MEMORY_MAX_PAGES) {
+        Span = PHYSICAL_MEMORY_MAX_PAGES;
+    }
+    *OutBase = Base;
+    *OutMax = Span;
 }
 
 int PhysicalMemoryInit(void) {
@@ -85,7 +113,7 @@ int PhysicalMemoryInit(void) {
         return -1;
     }
 
-    gMaxPage = ComputeMaxPage(Info);
+    ComputeBaseAndMax(Info, &gPhysBase, &gMaxPage);
     if (gMaxPage == 0) {
         return -1;
     }
@@ -107,13 +135,15 @@ int PhysicalMemoryInit(void) {
         }
     }
 
-    DebugWrite("PMM: ");
+    DebugWrite("PMM: base=");
+    DebugHex64(gPhysBase);
+    DebugWrite(" free=");
     DebugHex64(gFreePages << PAGE_SHIFT);
-    DebugWrite(" bytes free / ");
+    DebugWrite(" / tracked=");
     DebugHex64((UINT64)gMaxPage << PAGE_SHIFT);
-    DebugWrite(" bytes tracked (");
+    DebugWrite(" (");
     DebugHex32((UINT32)gFreePages);
-    DebugWrite(" pages free)\n");
+    DebugWrite(" pages)\n");
     return 0;
 }
 
@@ -132,7 +162,7 @@ void *PhysicalMemoryAllocatePages(UINT32 Count) {
                     SetPage(Start + i, 1);
                     gRefCount[Start + i] = 1;
                 }
-                return (void *)(UINTN)(Start << PAGE_SHIFT);
+                return (void *)(UINTN)PfnToPhys(Start);
             }
         } else {
             Run = 0;
@@ -152,7 +182,7 @@ int PhysicalMemoryRetainPage(void *Page) {
     if ((Phys & (PAGE_SIZE - 1)) != 0) {
         return -1;
     }
-    Pfn = (UINT32)(Phys >> PAGE_SHIFT);
+    Pfn = PhysToPfn(Phys);
     if (Pfn >= gMaxPage || gRefCount[Pfn] == 0) {
         return -1;
     }
@@ -170,7 +200,7 @@ void PhysicalMemoryReleasePage(void *Page) {
     if ((Phys & (PAGE_SIZE - 1)) != 0) {
         return;
     }
-    Pfn = (UINT32)(Phys >> PAGE_SHIFT);
+    Pfn = PhysToPfn(Phys);
     if (Pfn >= gMaxPage || gRefCount[Pfn] == 0) {
         return;
     }
@@ -188,12 +218,12 @@ void PhysicalMemoryFreePages(void *Page, UINT32 Count) {
     if ((Phys & (PAGE_SIZE - 1)) != 0) {
         return;
     }
-    Pfn = (UINT32)(Phys >> PAGE_SHIFT);
+    Pfn = PhysToPfn(Phys);
     for (i = 0; i < Count; i++) {
         if (Pfn + i >= gMaxPage) {
             return;
         }
-        PhysicalMemoryReleasePage((void *)(UINTN)((UINT64)(Pfn + i) << PAGE_SHIFT));
+        PhysicalMemoryReleasePage((void *)(UINTN)PfnToPhys(Pfn + i));
     }
 }
 

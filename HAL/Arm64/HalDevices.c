@@ -8,7 +8,7 @@ int HalBlockInit(void) {
 }
 
 int HalUsbInit(void) {
-    return -1;
+    return 0;
 }
 
 void HalInputPoll(void) {
@@ -34,7 +34,7 @@ int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
 }
 
 int HalNetInit(void) {
-    return -1;
+    return 0;
 }
 
 int HalNetReady(void) {

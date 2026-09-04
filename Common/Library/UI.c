@@ -23,26 +23,34 @@ static int ISqrt(int n) {
     return x;
 }
 
-/* 绘制直线（Bresenham 步进） */
+/* 绘制直线（整数 Bresenham；无浮点，便于 Arm -mgeneral-regs-only） */
 void UiDrawLine(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 Color) {
-    int dx = (int)X2 - (int)X1;
-    int dy = (int)Y2 - (int)Y1;
-    int steps = (Abs(dx) > Abs(dy)) ? Abs(dx) : Abs(dy);
-    
-    if (steps == 0) {
-        HalVideoDrawPixel(X1, Y1, Color);
-        return;
-    }
-    
-    float xIncrement = (float)dx / steps;
-    float yIncrement = (float)dy / steps;
-    float x = X1;
-    float y = Y1;
-    
-    for (int i = 0; i <= steps; i++) {
-        HalVideoDrawPixel((UINT32)x, (UINT32)y, Color);
-        x += xIncrement;
-        y += yIncrement;
+    int X0 = (int)X1;
+    int Y0 = (int)Y1;
+    int Xn = (int)X2;
+    int Yn = (int)Y2;
+    int Dx = Abs(Xn - X0);
+    int Sx = X0 < Xn ? 1 : -1;
+    int Dy = -Abs(Yn - Y0);
+    int Sy = Y0 < Yn ? 1 : -1;
+    int Err = Dx + Dy;
+
+    for (;;) {
+        HalVideoDrawPixel((UINT32)X0, (UINT32)Y0, Color);
+        if (X0 == Xn && Y0 == Yn) {
+            break;
+        }
+        {
+            int E2 = 2 * Err;
+            if (E2 >= Dy) {
+                Err += Dy;
+                X0 += Sx;
+            }
+            if (E2 <= Dx) {
+                Err += Dx;
+                Y0 += Sy;
+            }
+        }
     }
 }
 

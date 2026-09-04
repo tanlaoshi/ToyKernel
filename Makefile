@@ -5,11 +5,11 @@ LWIPINCLUDES :=
 LWIPOBJS :=
 LWIP_PORT_OBJS :=
 
-# PR-A6：非 x86 默认 BRINGUP=1（仅 Startup+Serial+Halt，-kernel 串口 hello）
+# PR-A6/A7：非 x86 默认可链接完整 Common（BRINGUP=1 仍为串口 hello）
 ifeq ($(ARCH),x86_64)
 BRINGUP ?= 0
 else
-BRINGUP ?= 1
+BRINGUP ?= 0
 endif
 
 CC = gcc
@@ -73,7 +73,8 @@ INCLUDES_HAL    = $(INCLUDES_COMMON) \
 
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
-              -DTOY_DEBUG=$(DEBUG) -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
+              -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
+              -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
               $(ARCH_CFLAGS)
 
 ifeq ($(LWIP),1)
@@ -118,6 +119,8 @@ CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON) $(LWIPINCLUDES)
 CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -IHAL/$(HAL_ARCH)/LwIp
 
 LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
+# SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
+LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
 BUILDDIR = Build
 ifneq ($(ARCH),x86_64)
@@ -131,7 +134,7 @@ FONT_SRCS     := $(wildcard Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
 ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
 ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
-ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S,$(ARCH_ASM_ALL))
+ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
 
 CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
@@ -172,6 +175,8 @@ USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o User/crt/string.o \
 	User/crt/printf.o User/crt/malloc.o User/crt/errno.o User/crt/unistd.o
+else
+EXTRA_OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -185,6 +190,9 @@ OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o \
        $(BUILDDIR)/HAL/$(HAL_ARCH)/Hal.o
 EXTRA_OBJS =
 endif
+
+# 汇编用同一 TOY_BRINGUP（Startup.S 无条件调 StartupMain）
+ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
 .PHONY: all clean
 
@@ -201,7 +209,7 @@ $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
 $(TARGET): $(OBJS) | $(BUILDDIR)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBGCC)
 
 $(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)

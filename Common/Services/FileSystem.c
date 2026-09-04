@@ -583,10 +583,12 @@ static int MountAllVolumes(void) {
 
 int FileSystemInit(void) {
     if (HalBlockInit() <= 0) {
-        return -1;
+        DebugWrite("FS: skipped (no block device)\n");
+        return 0;
     }
     if (!MountAllVolumes()) {
-        return -1;
+        DebugWrite("FS: no volumes mounted\n");
+        return 0;
     }
     ConsoleRegister("ls", "list directory (TOYOS: / A:)", CommandLs);
     ConsoleRegister("cat", "print file", CommandCat);

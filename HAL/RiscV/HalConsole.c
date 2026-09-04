@@ -2,6 +2,7 @@
  * HAL/RiscV/HalConsole.c — 控制台门面桩
  */
 #include "HalConsole.h"
+#include "HalSerial.h"
 
 void HalConsolePutChar(char C) {
     (void)C;
@@ -20,7 +21,7 @@ int HalConsoleVideoReady(void) {
 }
 
 void HalConsoleWriteSerial(const char *Text) {
-    (void)Text;
+    HalSerialWrite(Text);
 }
 
 void HalConsoleBackspaceSerial(void) { }

@@ -1,21 +1,24 @@
 /*
- * Startup.S — QEMU virt aarch64 -kernel 入口（PR-A6）
+ * Startup.S — QEMU virt aarch64 -kernel 入口
  */
-    .section .text
+    .section .text.boot, "ax"
     .global KernelEntry
     .type KernelEntry, %function
 KernelEntry:
-    adrp    x0, gBringupStack
-    add     x0, x0, :lo12:gBringupStack
-    add     sp, x0, #8192
-    bl      BringupMain
-1:  wfi
-    b       1b
-    .size KernelEntry, .-KernelEntry
+    adrp    x0, gBootStack
+    add     x0, x0, :lo12:gBootStack
+    add     sp, x0, #65536
 
-    .section .bss
-    .align 4
-    .global gBringupStack
-gBringupStack:
-    .space 8192
-    .size gBringupStack, 8192
+    adrp    x0, __bss_start
+    add     x0, x0, :lo12:__bss_start
+    adrp    x1, __bss_end
+    add     x1, x1, :lo12:__bss_end
+1:  cmp     x0, x1
+    b.hs    2f
+    str     xzr, [x0], #8
+    b       1b
+2:
+    bl      StartupMain
+3:  wfi
+    b       3b
+    .size KernelEntry, .-KernelEntry

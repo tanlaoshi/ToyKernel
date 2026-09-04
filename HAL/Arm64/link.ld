@@ -1,6 +1,5 @@
 /*
- * link.ld — QEMU virt aarch64（-kernel ELF，无 ToyBoot）
- * RAM 基址 0x40000000（virt 机器约定）
+ * link.ld — QEMU virt aarch64（-kernel ELF）
  */
 OUTPUT_FORMAT(elf64-littleaarch64)
 OUTPUT_ARCH(aarch64)
@@ -11,6 +10,7 @@ SECTIONS
     . = 0x40000000;
 
     .text : {
+        KEEP(*(.text.boot))
         *(.text*)
     }
 
@@ -23,8 +23,16 @@ SECTIONS
     }
 
     .bss : {
+        __bss_start = .;
         *(.bss*)
         *(COMMON)
+        __bss_end = .;
+    }
+
+    .bootstack (NOLOAD) : {
+        . = ALIGN(16);
+        gBootStack = .;
+        . = . + 65536;
     }
 
     __kernel_end = .;

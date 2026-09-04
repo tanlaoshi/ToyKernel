@@ -1,12 +1,12 @@
 #!/bin/bash
-# PR-A6：QEMU virt aarch64 -kernel 串口 hello
+# QEMU virt aarch64：PR-A7 KernelMain 或 PR-A6 hello
 set -e
 cd "$(dirname "$0")"
 
 ELF="${1:-Build/arm64/Kernel.elf}"
 if [ ! -f "$ELF" ]; then
-    echo "building ARCH=arm64 BRINGUP=1 ..."
-    make ARCH=arm64 BRINGUP=1
+    echo "building ARCH=arm64 ..."
+    make ARCH=arm64 BRINGUP=0
     ELF=Build/arm64/Kernel.elf
 fi
 
@@ -15,7 +15,7 @@ if ! command -v "$QEMU" >/dev/null 2>&1; then
     if [ -x tools/root/usr/bin/qemu-system-aarch64 ]; then
         QEMU=tools/root/usr/bin/qemu-system-aarch64
     else
-        echo "error: qemu-system-aarch64 not found (apt install qemu-system-arm)" >&2
+        echo "error: qemu-system-aarch64 not found" >&2
         exit 1
     fi
 fi
@@ -34,8 +34,9 @@ echo "run: $QEMU -M virt -cpu cortex-a72 -nographic -kernel $ELF"
 "$QEMU" -M virt -cpu cortex-a72 -m 256M -nographic -kernel "$ELF" \
     < /dev/null >"$OUT" 2>&1 &
 QPID=$!
-for _ in $(seq 1 40); do
-    if grep -q 'ToyOS Arm64 virt: hello' "$OUT" 2>/dev/null; then
+PAT='ToyOS Arm64 virt: (KernelMain|hello)|ToyOS ready|ToyOS 就绪|sched: enter'
+for _ in $(seq 1 60); do
+    if grep -qE "$PAT" "$OUT" 2>/dev/null; then
         cat "$OUT"
         exit 0
     fi
@@ -45,5 +46,5 @@ for _ in $(seq 1 40); do
     sleep 0.25
 done
 cat "$OUT"
-echo "error: timeout waiting for serial hello" >&2
+echo "error: timeout waiting for Arm64 virt serial" >&2
 exit 1
