@@ -5,37 +5,54 @@ cd "$(dirname "$0")"
 # 用法:
 #   ./build.sh              # ARCH=x86_64，关闭调试日志（默认）
 #   ./build.sh DEBUG=1      # 打开 DebugWrite 串口日志
-#   ./build.sh riscv        # 指定架构
-#   ./build.sh riscv DEBUG=1
-
+#   ./build.sh riscv        # PR-A6：virt bringup（默认 BRINGUP=1）
+#   ./build.sh arm64
+#   ./build.sh riscv BRINGUP=0  # 尝试完整 Common（需 PR-A7）
 #   ./build.sh LWIP=1      # 嵌入 lwIP（需 ThirdParty/lwip）
 ARCH=x86_64
 DEBUG=0
 LWIP=0
+BRINGUP=
 for Arg in "$@"; do
     case "$Arg" in
         DEBUG=1|debug=1) DEBUG=1 ;;
         DEBUG=0|debug=0) DEBUG=0 ;;
         LWIP=1|lwip=1) LWIP=1 ;;
         LWIP=0|lwip=0) LWIP=0 ;;
+        BRINGUP=1|bringup=1) BRINGUP=1 ;;
+        BRINGUP=0|bringup=0) BRINGUP=0 ;;
         *) ARCH="$Arg" ;;
     esac
 done
 
-echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP"
+if [ -z "$BRINGUP" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
+        BRINGUP=0
+    else
+        BRINGUP=1
+    fi
+fi
+
+echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
 
 make clean ARCH="$ARCH"
-make ARCH="$ARCH" DEBUG="$DEBUG" LWIP="$LWIP"
+make ARCH="$ARCH" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP"
 
-if [ ! -f Build/Kernel.elf ]; then
+if [ "$ARCH" = "x86_64" ]; then
+    ELF=Build/Kernel.elf
+else
+    ELF="Build/$ARCH/Kernel.elf"
+fi
+
+if [ ! -f "$ELF" ]; then
     echo "Build failed!"
     exit 1
 fi
 
-echo "Build successful: Build/Kernel.elf (DEBUG=$DEBUG LWIP=$LWIP)"
-cp Build/Kernel.elf ../ToyImage/
+echo "Build successful: $ELF (DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
-if [ "$ARCH" = "x86_64" ]; then
+if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
+    cp Build/Kernel.elf ../ToyImage/
     cp User/hello.elf ../ToyImage/HELLO.ELF
     cp User/count.elf ../ToyImage/COUNT.ELF
     cp User/fork.elf ../ToyImage/FORK.ELF
@@ -63,7 +80,9 @@ if [ "$ARCH" = "x86_64" ]; then
         cp -f ../ToyImage/SYSFORK.ELF ../ToyImage/rootfs/SYSFORK.ELF
         echo "Synced Kernel/HELLO/CAT/WRITE/... -> ../ToyImage/rootfs/"
     fi
+    echo "Copied Build/Kernel.elf -> ../ToyImage/"
+else
+    echo "Bringup ELF (not copied to ToyImage): $ELF"
 fi
 
-echo "Copied Build/Kernel.elf -> ../ToyImage/"
-ls -lh Build/Kernel.elf
+ls -lh "$ELF"

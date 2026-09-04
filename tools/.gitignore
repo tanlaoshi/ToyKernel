@@ -1,0 +1,9 @@
+tarballs/
+extract/
+debs/
+root/
+qemu/
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+*.deb

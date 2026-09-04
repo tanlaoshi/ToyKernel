@@ -7,8 +7,12 @@ int HalInit(void) {
     return -1;
 }
 
-void HalCpuHalt(void) { for (;;) { } }
-void HalCpuPark(void) { for (;;) { } }
+void HalCpuHalt(void) {
+    for (;;) {
+        __asm__ volatile("wfi");
+    }
+}
+void HalCpuPark(void) { HalCpuHalt(); }
 void HalCpuReboot(void) { HalCpuPark(); }
 void HalCpuShutdown(void) { HalCpuPark(); }
 
@@ -129,20 +133,22 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 }
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) { (void)Virt; return 0; }
 
-void HalSerialInit(void) { }
-void HalSerialWrite(const char *Text) { (void)Text; }
-int HalSerialDataReady(void) { return 0; }
-char HalSerialReadChar(void) { return 0; }
-void HalSerialHexFormat(char *Buf, UINT64 Value, int Digits) {
-    (void)Buf; (void)Value; (void)Digits;
-}
-
 const char *HalArchName(void) { return "aarch64"; }
-const char *HalCpuInfo(void) { return "ARM64 (stub)"; }
+const char *HalCpuInfo(void) { return "ARM64 (virt bringup)"; }
 
-void HalDebugWrite(const char *Text) { (void)Text; }
-void HalDebugHex32(UINT32 Value) { (void)Value; }
-void HalDebugHex64(UINT64 Value) { (void)Value; }
+void HalDebugWrite(const char *Text) {
+    HalSerialWrite(Text);
+}
+void HalDebugHex32(UINT32 Value) {
+    char Buf[9];
+    HalSerialHexFormat(Buf, Value, 8);
+    HalSerialWrite(Buf);
+}
+void HalDebugHex64(UINT64 Value) {
+    char Buf[17];
+    HalSerialHexFormat(Buf, Value, 16);
+    HalSerialWrite(Buf);
+}
 
 int HalCpuCount(void) { return 1; }
 UINT32 HalCpuId(void) { return 0; }

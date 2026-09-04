@@ -90,7 +90,8 @@ cd ToyKernel
 
 ./build.sh              # ARCH=x86_64，默认关闭调试日志
 ./build.sh DEBUG=1      # 打开 DebugWrite 串口输出
-./build.sh riscv        # 仅编占位 HAL（无完整内核）
+./build.sh riscv        # PR-A6：virt bringup（BRINGUP=1）
+./build.sh arm64
 ```
 
 产物：

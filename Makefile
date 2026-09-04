@@ -5,8 +5,19 @@ LWIPINCLUDES :=
 LWIPOBJS :=
 LWIP_PORT_OBJS :=
 
+# PR-A6：非 x86 默认 BRINGUP=1（仅 Startup+Serial+Halt，-kernel 串口 hello）
+ifeq ($(ARCH),x86_64)
+BRINGUP ?= 0
+else
+BRINGUP ?= 1
+endif
+
 CC = gcc
 LD = ld
+OBJCOPY = objcopy
+
+# 可选：tools/extract 下的 xPack / 交叉工具链（见 tools/README.md）
+TOOLS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/tools/extract)
 
 ifeq ($(ARCH),x86_64)
 HAL_ARCH = X86_64
@@ -16,13 +27,41 @@ LDFLAGS_ARCH =
 endif
 ifeq ($(ARCH),riscv)
 HAL_ARCH = RiscV
-ARCH_CFLAGS = -march=rv64gc -mabi=lp64d
+ARCH_CFLAGS = -march=rv64imac -mabi=lp64 -mcmodel=medany
 LDFLAGS_ARCH =
+ifneq ($(wildcard $(TOOLS_ROOT)/xpack-riscv-none-elf-gcc-*/bin/riscv-none-elf-gcc),)
+TOOLS_RISCV := $(lastword $(sort $(wildcard $(TOOLS_ROOT)/xpack-riscv-none-elf-gcc-*)))
+CC = $(TOOLS_RISCV)/bin/riscv-none-elf-gcc
+LD = $(TOOLS_RISCV)/bin/riscv-none-elf-ld
+OBJCOPY = $(TOOLS_RISCV)/bin/riscv-none-elf-objcopy
+else ifneq ($(shell command -v riscv64-linux-gnu-gcc 2>/dev/null),)
+CC = riscv64-linux-gnu-gcc
+LD = riscv64-linux-gnu-ld
+OBJCOPY = riscv64-linux-gnu-objcopy
+else ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
+CC = riscv64-unknown-elf-gcc
+LD = riscv64-unknown-elf-ld
+OBJCOPY = riscv64-unknown-elf-objcopy
+endif
 endif
 ifeq ($(ARCH),arm64)
 HAL_ARCH = Arm64
 ARCH_CFLAGS = -mgeneral-regs-only
 LDFLAGS_ARCH =
+ifneq ($(wildcard $(TOOLS_ROOT)/xpack-aarch64-none-elf-gcc-*/bin/aarch64-none-elf-gcc),)
+TOOLS_ARM := $(lastword $(sort $(wildcard $(TOOLS_ROOT)/xpack-aarch64-none-elf-gcc-*)))
+CC = $(TOOLS_ARM)/bin/aarch64-none-elf-gcc
+LD = $(TOOLS_ARM)/bin/aarch64-none-elf-ld
+OBJCOPY = $(TOOLS_ARM)/bin/aarch64-none-elf-objcopy
+else ifneq ($(shell command -v aarch64-linux-gnu-gcc 2>/dev/null),)
+CC = aarch64-linux-gnu-gcc
+LD = aarch64-linux-gnu-ld
+OBJCOPY = aarch64-linux-gnu-objcopy
+else ifneq ($(shell command -v aarch64-none-elf-gcc 2>/dev/null),)
+CC = aarch64-none-elf-gcc
+LD = aarch64-none-elf-ld
+OBJCOPY = aarch64-none-elf-objcopy
+endif
 endif
 
 INCLUDES_COMMON = -IInclude \
@@ -81,6 +120,9 @@ CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -IHAL/$(HAL_ARCH)
 LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 
 BUILDDIR = Build
+ifneq ($(ARCH),x86_64)
+BUILDDIR = Build/$(ARCH)
+endif
 
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
@@ -135,13 +177,24 @@ endif
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(BUILDDIR)/Kernel.elf
 
+ifeq ($(BRINGUP),1)
+# PR-A6：Startup.S + Startup.c + HalSerial + Hal（Halt），不链 Common
+OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o \
+       $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup.o \
+       $(BUILDDIR)/HAL/$(HAL_ARCH)/HalSerial.o \
+       $(BUILDDIR)/HAL/$(HAL_ARCH)/Hal.o
+EXTRA_OBJS =
+endif
+
 .PHONY: all clean
 
 all: $(TARGET)
 ifeq ($(ARCH),x86_64)
+ifneq ($(BRINGUP),1)
 all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF)
+endif
 endif
 
 $(BUILDDIR):
@@ -185,6 +238,11 @@ $(BUILDDIR)/lwip/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
 endif
 
 $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.S | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+# PR-A6：Startup.S 与 Startup.c 同名冲突，汇编产出 Startup_asm.o
+$(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
