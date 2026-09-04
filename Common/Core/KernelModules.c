@@ -150,17 +150,19 @@ static const MODULE gModulesVirt[] = {
     { "mem",     InitMem },
     { "vmm",     InitVmm },
     { "cpu",     InitCpu },
+    { "smp",     InitSmp },
     { "sched",   InitSched },
     { "console", InitConsole },
 };
 
-/* PR-V5/N10：virt 桌面（跳过 smp；输入在 InitCpu；N10 挂 net） */
+/* PR-V5/N10/A14：virt 桌面（A14 挂 smp；输入在 InitCpu；N10 挂 net） */
 static const MODULE gModulesVirtDesktop[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
     { "vmm",     InitVmm },
     { "video",   InitVideo },
     { "cpu",     InitCpu },
+    { "smp",     InitSmp },
     { "fs",      InitFileSystemModule },
     { "net",     InitNetModule },
     { "gui",     InitGuiModule },

@@ -250,6 +250,36 @@ void HalPagingEnable(UINT64 RootPhys) {
     HalPagingSelfTest();
 }
 
+/* PR-A14：AP 启用与 BSP 相同的内核页表（无自测横幅） */
+void HalPagingEnableAp(void) {
+    UINT64 RootPhys = gKernelRoot ? gKernelRoot : gCurrentRoot;
+    UINT64 Mair;
+    UINT64 Tcr;
+    UINT64 Sctlr;
+
+    if (RootPhys == 0) {
+        return;
+    }
+    HalExceptionVectorsInstall();
+
+    Mair = (0xFFULL) | (0x00ULL << 8);
+    Tcr = (16ULL) | (0ULL << 14) | (1ULL << 8) | (1ULL << 10) |
+          (3ULL << 12) | (2ULL << 32);
+
+    __asm__ volatile("msr mair_el1, %0" ::"r"(Mair));
+    __asm__ volatile("msr tcr_el1, %0" ::"r"(Tcr));
+    __asm__ volatile("msr ttbr0_el1, %0" ::"r"(RootPhys));
+    __asm__ volatile("isb");
+
+    gCurrentRoot = RootPhys;
+
+    __asm__ volatile("mrs %0, sctlr_el1" : "=r"(Sctlr));
+    Sctlr |= (1ULL << 0) | (1ULL << 2) | (1ULL << 12);
+    Sctlr &= ~(1ULL << 19);
+    __asm__ volatile("msr sctlr_el1, %0\nisb\n" ::"r"(Sctlr) : "memory");
+    gMmuOn = 1;
+}
+
 /*
  * 恒等映射 0..4GiB：低 1GiB Device（UART/GIC/virtio），其余 Normal（RAM @1GiB+）。
  * IdentityMegabytes 保留接口兼容；virt 固定覆盖 4GiB。

@@ -10,6 +10,6 @@ QEMU virt riscv64：OpenSBI / `-kernel`、UART16550、ramfb / virtio-*。
 
 **PR-A13**：OpenSBI **SBI timer**（TIME 扩展，legacy 回退）+ `sie.STIE`；`HalCpuHalt` = SIE + `WFI`；横幅 `timer: RiscV SBI timer irq`。
 
-仍欠（见路线图 1.2f）：SMP（A14）。
+**PR-A14**：次 hart 在 `KernelEntry` 停车 + soft-release / HSM；每核 idle；默认 `-smp 2`。
 
 构建：`./build.sh riscv` → `Build/riscv/Kernel.elf`；验收 `./run-virt-riscv.sh` / `./smoke-virt.sh`。

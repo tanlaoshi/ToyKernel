@@ -13,7 +13,6 @@
 #define SBI_EXT_TIME 0x54494D45ULL
 #define SBI_EXT_LEGACY_SET_TIMER 0x00ULL
 
-static volatile UINT64 gVirtTicks;
 static UINT64 gTimeLast;
 static UINT64 gTimePeriod;
 static UINT32 gTimerMs = 10;
@@ -49,6 +48,8 @@ static void RiscvTimerArm(void) {
 }
 
 int HalInit(void) {
+    /* PR-A14：BSP 逻辑 CPU=0（tp） */
+    __asm__ volatile("mv tp, zero" ::: "memory");
     return 0;
 }
 
@@ -138,6 +139,19 @@ void HalTimerStart(void) {
     RiscvTimerArm();
     gTimerIrq = 1;
     HalSerialWrite("timer: RiscV SBI timer irq\n");
+}
+
+/* PR-A14：AP 本地开 STIE + SBI timer */
+void HalTimerStartAp(void) {
+    extern void HalTrapVectorInstall(void);
+
+    if (!gTimerReady) {
+        HalTimerInit();
+    }
+    HalTrapVectorInstall();
+    __asm__ volatile("csrs sie, %0" ::"r"(SIE_STIE) : "memory");
+    RiscvTimerArm();
+    gTimerIrq = 1;
 }
 
 void HalTimerPoll(void) {
@@ -319,7 +333,7 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "riscv64"; }
-const char *HalCpuInfo(void) { return "RISC-V (virt A13)"; }
+const char *HalCpuInfo(void) { return "RISC-V (virt A14)"; }
 
 UINT16 HalElfMachine(void) {
     return 243; /* EM_RISCV */
@@ -361,14 +375,4 @@ void HalDebugHex64(UINT64 Value) {
     HalSerialWrite(Buf);
 }
 
-int HalCpuCount(void) { return 1; }
-UINT32 HalCpuId(void) { return 0; }
-int HalCpuIsBsp(void) { return 1; }
-UINT64 HalCpuTicks(UINT32 Cpu) {
-    (void)Cpu;
-    return gVirtTicks;
-}
-void HalCpuTickInc(void) {
-    gVirtTicks++;
-}
-int HalSmpStartAps(void) { return 0; }
+/* HalCpuCount / Id / ticks / HalSmpStartAps → Smp.c（PR-A14） */

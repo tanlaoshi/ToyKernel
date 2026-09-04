@@ -38,6 +38,7 @@ ToyKernel virt 验收（自有 Boot，非 UEFI / 非 ToyImage/run-split.sh）
   TOY_VIRT_SERIAL=1          同 --serial
   TOY_VIRT_NODISK=1          同 --nodisk
   TOY_VIRT_NONET=1           不挂 virtio-net（N10 默认挂 user 网）
+  TOY_VIRT_SMP=1|2|N         核数（默认 2；PR-A14；单核路径用 1）
   TOY_RISCV_BIOS_NONE=1      RiscV：-bios none（旧链接对照）
 
 EOF
@@ -124,10 +125,12 @@ toy_virt_ensure_elf() {
 
 toy_virt_build_dev_args() {
     MEM="${TOY_VIRT_MEM:-256M}"
+    SMP="${TOY_VIRT_SMP:-2}"
     DISP_ARGS=()
     SERIAL_ARGS=()
     DEV_ARGS=(-device virtio-keyboard-device -device virtio-tablet-device)
     BIOS_ARGS=()
+    SMP_ARGS=(-smp "$SMP")
 
     if [ "${TOY_RISCV_BIOS_NONE:-0}" = "1" ] && [ "$TOY_VIRT_ARCH" = "riscv" ]; then
         BIOS_ARGS=(-bios none)
@@ -174,8 +177,8 @@ toy_virt_qemu_cmd_prefix() {
     if [ "${TOY_VIRT_NONET:-0}" = "1" ]; then
         NetNote="nonet"
     fi
-    echo "virt验收: Arch=$TOY_VIRT_ARCH mode=$TOY_VIRT_MODE (自有 Boot，非 ToyImage/run-split.sh)"
-    echo "run: $TOY_VIRT_QEMU -M virt -m $MEM ${SERIAL_ARGS[*]} ${DISP_ARGS[*]:-no-fb} + virtio-input/blk/$NetNote"
+    echo "virt验收: Arch=$TOY_VIRT_ARCH mode=$TOY_VIRT_MODE smp=${TOY_VIRT_SMP:-2} (自有 Boot，非 ToyImage/run-split.sh)"
+    echo "run: $TOY_VIRT_QEMU -M virt -m $MEM -smp ${TOY_VIRT_SMP:-2} ${SERIAL_ARGS[*]} ${DISP_ARGS[*]:-no-fb} + virtio-input/blk/$NetNote"
 }
 
 toy_virt_run_interactive() {
@@ -183,14 +186,14 @@ toy_virt_run_interactive() {
     if [ "$TOY_VIRT_ARCH" = "arm64" ]; then
         local DTB Ec
         DTB=$(mktemp)
-        "$TOY_VIRT_QEMU" -M virt,gic-version=2,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" >/dev/null 2>&1 || true
+        "$TOY_VIRT_QEMU" -M virt,gic-version=2,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" "${SMP_ARGS[@]}" >/dev/null 2>&1 || true
         if [ ! -s "$DTB" ]; then
             rm -f "$DTB"
             echo "error: dumpdtb failed" >&2
             exit 1
         fi
         set +e
-        "$TOY_VIRT_QEMU" -M virt,gic-version=2 -cpu cortex-a72 -m "$MEM" \
+        "$TOY_VIRT_QEMU" -M virt,gic-version=2 -cpu cortex-a72 -m "$MEM" "${SMP_ARGS[@]}" \
             "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}" \
             -kernel "$TOY_VIRT_ELF" \
             -device loader,addr=0x4a000000,file="$DTB"
@@ -199,7 +202,7 @@ toy_virt_run_interactive() {
         rm -f "$DTB"
         exit "$Ec"
     else
-        exec "$TOY_VIRT_QEMU" -M virt ${BIOS_ARGS[@]+"${BIOS_ARGS[@]}"} -m "$MEM" \
+        exec "$TOY_VIRT_QEMU" -M virt ${BIOS_ARGS[@]+"${BIOS_ARGS[@]}"} -m "$MEM" "${SMP_ARGS[@]}" \
             "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}" \
             -kernel "$TOY_VIRT_ELF"
     fi
@@ -242,6 +245,15 @@ toy_virt_smoke_ok() {
     if ! grep -aqE 'timer: (Arm64 CNTV\+GIC|RiscV SBI timer) irq' "$Out" 2>/dev/null; then
         return 1
     fi
+    # PR-A14：默认 -smp 2 见 AP hello + idle1；TOY_VIRT_SMP=1 则 single CPU
+    if [ "${TOY_VIRT_SMP:-2}" != "1" ]; then
+        if ! grep -qE 'smp: hello cpu=' "$Out" 2>/dev/null; then
+            return 1
+        fi
+        if ! grep -qE 'sched: AP entered idle|idle1' "$Out" 2>/dev/null; then
+            return 1
+        fi
+    fi
     # PR-A12：本 arch exec HELLO.ELF
     grep -qE 'Hello Ring3' "$Out" 2>/dev/null
 }
@@ -263,23 +275,23 @@ toy_virt_run_headless() {
     local Cmd=()
     if [ "$TOY_VIRT_ARCH" = "arm64" ]; then
         DTB=$(mktemp)
-        "$TOY_VIRT_QEMU" -M virt,gic-version=2,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" >/dev/null 2>&1 || true
+        "$TOY_VIRT_QEMU" -M virt,gic-version=2,dumpdtb="$DTB" -cpu cortex-a72 -m "$MEM" "${SMP_ARGS[@]}" >/dev/null 2>&1 || true
         if [ ! -s "$DTB" ]; then
             echo "error: dumpdtb failed" >&2
             exit 1
         fi
-        Cmd=("$TOY_VIRT_QEMU" -M virt,gic-version=2 -cpu cortex-a72 -m "$MEM"
+        Cmd=("$TOY_VIRT_QEMU" -M virt,gic-version=2 -cpu cortex-a72 -m "$MEM" "${SMP_ARGS[@]}"
              "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}"
              -kernel "$TOY_VIRT_ELF"
              -device loader,addr=0x4a000000,file="$DTB")
     else
-        Cmd=("$TOY_VIRT_QEMU" -M virt ${BIOS_ARGS[@]+"${BIOS_ARGS[@]}"} -m "$MEM"
+        Cmd=("$TOY_VIRT_QEMU" -M virt ${BIOS_ARGS[@]+"${BIOS_ARGS[@]}"} -m "$MEM" "${SMP_ARGS[@]}"
              "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}"
              -kernel "$TOY_VIRT_ELF")
     fi
 
     # serial 模式多打一个换行；桌面路径由 ShellTask 吃命令（N10：ping QEMU user 网关）
-    local Cmds=$'\nhelp\nvols\nls\ncat THEME.CFG\nmem\n'
+    local Cmds=$'\nhelp\nvols\nls\ncat THEME.CFG\nmem\nps\n'
     if [ "$TOY_VIRT_MODE" != "serial" ] && [ "${TOY_VIRT_NONET:-0}" != "1" ]; then
         Cmds+=$'ping 10.0.2.2\n'
     fi

@@ -108,6 +108,7 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     }
 
     BootInfoSet(&Info);
+    HalSmpNoteDtb(DtbPhys);
     KernelMain();
     for (;;) {
         HalCpuPark();

@@ -10,6 +10,6 @@ QEMU virt aarch64：自有 Boot（`-kernel` + DTB）、PL011、ramfb / virtio-*�
 
 **PR-A13**：virt **GICv2** + **CNTV**（PPI 27）；`HalCpuHalt` = IRQ + `WFI`；横幅 `timer: Arm64 CNTV+GIC irq`。脚本强制 `-M virt,gic-version=2`。
 
-仍欠（见路线图 1.2f）：SMP（A14）。
+**PR-A14**：PSCI `CPU_ON` + 每核 idle；默认 `-smp 2`（`TOY_VIRT_SMP=1` 单核）；`smp: hello` / `sched: AP entered idle`。
 
 构建：`./build.sh arm64` → `Build/arm64/Kernel.elf`；验收 `./run-virt-arm.sh` / `./smoke-virt.sh`。

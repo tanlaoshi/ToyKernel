@@ -133,6 +133,7 @@ void StartupMain(UINT64 DtbPhys) {
     }
 
     BootInfoSet(&Info);
+    HalSmpNoteDtb(UsedDtb ? UsedDtb : ARM64_VIRT_DTB_ADDR);
     KernelMain();
     for (;;) {
         HalCpuPark();

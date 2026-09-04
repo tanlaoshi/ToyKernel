@@ -183,6 +183,22 @@ void HalPagingEnable(UINT64 RootPhys) {
     HalPagingSelfTest();
 }
 
+/* PR-A14：AP 装载与 BSP 相同的 Sv39 根 */
+void HalPagingEnableAp(void) {
+    UINT64 RootPhys = gKernelRoot ? gKernelRoot : gCurrentRoot;
+
+    if (RootPhys == 0) {
+        return;
+    }
+    HalTrapVectorInstall();
+    gCurrentRoot = RootPhys;
+    __asm__ volatile(
+        "csrw satp, %0\n"
+        "sfence.vma\n" ::"r"(SATP_MODE_SV39 | (RootPhys >> 12))
+        : "memory");
+    gMmuOn = 1;
+}
+
 /*
  * Sv39 恒等：0..4GiB，2MiB megapages（L1 leaf）。
  * 低 1GiB 与其余同为 R|W|X（virt MMIO 可；真机可再拆）。

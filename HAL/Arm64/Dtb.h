@@ -12,4 +12,7 @@ int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize);
 /* 找 compatible=qemu,fw-cfg-mmio 的 reg 基址；成功 0，失败 -1 */
 int DtbFwCfgBase(UINT64 DtbPhys, UINT64 *OutBase);
 
+/* 统计 FDT 中 cpu@* 节点数（PR-A14）；失败返回 1 */
+int DtbCpuCount(UINT64 DtbPhys);
+
 #endif

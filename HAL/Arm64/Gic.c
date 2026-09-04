@@ -1,7 +1,8 @@
 /*
- * Gic.c — PR-A13：QEMU virt GICv2（distributor + CPU interface）
+ * Gic.c — PR-A13/A14：QEMU virt GICv2（distributor + CPU interface）
  * 硬编码 virt 布局；PPI 27 = CNTV。
  * 用 MMIO GICC，避免部分工具链/CPU 上 ICC 系统寄存器未实现。
+ * A14：Distributor 只初始化一次；每核调用 HalGicInitCpu（banked PPI + GICC）。
  */
 #include "Hal.h"
 
@@ -11,7 +12,6 @@
 #define GICD_CTLR       0x000
 #define GICD_ISENABLER  0x100
 #define GICD_IPRIORITYR 0x400
-#define GICD_ITARGETSR  0x800
 #define GICD_ICFGR      0xC00
 
 #define GICC_CTLR       0x000
@@ -20,6 +20,8 @@
 #define GICC_EOIR       0x010
 
 #define GIC_TIMER_PPI   27u
+
+static int gDistReady;
 
 static volatile UINT32 *Reg32(UINT64 Base, UINT32 Off) {
     return (volatile UINT32 *)(UINTN)(Base + Off);
@@ -37,16 +39,20 @@ static void W8(UINT64 Base, UINT32 Off, UINT8 Val) {
     *(volatile UINT8 *)(UINTN)(Base + Off) = Val;
 }
 
-void HalGicInit(void) {
-    /* Distributor：开 PPI 27，目标 CPU0，优先级中等 */
+/* 每核：banked PPI enable + CPU interface */
+void HalGicInitCpu(void) {
     W8(GICD_BASE, GICD_IPRIORITYR + GIC_TIMER_PPI, 0x80);
-    W8(GICD_BASE, GICD_ITARGETSR + GIC_TIMER_PPI, 0x01);
     W32(GICD_BASE, GICD_ISENABLER + 0, 1u << GIC_TIMER_PPI);
-    W32(GICD_BASE, GICD_CTLR, 1);
-
-    /* CPU interface */
     W32(GICC_BASE, GICC_PMR, 0xF0);
     W32(GICC_BASE, GICC_CTLR, 1);
+}
+
+void HalGicInit(void) {
+    if (!gDistReady) {
+        W32(GICD_BASE, GICD_CTLR, 1);
+        gDistReady = 1;
+    }
+    HalGicInitCpu();
 }
 
 UINT32 HalGicAck(void) {

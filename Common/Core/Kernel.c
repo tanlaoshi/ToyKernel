@@ -30,6 +30,12 @@ void KernelMain(void) {
             SchedulerStart();
             return;
         }
+        /* PR-A14：多核时也走 SchedulerStart，让 AP 进 idle；单核仍直跑串口壳 */
+        if (HalCpuCount() > 1) {
+            SchedulerCreate("shell", ConsoleSerialRun);
+            SchedulerStart();
+            return;
+        }
         HalTimerStart();
         ConsoleSerialRun();
         return;

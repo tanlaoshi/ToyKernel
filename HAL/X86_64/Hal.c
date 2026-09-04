@@ -306,3 +306,7 @@ void HalTimerPoll(void) {
 }
 
 /* SmpBoot.c 提供 HalCpuCount / HalCpuId / HalSmpStartAps */
+
+void HalSmpNoteDtb(UINT64 DtbPhys) {
+    (void)DtbPhys;
+}

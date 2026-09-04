@@ -3,7 +3,6 @@
  */
 #include "Hal.h"
 
-static volatile UINT64 gVirtTicks;
 static UINT64 gCntLast;
 static UINT64 gCntFreq;
 static UINT64 gCntPeriod;
@@ -19,6 +18,8 @@ extern void HalGicEoi(UINT32 IntId);
 extern int HalGicIsTimer(UINT32 IntId);
 
 int HalInit(void) {
+    /* PR-A14：BSP 逻辑 CPU=0（TPIDR_EL1） */
+    __asm__ volatile("msr tpidr_el1, xzr" ::: "memory");
     return 0;
 }
 
@@ -117,6 +118,19 @@ void HalTimerStart(void) {
     ArmTimerArm();
     gTimerIrq = 1;
     HalSerialWrite("timer: Arm64 CNTV+GIC irq\n");
+}
+
+/* PR-A14：AP 在 BSP HalTimerStart 之前也可本地开 CNTV（gCntPeriod 已在 InitCpu） */
+void HalTimerStartAp(void) {
+    extern void HalGicInitCpu(void);
+
+    if (!gTimerReady) {
+        HalTimerInit();
+    }
+    HalExceptionVectorsInstall();
+    HalGicInitCpu();
+    ArmTimerArm();
+    gTimerIrq = 1;
 }
 
 void HalTimerPoll(void) {
@@ -293,7 +307,7 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "aarch64"; }
-const char *HalCpuInfo(void) { return "ARM64 (virt A13)"; }
+const char *HalCpuInfo(void) { return "ARM64 (virt A14)"; }
 
 UINT16 HalElfMachine(void) {
     return 183; /* EM_AARCH64 */
@@ -350,14 +364,4 @@ void HalDebugHex64(UINT64 Value) {
     HalSerialWrite(Buf);
 }
 
-int HalCpuCount(void) { return 1; }
-UINT32 HalCpuId(void) { return 0; }
-int HalCpuIsBsp(void) { return 1; }
-UINT64 HalCpuTicks(UINT32 Cpu) {
-    (void)Cpu;
-    return gVirtTicks;
-}
-void HalCpuTickInc(void) {
-    gVirtTicks++;
-}
-int HalSmpStartAps(void) { return 0; }
+/* HalCpuCount / Id / ticks / HalSmpStartAps → Smp.c（PR-A14） */

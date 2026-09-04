@@ -340,3 +340,77 @@ int DtbFwCfgBase(UINT64 DtbPhys, UINT64 *OutBase) {
     *OutBase = Base;
     return 0;
 }
+
+static int NameIsCpuAt(const char *Name) {
+    if (!Name || Name[0] != 'c' || Name[1] != 'p' || Name[2] != 'u' ||
+        Name[3] != '@') {
+        return 0;
+    }
+    return 1;
+}
+
+int DtbCpuCount(UINT64 DtbPhys) {
+    const UINT8 *Blob;
+    const FDT_HEADER *Hdr;
+    UINT32 Total;
+    UINT32 StructOff;
+    UINT32 StructSize;
+    UINT32 Off;
+    UINT32 End;
+    int Count;
+
+    if (DtbPhys == 0) {
+        return 1;
+    }
+    Blob = (const UINT8 *)(UINTN)DtbPhys;
+    Hdr = (const FDT_HEADER *)Blob;
+    if (Be32(&Hdr->Magic) != FDT_MAGIC) {
+        return 1;
+    }
+    Total = Be32(&Hdr->Totalsize);
+    StructOff = Be32(&Hdr->OffDtStruct);
+    StructSize = Be32(&Hdr->SizeDtStruct);
+    if (Total < sizeof(FDT_HEADER) || StructOff >= Total || StructSize == 0 ||
+        StructOff + StructSize > Total) {
+        return 1;
+    }
+
+    Count = 0;
+    Off = StructOff;
+    End = StructOff + StructSize;
+    while (Off + 4 <= End) {
+        UINT32 Token = Be32(Blob + Off);
+        Off += 4;
+        if (Token == FDT_BEGIN_NODE) {
+            const char *Name = (const char *)(Blob + Off);
+            UINT32 Len = 0;
+            while (Off + Len < End && Name[Len]) {
+                Len++;
+            }
+            Off = Align4(Off + Len + 1);
+            if (NameIsCpuAt(Name)) {
+                Count++;
+            }
+            continue;
+        }
+        if (Token == FDT_END_NODE || Token == FDT_NOP) {
+            continue;
+        }
+        if (Token == FDT_END) {
+            break;
+        }
+        if (Token != FDT_PROP) {
+            break;
+        }
+        {
+            UINT32 PropLen;
+            if (Off + 8 > End) {
+                break;
+            }
+            PropLen = Be32(Blob + Off);
+            Off += 8;
+            Off = Align4(Off + PropLen);
+        }
+    }
+    return Count > 0 ? Count : 1;
+}

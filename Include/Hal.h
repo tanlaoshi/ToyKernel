@@ -153,15 +153,17 @@ void HalVirtIdleLoop(void);
 /* 轮询时钟（virt 无 IRQ 时由 IdleLoop 调用；x86 可为空） */
 void HalTimerPoll(void);
 
-/* SMP：Common 只依赖这些门面；x86=MADT/SIPI，其它架构 stub */
+/* SMP：Common 只依赖这些门面；x86=MADT/SIPI，virt Arm/RiscV=PSCI/HSM（A14） */
 #define HAL_MAX_CPUS 8
 
 int HalCpuCount(void);
 UINT32 HalCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
 int HalCpuIsBsp(void);
-UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 LAPIC timer 计数（PR-S2） */
+UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 timer 计数 */
 void HalCpuTickInc(void);
 int HalSmpStartAps(void);
+/* Startup 记下 DTB，供 DtbCpuCount（RiscV 地址可变；Arm 可回退固定 loader 址） */
+void HalSmpNoteDtb(UINT64 DtbPhys);
 
 void HalDebugWrite(const char *Text);
 void HalDebugHex32(UINT32 Value);
