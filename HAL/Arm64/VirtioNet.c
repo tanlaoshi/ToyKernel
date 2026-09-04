@@ -228,7 +228,10 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     UINT16 A;
     int Wait;
 
-    if (!gNetOk || FrameLen + gNetHdrLen > RX_BUF_SIZE) {
+    if (!gNetOk || !gTxBuf || FrameLen + gNetHdrLen > RX_BUF_SIZE) {
+        return -1;
+    }
+    if (gTx.QueueSize < 2) {
         return -1;
     }
     WireLen = FrameLen < ETH_MIN_FRAME ? ETH_MIN_FRAME : FrameLen;
@@ -242,12 +245,17 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
         return -1;
     }
 
+    /* hdr + payload 两段描述符（无 ANY_LAYOUT 时 QEMU 更稳） */
     MemSet(gTxBuf, 0, gNetHdrLen + WireLen);
     MemCpy(gTxBuf + gNetHdrLen, Frame, FrameLen);
     gTx.Desc[0].Addr = (UINT64)(UINTN)gTxBuf;
-    gTx.Desc[0].Len = (UINT32)(WireLen + gNetHdrLen);
-    gTx.Desc[0].Flags = 0;
-    gTx.Desc[0].Next = 0;
+    gTx.Desc[0].Len = gNetHdrLen;
+    gTx.Desc[0].Flags = VRING_DESC_F_NEXT;
+    gTx.Desc[0].Next = 1;
+    gTx.Desc[1].Addr = (UINT64)(UINTN)(gTxBuf + gNetHdrLen);
+    gTx.Desc[1].Len = (UINT32)WireLen;
+    gTx.Desc[1].Flags = 0;
+    gTx.Desc[1].Next = 0;
     A = gTx.NextAvail;
     gTx.AvailRing[A % gTx.QueueSize] = 0;
     __sync_synchronize();
@@ -455,9 +463,9 @@ int VirtioNetInit(void) {
     }
     gTxBuf = Page + (UINTN)RX_BUF_COUNT * PAGE_SIZE;
 
-    RxRefillAll();
+    /* DRIVER_OK 后再挂 RX，避免设备过早消费空环 */
     VirtioMmioDriverOk(&gRx);
-    VirtioMmioNotifyQueue(&gRx, RX_QUEUE_ID);
+    RxRefillAll();
 
     Cfg = (volatile VIRTIO_NET_CFG *)(UINTN)(Base + VIRTIO_NET_CFG_OFF);
     for (i = 0; i < 6; i++) {

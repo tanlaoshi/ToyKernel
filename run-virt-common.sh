@@ -25,9 +25,9 @@ ToyKernel virt 验收（自有 Boot，非 UEFI / 非 ToyImage/run-split.sh）
   ./run-virt-arm.sh | ./run-virt-riscv.sh [选项] [Kernel.elf]
 
 选项：
-  （默认）         图形窗口 + virtio-blk + 键鼠；串口 mon:stdio 交互
-  --headless       -nographic 冒烟：等 ToyOS ready / [mod] gui / 挂卷后 halt
-  --serial         无 ramfb（串口子集模块表）冒烟
+  （默认）         图形窗口 + virtio-blk + virtio-net + 键鼠；串口 mon:stdio 交互
+  --headless       -nographic 冒烟：等 [mod] net / ping 10.0.2.2 / 挂卷后 halt
+  --serial         无 ramfb（串口子集模块表；仍无 net）冒烟
   --nodisk         不挂 virtio-blk
   -h, --help       本说明
 
@@ -37,6 +37,7 @@ ToyKernel virt 验收（自有 Boot，非 UEFI / 非 ToyImage/run-split.sh）
   TOY_VIRT_GUI=1             同默认窗口模式（兼容旧用法）
   TOY_VIRT_SERIAL=1          同 --serial
   TOY_VIRT_NODISK=1          同 --nodisk
+  TOY_VIRT_NONET=1           不挂 virtio-net（N10 默认挂 user 网）
   TOY_RISCV_BIOS_NONE=1      RiscV：-bios none（旧链接对照）
 
 EOF
@@ -130,8 +131,14 @@ toy_virt_build_dev_args() {
 
     if [ "${TOY_VIRT_NODISK:-0}" != "1" ]; then
         ./prepare-virt-rootfs.sh >/dev/null
-        DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=fat:rw:virt-rootfs"
+        # N10：用 raw FAT 镜像，避免 QEMU fat:rw(vvfat) 与 virtio-net 同机 TX 故障
+        DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=virt-rootfs.img"
                    -device virtio-blk-device,drive=toyroot)
+    fi
+
+    # PR-N10：默认 user 网 + virtio-net-device（MMIO）；TOY_VIRT_NONET=1 可关
+    if [ "${TOY_VIRT_NONET:-0}" != "1" ]; then
+        DEV_ARGS+=(-netdev user,id=n0 -device virtio-net-device,netdev=n0)
     fi
 
     case "$TOY_VIRT_MODE" in
@@ -158,8 +165,12 @@ toy_virt_build_dev_args() {
 
 toy_virt_qemu_cmd_prefix() {
     # 打印用
+    local NetNote="virtio-net"
+    if [ "${TOY_VIRT_NONET:-0}" = "1" ]; then
+        NetNote="nonet"
+    fi
     echo "virt验收: Arch=$TOY_VIRT_ARCH mode=$TOY_VIRT_MODE (自有 Boot，非 ToyImage/run-split.sh)"
-    echo "run: $TOY_VIRT_QEMU -M virt -m $MEM ${SERIAL_ARGS[*]} ${DISP_ARGS[*]:-no-fb} + virtio-input/blk"
+    echo "run: $TOY_VIRT_QEMU -M virt -m $MEM ${SERIAL_ARGS[*]} ${DISP_ARGS[*]:-no-fb} + virtio-input/blk/$NetNote"
 }
 
 toy_virt_run_interactive() {
@@ -201,9 +212,20 @@ toy_virt_smoke_ok() {
         grep -q 'virt: serial shell' "$Out" 2>/dev/null && return 0
         return 1
     fi
-    # headless 桌面：gui +（有盘则挂卷）
+    # headless 桌面：gui + net（N10）+（有盘则挂卷）+ ping 网关
     if ! grep -q '\[mod\] gui' "$Out" 2>/dev/null; then
         return 1
+    fi
+    if [ "${TOY_VIRT_NONET:-0}" != "1" ]; then
+        if ! grep -q '\[mod\] net' "$Out" 2>/dev/null; then
+            return 1
+        fi
+        if ! grep -qE 'boot: virtio-net' "$Out" 2>/dev/null; then
+            return 1
+        fi
+        if ! grep -q 'reply from' "$Out" 2>/dev/null; then
+            return 1
+        fi
     fi
     if [ "${TOY_VIRT_NODISK:-0}" = "1" ]; then
         return 0
@@ -243,10 +265,15 @@ toy_virt_run_headless() {
              -kernel "$TOY_VIRT_ELF")
     fi
 
-    # serial 模式多打一个换行；桌面路径由 ShellTask 吃命令
-    printf '\nhelp\nvols\nls\ncat THEME.CFG\nmem\nhalt\n' | "${Cmd[@]}" >"$Out" 2>&1 &
+    # serial 模式多打一个换行；桌面路径由 ShellTask 吃命令（N10：ping QEMU user 网关）
+    local Cmds=$'\nhelp\nvols\nls\ncat THEME.CFG\nmem\n'
+    if [ "$TOY_VIRT_MODE" != "serial" ] && [ "${TOY_VIRT_NONET:-0}" != "1" ]; then
+        Cmds+=$'ping 10.0.2.2\n'
+    fi
+    Cmds+=$'halt\n'
+    printf '%s' "$Cmds" | "${Cmd[@]}" >"$Out" 2>&1 &
     QPID=$!
-    for i in $(seq 1 120); do
+    for i in $(seq 1 180); do
         if toy_virt_smoke_ok "$Out"; then
             # 等 halt 或再采一会输出
             sleep 0.4

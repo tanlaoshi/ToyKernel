@@ -17,3 +17,4 @@ ThirdParty/lwip/
 ._*
 .DS_Store
 .AppleDouble
+virt-rootfs.img

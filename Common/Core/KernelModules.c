@@ -79,10 +79,6 @@ static int InitCpu(void) {
     HalSyscallInit();
     /* PR-V3：virtio-input；失败可无头继续（仍有串口） */
     (void)HalUsbInit();
-    /* PR-N9：仅 virt 探测 virtio-net（x86 仍由 net 模块 InitNetModule） */
-    if (HalPlatformVirtConsole()) {
-        (void)HalNetInit();
-    }
     return 0;
 }
 
@@ -158,7 +154,7 @@ static const MODULE gModulesVirt[] = {
     { "console", InitConsole },
 };
 
-/* PR-V5：virt 桌面（跳过 smp/net；输入在 InitCpu） */
+/* PR-V5/N10：virt 桌面（跳过 smp；输入在 InitCpu；N10 挂 net） */
 static const MODULE gModulesVirtDesktop[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
@@ -166,6 +162,7 @@ static const MODULE gModulesVirtDesktop[] = {
     { "video",   InitVideo },
     { "cpu",     InitCpu },
     { "fs",      InitFileSystemModule },
+    { "net",     InitNetModule },
     { "gui",     InitGuiModule },
     { "sched",   InitSched },
     { "console", InitConsole },

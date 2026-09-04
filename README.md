@@ -2,7 +2,7 @@
 
 ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）配合，构成完整的教学/实验用操作系统。
 
-更细的模块说明见 [`结构说明.md`](结构说明.md)，分层与 API 边界见 [`架构分层.md`](架构分层.md)，发展规划见 [`路线图.md`](路线图.md)，标识符整改清单见 [`命名整改.md`](命名整改.md)。家/公司同步见 [`同步说明.md`](同步说明.md)。
+更细的模块说明见 [`结构说明.md`](结构说明.md)，分层与 API 边界见 [`架构分层.md`](架构分层.md)，发展规划见 [`路线图.md`](路线图.md)，用户态库见 [`用户态库.md`](用户态库.md)，驱动框架见 [`驱动框架.md`](驱动框架.md)，标识符整改清单见 [`命名整改.md`](命名整改.md)。家/公司同步见 [`同步说明.md`](同步说明.md)。
 
 ---
 
@@ -15,7 +15,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
 | GUI | ≈ 可用 | x86 多窗口；**virt Arm/RiscV：PR-V5 同一套 Common Gui** |
 | 跨架构 virt | ✅ V1～V6 | 自有 Boot + ramfb/virtio；见 `./run-virt-*.sh` / `./smoke-virt.sh` |
-| 网络 | 进行中 | virtio-net；builtin TCP/UDP（legacy）+ 可选 lwIP |
+| 网络 | ✅ N9/N10 | x86 virtio-net；virt Arm/RiscV MMIO + 桌面挂 `net` + `ping`；可选 lwIP |
 | 多核 SMP | ✅ | PR-S1～S4：MADT/SIPI、每核 timer、调度大锁、每核 TSS/队列偷任务 |
 
 ---
@@ -43,8 +43,10 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 ### 网络
 
 - **virtio-net**：ARP、ICMP；默认走自研 builtin 栈（`Net`/`Udp`/`Tcp`，**legacy**）
-- **lwIP（可选）**：`./build.sh LWIP=1` 后 `lwip on` → RX/TX 仅 lwIP；同名 Shell 命令自动切换
-- **用户态 socket**：`socket`/`connect`/`bind`/`listen`/`accept`；`NETDEMO.ELF` / `NETSRV.ELF`（需 LWIP=1）
+- **x86 默认仍 `LWIP=0`**（builtin 课）：`./build.sh` / `./build.sh x86_64` 不含 lwIP
+- **课堂开 lwIP（不改默认）**：`./build.sh LWIP=1` → 内核带 lwIP；串口 `lwip on` 后 RX/TX 走 lwIP；同名 Shell 命令自动切换；再 `exec NETDEMO.ELF` / `NETSRV.ELF`
+- **用户态 socket**：`socket`/`connect`/`bind`/`listen`/`accept`（需 `LWIP=1`）
+- **virt Arm/RiscV（PR-N10）**：桌面模块表挂 `net`；`run-virt-*.sh` 默认 `-netdev user` + `virtio-net-device`；`TOY_VIRT_NONET=1` 可关；`--headless` 验 `[mod] net` + `ping 10.0.2.2`
 - **双栈策略**：运行时一帧一栈、不热切回 builtin；新功能以 lwIP 为准 → 详见 [`ThirdParty/README.md`](ThirdParty/README.md)
 
 ### 架构与工程
@@ -89,12 +91,13 @@ ToyKernel/
 ```bash
 cd ToyKernel
 
-./build.sh              # ARCH=x86_64，默认关闭调试日志
+./build.sh              # ARCH=x86_64，默认 LWIP=0（builtin 网络课）
+./build.sh LWIP=1       # 课堂：可选 lwIP + 用户 socket（不改默认）
 ./build.sh DEBUG=1      # 打开 DebugWrite 串口输出
 ./build.sh riscv        # PR-A9：virt 串口 help/mem/ps/halt
 ./build.sh arm64
 ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
-./run-virt-arm.sh --headless # PR-V6 virt 冒烟（见下文「Arm64 / RiscV」）
+./run-virt-arm.sh --headless # PR-V6/N10 virt 冒烟（含 ping）
 ```
 
 产物：
@@ -130,23 +133,24 @@ TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
 
 首次或变量盘损坏时，可用 `./run-split.sh --clean-nvram` 从 `OVMF_VARS.fd.clean` 恢复 NVRAM。
 
-### Arm64 / RiscV（自有 Boot virt — PR-V6）
+### Arm64 / RiscV（自有 Boot virt — PR-V6 / N10）
 
-**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) 1.2d / 文末 V6 归档。
+**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) 1.2e / 文末 N10 归档。
 
 ```bash
 cd ToyKernel
 ./build.sh arm64                 # 或 ./build.sh riscv
-./run-virt-arm.sh                # 默认：gtk 窗口 + 盘 + 键鼠（交互）
+./run-virt-arm.sh                # 默认：gtk 窗口 + 盘 + 网 + 键鼠（交互）
 ./run-virt-riscv.sh
-./run-virt-arm.sh --headless     # CI：-nographic 冒烟后退出
+./run-virt-arm.sh --headless     # CI：认 [mod] net + ping 10.0.2.2 后退出
 ./run-virt-riscv.sh --headless
 ./smoke-virt.sh                  # Arm+RiscV 连续无头冒烟
-./run-virt-arm.sh --serial       # 无 ramfb 的串口子集（A8）
+TOY_VIRT_NONET=1 ./run-virt-arm.sh --headless  # 关网对照
+./run-virt-arm.sh --serial       # 无 ramfb 的串口子集（A8；无 net）
 ./run-virt-arm.sh --help
 ```
 
-盘面由 `prepare-virt-rootfs.sh` 从 `../ToyImage/rootfs` 同步到 `virt-rootfs/`，经 QEMU `fat:rw` 挂到 virtio-blk。
+盘面由 `prepare-virt-rootfs.sh` 从 `../ToyImage/rootfs` 同步到 `virt-rootfs/`，再打成 raw FAT16 `virt-rootfs.img` 挂 virtio-blk（避免 QEMU `fat:rw`/vvfat 与 virtio-net 同机破坏 TX）。默认另挂 QEMU user 网 + `virtio-net-device`（`TOY_VIRT_NONET=1` 可关）。
 
 ---
 
