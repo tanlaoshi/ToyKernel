@@ -3,16 +3,20 @@
  */
 #include "Hal.h"
 
-/* QEMU virt CLINT mtime；默认约 10MHz */
-#define CLINT_MTIME 0x0200bff8ULL
-#define MTIME_HZ    10000000ULL
+/*
+ * OpenSBI 下内核在 S-mode：不可直接读 CLINT mtime（M-mode MMIO → 异常复位环）。
+ * 用 S-mode 可读的 time CSR（rdtime）；QEMU virt 常见 10MHz。
+ */
+#define TIME_HZ 10000000ULL
 
 static volatile UINT64 gVirtTicks;
-static UINT64 gMtimeLast;
+static UINT64 gTimeLast;
 static int gTimerReady;
 
-static UINT64 ReadMtime(void) {
-    return *(volatile UINT64 *)(UINTN)CLINT_MTIME;
+static UINT64 ReadTime(void) {
+    UINT64 V;
+    __asm__ volatile("rdtime %0" : "=r"(V));
+    return V;
 }
 
 int HalInit(void) {
@@ -53,7 +57,7 @@ void HalIrqUnregister(UINT32 Vector) { (void)Vector; }
 void HalIrqEoi(UINT32 Vector) { (void)Vector; }
 
 void HalTimerInit(void) {
-    gMtimeLast = ReadMtime();
+    gTimeLast = ReadTime();
     gTimerReady = 1;
 }
 
@@ -71,15 +75,15 @@ void HalTimerPoll(void) {
     if (!gTimerReady) {
         return;
     }
-    Now = ReadMtime();
-    Period = MTIME_HZ / 100; /* ~10ms */
+    Now = ReadTime();
+    Period = TIME_HZ / 100; /* ~10ms */
     if (Period == 0) {
         Period = 1;
     }
-    Delta = Now - gMtimeLast;
+    Delta = Now - gTimeLast;
     while (Delta >= Period) {
         HalCpuTickInc();
-        gMtimeLast += Period;
+        gTimeLast += Period;
         Delta -= Period;
     }
 }
