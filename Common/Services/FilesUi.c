@@ -53,6 +53,7 @@ static int gClickSel = -1;
 static UINT64 gClickClock;
 static UINT32 gClickX;
 static UINT32 gClickY;
+static int gHoverIdx = -1;
 
 static UINT64 FilesClock(void) {
     return HalCpuTicks(0);
@@ -181,6 +182,7 @@ static int ReloadList(void) {
     gCount = 0;
     gSelected = 0;
     gScroll = 0;
+    gHoverIdx = -1;
     Err = FsListEntries(gCwd[0] ? gCwd : "", gEnts, FAT_LIST_MAX, &gCount);
     if (Err != FAT_OK) {
         gCount = 0;
@@ -226,10 +228,11 @@ static void PaintOverlay(const char *Line1, const char *Line2, const char *Line3
 
     GuiFrameBufferBegin();
     HalVideoFillRect(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
-    HalVideoFillRect(BoxX, BoxY, BoxW, 2, COLOR_BLACK);
-    HalVideoFillRect(BoxX, BoxY + BoxH - 2, BoxW, 2, COLOR_BLACK);
-    HalVideoFillRect(BoxX, BoxY, 2, BoxH, COLOR_BLACK);
-    HalVideoFillRect(BoxX + BoxW - 2, BoxY, 2, BoxH, COLOR_BLACK);
+    /* PR-G11：确认/输入框边框走 UiDrawRectangle */
+    UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_BLACK);
+    if (BoxW > 4 && BoxH > 4) {
+        UiDrawRectangle(BoxX + 1, BoxY + 1, BoxW - 2, BoxH - 2, COLOR_DARK_GRAY);
+    }
     HalVideoSetClipRegion(BoxX + 4, BoxY + 4, BoxW > 8 ? BoxW - 8 : BoxW, BoxH > 8 ? BoxH - 8 : BoxH,
                           COLOR_LIGHT_GRAY);
     DrawLine(BoxX + 12, BoxY + 12, Line1 ? Line1 : "", COLOR_BLACK);
@@ -313,9 +316,17 @@ static void PaintList(void) {
         UINT32 Fg = COLOR_BLACK;
         int k = 0;
         int j;
+        UINT32 RowW = W > 8 ? W - 8 : W;
 
         if (Idx == gSelected) {
-            HalVideoFillRect(X + 4, RowY, W > 8 ? W - 8 : W, LineH, COLOR_YELLOW);
+            /* PR-G11：选中行焦点对比（蓝底白字 + 边框） */
+            HalVideoFillRect(X + 4, RowY, RowW, LineH, COLOR_BLUE);
+            UiDrawRectangle(X + 4, RowY, RowW, LineH, COLOR_DARK_GRAY);
+            Fg = COLOR_WHITE;
+        } else if (Idx == gHoverIdx) {
+            HalVideoFillRect(X + 4, RowY, RowW, LineH, COLOR_LIGHT_GRAY);
+            UiDrawRectangle(X + 4, RowY, RowW, LineH, COLOR_GRAY);
+            Fg = COLOR_BLACK;
         }
         if (E->Attr & FAT_ATTR_DIR) {
             Line[k++] = '[';
@@ -336,7 +347,28 @@ static void PaintList(void) {
         RowY += LineH;
     }
     if (gCount == 0) {
-        DrawLine(X + 8, RowY, "(empty)", COLOR_DARK_GRAY);
+        /* PR-G11：空目录可见空状态区（不只一行灰 (empty)） */
+        UINT32 BoxX = X + 12;
+        UINT32 BoxY = RowY;
+        UINT32 BoxW = W > 24 ? W - 24 : W;
+        UINT32 BoxH = LineH * 4 + 20;
+        UINT32 Remain;
+
+        if (BoxY + 8 < Y + H) {
+            Remain = (Y + H) - BoxY - 8;
+            if (BoxH > Remain) {
+                BoxH = Remain;
+            }
+        }
+        if (BoxW > 8 && BoxH > LineH + 8) {
+            UiFillRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
+            UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_DARK_GRAY);
+            DrawLine(BoxX + 12, BoxY + LineH, LocStr(MSG_FILES_EMPTY), COLOR_DARK_GRAY);
+            if (BoxH >= LineH * 3) {
+                DrawLine(BoxX + 12, BoxY + LineH * 2 + 4,
+                         LocStr(MSG_FILES_EMPTY_HINT), COLOR_GRAY);
+            }
+        }
     }
 
     HalVideoClearClip();
@@ -641,6 +673,7 @@ void FilesUiOpen(void) {
     gCwd[0] = 0;
     gMode = FILES_MODE_LIST;
     gClickSel = -1;
+    gHoverIdx = -1;
     SetStatus("");
     (void)ReloadList();
     Paint();
@@ -755,6 +788,70 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
     gClickClock = Now;
     gClickX = X;
     gClickY = Y;
+    gHoverIdx = Idx;
+    PaintList();
+}
+
+void FilesUiOnHover(UINT32 X, UINT32 Y) {
+    UINT32 Cx;
+    UINT32 Cy;
+    UINT32 Cw;
+    UINT32 Ch;
+    UINT32 Bg;
+    UINT32 LineH;
+    UINT32 ListTop;
+    int Visible;
+    int Row;
+    int Idx;
+    int Prev;
+
+    if (gMode != FILES_MODE_LIST) {
+        return;
+    }
+    if (GuiFocusKind() != GUI_WIN_FILES) {
+        return;
+    }
+    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
+        return;
+    }
+    if (X < Cx || Y < Cy || X >= Cx + Cw || Y >= Cy + Ch) {
+        if (gHoverIdx >= 0) {
+            gHoverIdx = -1;
+            PaintList();
+        }
+        return;
+    }
+
+    LineH = FontAdvanceY();
+    if (LineH < 16) {
+        LineH = 16;
+    }
+    ListTop = Cy + 8 + LineH * 3 + 4;
+    Prev = gHoverIdx;
+    if (Y < ListTop || gCount <= 0) {
+        Idx = -1;
+    } else {
+        Visible = 0;
+        if (Ch > 8 + LineH * 4) {
+            Visible = (int)((Ch - 8 - LineH * 4) / LineH);
+        }
+        if (Visible < 1) {
+            Visible = 1;
+        }
+        Row = (int)((Y - ListTop) / LineH);
+        if (Row < 0 || Row >= Visible) {
+            Idx = -1;
+        } else {
+            Idx = gScroll + Row;
+            if (Idx < 0 || Idx >= gCount) {
+                Idx = -1;
+            }
+        }
+    }
+    if (Idx == Prev) {
+        return;
+    }
+    gHoverIdx = Idx;
     PaintList();
 }
 
@@ -807,6 +904,7 @@ void FilesUiOnArrow(int Down) {
             gSelected--;
         }
     }
+    gHoverIdx = gSelected;
     PaintList();
 }
 

@@ -2566,6 +2566,9 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
     CursorMove(X, Y);
     if (gDragWin >= 0 && (gCursorBtn & 1)) {
         GuiDragUpdate(X, Y);
+    } else if (GuiFocusKind() == GUI_WIN_FILES) {
+        /* PR-G11：列表悬停行（不拖动时） */
+        FilesUiOnHover(X, Y);
     }
 }
 

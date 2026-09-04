@@ -182,6 +182,11 @@ static void PaintMenu(void) {
     HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
     HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
 
+    /* PR-G11：客户区浅接入 UiDrawRectangle 边框（非全面控件化） */
+    if (Cw > 8 && Ch > 8) {
+        UiDrawRectangle(Cx + 4, Cy + 4, Cw - 8, Ch - 8, COLOR_DARK_GRAY);
+    }
+
     X0 = Cx + 12;
     X = X0;
     Y = Cy + 8;

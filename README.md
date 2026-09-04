@@ -135,7 +135,7 @@ TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
 
 ### Arm64 / RiscV（自有 Boot virt — PR-V6 / N10）
 
-**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) 1.2e / 文末 N10 归档。
+**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) 1.2e / 文末 N10、G11 归档。
 
 ```bash
 cd ToyKernel
