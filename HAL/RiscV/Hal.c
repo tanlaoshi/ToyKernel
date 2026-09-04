@@ -1,7 +1,19 @@
 /*
- * HAL/riscv/Hal.c — RISC-V HAL（PR-A7：可链接完整 Common）
+ * HAL/riscv/Hal.c — RISC-V HAL（PR-A7 可链接；PR-A8 virt 子集 + 轮询时钟）
  */
 #include "Hal.h"
+
+/* QEMU virt CLINT mtime；默认约 10MHz */
+#define CLINT_MTIME 0x0200bff8ULL
+#define MTIME_HZ    10000000ULL
+
+static volatile UINT64 gVirtTicks;
+static UINT64 gMtimeLast;
+static int gTimerReady;
+
+static UINT64 ReadMtime(void) {
+    return *(volatile UINT64 *)(UINTN)CLINT_MTIME;
+}
 
 int HalInit(void) {
     return 0;
@@ -36,10 +48,52 @@ void HalIrqRegister(UINT32 Vector, void (*Handler)(void)) {
 void HalIrqUnregister(UINT32 Vector) { (void)Vector; }
 void HalIrqEoi(UINT32 Vector) { (void)Vector; }
 
-void HalTimerInit(void) { }
+void HalTimerInit(void) {
+    gMtimeLast = ReadMtime();
+    gTimerReady = 1;
+}
+
 void HalTimerSetInterval(UINT32 Milliseconds) { (void)Milliseconds; }
 void HalTimerAck(void) { }
-void HalTimerStart(void) { }
+void HalTimerStart(void) {
+    /* A8：无 PLIC/CLINT IRQ，由 HalVirtIdleLoop 调 HalTimerPoll */
+}
+
+void HalTimerPoll(void) {
+    UINT64 Now;
+    UINT64 Period;
+    UINT64 Delta;
+
+    if (!gTimerReady) {
+        return;
+    }
+    Now = ReadMtime();
+    Period = MTIME_HZ / 100; /* ~10ms */
+    if (Period == 0) {
+        Period = 1;
+    }
+    Delta = Now - gMtimeLast;
+    while (Delta >= Period) {
+        HalCpuTickInc();
+        gMtimeLast += Period;
+        Delta -= Period;
+    }
+}
+
+int HalPlatformVirtConsole(void) {
+    return 1;
+}
+
+void HalVirtIdleLoop(void) {
+    HalSerialWrite("virt: idle loop (serial poll)\n");
+    for (;;) {
+        HalTimerPoll();
+        if (HalSerialDataReady()) {
+            (void)HalSerialReadChar(); /* A9：再接到命令解析 */
+        }
+        HalCpuRelax();
+    }
+}
 
 void HalUserInstall(void) { }
 void HalSyscallInit(void) { }
@@ -112,17 +166,14 @@ UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
 }
 void HalSchedulerEnter(struct HAL_FRAME *Frame) {
     (void)Frame;
-    HalDebugWrite("sched: enter (virt stub park)\n");
-    for (;;) {
-        HalCpuPark();
-    }
+    HalVirtIdleLoop();
 }
 void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }
 
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "riscv64"; }
-const char *HalCpuInfo(void) { return "RISC-V (virt A7)"; }
+const char *HalCpuInfo(void) { return "RISC-V (virt A8)"; }
 
 UINT16 HalElfMachine(void) {
     return 243; /* EM_RISCV */
@@ -150,6 +201,11 @@ void HalDebugHex64(UINT64 Value) {
 int HalCpuCount(void) { return 1; }
 UINT32 HalCpuId(void) { return 0; }
 int HalCpuIsBsp(void) { return 1; }
-UINT64 HalCpuTicks(UINT32 Cpu) { (void)Cpu; return 0; }
-void HalCpuTickInc(void) { }
+UINT64 HalCpuTicks(UINT32 Cpu) {
+    (void)Cpu;
+    return gVirtTicks;
+}
+void HalCpuTickInc(void) {
+    gVirtTicks++;
+}
 int HalSmpStartAps(void) { return 0; }

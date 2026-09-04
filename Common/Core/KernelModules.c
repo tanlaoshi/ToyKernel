@@ -63,7 +63,6 @@ static int InitVideo(void) {
     FontInit();
     ThemeInit();
     HalVideoSet(&V);
-    /* PR-G9：PMM 已就绪，挂后缓冲；失败则仍直写 GOP */
     HalVideoInitBackbuffer();
     HalVideoClearScreen(ThemeDesktopBg());
     HalVideoPresent();
@@ -74,6 +73,7 @@ static int InitCpu(void) {
     if (HalInit() != 0) {
         return -1;
     }
+    HalTimerInit();
     HalSyscallInit();
     return 0;
 }
@@ -91,7 +91,6 @@ static int InitFileSystemModule(void) {
 }
 
 static int InitGuiModule(void) {
-    /* FAT 已挂载：TOYOS.DB（可自 THEME.CFG 导入）→ ThemeLoad → 首帧配色 */
     (void)DbInit();
     (void)ThemeLoad();
     LocaleInit();
@@ -114,14 +113,18 @@ static int InitSched(void) {
 }
 
 static int InitConsole(void) {
-    /* 内置命令优先，避免 fs + ShellCommands 占满命令表 */
+    /* virt 子集无 gui：仍要 Locale；x86 上 Gui 已调过，再调无妨 */
+    LocaleInit();
     ConsoleRegisterBuiltins();
-    ShellCommandsRegister();
+    if (!HalPlatformVirtConsole()) {
+        ShellCommandsRegister();
+    }
     ConsoleInit();
     return 0;
 }
 
-static const MODULE gModules[] = {
+/* x86 全量桌面路径 */
+static const MODULE gModulesFull[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
     { "vmm",     InitVmm },
@@ -136,6 +139,21 @@ static const MODULE gModules[] = {
     { "console", InitConsole },
 };
 
+/* PR-A8：virt 子集 — 无 video/usb/fs/net/gui/smp */
+static const MODULE gModulesVirt[] = {
+    { "serial",  InitSerial },
+    { "mem",     InitMem },
+    { "vmm",     InitVmm },
+    { "cpu",     InitCpu },
+    { "sched",   InitSched },
+    { "console", InitConsole },
+};
+
 int KernelModulesRun(void) {
-    return ModulesRun(gModules, (int)(sizeof(gModules) / sizeof(gModules[0])));
+    if (HalPlatformVirtConsole()) {
+        return ModulesRun(gModulesVirt,
+                          (int)(sizeof(gModulesVirt) / sizeof(gModulesVirt[0])));
+    }
+    return ModulesRun(gModulesFull,
+                      (int)(sizeof(gModulesFull) / sizeof(gModulesFull[0])));
 }

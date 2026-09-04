@@ -1,7 +1,12 @@
 /*
- * HAL/arm64/Hal.c — ARM64 HAL（PR-A7：可链接完整 Common）
+ * HAL/arm64/Hal.c — ARM64 HAL（PR-A7 可链接；PR-A8 virt 子集 + 轮询时钟）
  */
 #include "Hal.h"
+
+static volatile UINT64 gVirtTicks;
+static UINT64 gCntLast;
+static UINT64 gCntFreq;
+static int gTimerReady;
 
 int HalInit(void) {
     return 0;
@@ -36,10 +41,56 @@ void HalIrqRegister(UINT32 Vector, void (*Handler)(void)) {
 void HalIrqUnregister(UINT32 Vector) { (void)Vector; }
 void HalIrqEoi(UINT32 Vector) { (void)Vector; }
 
-void HalTimerInit(void) { }
+void HalTimerInit(void) {
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(gCntFreq));
+    if (gCntFreq == 0) {
+        gCntFreq = 62500000ULL; /* QEMU virt 常见缺省 */
+    }
+    __asm__ volatile("mrs %0, cntvct_el0" : "=r"(gCntLast));
+    gTimerReady = 1;
+}
+
 void HalTimerSetInterval(UINT32 Milliseconds) { (void)Milliseconds; }
 void HalTimerAck(void) { }
-void HalTimerStart(void) { }
+void HalTimerStart(void) {
+    /* A8：无 GIC 定时 IRQ，由 HalVirtIdleLoop 调 HalTimerPoll */
+}
+
+void HalTimerPoll(void) {
+    UINT64 Now;
+    UINT64 Period;
+    UINT64 Delta;
+
+    if (!gTimerReady) {
+        return;
+    }
+    __asm__ volatile("mrs %0, cntvct_el0" : "=r"(Now));
+    Period = gCntFreq / 100; /* ~10ms */
+    if (Period == 0) {
+        Period = 1;
+    }
+    Delta = Now - gCntLast;
+    while (Delta >= Period) {
+        HalCpuTickInc();
+        gCntLast += Period;
+        Delta -= Period;
+    }
+}
+
+int HalPlatformVirtConsole(void) {
+    return 1;
+}
+
+void HalVirtIdleLoop(void) {
+    HalSerialWrite("virt: idle loop (serial poll)\n");
+    for (;;) {
+        HalTimerPoll();
+        if (HalSerialDataReady()) {
+            (void)HalSerialReadChar(); /* A9：再接到命令解析 */
+        }
+        HalCpuRelax();
+    }
+}
 
 void HalUserInstall(void) { }
 void HalSyscallInit(void) { }
@@ -112,17 +163,15 @@ UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
 }
 void HalSchedulerEnter(struct HAL_FRAME *Frame) {
     (void)Frame;
-    HalDebugWrite("sched: enter (virt stub park)\n");
-    for (;;) {
-        HalCpuPark();
-    }
+    /* A8 正常路径不进这里；误入则落到空闲循环 */
+    HalVirtIdleLoop();
 }
 void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }
 
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "aarch64"; }
-const char *HalCpuInfo(void) { return "ARM64 (virt A7)"; }
+const char *HalCpuInfo(void) { return "ARM64 (virt A8)"; }
 
 UINT16 HalElfMachine(void) {
     return 183; /* EM_AARCH64 */
@@ -150,6 +199,11 @@ void HalDebugHex64(UINT64 Value) {
 int HalCpuCount(void) { return 1; }
 UINT32 HalCpuId(void) { return 0; }
 int HalCpuIsBsp(void) { return 1; }
-UINT64 HalCpuTicks(UINT32 Cpu) { (void)Cpu; return 0; }
-void HalCpuTickInc(void) { }
+UINT64 HalCpuTicks(UINT32 Cpu) {
+    (void)Cpu;
+    return gVirtTicks;
+}
+void HalCpuTickInc(void) {
+    gVirtTicks++;
+}
 int HalSmpStartAps(void) { return 0; }

@@ -257,4 +257,17 @@ void HalCpuPark(void) {
     __asm__ volatile ("cli; hlt");
 }
 
+int HalPlatformVirtConsole(void) {
+    return 0;
+}
+
+void HalVirtIdleLoop(void) {
+    for (;;) {
+        HalCpuPark();
+    }
+}
+
+void HalTimerPoll(void) {
+}
+
 /* SmpBoot.c 提供 HalCpuCount / HalCpuId / HalSmpStartAps */

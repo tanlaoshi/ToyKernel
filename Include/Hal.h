@@ -122,6 +122,12 @@ HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type);
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
 
+/* PR-A8：QEMU virt 无 GOP/块设备时走模块子集 + 串口空闲循环（A9 再接命令） */
+int HalPlatformVirtConsole(void);
+void HalVirtIdleLoop(void);
+/* 轮询时钟（virt 无 IRQ 时由 IdleLoop 调用；x86 可为空） */
+void HalTimerPoll(void);
+
 /* SMP：Common 只依赖这些门面；x86=MADT/SIPI，其它架构 stub */
 #define HAL_MAX_CPUS 8
 
