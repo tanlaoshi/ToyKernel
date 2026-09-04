@@ -1,4 +1,4 @@
-/* user/writefile.S — open/write/close USERNOTE.TXT via syscalls */
+/* user/writefile.S — 旧 int 0x80 对照；CRT 版见 writefile.c（WRITE.ELF） */
     .intel_syntax noprefix
     .section .text
     .global _start

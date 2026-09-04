@@ -16,7 +16,8 @@
 extern void Isr128(void);
 
 #define COPY_BUF_MAX 256
-#define PATH_MAX_LEN 15
+/* 与 TASK_FD.Path[64] 对齐，便于 CRT 打开子路径 */
+#define PATH_MAX_LEN 63
 
 void SyscallInit(void) {
     /* legacy：IDT 0x80，DPL=3 */

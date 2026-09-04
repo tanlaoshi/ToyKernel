@@ -1,4 +1,4 @@
-/* user/catfile.S — open/read TOYOS.ID 并 write 到控制台 */
+/* user/catfile.S — 旧 int 0x80 对照；CRT 版见 cat.c（CAT.ELF） */
     .intel_syntax noprefix
     .section .text
     .global _start

@@ -119,7 +119,7 @@ USER_FORK_OBJ = User/fork.o
 USER_WAITNH_OBJ = User/waitnh.o
 USER_DYNDEMO_OBJ = User/dyndemo.o
 USER_LIBTOY_OBJ = User/libtoy.o
-USER_CAT_OBJ = User/catfile.o
+USER_CAT_OBJ = User/cat.o
 USER_WRITE_OBJ = User/writefile.o
 USER_NETDEMO_OBJ = User/netdemo.o
 USER_NETSRV_OBJ = User/netsrv.o
@@ -129,7 +129,7 @@ USER_LD = User/user.ld
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o User/crt/string.o \
-	User/crt/printf.o User/crt/malloc.o
+	User/crt/printf.o User/crt/malloc.o User/crt/errno.o User/crt/unistd.o
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -229,11 +229,13 @@ $(USER_LIBTOY_OBJ): User/libtoy.S
 $(USER_DYNDEMO_OBJ): User/dyndemo.S
 	$(CC) -c $< -o $@
 
-$(USER_CAT_OBJ): User/catfile.S
-	$(CC) -c $< -o $@
+$(USER_CAT_OBJ): User/cat.c User/include/unistd.h User/include/fcntl.h \
+		User/include/errno.h User/include/stdio.h
+	$(CC) $(USER_CFLAGS) -c User/cat.c -o $@
 
-$(USER_WRITE_OBJ): User/writefile.S
-	$(CC) -c $< -o $@
+$(USER_WRITE_OBJ): User/writefile.c User/include/unistd.h User/include/fcntl.h \
+		User/include/errno.h User/include/stdio.h
+	$(CC) $(USER_CFLAGS) -c User/writefile.c -o $@
 
 $(USER_NETDEMO_OBJ): User/netdemo.S
 	$(CC) -c $< -o $@
@@ -260,11 +262,11 @@ $(USER_DYNDEMO_ELF): $(USER_DYNDEMO_OBJ) $(USER_LIBTOY_SO)
 	$(LD) -nostdlib -no-pie -Ttext-segment=0x40000000 -z max-page-size=0x1000 \
 		-o $@ $(USER_DYNDEMO_OBJ) $(USER_LIBTOY_SO)
 
-$(USER_CAT_ELF): $(USER_CAT_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_CAT_OBJ)
+$(USER_CAT_ELF): $(USER_CAT_OBJ) $(USER_CRT_OBJS) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_CAT_OBJ) $(USER_CRT_OBJS)
 
-$(USER_WRITE_ELF): $(USER_WRITE_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WRITE_OBJ)
+$(USER_WRITE_ELF): $(USER_WRITE_OBJ) $(USER_CRT_OBJS) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WRITE_OBJ) $(USER_CRT_OBJS)
 
 $(USER_NETDEMO_ELF): $(USER_NETDEMO_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_NETDEMO_OBJ)

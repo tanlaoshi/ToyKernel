@@ -2,6 +2,7 @@
  * printf.c — 最小 printf：%s %d %u %x %c %% → write(1)
  */
 #include "stdio.h"
+#include "errno.h"
 #include "string.h"
 #include "toy_syscall.h"
 
@@ -63,6 +64,16 @@ int puts(const char *s) {
     int n = PutStr(s);
     n += PutChar('\n');
     return n;
+}
+
+void perror(const char *s) {
+    if (s && s[0]) {
+        PutStr(s);
+        PutStr(": ");
+    }
+    PutStr("errno=");
+    PutInt((long)errno);
+    PutChar('\n');
 }
 
 int printf(const char *fmt, ...) {
