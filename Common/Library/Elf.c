@@ -580,6 +580,7 @@ int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     const Elf64_Phdr *Phdrs;
     UINT16 Pn;
     UINT16 i;
+    UINT64 BrkBase = USER_CODE_VIRT;
 
     if (!ElfHeaderOk(Hdr, Size, ET_EXEC)) {
         ConsoleWrite("elf: bad header\n");
@@ -591,12 +592,18 @@ int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     }
 
     for (i = 0; i < Pn; i++) {
+        UINT64 SegEnd;
+
         if (Phdrs[i].p_type != PT_LOAD) {
             continue;
         }
         if (ElfMapSegment(Space, Bytes, &Phdrs[i], 0) != 0) {
             ConsoleWrite("elf: map segment failed\n");
             return -1;
+        }
+        SegEnd = Phdrs[i].p_vaddr + Phdrs[i].p_memsz;
+        if (SegEnd > BrkBase) {
+            BrkBase = SegEnd;
         }
     }
 
@@ -608,6 +615,7 @@ int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     if (Out) {
         Out->Entry = Hdr->e_entry;
         Out->StackTop = USER_STACK_VIRT + USER_STACK_SIZE;
+        Out->BrkBase = BrkBase;
     }
     return 0;
 }

@@ -1,35 +1,34 @@
 /*
- * malloc.c — BSS 固定堆（无 brk/mmap；CRT1 教学用）
- * 后续 PR 可用 SYS_BRK 扩展。
+ * malloc.c — PR-P3：经 SYS_BRK 扩展堆（替代 BSS 8KiB bump）
  */
 #include "stdlib.h"
 #include "string.h"
-
-#define HEAP_SIZE (8 * 1024)
-
-static unsigned char gHeap[HEAP_SIZE];
-static size_t gHeapUsed;
+#include "unistd.h"
 
 void *malloc(size_t n) {
-    void *P;
     size_t Align = 8;
     size_t Need;
+    void *Old;
+    void *Neu;
 
     if (n == 0) {
         return 0;
     }
     Need = (n + Align - 1) & ~(Align - 1);
-    if (gHeapUsed + Need > HEAP_SIZE) {
+    Old = brk((void *)0);
+    if (Old == (void *)(long)-1) {
         return 0;
     }
-    P = &gHeap[gHeapUsed];
-    gHeapUsed += Need;
-    return P;
+    Neu = (void *)((char *)Old + Need);
+    if (brk(Neu) != Neu) {
+        return 0;
+    }
+    return Old;
 }
 
 void free(void *p) {
     (void)p;
-    /* bump 分配器：CRT1 不回收 */
+    /* bump：CRT 不回收；可 brk 收缩但教学省略 */
 }
 
 void exit(int status) {

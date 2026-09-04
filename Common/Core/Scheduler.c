@@ -733,7 +733,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
 }
 
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
-                    VM_ADDR_SPACE *Space) {
+                    VM_ADDR_SPACE *Space, UINT64 BrkBase) {
     TASK *Cur;
 
     SpinLockAcquire(&gSchedLock);
@@ -760,6 +760,8 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
         gTasks[i].InRunq = 0;
+        gTasks[i].BrkBase = BrkBase;
+        gTasks[i].Brk = BrkBase;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
@@ -1131,6 +1133,8 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTasks[Child].OnCpu = -1;
     gTasks[Child].HomeCpu = 0;
     gTasks[Child].InRunq = 0;
+    gTasks[Child].BrkBase = Parent->BrkBase;
+    gTasks[Child].Brk = Parent->Brk;
     TaskCloneFds(&gTasks[Child], Parent);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;

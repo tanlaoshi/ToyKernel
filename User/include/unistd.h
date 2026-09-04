@@ -1,5 +1,5 @@
 /*
- * unistd.h — read/write/close/execve/pipe/dup/fork/wait（CRT2 + P1/P2）
+ * unistd.h — read/write/close/execve/pipe/dup/fork/wait/brk（CRT2 + P1～P3）
  */
 #ifndef UNISTD_H
 #define UNISTD_H
@@ -14,5 +14,7 @@ int pipe(int pipefd[2]);
 int dup(int fd);
 pid_t fork(void);
 pid_t wait(int *status);
+/* PR-P3：addr==0 查询；成功返回新/当前 break，失败 (void*)-1 */
+void *brk(void *addr);
 
 #endif

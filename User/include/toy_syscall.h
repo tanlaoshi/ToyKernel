@@ -21,6 +21,7 @@
 #define SYS_EXECVE  13
 #define SYS_PIPE    14
 #define SYS_DUP     15
+#define SYS_BRK     16
 
 #define WNOHANG 1
 
@@ -73,6 +74,10 @@ static inline long toy_pipe(int pipefd[2]) {
 
 static inline long toy_dup(int fd) {
     return toy_syscall(SYS_DUP, fd, 0, 0);
+}
+
+static inline long toy_brk(long addr) {
+    return toy_syscall(SYS_BRK, addr, 0, 0);
 }
 
 #endif

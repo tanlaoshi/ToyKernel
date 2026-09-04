@@ -57,13 +57,15 @@ typedef struct TASK {
     INT32                  OnCpu;      /* 正在跑的逻辑 CPU；未跑为 -1 */
     INT32                  HomeCpu;    /* 首选运行队列（PR-S4） */
     int                    InRunq;     /* 已在某核 READY 队列中 */
+    UINT64                 BrkBase;    /* 映像数据/BSS 末；不可低于此（PR-P3） */
+    UINT64                 Brk;        /* 当前 program break */
     TASK_FD                Fds[MAX_FDS];
 } TASK;
 
 void SchedulerInit(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
-                    VM_ADDR_SPACE *Space);
+                    VM_ADDR_SPACE *Space, UINT64 BrkBase);
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);
 UINT64 SchedulerOnTimer(HAL_FRAME *Frame);
 UINT64 SchedulerExitUser(HAL_FRAME *Frame);

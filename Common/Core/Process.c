@@ -22,7 +22,7 @@ extern char _binary_User_hello_elf_end[];
 static int ProcessStartElf(VM_ADDR_SPACE *Space, const ELF_LOAD_RESULT *Info,
                            const char *Name) {
     if (SchedulerCreateUser(Name, Info->Entry, Info->StackTop,
-                        VirtualMemorySpaceRoot(Space), Space) < 0) {
+                        VirtualMemorySpaceRoot(Space), Space, Info->BrkBase) < 0) {
         ConsoleWrite("process: no task slot\n");
         return -1;
     }
@@ -313,6 +313,83 @@ static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
     return 0;
 }
 
+static UINT64 AlignUpPage(UINT64 V) {
+    return (V + (UINT64)PAGE_SIZE - 1) & ~((UINT64)PAGE_SIZE - 1);
+}
+
+/*
+ * PR-P3：扩展/收缩用户堆。NewBrk==0 查询当前 break。
+ * 上限 USER_BRK_MAX（SO 基址），不盖栈。
+ */
+UINT64 ProcessBrk(UINT64 NewBrk) {
+    TASK *T;
+    VM_ADDR_SPACE *Space;
+    UINT64 Old;
+    UINT64 From;
+    UINT64 To;
+    UINT64 Va;
+
+    T = SchedulerCurrent();
+    if (!T || !T->IsUser || !T->UserSpace) {
+        return (UINT64)(INT64)-1;
+    }
+    if (NewBrk == 0) {
+        return T->Brk;
+    }
+    if (NewBrk < T->BrkBase || NewBrk > USER_BRK_MAX) {
+        return (UINT64)(INT64)-1;
+    }
+
+    Space = T->UserSpace;
+    Old = T->Brk;
+
+    if (NewBrk > Old) {
+        From = AlignUpPage(Old);
+        To = AlignUpPage(NewBrk);
+        for (Va = From; Va < To; Va += PAGE_SIZE) {
+            UINT64 Pte = HalPageGetEntry(Space->Root, Va);
+            void *Page;
+
+            if ((Pte & HAL_PAGE_PRESENT) && (Pte & HAL_PAGE_USER)) {
+                continue;
+            }
+            Page = PhysicalMemoryAllocatePage();
+            if (!Page) {
+                return (UINT64)(INT64)-1;
+            }
+            {
+                UINT8 *B = (UINT8 *)Page;
+                UINTN i;
+                for (i = 0; i < PAGE_SIZE; i++) {
+                    B[i] = 0;
+                }
+            }
+            if (VirtualMemorySpaceMapPage(Space, Va, (UINT64)(UINTN)Page,
+                                          PTE_PRESENT | PTE_WRITABLE | PTE_USER) != 0) {
+                PhysicalMemoryFreePage(Page);
+                return (UINT64)(INT64)-1;
+            }
+        }
+    } else if (NewBrk < Old) {
+        From = AlignUpPage(NewBrk);
+        To = AlignUpPage(Old);
+        for (Va = From; Va < To; Va += PAGE_SIZE) {
+            UINT64 Pte = HalPageGetEntry(Space->Root, Va);
+            UINT64 Phys;
+
+            if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
+                continue;
+            }
+            Phys = Pte & ~0xFFFULL;
+            HalPageUnmapRange(Space->Root, Va, Va + PAGE_SIZE);
+            PhysicalMemoryReleasePage((void *)(UINTN)Phys);
+        }
+    }
+
+    T->Brk = NewBrk;
+    return NewBrk;
+}
+
 int ProcessExec(const char *Path) {
     VM_ADDR_SPACE *Space;
     ELF_LOAD_RESULT Info;
@@ -396,6 +473,8 @@ int ProcessExecve(HAL_FRAME *Frame, const char *Path, UINT64 UserArgv,
     }
     T->Name[i] = 0;
     T->Waiting = 0;
+    T->BrkBase = Info.BrkBase;
+    T->Brk = Info.BrkBase;
     /* 保留 Fds / ParentId / Id；映像已换 */
     HalFrameSetUserEntry(Frame, Info.Entry, NewRsp);
     T->Frame = Frame;

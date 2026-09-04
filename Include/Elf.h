@@ -100,6 +100,7 @@ typedef struct {
 typedef struct {
     UINT64 Entry;
     UINT64 StackTop;
+    UINT64 BrkBase; /* 末尾 PT_LOAD 结束址（堆起点；PR-P3） */
 } ELF_LOAD_RESULT;
 
 typedef struct {

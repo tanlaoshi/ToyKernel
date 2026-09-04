@@ -301,6 +301,9 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
             T, (int)HalFrameArg0(Frame)));
         break;
     }
+    case SYS_BRK:
+        HalFrameSetReturn(Frame, ProcessBrk(HalFrameArg0(Frame)));
+        break;
     default:
         ConsoleWrite("syscall: unknown ");
         ConsoleHex64(HalFrameSyscallNum(Frame));

@@ -130,3 +130,12 @@ pid_t wait(int *status) {
     }
     return (pid_t)r;
 }
+
+void *brk(void *addr) {
+    long r = toy_brk((long)addr);
+    if (r < 0) {
+        errno = ENOMEM;
+        return (void *)(long)-1;
+    }
+    return (void *)r;
+}
