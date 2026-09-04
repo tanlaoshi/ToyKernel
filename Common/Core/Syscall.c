@@ -2,9 +2,10 @@
  * Syscall.c — 系统调用分发（入口无关）
  *
  * 教学双路径（互不耦合）：
- *   - legacy：int 0x80 → Isr128 → InterruptDispatch → SyscallDispatch
+ *   - legacy：int 0x80 → IDT 门 → InterruptDispatch → SyscallDispatch
  *   - 快速：syscall → SyscallEntry → SyscallDispatch → sysretq
  * 号与 ABI（rax / rdi,rsi,rdx）两条路径共用。
+ * 向量/MSR 安装在 HalSyscallInit（PR-A1），本文件只做分发。
  */
 #include "Syscall.h"
 #include "Hal.h"
@@ -13,19 +14,12 @@
 #include "Debug.h"
 #include "VirtualMemory.h"
 
-extern void Isr128(void);
-
 #define COPY_BUF_MAX 256
 /* 与 TASK_FD.Path[64] 对齐，便于 CRT 打开子路径 */
 #define PATH_MAX_LEN 63
 
 void SyscallInit(void) {
-    /* legacy：IDT 0x80，DPL=3 */
-    HalIrqVectorSet(VEC_SYSCALL, (void *)Isr128, 0xEE);
-    DebugWrite("syscall: vector 0x80 (DPL=3) ready\n");
-    /* 快速路径：MSR（BSP）；AP 在 ArchApInit 中各自初始化 */
-    ArchSyscallMsrInit(0);
-    DebugWrite("syscall: SYSCALL/SYSRET MSR ready\n");
+    /* 硬件入口已由 HalSyscallInit 安装；保留符号供旧调用点 / 文档 */
 }
 
 static int SysWrite(int Fd, UINT64 UserBuf, UINTN Len) {

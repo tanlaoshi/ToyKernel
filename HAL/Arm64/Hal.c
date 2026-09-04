@@ -30,6 +30,7 @@ void HalTimerStart(void) { }
 
 void HalUserInstall(void) { }
 void HalSyscallInit(void) { }
+void HalSetKernelStack(UINT64 StackTop) { (void)StackTop; }
 
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
     (void)Frame;

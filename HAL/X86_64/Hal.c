@@ -3,7 +3,6 @@
  */
 #include "Hal.h"
 #include "Arch.h"
-#include "Syscall.h"
 #include "Debug.h"
 
 int HalInit(void) {
@@ -83,7 +82,18 @@ void HalUserInstall(void) {
 }
 
 void HalSyscallInit(void) {
-    SyscallInit();
+    extern void Isr128(void);
+
+    /* legacy：IDT 0x80，DPL=3（不进 Common） */
+    ArchIdtSetGate(VEC_SYSCALL, (void *)Isr128, 0xEE);
+    DebugWrite("syscall: vector 0x80 (DPL=3) ready\n");
+    /* 快速路径 MSR（BSP）；AP 在 ArchApInit 中各自初始化 */
+    ArchSyscallMsrInit(0);
+    DebugWrite("syscall: SYSCALL/SYSRET MSR ready\n");
+}
+
+void HalSetKernelStack(UINT64 StackTop) {
+    ArchSetRsp0(StackTop);
 }
 
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {

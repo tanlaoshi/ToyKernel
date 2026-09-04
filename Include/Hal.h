@@ -43,6 +43,8 @@ void HalTimerStart(void);
 
 void HalUserInstall(void);
 void HalSyscallInit(void);
+/* 用户任务内核栈顶 → TSS.RSP0 / 等价结构（PR-A1；取代 Common 调 ArchSetRsp0） */
+void HalSetKernelStack(UINT64 StackTop);
 
 struct HAL_FRAME;
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame);

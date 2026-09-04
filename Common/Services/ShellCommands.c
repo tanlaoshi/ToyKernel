@@ -604,6 +604,13 @@ static void CommandFiles(int Argc, char **Argv) {
     }
 }
 
+static void CommandZh(int Argc, char **Argv) {
+    (void)Argc;
+    (void)Argv;
+    /* PR-I18N1：UTF-8 + CJK16 子集冒烟 */
+    ConsoleWrite("你好，世界！中文测试\n");
+}
+
 void ShellCommandsRegister(void) {
     ConsoleRegister("info", "boot framebuffer info", CommandInfo);
     ConsoleRegister("ps", "list tasks", CommandPs);
@@ -614,6 +621,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);
+    ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);

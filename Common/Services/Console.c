@@ -114,28 +114,48 @@ void ConsoleWrite(const char *Text) {
     ConsoleDrawString(Text, COLOR_WHITE);
 }
 
-/* 按长度输出（SYS_WRITE 用；不因中间的 NUL 截断） */
+/* 按长度输出（SYS_WRITE 用；UTF-8 按码点画，不因中间的 NUL 截断） */
 void ConsoleWriteLen(const char *Data, UINTN Len) {
     UINTN i;
 
     if (Data == 0 || Len == 0) {
         return;
     }
-    for (i = 0; i < Len; i++) {
-        char C = Data[i];
-        char Tmp[2];
+    i = 0;
+    while (i < Len) {
+        UINT32 Cp;
+        UINTN N;
+        char Tmp[5];
+        UINTN k;
 
-        if (C == '\n') {
+        if (Data[i] == '\n') {
             ConsoleWrite("\n");
+            i++;
             continue;
         }
-        if (C == '\0' || (C > 0 && C < 32) || (unsigned char)C == 127) {
-            /* 控制字符：跳过（换行已处理）；避免 VideoDrawChar 静默丢弃导致“无换行”错觉 */
+        if (Data[i] == '\0') {
+            i++;
             continue;
         }
-        Tmp[0] = C;
-        Tmp[1] = 0;
+        /* 非法/截断 UTF-8：跳过单字节，避免死循环 */
+        if (i + 4 > Len) {
+            /* 剩余可能不足完整序列；尽量解，失败则跳过 */
+        }
+        N = Utf8Decode(Data + i, &Cp);
+        if (N == 0 || i + N > Len) {
+            i++;
+            continue;
+        }
+        if (Cp < 32 || Cp == 127) {
+            i += N;
+            continue;
+        }
+        for (k = 0; k < N && k < sizeof(Tmp) - 1; k++) {
+            Tmp[k] = Data[i + k];
+        }
+        Tmp[k] = 0;
         ConsoleWrite(Tmp);
+        i += N;
     }
 }
 

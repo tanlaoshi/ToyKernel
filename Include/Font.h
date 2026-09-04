@@ -44,4 +44,13 @@ UINT32 FontAdvanceY(void);
 /* 可打印 ASCII 返回字形指针；否则 NULL */
 const UINT8 *FontGlyph(char C);
 
+/*
+ * UTF-8：解析一个码点，返回消费字节数；非法序列返回 0。
+ * 汉字等宽字形见 FontCjk16Lookup / FontGlyphCp。
+ */
+UINTN Utf8Decode(const char *S, UINT32 *OutCp);
+/* ASCII→Terminus；基本汉字→CJK16；OutW/OutH 为点阵像素（未乘 Scale） */
+const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
+const UINT8 *FontCjk16Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
+
 #endif

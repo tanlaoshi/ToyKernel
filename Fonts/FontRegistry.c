@@ -83,3 +83,64 @@ const UINT8 *FontGlyph(char C) {
     }
     return F->Glyphs + (U - F->FirstChar) * F->BytesPerGlyph;
 }
+
+UINTN Utf8Decode(const char *S, UINT32 *OutCp) {
+    UINT8 C0;
+    UINT32 Cp;
+    UINTN Need;
+    UINTN i;
+
+    if (!S || !OutCp) {
+        return 0;
+    }
+    C0 = (UINT8)S[0];
+    if (C0 == 0) {
+        return 0;
+    }
+    if (C0 < 0x80) {
+        *OutCp = C0;
+        return 1;
+    }
+    if ((C0 & 0xE0) == 0xC0) {
+        Cp = C0 & 0x1F;
+        Need = 2;
+    } else if ((C0 & 0xF0) == 0xE0) {
+        Cp = C0 & 0x0F;
+        Need = 3;
+    } else if ((C0 & 0xF8) == 0xF0) {
+        Cp = C0 & 0x07;
+        Need = 4;
+    } else {
+        return 0;
+    }
+    for (i = 1; i < Need; i++) {
+        UINT8 Cx = (UINT8)S[i];
+        if ((Cx & 0xC0) != 0x80) {
+            return 0;
+        }
+        Cp = (Cp << 6) | (UINT32)(Cx & 0x3F);
+    }
+    *OutCp = Cp;
+    return Need;
+}
+
+const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH) {
+    const FONT_FACE *F;
+    const UINT8 *G;
+
+    if (Cp >= 32 && Cp < 127) {
+        F = FontGetCurrent();
+        G = FontGlyph((char)Cp);
+        if (!G || !F) {
+            return 0;
+        }
+        if (OutW) {
+            *OutW = F->Width;
+        }
+        if (OutH) {
+            *OutH = F->Height;
+        }
+        return G;
+    }
+    return FontCjk16Lookup(Cp, OutW, OutH);
+}

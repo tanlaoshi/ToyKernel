@@ -697,7 +697,7 @@ static void ActivateTask(TASK *T) {
     T->State = TASK_RUNNING;
     T->OnCpu = (INT32)Cpu;
     if (T->IsUser) {
-        ArchSetRsp0((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
+        HalSetKernelStack((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
     }
     if (T->PageRoot != 0) {
         VirtualMemoryLoadPageTable(T->PageRoot);

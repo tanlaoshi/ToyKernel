@@ -244,20 +244,110 @@ void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
     }
 }
 
+/* 任意点阵：BytesPerRow = (Width+7)/8；Scale 取当前字体 */
+static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
+                              UINT32 Width, UINT32 Height, UINT32 Color) {
+    const FONT_FACE *F;
+    UINT32 Scale;
+    UINT32 Bpr;
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 Sy;
+    UINT32 Sx;
+    UINT32 CellH;
+    UINT32 OffY;
+
+    if (!Glyph || Width == 0 || Height == 0) {
+        return;
+    }
+    F = FontGetCurrent();
+    Scale = (F && F->Scale) ? F->Scale : 1u;
+    Bpr = (Width + 7) / 8;
+    CellH = FontCellH();
+    OffY = 0;
+    if (CellH > Height * Scale) {
+        OffY = (CellH - Height * Scale) / 2;
+    }
+
+    for (Row = 0; Row < Height; Row++) {
+        for (Col = 0; Col < Width; Col++) {
+            UINT8 Byte = Glyph[Row * Bpr + (Col / 8)];
+            int Bit = 7 - (int)(Col % 8);
+            if ((Byte & (1 << Bit)) == 0) {
+                continue;
+            }
+            for (Sy = 0; Sy < Scale; Sy++) {
+                for (Sx = 0; Sx < Scale; Sx++) {
+                    VideoDrawPixel(
+                        X + Col * Scale + Sx,
+                        Y + OffY + Row * Scale + Sy,
+                        Color);
+                }
+            }
+        }
+    }
+}
+
+void VideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
+    UINT32 W;
+    UINT32 H;
+    const UINT8 *G;
+
+    if (Cp < 128) {
+        VideoDrawCharAt(X, Y, (char)Cp, Color);
+        return;
+    }
+    G = FontGlyphCp(Cp, &W, &H);
+    if (!G) {
+        return;
+    }
+    VideoDrawBitmapAt(X, Y, G, W, H, Color);
+}
+
+static UINT32 CodepointAdvance(UINT32 Cp) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 Scale;
+    const FONT_FACE *F;
+
+    if (Cp < 128) {
+        return FontAdvanceX();
+    }
+    if (!FontGlyphCp(Cp, &W, &H)) {
+        return FontAdvanceX();
+    }
+    F = FontGetCurrent();
+    Scale = (F && F->Scale) ? F->Scale : 1u;
+    /* 汉字按字形宽前进；至少一格 ASCII，避免挤在一起 */
+    W = W * Scale;
+    if (W < FontAdvanceX()) {
+        W = FontAdvanceX();
+    }
+    return W;
+}
+
 void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     UINT32 CurX = X;
-    UINT32 AdvX = FontAdvanceX();
     UINT32 AdvY = FontAdvanceY();
 
-    while (*Text) {
+    while (Text && *Text) {
+        UINT32 Cp;
+        UINTN N;
+
         if (*Text == '\n') {
             CurX = X;
             Y += AdvY;
-        } else {
-            VideoDrawCharAt(CurX, Y, *Text, Color);
-            CurX += AdvX;
+            Text++;
+            continue;
         }
-        Text++;
+        N = Utf8Decode(Text, &Cp);
+        if (N == 0) {
+            Text++;
+            continue;
+        }
+        VideoDrawCodepointAt(CurX, Y, Cp, Color);
+        CurX += CodepointAdvance(Cp);
+        Text += N;
     }
 }
 
@@ -611,13 +701,27 @@ void VideoNewLine(void) {
 }
 
 void VideoDrawChar(char c, UINT32 Color) {
+    if ((UINT8)c < 32 || (UINT8)c > 126) {
+        return;
+    }
+    VideoDrawCodepoint(c, Color);
+}
+
+void VideoDrawCodepoint(UINT32 Cp, UINT32 Color) {
     UINT32 MaxX;
     UINT32 MaxY;
+    UINT32 Adv;
 
-    if (c < 32 || c > 126) {
+    if (Cp == 0 || Cp == '\n') {
         return;
     }
     if ((!gFront && !gBack) || gScreen.Width == 0 || gScreen.Height == 0) {
+        return;
+    }
+    if (Cp < 128 && (Cp < 32 || Cp > 126)) {
+        return;
+    }
+    if (Cp >= 128 && !FontGlyphCp(Cp, (UINT32 *)0, (UINT32 *)0)) {
         return;
     }
 
@@ -635,7 +739,8 @@ void VideoDrawChar(char c, UINT32 Color) {
         MaxY = gScreen.Height;
     }
 
-    if (gScreen.CursorX + FontAdvanceX() > MaxX) {
+    Adv = CodepointAdvance(Cp);
+    if (gScreen.CursorX + Adv > MaxX) {
         VideoNewLine();
     }
 
@@ -643,8 +748,8 @@ void VideoDrawChar(char c, UINT32 Color) {
         VideoNewLine();
     }
 
-    VideoDrawCharAt(gScreen.CursorX, gScreen.CursorY, c, Color);
-    gScreen.CursorX += FontAdvanceX();
+    VideoDrawCodepointAt(gScreen.CursorX, gScreen.CursorY, Cp, Color);
+    gScreen.CursorX += Adv;
 }
 
 void VideoEraseLastChar(void) {
@@ -663,12 +768,21 @@ void VideoEraseLastChar(void) {
 }
 
 void VideoDrawString(const char *Text, UINT32 Color) {
-    while (*Text) {
+    while (Text && *Text) {
+        UINT32 Cp;
+        UINTN N;
+
         if (*Text == '\n') {
             VideoNewLine();
-        } else {
-            VideoDrawChar(*Text, Color);
+            Text++;
+            continue;
         }
-        Text++;
+        N = Utf8Decode(Text, &Cp);
+        if (N == 0) {
+            Text++;
+            continue;
+        }
+        VideoDrawCodepoint(Cp, Color);
+        Text += N;
     }
 }

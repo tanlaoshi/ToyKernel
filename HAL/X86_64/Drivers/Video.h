@@ -36,8 +36,10 @@ void VideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out)
 void VideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT32 *In);
 void VideoClearScreen(UINT32 Color);
 void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color);
+void VideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color);
 void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color);
 void VideoDrawChar(char c, UINT32 Color);
+void VideoDrawCodepoint(UINT32 Cp, UINT32 Color);
 void VideoDrawString(const char *Text, UINT32 Color);
 void VideoNewLine(void);
 void VideoEraseLastChar(void);
