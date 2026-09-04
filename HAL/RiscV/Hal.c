@@ -20,11 +20,15 @@ int HalInit(void) {
 }
 
 void HalCpuHalt(void) {
+    /* virt：无定时 IRQ，不能 WFI 永睡；供 Shell/Gui 任务轮询返回 */
+    HalTimerPoll();
+    HalCpuRelax();
+}
+void HalCpuPark(void) {
     for (;;) {
         __asm__ volatile("wfi");
     }
 }
-void HalCpuPark(void) { HalCpuHalt(); }
 void HalCpuReboot(void) { HalCpuPark(); }
 void HalCpuShutdown(void) { HalCpuPark(); }
 
@@ -163,7 +167,21 @@ UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
     return 0;
 }
 void HalSchedulerEnter(struct HAL_FRAME *Frame) {
-    (void)Frame;
+    UINT64 Entry;
+    UINT64 Stack;
+
+    if (!Frame || Frame->Rip == 0) {
+        HalVirtIdleLoop();
+        return;
+    }
+    Entry = Frame->Rip;
+    Stack = Frame->Rsp;
+    __asm__ volatile(
+        "mv sp, %0\n"
+        "jr %1\n"
+        :
+        : "r"(Stack), "r"(Entry)
+        : "memory");
     HalVirtIdleLoop();
 }
 void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }

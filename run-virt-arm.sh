@@ -1,9 +1,10 @@
 #!/bin/bash
-# QEMU virt aarch64：PR-V3/V4 输入+块 / PR-V2 ramfb / PR-V1 DTB
+# QEMU virt aarch64：PR-V5 桌面 / V3–V4 输入+块 / V2 ramfb
 #
-# 默认：-nographic + ramfb + virtio-blk(fat:virt-rootfs) + virtio-keyboard/tablet
+# 默认：-nographic + ramfb → 内核走桌面模块表（gui）；串口仍 ToyOS ready
 # 窗口：TOY_VIRT_GUI=1
-# 无盘冒烟：TOY_VIRT_NODISK=1
+# 纯串口子集（无 FB）：TOY_VIRT_SERIAL=1（不加 ramfb）
+# 无盘：TOY_VIRT_NODISK=1
 set -e
 cd "$(dirname "$0")"
 
@@ -45,21 +46,28 @@ if [ ! -s "$DTB" ]; then
     exit 1
 fi
 
-DISP_ARGS=(-device ramfb)
+DISP_ARGS=()
 SERIAL_ARGS=(-nographic)
 DEV_ARGS=(-device virtio-keyboard-device -device virtio-tablet-device)
+if [ "${TOY_VIRT_SERIAL:-0}" != "1" ]; then
+    DISP_ARGS=(-device ramfb)
+fi
 if [ "${TOY_VIRT_NODISK:-0}" != "1" ]; then
     DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=fat:rw:virt-rootfs"
                -device virtio-blk-device,drive=toyroot)
 fi
 if [ "${TOY_VIRT_GUI:-0}" = "1" ]; then
     SERIAL_ARGS=(-serial mon:stdio)
-    DISP_ARGS+=(-display "${TOY_VIRT_DISPLAY:-gtk}")
+    if [ "${TOY_VIRT_SERIAL:-0}" = "1" ]; then
+        echo "error: TOY_VIRT_GUI needs ramfb (unset TOY_VIRT_SERIAL)" >&2
+        exit 1
+    fi
+    DISP_ARGS=(-device ramfb -display "${TOY_VIRT_DISPLAY:-gtk}")
 fi
 
-echo "run: $QEMU -M virt … ${SERIAL_ARGS[*]} ramfb + input + blk"
+echo "run: $QEMU -M virt … ${SERIAL_ARGS[*]} ${DISP_ARGS[*]:-no-ramfb}"
 printf 'help\nvols\nls\ncat THEME.CFG\nmem\nhalt\n' | "$QEMU" -M virt -cpu cortex-a72 -m "$MEM" \
-    "${SERIAL_ARGS[@]}" "${DISP_ARGS[@]}" "${DEV_ARGS[@]}" \
+    "${SERIAL_ARGS[@]}" ${DISP_ARGS[@]+"${DISP_ARGS[@]}"} "${DEV_ARGS[@]}" \
     -kernel "$ELF" \
     -device loader,addr=$DTB_ADDR,file="$DTB" \
     >"$OUT" 2>&1 &
@@ -69,12 +77,11 @@ for _ in $(seq 1 120); do
         cat "$OUT"
         exit 0
     fi
-    if grep -q 'virt: serial shell' "$OUT" 2>/dev/null \
-        && grep -q '\[mod\] video' "$OUT" 2>/dev/null \
-        && grep -q '\[mod\] fs' "$OUT" 2>/dev/null; then
-        # 有盘时还要见到 vols / THEME
-        if [ "${TOY_VIRT_NODISK:-0}" = "1" ] || grep -q 'THEME' "$OUT" 2>/dev/null \
-            || grep -q 'TOYOS' "$OUT" 2>/dev/null; then
+    # V5 桌面：gui + ToyOS ready；串口子集：virt: serial shell
+    if grep -q 'ToyOS ready' "$OUT" 2>/dev/null \
+        || grep -q 'ToyOS 就绪' "$OUT" 2>/dev/null; then
+        if grep -q '\[mod\] gui' "$OUT" 2>/dev/null \
+            || grep -q 'virt: serial shell' "$OUT" 2>/dev/null; then
             cat "$OUT"
             exit 0
         fi
@@ -85,5 +92,5 @@ for _ in $(seq 1 120); do
     sleep 0.25
 done
 cat "$OUT"
-echo "error: timeout waiting for Arm64 virt V3/V4" >&2
+echo "error: timeout waiting for Arm64 virt V5" >&2
 exit 1

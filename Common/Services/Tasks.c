@@ -172,6 +172,11 @@ void ShellTask(void) {
             }
         }
         HalCpuHalt();
+        /* PR-V5 virt：无抢占，GuiTask 饿死；在 shell 循环里顺带刷鼠标 */
+        if (HalPlatformVirtConsole()) {
+            GuiPollMouse();
+            HalVideoPresent();
+        }
         while (HalKeyboardDequeue(&Report)) {
             FeedHid(&Report, &Previous);
             Previous = Report;

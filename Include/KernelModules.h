@@ -5,5 +5,7 @@
 #define KERNEL_MODULES_H
 
 int KernelModulesRun(void);
+/* PR-V5：virt 桌面模块表已选中（有帧缓冲） */
+int KernelModulesVirtDesktop(void);
 
 #endif

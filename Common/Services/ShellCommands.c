@@ -652,7 +652,7 @@ static void CommandHalt(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
     ConsoleWrite("halt\n");
-    HalCpuHalt();
+    HalCpuPark();
 }
 
 void ShellCommandsRegisterVirtMin(void) {

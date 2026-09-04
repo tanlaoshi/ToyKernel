@@ -21,8 +21,15 @@ void KernelMain(void) {
         }
     }
 
-    /* PR-A8/A9：virt 无 GOP/块设备 — 串口命令循环（不启桌面任务） */
+    /* PR-V5：virt 有 FB → 与 x86 一样启 shell/gui（协作调度，无抢占） */
     if (HalPlatformVirtConsole()) {
+        if (KernelModulesVirtDesktop()) {
+            SchedulerCreate("shell", ShellTask);
+            SchedulerCreate("gui", GuiTask);
+            SchedulerCreate("worker", WorkerTask);
+            SchedulerStart();
+            return;
+        }
         HalTimerStart();
         ConsoleSerialRun();
         return;

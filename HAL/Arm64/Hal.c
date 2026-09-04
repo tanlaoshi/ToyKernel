@@ -13,11 +13,15 @@ int HalInit(void) {
 }
 
 void HalCpuHalt(void) {
+    /* virt：无定时 IRQ，不能 WFI 永睡；供 Shell/Gui 任务轮询返回 */
+    HalTimerPoll();
+    HalCpuRelax();
+}
+void HalCpuPark(void) {
     for (;;) {
         __asm__ volatile("wfi");
     }
 }
-void HalCpuPark(void) { HalCpuHalt(); }
 void HalCpuReboot(void) { HalCpuPark(); }
 void HalCpuShutdown(void) { HalCpuPark(); }
 
@@ -160,8 +164,22 @@ UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
     return 0;
 }
 void HalSchedulerEnter(struct HAL_FRAME *Frame) {
-    (void)Frame;
-    /* A8 正常路径不进这里；误入则落到空闲循环 */
+    UINT64 Entry;
+    UINT64 Stack;
+
+    if (!Frame || Frame->Rip == 0) {
+        HalVirtIdleLoop();
+        return;
+    }
+    Entry = Frame->Rip;
+    Stack = Frame->Rsp;
+    /* 首次进入内核任务：切栈并跳到 Entry（无返回；无抢占则该任务一直跑） */
+    __asm__ volatile(
+        "mov sp, %0\n"
+        "br  %1\n"
+        :
+        : "r"(Stack), "r"(Entry)
+        : "memory");
     HalVirtIdleLoop();
 }
 void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }
