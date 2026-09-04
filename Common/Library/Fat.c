@@ -760,6 +760,7 @@ const char *FatStrError(int Err) {
     case FAT_ERR_INVAL:     return "invalid";
     case FAT_ERR_NAMETOOLONG: return "name too long";
     case FAT_ERR_FBIG:      return "file too large";
+    case FAT_ERR_ROFS:      return "read-only volume";
     default:                return "error";
     }
 }

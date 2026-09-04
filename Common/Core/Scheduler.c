@@ -3,7 +3,7 @@
  */
 #include "Scheduler.h"
 #include "Syscall.h"
-#include "Fat.h"
+#include "FileSystem.h"
 #include "Hal.h"
 #include "Console.h"
 #include "Debug.h"
@@ -193,14 +193,14 @@ static void TaskClearFds(TASK *T) {
 
 static void FdFlush(TASK_FD *F) {
     if (F->Used && F->Dirty && F->Path[0] && F->Data) {
-        (void)FatWriteFile(F->Path, F->Data, F->Size);
+        (void)FsWriteFile(F->Path, F->Data, F->Size);
         F->Dirty = 0;
     }
 }
 
 static void FdCopyPath(TASK_FD *F, const char *Path) {
     int i;
-    for (i = 0; i < 15 && Path[i]; i++) {
+    for (i = 0; i < (int)sizeof(F->Path) - 1 && Path[i]; i++) {
         F->Path[i] = Path[i];
     }
     F->Path[i] = 0;
@@ -242,7 +242,7 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     if (!Buf) {
         return -1;
     }
-    if (FatReadFile(Path, Buf, FD_MAX_BYTES, &Size) != FAT_OK) {
+    if (FsReadFile(Path, Buf, FD_MAX_BYTES, &Size) != FAT_OK) {
         Size = 0;
     }
     T->Fds[Slot].Used = 1;

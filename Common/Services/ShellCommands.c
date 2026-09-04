@@ -599,7 +599,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("mem", "physical memory stats", CommandMem);
     ConsoleRegister("memtest", "alloc/verify/free one page", CommandMemtest);
     ConsoleRegister("runuser", "run embedded hello ELF", CommandRunuser);
-    ConsoleRegister("exec", "load ELF from FAT", CommandExec);
+    ConsoleRegister("exec", "load ELF (TOYOS:FILE / A:FILE)", CommandExec);
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);

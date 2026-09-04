@@ -20,6 +20,7 @@
 #define FAT_ERR_INVAL      (-8)   /* 非法参数/路径 */
 #define FAT_ERR_NAMETOOLONG (-9)  /* 名过长 */
 #define FAT_ERR_FBIG       (-10)  /* 超过写大小上限 */
+#define FAT_ERR_ROFS       (-11)  /* 只读卷（PR-FS2 ESP 等） */
 
 const char *FatStrError(int Err);
 

@@ -31,7 +31,7 @@ typedef struct {
     UINTN   Size;
     UINTN   Pos;
     UINT32  Pages;
-    char    Path[16];
+    char    Path[64];
     int     Dirty;
 } TASK_FD;
 

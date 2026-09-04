@@ -78,46 +78,90 @@ static const UINT8 BASIC_DATA[] = {
     0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7
 };
 
-/* 解析 GPT 分区项，查找 EFI System / Basic Data 分区起始 LBA */
-static int GptFatLba(UINT32 *OutLba) {
+/* 解析 GPT 分区项，查找 EFI System / Basic Data；优先记 ESP 供只读挂载 */
+static int GptFatLbaEx(UINT32 *OutLba, int *OutIsEsp) {
+    UINT32 EspLba = 0;
+    int HasEsp = 0;
+    UINT32 DataLba = 0;
+    int HasData = 0;
+
     if (!BlockReadSectors(1, 1, gSector)) {
         return 0;
     }
     if (*(UINT64 *)(void *)gSector != 0x5452415020494645ULL) {
         return 0;
     }
-    UINT32 EntriesLba = *(UINT32 *)(void *)(gSector + 72);
-    UINT32 EntryCount = *(UINT32 *)(void *)(gSector + 80);
-    UINT32 EntrySize = *(UINT32 *)(void *)(gSector + 84);
-    if (EntrySize < 128 || EntryCount == 0 || EntryCount > 128) {
-        return 0;
-    }
+    {
+        UINT32 EntriesLba = *(UINT32 *)(void *)(gSector + 72);
+        UINT32 EntryCount = *(UINT32 *)(void *)(gSector + 80);
+        UINT32 EntrySize = *(UINT32 *)(void *)(gSector + 84);
+        UINT8 Entry[128];
+        UINT32 i;
 
-    UINT8 Entry[128];
-    for (UINT32 i = 0; i < EntryCount; i++) {
-        UINT32 Sec = EntriesLba + (i * EntrySize) / SECTOR;
-        UINT32 Off = (i * EntrySize) % SECTOR;
-        if (!BlockReadSectors(Sec, 1, gSector)) {
+        if (EntrySize < 128 || EntryCount == 0 || EntryCount > 128) {
             return 0;
         }
-        for (UINT32 j = 0; j < 128; j++) {
-            Entry[j] = gSector[Off + j];
+        for (i = 0; i < EntryCount; i++) {
+            UINT32 Sec = EntriesLba + (i * EntrySize) / SECTOR;
+            UINT32 Off = (i * EntrySize) % SECTOR;
+            UINT32 j;
+            UINT64 First;
+            UINT64 Last;
+
+            if (!BlockReadSectors(Sec, 1, gSector)) {
+                return 0;
+            }
+            for (j = 0; j < 128; j++) {
+                Entry[j] = gSector[Off + j];
+            }
+            First = *(UINT64 *)(void *)(Entry + 32);
+            Last = *(UINT64 *)(void *)(Entry + 40);
+            if (First == 0 && Last == 0) {
+                continue;
+            }
+            if (GuidEq(Entry, EFI_PART)) {
+                if (!HasEsp) {
+                    EspLba = (UINT32)First;
+                    HasEsp = 1;
+                }
+            } else if (GuidEq(Entry, BASIC_DATA)) {
+                if (!HasData) {
+                    DataLba = (UINT32)First;
+                    HasData = 1;
+                }
+            }
         }
-        UINT64 First = *(UINT64 *)(void *)(Entry + 32);
-        UINT64 Last = *(UINT64 *)(void *)(Entry + 40);
-        if (First == 0 && Last == 0) {
-            continue;
+    }
+    /* 有 Basic Data 优先作可写数据卷；仅 ESP 时仍可挂（只读） */
+    if (HasData) {
+        *OutLba = DataLba;
+        if (OutIsEsp) {
+            *OutIsEsp = 0;
         }
-        if (GuidEq(Entry, EFI_PART) || GuidEq(Entry, BASIC_DATA)) {
-            *OutLba = (UINT32)First;
-            return 1;
+        return 1;
+    }
+    if (HasEsp) {
+        *OutLba = EspLba;
+        if (OutIsEsp) {
+            *OutIsEsp = 1;
         }
+        return 1;
     }
     return 0;
 }
 
+static int GptFatLba(UINT32 *OutLba) {
+    return GptFatLbaEx(OutLba, 0);
+}
+
 /* 查找 FAT 卷起始 LBA（superfloppy / MBR / GPT 三选一） */
-int GptFindFatStart(UINT32 *OutLba) {
+int GptFindFatStartEx(UINT32 *OutLba, int *OutIsEsp) {
+    if (OutIsEsp) {
+        *OutIsEsp = 0;
+    }
+    if (!OutLba) {
+        return 0;
+    }
     if (!BlockReadSectors(0, 1, gSector)) {
         return 0;
     }
@@ -126,19 +170,29 @@ int GptFindFatStart(UINT32 *OutLba) {
         DebugWrite("FS: volume at LBA 0\n");
         return 1;
     }
-    int Mbr = MbrFatLba(OutLba);
-    if (Mbr == 1) {
-        DebugWrite("FS: MBR FAT partition LBA ");
-        DebugHex32(*OutLba);
-        DebugWrite("\n");
-        return 1;
-    }
-    if (Mbr == 2 && GptFatLba(OutLba)) {
-        DebugWrite("FS: GPT FAT partition LBA ");
-        DebugHex32(*OutLba);
-        DebugWrite("\n");
-        return 1;
+    {
+        int Mbr = MbrFatLba(OutLba);
+        if (Mbr == 1) {
+            DebugWrite("FS: MBR FAT partition LBA ");
+            DebugHex32(*OutLba);
+            DebugWrite("\n");
+            return 1;
+        }
+        if (Mbr == 2 && GptFatLbaEx(OutLba, OutIsEsp)) {
+            DebugWrite("FS: GPT FAT partition LBA ");
+            DebugHex32(*OutLba);
+            if (OutIsEsp && *OutIsEsp) {
+                DebugWrite(" (ESP)\n");
+            } else {
+                DebugWrite("\n");
+            }
+            return 1;
+        }
     }
     DebugWrite("FS: no FAT partition found\n");
     return 0;
+}
+
+int GptFindFatStart(UINT32 *OutLba) {
+    return GptFindFatStartEx(OutLba, 0);
 }
