@@ -1,7 +1,9 @@
 /*
  * Ramfb.c — QEMU fw_cfg MMIO + etc/ramfb（PR-V2）
  *
- * 用选择器 + 数据口按字节访问（避免 DMA 在早期启动卡住）。
+ * 目录/签名仍用选择器 + 数据口按字节读。
+ * 写 etc/ramfb 必须走 fw_cfg DMA（QEMU ≥2.4 忽略数据口写入，否则窗口一直
+ * “Guest has not initialized the display”）。
  * 配置结构与目录项字段均为 big-endian。四字节格式 XR24（XRGB8888）。
  */
 #include "Ramfb.h"
@@ -10,9 +12,13 @@
 #define FW_CFG_SIGNATURE 0x0000u
 #define FW_CFG_FILE_DIR  0x0019u
 
-#define RAMFB_FOURCC_XR24 0x34325258u /* 'XR24' */
+#define FW_CFG_DMA_CTL_ERROR  0x01u
+#define FW_CFG_DMA_CTL_SELECT 0x08u
+#define FW_CFG_DMA_CTL_WRITE  0x10u
 
-typedef struct {
+#define RAMFB_FOURCC_XR24 0x34325258u /* DRM 'XR24' / XRGB8888 */
+
+typedef struct __attribute__((packed)) {
     UINT64 Addr;
     UINT32 Fourcc;
     UINT32 Flags;
@@ -20,6 +26,15 @@ typedef struct {
     UINT32 Height;
     UINT32 Stride;
 } RAMFB_CFG;
+
+typedef struct __attribute__((packed)) {
+    UINT32 Control;
+    UINT32 Length;
+    UINT64 Address;
+} FW_CFG_DMA_ACCESS;
+
+_Static_assert(sizeof(RAMFB_CFG) == 28, "RAMFB_CFG must match QEMU packed size");
+_Static_assert(sizeof(FW_CFG_DMA_ACCESS) == 16, "FW_CFG_DMA_ACCESS size");
 
 static UINT32 ReadBe32(const void *Addr) {
     const UINT8 *B = (const UINT8 *)Addr;
@@ -67,10 +82,6 @@ static UINT8 FwCfgRead8(UINT64 Base) {
     return *(volatile UINT8 *)(UINTN)Base;
 }
 
-static void FwCfgWrite8(UINT64 Base, UINT8 V) {
-    *(volatile UINT8 *)(UINTN)Base = V;
-}
-
 static void FwCfgReadBytes(UINT64 Base, void *Buf, UINT32 Len) {
     UINT8 *P = (UINT8 *)Buf;
     UINT32 i;
@@ -79,12 +90,46 @@ static void FwCfgReadBytes(UINT64 Base, void *Buf, UINT32 Len) {
     }
 }
 
-static void FwCfgWriteBytes(UINT64 Base, const void *Buf, UINT32 Len) {
-    const UINT8 *P = (const UINT8 *)Buf;
-    UINT32 i;
-    for (i = 0; i < Len; i++) {
-        FwCfgWrite8(Base, P[i]);
+/*
+ * QEMU：DMA 地址寄存器 @ base+0x10（big-endian 数值）。
+ * ARM virt 的 mmio 区为 DEVICE_BIG_ENDIAN：guest 用原生 32-bit 写地址数值即可
+ * （与 Linux iowrite32be 在 raw mapping 上的效果等价于先 bswap 再 LE 写；
+ *  这里按「寄存器存 BE 字节」用 bswap 后的 32-bit 写，兼容两种建模）。
+ * 写低 32 位（+0x14）触发传输。
+ */
+static int FwCfgDmaWrite(UINT64 Base, UINT16 Sel, const void *Buf, UINT32 Len) {
+    static FW_CFG_DMA_ACCESS Access;
+    UINT64 AccessPhys;
+    UINT32 Ctrl;
+    UINT32 Spins;
+    UINT32 Hi;
+    UINT32 Lo;
+
+    StoreBe32(&Access.Control,
+              ((UINT32)Sel << 16) | FW_CFG_DMA_CTL_SELECT | FW_CFG_DMA_CTL_WRITE);
+    StoreBe32(&Access.Length, Len);
+    StoreBe64(&Access.Address, (UINT64)(UINTN)Buf);
+    __sync_synchronize();
+
+    AccessPhys = (UINT64)(UINTN)&Access;
+    Hi = (UINT32)(AccessPhys >> 32);
+    Lo = (UINT32)AccessPhys;
+    /* LE 总线视角写入 BE 寄存器值 */
+    *(volatile UINT32 *)(UINTN)(Base + 0x10) = __builtin_bswap32(Hi);
+    __sync_synchronize();
+    *(volatile UINT32 *)(UINTN)(Base + 0x14) = __builtin_bswap32(Lo);
+
+    for (Spins = 0; Spins < 1000000u; Spins++) {
+        __sync_synchronize();
+        Ctrl = ReadBe32(&Access.Control);
+        if (Ctrl == 0) {
+            return 0;
+        }
+        if ((Ctrl & FW_CFG_DMA_CTL_ERROR) != 0) {
+            return -1;
+        }
     }
+    return -1;
 }
 
 static int FwCfgFindFile(UINT64 Base, const char *Name, UINT16 *OutSelect,
@@ -126,8 +171,9 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
     UINT32 W = RAMFB_WIDTH;
     UINT32 H = RAMFB_HEIGHT;
     UINT32 Stride;
-    RAMFB_CFG Cfg;
-    UINT8 *P;
+    static RAMFB_CFG Cfg;
+    UINT64 *P64;
+    UINT64 Words;
     UINT64 i;
 
     if (!Info || !FreeStart || FwCfgBase == 0) {
@@ -145,6 +191,10 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
         HalSerialWrite("boot: etc/ramfb missing (need -device ramfb)\n");
         return -1;
     }
+    if (FileSize != (UINT32)sizeof(Cfg)) {
+        HalSerialWrite("boot: etc/ramfb size mismatch\n");
+        return -1;
+    }
 
     Stride = W * 4u;
     FbBytes = (UINT64)Stride * (UINT64)H;
@@ -155,9 +205,10 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
         return -1;
     }
 
-    P = (UINT8 *)(UINTN)FbBase;
-    for (i = 0; i < FbBytes; i++) {
-        P[i] = 0;
+    P64 = (UINT64 *)(UINTN)FbBase;
+    Words = FbBytes / 8u;
+    for (i = 0; i < Words; i++) {
+        P64[i] = 0;
     }
 
     StoreBe64(&Cfg.Addr, FbBase);
@@ -167,8 +218,10 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
     StoreBe32(&Cfg.Height, H);
     StoreBe32(&Cfg.Stride, Stride);
 
-    FwCfgSelect(FwCfgBase, Sel);
-    FwCfgWriteBytes(FwCfgBase, &Cfg, (UINT32)sizeof(Cfg));
+    if (FwCfgDmaWrite(FwCfgBase, Sel, &Cfg, (UINT32)sizeof(Cfg)) != 0) {
+        HalSerialWrite("boot: ramfb fw_cfg DMA write failed\n");
+        return -1;
+    }
 
     Info->FrameBufferBase = FbBase;
     Info->FrameBufferSize = FbEnd - FbBase;

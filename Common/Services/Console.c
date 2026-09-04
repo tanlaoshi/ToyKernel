@@ -15,6 +15,7 @@
 #include "SettingsUi.h"
 #include "Locale.h"
 #include "HIDKeyboard.h"
+#include "KernelModules.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -458,7 +459,8 @@ void ConsoleRepaintShellWindows(void) {
  * 返回：0 失败；1 已有可输入 Shell；2 刚打开（调用方应吞掉触发键，勿写入行缓冲）。
  */
 static int ConsoleEnsureShell(void) {
-    if (HalPlatformVirtConsole()) {
+    /* 无 FB 的 virt 串口子集：不要求 GUI Shell 窗 */
+    if (HalPlatformVirtConsole() && !KernelModulesVirtDesktop()) {
         return 1;
     }
     if (GuiShellAcceptsInput()) {
@@ -502,7 +504,8 @@ void ConsoleOnChar(char C) {
 
 /* 处理退格键 */
 void ConsoleOnBackspace(void) {
-    if (!HalPlatformVirtConsole() && !GuiShellAcceptsInput()) {
+    if (!(HalPlatformVirtConsole() && !KernelModulesVirtDesktop()) &&
+        !GuiShellAcceptsInput()) {
         return;
     }
     if (gLen <= 0) {
@@ -527,7 +530,9 @@ void ConsoleOnBackspace(void) {
 }
 
 void ConsoleCancelInput(void) {
-    if ((!HalPlatformVirtConsole() && !GuiShellAcceptsInput()) || gLen <= 0) {
+    if ((!(HalPlatformVirtConsole() && !KernelModulesVirtDesktop()) &&
+         !GuiShellAcceptsInput()) ||
+        gLen <= 0) {
         return;
     }
     while (gLen > 0) {
@@ -544,7 +549,8 @@ static void ConsolePromptAfterCommand(void) {
     if (gWaitPrompt != 0 || ConsolePromptSuspended()) {
         return;
     }
-    if (HalPlatformVirtConsole() || GuiShellAcceptsInput()) {
+    if ((HalPlatformVirtConsole() && !KernelModulesVirtDesktop()) ||
+        GuiShellAcceptsInput()) {
         Prompt();
         return;
     }

@@ -1,8 +1,11 @@
 /*
- * HAL/RiscV/HalConsole.c — 控制台门面桩
+ * HAL/RiscV/HalConsole.c — 控制台门面（串口 + 帧缓冲文字；PR-V5/V6 桌面）
  */
 #include "HalConsole.h"
 #include "HalSerial.h"
+#include "HalVideo.h"
+
+extern void HalCpuHalt(void);
 
 void HalConsolePutChar(char C) {
     char Buf[2];
@@ -13,7 +16,10 @@ void HalConsolePutChar(char C) {
 }
 
 char HalConsoleGetChar(void) {
-    return HalSerialDataReady() ? HalSerialReadChar() : 0;
+    while (!HalSerialDataReady()) {
+        HalCpuHalt();
+    }
+    return HalSerialReadChar();
 }
 
 int HalConsoleHasChar(void) {
@@ -21,7 +27,11 @@ int HalConsoleHasChar(void) {
 }
 
 int HalConsoleVideoReady(void) {
-    return 0;
+    UINT32 W;
+    UINT32 H;
+
+    HalVideoGetSize(&W, &H);
+    return W != 0 && H != 0;
 }
 
 void HalConsoleWriteSerial(const char *Text) {
@@ -33,22 +43,17 @@ void HalConsoleBackspaceSerial(void) {
 }
 
 void HalConsoleDrawString(const char *Text, UINT32 Color) {
-    (void)Text;
-    (void)Color;
+    HalVideoDrawString(Text, Color);
 }
 
 void HalConsoleDrawChar(char C, UINT32 Color) {
-    (void)C;
-    (void)Color;
+    HalVideoDrawChar(C, Color);
 }
 
-void HalConsoleEraseLastChar(void) { }
+void HalConsoleEraseLastChar(void) {
+    HalVideoEraseLastChar();
+}
 
 void HalConsoleGetTextCursor(UINT32 *X, UINT32 *Y) {
-    if (X) {
-        *X = 0;
-    }
-    if (Y) {
-        *Y = 0;
-    }
+    HalVideoGetTextCursor(X, Y);
 }

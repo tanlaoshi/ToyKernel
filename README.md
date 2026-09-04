@@ -13,7 +13,8 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80`（legacy）与 `syscall`/`sysret` |
 | 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
-| 图形界面 | ≈ 可用 | 多窗口、USB 键鼠、**标题栏拖动** |
+| GUI | ≈ 可用 | x86 多窗口；**virt Arm/RiscV：PR-V5 同一套 Common Gui** |
+| 跨架构 virt | ✅ V1～V6 | 自有 Boot + ramfb/virtio；见 `./run-virt-*.sh` / `./smoke-virt.sh` |
 | 网络 | 进行中 | virtio-net；builtin TCP/UDP（legacy）+ 可选 lwIP |
 | 多核 SMP | ✅ | PR-S1～S4：MADT/SIPI、每核 timer、调度大锁、每核 TSS/队列偷任务 |
 
@@ -93,7 +94,7 @@ cd ToyKernel
 ./build.sh riscv        # PR-A9：virt 串口 help/mem/ps/halt
 ./build.sh arm64
 ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
-# ./run-virt-arm.sh / ./run-virt-riscv.sh
+./run-virt-arm.sh --headless # PR-V6 virt 冒烟（见下文「Arm64 / RiscV」）
 ```
 
 产物：
@@ -113,6 +114,8 @@ cd ../ToyBoot && ./build.sh
 
 ## 在 QEMU 中运行
 
+### x86（UEFI + ToyImage）
+
 ```bash
 cd ../ToyImage
 ./run-split.sh                 # 唯一入口：盘0 ESP，盘1 rootfs/
@@ -126,6 +129,24 @@ TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
 `run-split.sh` 使用发行版 OVMF pflash、USB 键鼠、virtio-net（含 UDP/TCP hostfwd）。串口输出在启动终端（`toyos>` 提示符）。启动前会把 cwd 上的 `Kernel.elf`/`THEME.CFG` 等暂存，强制 Guest 只从第二盘加载。
 
 首次或变量盘损坏时，可用 `./run-split.sh --clean-nvram` 从 `OVMF_VARS.fd.clean` 恢复 NVRAM。
+
+### Arm64 / RiscV（自有 Boot virt — PR-V6）
+
+**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk），**不是**把 `ToyImage/run.sh` / `run-split.sh` 换成别的 arch，也**不**引入 AAVMF、`BOOTAA64.EFI`、RiscVVirt EDK2。路线图见 [`路线图.md`](路线图.md) 1.2d / 文末 V6 归档。
+
+```bash
+cd ToyKernel
+./build.sh arm64                 # 或 ./build.sh riscv
+./run-virt-arm.sh                # 默认：gtk 窗口 + 盘 + 键鼠（交互）
+./run-virt-riscv.sh
+./run-virt-arm.sh --headless     # CI：-nographic 冒烟后退出
+./run-virt-riscv.sh --headless
+./smoke-virt.sh                  # Arm+RiscV 连续无头冒烟
+./run-virt-arm.sh --serial       # 无 ramfb 的串口子集（A8）
+./run-virt-arm.sh --help
+```
+
+盘面由 `prepare-virt-rootfs.sh` 从 `../ToyImage/rootfs` 同步到 `virt-rootfs/`，经 QEMU `fat:rw` 挂到 virtio-blk。
 
 ---
 
