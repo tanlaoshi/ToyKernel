@@ -2,7 +2,7 @@
 
 ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）配合，构成完整的教学/实验用操作系统。
 
-更细的模块说明见 [`结构说明.md`](结构说明.md)，分层与 API 边界见 [`架构分层.md`](架构分层.md)，发展规划见 [`路线图.md`](路线图.md)。家/公司同步见 [`同步说明.md`](同步说明.md)。
+更细的模块说明见 [`结构说明.md`](结构说明.md)，分层与 API 边界见 [`架构分层.md`](架构分层.md)，发展规划见 [`路线图.md`](路线图.md)，标识符整改清单见 [`命名整改.md`](命名整改.md)。家/公司同步见 [`同步说明.md`](同步说明.md)。
 
 ---
 
@@ -132,7 +132,7 @@ TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
 
 ### Arm64 / RiscV（自有 Boot virt — PR-V6）
 
-**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk），**不是**把 `ToyImage/run.sh` / `run-split.sh` 换成别的 arch，也**不**引入 AAVMF、`BOOTAA64.EFI`、RiscVVirt EDK2。路线图见 [`路线图.md`](路线图.md) 1.2d / 文末 V6 归档。
+**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) 1.2d / 文末 V6 归档。
 
 ```bash
 cd ToyKernel
