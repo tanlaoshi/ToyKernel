@@ -18,6 +18,7 @@
 #include "Debug.h"
 #include "Font.h"
 #include "Theme.h"
+#include "Db.h"
 
 static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
@@ -89,7 +90,8 @@ static int InitFileSystemModule(void) {
 }
 
 static int InitGuiModule(void) {
-    /* FAT 已挂载：加载 THEME.CFG 后再 GuiRedraw，首帧即正确配色 */
+    /* FAT 已挂载：TOYOS.DB（可自 THEME.CFG 导入）→ ThemeLoad → 首帧配色 */
+    (void)DbInit();
     (void)ThemeLoad();
     GuiInit();
     return 0;

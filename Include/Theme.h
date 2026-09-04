@@ -1,8 +1,8 @@
 /*
  * Theme.h — 桌面/Shell 主题（PR-D2）+ FAT 持久化（PR-D6）+ 分辨率偏好（PR-D7）
  *
- * THEME.CFG：desktop/shell/font/mode；mode=WxH 供 ToyBoot GOP SetMode（重启生效）。
- * ThemeLoad 在 GuiInit 前；ThemeApply 末尾 ThemeSave（颜色/字体即时生效）。
+ * 偏好键 desktop/shell/font/mode：优先 TOYOS.DB（PR-DB1）；仍写 THEME.CFG
+ * 供 ToyBoot GOP SetMode（重启生效）。ThemeLoad 在 GuiInit 前；ThemeApply 末尾 ThemeSave。
  */
 #ifndef THEME_H
 #define THEME_H
@@ -36,9 +36,9 @@ void ThemeClearDisplayMode(void);
 /* 应用 FontId 与窗属性，再 GuiComposeThemeScene 一次提交；并 ThemeSave */
 void ThemeApply(void);
 
-/* PR-D6/D7：从 FAT 读 THEME.CFG；成功 0，无文件/解析失败 -1（保持当前值） */
+/* PR-DB1/D6/D7：优先 TOYOS.DB，否则 THEME.CFG；成功 0，皆无 -1（保持当前值） */
 int ThemeLoad(void);
-/* 写 THEME.CFG；成功 0，失败 -1 */
+/* 写 TOYOS.DB + THEME.CFG；CFG 失败则 -1 */
 int ThemeSave(void);
 
 #endif

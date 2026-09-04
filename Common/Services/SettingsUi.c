@@ -1,7 +1,7 @@
 /*
  * SettingsUi.c — Settings 一级/二级文字菜单（PR-D5）+ 分辨率（PR-D7）
  *
- * 分辨率只写 THEME.CFG mode=WxH。
+ * 分辨率经 ThemeSave → TOYOS.DB + THEME.CFG mode=WxH。
  * QEMU：退出后 ./run-split.sh（edid from rootfs）；真机：Guest reboot。
  * 勿依赖 Guest reboot 在 QEMU 上换分辨率。
  */

@@ -1,17 +1,15 @@
 /*
- * Theme.c — 主题存储（PR-D2）+ THEME.CFG（PR-D6）+ mode=WxH（PR-D7）
+ * Theme.c — 主题存储（PR-D2）+ THEME.CFG（PR-D6）+ mode=WxH（PR-D7）+ TOYOS.DB（PR-DB1）
  *
- * THEME.CFG 示例：
- *   desktop=404040
- *   shell=c0c0c0
- *   font=0
- *   mode=1024x768
+ * 运行时偏好优先读 TOYOS.DB；仍写 THEME.CFG 供 ToyBoot GOP SetMode。
+ * 键：desktop / shell / font / mode（与 THEME.CFG 同名）。
  */
 #include "Theme.h"
 #include "UI.h"
 #include "Font.h"
 #include "Gui.h"
 #include "FileSystem.h"
+#include "Db.h"
 #include "Hal.h"
 #include "Debug.h"
 
@@ -299,7 +297,29 @@ static void PutDec(char *Dst, UINT32 V, UINTN *Len) {
     }
 }
 
-int ThemeLoad(void) {
+static int ApplyDbKey(const char *Key) {
+    char Val[DB_VAL_MAX];
+    char Line[DB_KEY_MAX + DB_VAL_MAX + 2];
+    int i = 0;
+    int j;
+
+    if (DbGet(Key, Val, sizeof(Val)) != DB_OK) {
+        return 0;
+    }
+    while (Key[i] && i < DB_KEY_MAX - 1) {
+        Line[i] = Key[i];
+        i++;
+    }
+    Line[i++] = '=';
+    for (j = 0; Val[j] && i < (int)sizeof(Line) - 1; j++) {
+        Line[i++] = Val[j];
+    }
+    Line[i] = 0;
+    ApplyLine(Line);
+    return 1;
+}
+
+static int ThemeLoadFromCfg(void) {
     static char Buf[256];
     UINTN Size = 0;
     UINTN i;
@@ -325,8 +345,23 @@ int ThemeLoad(void) {
             Line[L++] = C;
         }
     }
+    return 0;
+}
+
+int ThemeLoad(void) {
+    int FromDb;
+
+    FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
+             ApplyDbKey("font") + ApplyDbKey("mode");
+    if (FromDb == 0) {
+        if (ThemeLoadFromCfg() != 0) {
+            return -1;
+        }
+        HalConsoleWriteSerial("theme: loaded THEME.CFG\n");
+    } else {
+        HalConsoleWriteSerial("theme: loaded TOYOS.DB\n");
+    }
     (void)FontSetById(gFontId);
-    HalConsoleWriteSerial("theme: loaded THEME.CFG\n");
     DebugWrite("theme: desktop=");
     DebugHex32(gDesktopBg);
     DebugWrite(" shell=");
@@ -347,9 +382,46 @@ int ThemeSave(void) {
     char Buf[160];
     UINTN N = 0;
     char Hex[7];
+    char FontVal[8];
+    char ModeVal[24];
+    UINTN ModeLen = 0;
     int i;
+    int DbOk = 1;
 
-    /* desktop=XXXXXX\nshell=XXXXXX\nfont=N\n[mode=WxH\n] */
+    PutHex6(Hex, gDesktopBg);
+    Hex[6] = 0;
+    if (DbSet("desktop", Hex) != DB_OK) {
+        DbOk = 0;
+    }
+    PutHex6(Hex, gShellClientBg);
+    if (DbSet("shell", Hex) != DB_OK) {
+        DbOk = 0;
+    }
+    FontVal[0] = 0;
+    N = 0;
+    if (gFontId >= 10) {
+        FontVal[N++] = (char)('0' + (gFontId / 10) % 10);
+    }
+    FontVal[N++] = (char)('0' + (gFontId % 10));
+    FontVal[N] = 0;
+    if (DbSet("font", FontVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (ThemeHasDisplayPref()) {
+        ModeLen = 0;
+        PutDec(ModeVal, gModeW, &ModeLen);
+        ModeVal[ModeLen++] = 'x';
+        PutDec(ModeVal, gModeH, &ModeLen);
+        ModeVal[ModeLen] = 0;
+        if (DbSet("mode", ModeVal) != DB_OK) {
+            DbOk = 0;
+        }
+    } else {
+        (void)DbDelete("mode");
+    }
+
+    /* 仍写 THEME.CFG：Boot 读 mode= 做 SetMode */
+    N = 0;
     Buf[N++] = 'd';
     Buf[N++] = 'e';
     Buf[N++] = 's';
@@ -382,10 +454,9 @@ int ThemeSave(void) {
     Buf[N++] = 'n';
     Buf[N++] = 't';
     Buf[N++] = '=';
-    if (gFontId >= 10) {
-        Buf[N++] = (char)('0' + (gFontId / 10) % 10);
+    for (i = 0; FontVal[i]; i++) {
+        Buf[N++] = FontVal[i];
     }
-    Buf[N++] = (char)('0' + (gFontId % 10));
     Buf[N++] = '\n';
 
     if (ThemeHasDisplayPref()) {
@@ -394,9 +465,9 @@ int ThemeSave(void) {
         Buf[N++] = 'd';
         Buf[N++] = 'e';
         Buf[N++] = '=';
-        PutDec(Buf, gModeW, &N);
-        Buf[N++] = 'x';
-        PutDec(Buf, gModeH, &N);
+        for (i = 0; ModeVal[i]; i++) {
+            Buf[N++] = ModeVal[i];
+        }
         Buf[N++] = '\n';
     }
     Buf[N] = 0;
@@ -405,6 +476,10 @@ int ThemeSave(void) {
         HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
         return -1;
     }
-    HalConsoleWriteSerial("theme: saved THEME.CFG\n");
+    if (!DbOk) {
+        HalConsoleWriteSerial("theme: saved THEME.CFG (DB write failed)\n");
+    } else {
+        HalConsoleWriteSerial("theme: saved TOYOS.DB + THEME.CFG\n");
+    }
     return 0;
 }
