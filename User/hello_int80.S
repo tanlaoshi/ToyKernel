@@ -1,4 +1,4 @@
-/* user/hello.S — Ring 3 演示：syscall write + exit */
+/* user/hello_int80.S — 旧版 Ring3：int 0x80 write + exit（教学对照；CRT 见 hello.c） */
     .intel_syntax noprefix
     .section .text
     .global _start
