@@ -9,7 +9,7 @@
 #define ELFDATA2LSB 1
 #define ET_EXEC     2
 #define ET_DYN      3
-#define EM_X86_64   62
+/* e_machine / R_* 按 arch：见 HalElfMachine / HalElfRelocKind（PR-A4） */
 #define PT_LOAD     1
 #define PT_DYNAMIC  2
 #define PT_INTERP   3
@@ -36,12 +36,6 @@
 #define STT_NOTYPE  0
 #define STT_OBJECT  1
 #define STT_FUNC    2
-
-#define R_X86_64_64        1
-#define R_X86_64_COPY      5
-#define R_X86_64_GLOB_DAT  6
-#define R_X86_64_JUMP_SLOT 7
-#define R_X86_64_RELATIVE  8
 
 #define ELF_R_SYM(I)  ((I) >> 32)
 #define ELF_R_TYPE(I) ((UINT32)(I))

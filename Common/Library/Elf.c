@@ -4,6 +4,7 @@
 #include "Elf.h"
 #include "PhysicalMemory.h"
 #include "Console.h"
+#include "Hal.h"
 
 static void MemZero(void *Ptr, UINTN Size) {
     UINT8 *B = (UINT8 *)Ptr;
@@ -33,7 +34,7 @@ static int ElfHeaderOk(const Elf64_Ehdr *Hdr, UINTN Size, UINT16 WantType) {
     if (Hdr->e_ident[4] != ELFCLASS64 || Hdr->e_ident[5] != ELFDATA2LSB) {
         return 0;
     }
-    if (Hdr->e_type != WantType || Hdr->e_machine != EM_X86_64) {
+    if (Hdr->e_type != WantType || Hdr->e_machine != HalElfMachine()) {
         return 0;
     }
     if (Hdr->e_phentsize != sizeof(Elf64_Phdr)) {
@@ -442,44 +443,48 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
         SymIdx = (UINT32)ELF_R_SYM(R->r_info);
         Dest = R->r_offset + Bias;
 
-        switch (Type) {
-        case R_X86_64_RELATIVE:
-            Value = Bias + (UINT64)R->r_addend;
-            break;
-        case R_X86_64_JUMP_SLOT:
-        case R_X86_64_GLOB_DAT:
-        case R_X86_64_64:
-            if (!HaveSym) {
-                ConsoleWrite("elf: reloc needs symtab\n");
+        {
+            HAL_ELF_RELOC_KIND Kind = HalElfRelocKind(Type);
+
+            switch (Kind) {
+            case HAL_ELF_RELOC_RELATIVE:
+                Value = Bias + (UINT64)R->r_addend;
+                break;
+            case HAL_ELF_RELOC_JUMP_SLOT:
+            case HAL_ELF_RELOC_GLOB_DAT:
+            case HAL_ELF_RELOC_ABS64:
+                if (!HaveSym) {
+                    ConsoleWrite("elf: reloc needs symtab\n");
+                    return -1;
+                }
+                {
+                    const Elf64_Sym *Sym;
+                    const char *Name;
+
+                    if (SymOff + (SymIdx + 1) * SymEnt > Size) {
+                        return -1;
+                    }
+                    Sym = (const Elf64_Sym *)(Bytes + SymOff + SymIdx * SymEnt);
+                    Name = (const char *)(Bytes + StrOff + Sym->st_name);
+                    Value = ElfLookupSymbol(Sos, SoCount, Name);
+                    if (Value == 0) {
+                        ConsoleWrite("elf: unresolved ");
+                        ConsoleWrite(Name);
+                        ConsoleWrite("\n");
+                        return -1;
+                    }
+                    if (Kind == HAL_ELF_RELOC_ABS64) {
+                        Value += (UINT64)R->r_addend;
+                    }
+                }
+                break;
+            case HAL_ELF_RELOC_COPY:
+                ConsoleWrite("elf: COPY reloc unsupported\n");
+                return -1;
+            default:
+                ConsoleWrite("elf: unsupported reloc\n");
                 return -1;
             }
-            {
-                const Elf64_Sym *Sym;
-                const char *Name;
-
-                if (SymOff + (SymIdx + 1) * SymEnt > Size) {
-                    return -1;
-                }
-                Sym = (const Elf64_Sym *)(Bytes + SymOff + SymIdx * SymEnt);
-                Name = (const char *)(Bytes + StrOff + Sym->st_name);
-                Value = ElfLookupSymbol(Sos, SoCount, Name);
-                if (Value == 0) {
-                    ConsoleWrite("elf: unresolved ");
-                    ConsoleWrite(Name);
-                    ConsoleWrite("\n");
-                    return -1;
-                }
-                if (Type == R_X86_64_64) {
-                    Value += (UINT64)R->r_addend;
-                }
-            }
-            break;
-        case R_X86_64_COPY:
-            ConsoleWrite("elf: COPY reloc unsupported\n");
-            return -1;
-        default:
-            ConsoleWrite("elf: unsupported reloc\n");
-            return -1;
         }
 
         if (VirtualMemoryCopyToUser(Dest, &Value, sizeof(Value)) < 0) {

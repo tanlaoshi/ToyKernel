@@ -58,10 +58,10 @@ VM_ADDR_SPACE *VirtualMemorySpaceCreate(void) {
     }
 
     HalPageRootCopy(Space->Root, HalPageKernelRoot());
-    /* 用户区 0x40000000 与内核恒等映射同属 PML4[0]；必须私有 PDPT 才能安全 fork */
-    if (HalPagePrivatizeRootSlot(Space->Root, 0,
-                                 (HalPageAllocateFunction)VirtualMemorySpaceAllocateAndTrack,
-                                 Space) != 0) {
+    /* 用户区与内核恒等映射可能共享根槽；由 HAL 决定如何私有化 */
+    if (HalPagePrepareUserRoot(Space->Root,
+                               (HalPageAllocateFunction)VirtualMemorySpaceAllocateAndTrack,
+                               Space) != 0) {
         VirtualMemorySpaceDestroy(Space);
         return 0;
     }
@@ -150,7 +150,7 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
         UINT64 End = UserDst + Len - 1;
         for (UINT64 Va = Start; Va <= End; Va += PAGE_SIZE) {
             UINT64 Pte = HalPageGetEntryCurrent(Va);
-            if ((Pte & PTE_COW) && !(Pte & HAL_PAGE_WRITABLE)) {
+            if (HalPageIsCow(Pte) && !(Pte & HAL_PAGE_WRITABLE)) {
                 if (VirtualMemoryHandlePageFault(Va, 0x7) != 0) {
                     return -1;
                 }
@@ -165,8 +165,8 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
 }
 
 /*
- * COW fork：共享用户物理页；原可写页双方去掉 W、打上 PTE_COW。
- * 页表仍私有（SpaceCreate 已 privatize PML4[0]）。
+ * COW fork：共享用户物理页；原可写页双方去掉 W、打上 COW（HalPageMarkCow）。
+ * 页表仍私有（SpaceCreate 已 HalPagePrepareUserRoot）。
  */
 VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
     VM_ADDR_SPACE *Dst;
@@ -191,13 +191,13 @@ VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
         Phys = Pte & ~0xFFFULL;
         SharedFlags = PTE_PRESENT | PTE_USER;
         if (Pte & HAL_PAGE_WRITABLE) {
-            SharedFlags |= PTE_COW;
+            SharedFlags = HalPageMarkCow(SharedFlags);
             if (HalPageMap(Src->Root, Va, Phys, SharedFlags, 0, 0) != 0) {
                 VirtualMemorySpaceDestroy(Dst);
                 return 0;
             }
-        } else if (Pte & PTE_COW) {
-            SharedFlags |= PTE_COW;
+        } else if (HalPageIsCow(Pte)) {
+            SharedFlags = HalPageMarkCow(SharedFlags);
         }
 
         if (PhysicalMemoryRetainPage((void *)(UINTN)Phys) != 0) {
@@ -233,7 +233,7 @@ int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode) {
     }
     Root = HalGetPageTable();
     Pte = HalPageGetEntry(Root, Va);
-    if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER) || !(Pte & PTE_COW)) {
+    if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER) || !HalPageIsCow(Pte)) {
         return -1;
     }
     if (Pte & HAL_PAGE_WRITABLE) {

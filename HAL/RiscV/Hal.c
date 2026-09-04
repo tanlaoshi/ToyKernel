@@ -120,6 +120,16 @@ void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
 int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
     (void)Root; (void)Index; (void)Alloc; (void)Ctx; return -1;
 }
+int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
+    (void)Root; (void)Alloc; (void)Ctx; return -1;
+}
+int HalPageIsCow(UINT64 Pte) {
+    (void)Pte;
+    return 0;
+}
+UINT64 HalPageMarkCow(UINT64 Flags) {
+    return Flags & ~HAL_PAGE_WRITABLE;
+}
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx) {
     (void)Root; (void)VirtualAddress; (void)PhysicalAddress; (void)Flags; (void)Alloc; (void)Ctx;
@@ -135,6 +145,15 @@ UINT64 HalPageGetEntryCurrent(UINT64 Virt) { (void)Virt; return 0; }
 
 const char *HalArchName(void) { return "riscv64"; }
 const char *HalCpuInfo(void) { return "RISC-V (virt bringup)"; }
+
+UINT16 HalElfMachine(void) {
+    return 243; /* EM_RISCV */
+}
+
+HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type) {
+    (void)Type;
+    return HAL_ELF_RELOC_UNSUPPORTED;
+}
 
 void HalDebugWrite(const char *Text) {
     HalSerialWrite(Text);

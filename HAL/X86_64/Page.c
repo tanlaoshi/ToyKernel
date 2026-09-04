@@ -205,6 +205,24 @@ int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction 
     return 0;
 }
 
+/*
+ * PR-A3：用户根私有化。x86 用户 VA 与恒等映射同属 PML4[0]，必须私有 PDPT。
+ */
+int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
+    return HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx);
+}
+
+/* x86 PTE 软件可用位 bit9：fork COW */
+#define HAL_X86_PTE_COW (1ULL << 9)
+
+int HalPageIsCow(UINT64 Pte) {
+    return (Pte & HAL_X86_PTE_COW) != 0;
+}
+
+UINT64 HalPageMarkCow(UINT64 Flags) {
+    return (Flags | HAL_X86_PTE_COW) & ~HAL_PAGE_WRITABLE;
+}
+
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx) {
     int User = (Flags & HAL_PAGE_USER) != 0;

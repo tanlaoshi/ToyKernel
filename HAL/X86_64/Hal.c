@@ -194,6 +194,28 @@ const char *HalCpuInfo(void) {
     return "x86-64 (ToyOS HAL)";
 }
 
+/* PR-A4：ELF e_machine = EM_X86_64 */
+UINT16 HalElfMachine(void) {
+    return 62;
+}
+
+HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type) {
+    switch (Type) {
+    case 8:  /* R_X86_64_RELATIVE */
+        return HAL_ELF_RELOC_RELATIVE;
+    case 1:  /* R_X86_64_64 */
+        return HAL_ELF_RELOC_ABS64;
+    case 6:  /* R_X86_64_GLOB_DAT */
+        return HAL_ELF_RELOC_GLOB_DAT;
+    case 7:  /* R_X86_64_JUMP_SLOT */
+        return HAL_ELF_RELOC_JUMP_SLOT;
+    case 5:  /* R_X86_64_COPY */
+        return HAL_ELF_RELOC_COPY;
+    default:
+        return HAL_ELF_RELOC_UNSUPPORTED;
+    }
+}
+
 void HalDebugWrite(const char *Text) {
     HalSerialWrite(Text);
 }

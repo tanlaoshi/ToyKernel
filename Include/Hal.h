@@ -87,11 +87,33 @@ UINT64 HalPageRootCreate(HalPageAllocateFunction Alloc, void *Ctx);
 void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot);
 /* 将根表槽 Index 换成私有下一级表（x86：PML4→PDPT）；fork 浅拷贝后必须私有化 */
 int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx);
+/*
+ * PR-A3：用户地址空间根表准备（x86：私有化槽 0 / PDPT）。
+ * Common 不写死根槽号或 PML4[0]。
+ */
+int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx);
+/* PR-A3：COW 软件语义（x86 用 PTE 可用位 bit9；其它 arch 自选布局） */
+int HalPageIsCow(UINT64 Pte);
+UINT64 HalPageMarkCow(UINT64 Flags); /* 置 COW、清 WRITABLE */
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx);
 int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End);
 UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt);
 UINT64 HalPageGetEntryCurrent(UINT64 Virt);
+
+/* PR-A4：ELF 机器号与重定位分类（Common 不写死 EM_X86_64 / R_X86_64_*） */
+UINT16 HalElfMachine(void);
+
+typedef enum {
+    HAL_ELF_RELOC_UNSUPPORTED = 0,
+    HAL_ELF_RELOC_RELATIVE,
+    HAL_ELF_RELOC_ABS64,
+    HAL_ELF_RELOC_GLOB_DAT,
+    HAL_ELF_RELOC_JUMP_SLOT,
+    HAL_ELF_RELOC_COPY
+} HAL_ELF_RELOC_KIND;
+
+HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type);
 
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
