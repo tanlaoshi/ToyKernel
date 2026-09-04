@@ -75,6 +75,8 @@ static int InitCpu(void) {
     }
     HalTimerInit();
     HalSyscallInit();
+    /* PR-V3：virtio-input；失败可无头继续（仍有串口） */
+    (void)HalUsbInit();
     return 0;
 }
 
@@ -141,12 +143,14 @@ static const MODULE gModulesFull[] = {
     { "console", InitConsole },
 };
 
-/* PR-A8：virt 子集 — 无 video/usb/fs/net/gui/smp */
+/* PR-V2/V3/V4：virt — video + fs（virtio-blk）；输入在 InitCpu；仍无 gui/smp/net */
 static const MODULE gModulesVirt[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
     { "vmm",     InitVmm },
+    { "video",   InitVideo },
     { "cpu",     InitCpu },
+    { "fs",      InitFileSystemModule },
     { "sched",   InitSched },
     { "console", InitConsole },
 };

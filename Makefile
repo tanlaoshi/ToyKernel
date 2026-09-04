@@ -183,6 +183,10 @@ USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o User/crt/string.o \
 	User/crt/printf.o User/crt/malloc.o User/crt/errno.o User/crt/unistd.o
 else
 EXTRA_OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o
+# PR-V2：复用 x86 帧缓冲绘制（scanout 由该 Arch ramfb 填入 BOOT_INFO）
+INCLUDES_HAL += -IHAL/X86_64/Drivers
+VIRT_VIDEO_OBJ = $(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/Video.o
+EXTRA_OBJS += $(VIRT_VIDEO_OBJ)
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -237,6 +241,12 @@ $(BUILDDIR)/Fonts/%.o: Fonts/%.c | $(BUILDDIR)
 $(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+ifneq ($(ARCH),x86_64)
+$(VIRT_VIDEO_OBJ): HAL/X86_64/Drivers/Video.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+endif
 
 $(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)

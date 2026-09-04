@@ -1,4 +1,5 @@
 Build/
+virt-rootfs/
 ThirdParty/lwip/
 
 # 遗留根目录产物（旧 Makefile）

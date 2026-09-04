@@ -14,6 +14,7 @@
 #include "Font.h"
 #include "SettingsUi.h"
 #include "Locale.h"
+#include "HIDKeyboard.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -568,12 +569,15 @@ void ConsoleOnEnter(void) {
     ConsolePromptAfterCommand();
 }
 
-/* PR-A9：virt 串口轮询（Common 调 Hal*；不进 HAL） */
+/* PR-A9/V3：virt 串口 + virtio-input 键盘（Common 调 Hal*；不进 HAL） */
 void ConsoleSerialRun(void) {
-    HalConsoleWriteSerial("virt: serial shell (help/mem/ps/halt)\n");
+    static HAL_KEYBOARD_REPORT Prev;
+    HAL_KEYBOARD_REPORT Report;
+    HalConsoleWriteSerial("virt: serial shell (help/mem/ps/halt; kbd via virtio-input)\n");
     Prompt();
     for (;;) {
         HalTimerPoll();
+        HalInputPoll();
         if (HalSerialDataReady()) {
             char C = HalSerialReadChar();
             if (C == '\r' || C == '\n') {
@@ -585,6 +589,37 @@ void ConsoleSerialRun(void) {
             } else {
                 ConsoleOnChar(C);
             }
+        }
+        while (HalKeyboardDequeue(&Report)) {
+            int i;
+            for (i = 0; i < 6; i++) {
+                UINT8 Key = Report.KeyCode[i];
+                int Was = 0;
+                int j;
+                if (Key == 0) {
+                    continue;
+                }
+                for (j = 0; j < 6; j++) {
+                    if (Prev.KeyCode[j] == Key) {
+                        Was = 1;
+                        break;
+                    }
+                }
+                if (Was) {
+                    continue;
+                }
+                if (Key == 0x28) { /* ENTER */
+                    ConsoleOnEnter();
+                } else if (Key == 0x2A) { /* BACKSPACE */
+                    ConsoleOnBackspace();
+                } else {
+                    char C = HIDKeyCodeToASCII(Key, Report.ModifierKeys);
+                    if (C) {
+                        ConsoleOnChar(C);
+                    }
+                }
+            }
+            Prev = Report;
         }
         HalCpuRelax();
     }

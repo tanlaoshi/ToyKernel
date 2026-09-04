@@ -1,13 +1,16 @@
 /*
- * Startup.c — QEMU virt riscv64：OpenSBI + DTB → BOOT_INFO（PR-V1）
+ * Startup.c — QEMU virt riscv64：OpenSBI + DTB → BOOT_INFO（PR-V1）/ ramfb（PR-V2）
  */
 #include "HalSerial.h"
 #include "Hal.h"
 #include "BootInfo.h"
 #include "Kernel.h"
 #include "Dtb.h"
+#include "Ramfb.h"
 
 extern char __kernel_end[];
+
+#define RISCV_VIRT_FWCFG_FALLBACK 0x10100000ULL
 
 #if TOY_BRINGUP
 
@@ -53,6 +56,7 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     UINT64 RamBase = 0x80000000ULL;
     UINT64 RamSize = 256ULL * 1024ULL * 1024ULL;
     UINT64 FreeStart;
+    UINT64 FwCfg = 0;
     UINTN i;
     int FromDtb;
 
@@ -85,7 +89,15 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
         FreeStart = FirmwareEnd;
     }
 
-    /* [RamBase, FreeStart) = OpenSBI + 内核（保留）；其后可分配 */
+    if (FromDtb && DtbPhys != 0 && DtbFwCfgBase(DtbPhys, &FwCfg) != 0) {
+        FwCfg = 0;
+    }
+    if (FwCfg == 0) {
+        FwCfg = RISCV_VIRT_FWCFG_FALLBACK;
+    }
+    (void)RamfbSetup(&Info, FwCfg, &FreeStart, RamBase + RamSize);
+
+    /* [RamBase, FreeStart) = OpenSBI + 内核 + FB（保留）；其后可分配 */
     if (FreeStart > RamBase && FreeStart - RamBase <= RamSize) {
         BootInfoAddRegion(&Info, RamBase, FreeStart - RamBase, 0);
         if (FreeStart < RamBase + RamSize) {

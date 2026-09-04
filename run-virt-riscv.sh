@@ -1,7 +1,7 @@
 #!/bin/bash
-# QEMU virt riscv64：PR-V1 OpenSBI+DTB / PR-A9 串口
-# 默认走 QEMU 自带 OpenSBI（内核 @0x80200000）。
-# A6 hello 对照：TOY_RISCV_BIOS_NONE=1 时 -bios none（需内核仍链在 0x80000000 的旧产物）。
+# QEMU virt riscv64：PR-V3/V4 输入+块 / PR-V2 ramfb / PR-V1 OpenSBI
+# 默认 OpenSBI；TOY_RISCV_BIOS_NONE=1 旧对照
+# 无盘：TOY_VIRT_NODISK=1；窗口：TOY_VIRT_GUI=1
 set -e
 cd "$(dirname "$0")"
 
@@ -23,6 +23,8 @@ if ! command -v "$QEMU" >/dev/null 2>&1; then
     fi
 fi
 
+./prepare-virt-rootfs.sh >/dev/null
+
 OUT=$(mktemp)
 cleanup() {
     if [ -n "${QPID:-}" ]; then
@@ -36,23 +38,39 @@ trap cleanup EXIT
 BIOS_ARGS=()
 if [ "${TOY_RISCV_BIOS_NONE:-0}" = "1" ]; then
     BIOS_ARGS=(-bios none)
-    echo "run: $QEMU -M virt -bios none -m $MEM -nographic -kernel $ELF"
-else
-    echo "run: $QEMU -M virt -m $MEM -nographic -kernel $ELF  # OpenSBI default"
 fi
 
-printf '\nhelp\nmem\nps\nhalt\n' | "$QEMU" -M virt "${BIOS_ARGS[@]}" -m "$MEM" -nographic -kernel "$ELF" \
+DISP_ARGS=(-device ramfb)
+SERIAL_ARGS=(-nographic)
+DEV_ARGS=(-device virtio-keyboard-device -device virtio-tablet-device)
+if [ "${TOY_VIRT_NODISK:-0}" != "1" ]; then
+    DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=fat:rw:virt-rootfs"
+               -device virtio-blk-device,drive=toyroot)
+fi
+if [ "${TOY_VIRT_GUI:-0}" = "1" ]; then
+    SERIAL_ARGS=(-serial mon:stdio)
+    DISP_ARGS+=(-display "${TOY_VIRT_DISPLAY:-gtk}")
+fi
+
+echo "run: $QEMU -M virt … ${SERIAL_ARGS[*]} ramfb + input + blk"
+printf '\nhelp\nvols\nls\ncat THEME.CFG\nmem\nhalt\n' | "$QEMU" -M virt "${BIOS_ARGS[@]}" -m "$MEM" \
+    "${SERIAL_ARGS[@]}" "${DISP_ARGS[@]}" "${DEV_ARGS[@]}" \
+    -kernel "$ELF" \
     >"$OUT" 2>&1 &
 QPID=$!
-for _ in $(seq 1 80); do
+for _ in $(seq 1 120); do
     if grep -q 'ToyOS RiscV virt: hello' "$OUT" 2>/dev/null; then
         cat "$OUT"
         exit 0
     fi
     if grep -q 'virt: serial shell' "$OUT" 2>/dev/null \
-        && grep -q 'physical memory' "$OUT" 2>/dev/null; then
-        cat "$OUT"
-        exit 0
+        && grep -q '\[mod\] video' "$OUT" 2>/dev/null \
+        && grep -q '\[mod\] fs' "$OUT" 2>/dev/null; then
+        if [ "${TOY_VIRT_NODISK:-0}" = "1" ] || grep -q 'THEME' "$OUT" 2>/dev/null \
+            || grep -q 'TOYOS' "$OUT" 2>/dev/null; then
+            cat "$OUT"
+            exit 0
+        fi
     fi
     if ! kill -0 "$QPID" 2>/dev/null; then
         break
@@ -60,5 +78,5 @@ for _ in $(seq 1 80); do
     sleep 0.25
 done
 cat "$OUT"
-echo "error: timeout waiting for RiscV virt serial" >&2
+echo "error: timeout waiting for RiscV virt V3/V4" >&2
 exit 1

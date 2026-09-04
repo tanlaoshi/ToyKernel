@@ -1,22 +1,24 @@
 /*
- * HalDevices.c — RISC-V 设备 HAL 占位
+ * HalDevices.c — RiscV：virtio-blk + virtio-input（PR-V3/V4）
  */
 #include "Hal.h"
+#include "VirtioBlk.h"
+#include "VirtioInput.h"
 
 int HalBlockInit(void) {
-    return -1;
+    return VirtioBlkInit();
 }
 
 int HalUsbInit(void) {
-    return 0;
+    return VirtioInputInit();
 }
 
 void HalInputPoll(void) {
+    VirtioInputPoll();
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
-    (void)Report;
-    return 0;
+    return VirtioInputKeyboardDequeue(Report);
 }
 
 int HalKeyboardSetLeds(UINT8 Leds) {
@@ -25,12 +27,11 @@ int HalKeyboardSetLeds(UINT8 Leds) {
 }
 
 int HalMousePresent(void) {
-    return 0;
+    return VirtioInputMousePresent();
 }
 
 int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
-    (void)Report;
-    return 0;
+    return VirtioInputMouseDequeue(Report);
 }
 
 int HalNetInit(void) {

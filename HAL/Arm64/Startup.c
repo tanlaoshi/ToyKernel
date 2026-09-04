@@ -1,5 +1,5 @@
 /*
- * Startup.c — QEMU virt aarch64：DTB → BOOT_INFO（PR-V1）/ BRINGUP hello
+ * Startup.c — QEMU virt aarch64：DTB → BOOT_INFO（PR-V1）/ ramfb（PR-V2）
  *
  * QEMU 对 ELF -kernel 不走 Linux 启动协议（x0 常为 0）。run-virt-arm.sh
  * 用 dumpdtb + -device loader 把 FDT 放到 ARM64_VIRT_DTB_ADDR。
@@ -9,11 +9,13 @@
 #include "BootInfo.h"
 #include "Kernel.h"
 #include "Dtb.h"
+#include "Ramfb.h"
 
 extern char __kernel_end[];
 
 /* 与 run-virt-arm.sh 中 loader addr 一致（落在 ≥256MiB RAM 内） */
 #define ARM64_VIRT_DTB_ADDR 0x4a000000ULL
+#define ARM64_VIRT_FWCFG_FALLBACK 0x09020000ULL
 
 #if TOY_BRINGUP
 
@@ -65,6 +67,7 @@ void StartupMain(UINT64 DtbPhys) {
     UINT64 FreeStart;
     UINT64 ReserveEnd;
     UINT64 UsedDtb = 0;
+    UINT64 FwCfg = 0;
     UINTN i;
     int FromDtb;
 
@@ -103,6 +106,15 @@ void StartupMain(UINT64 DtbPhys) {
     if (FreeStart < KernelStart) {
         FreeStart = KernelStart;
     }
+
+    if (UsedDtb != 0 && DtbFwCfgBase(UsedDtb, &FwCfg) != 0) {
+        FwCfg = 0;
+    }
+    if (FwCfg == 0) {
+        FwCfg = ARM64_VIRT_FWCFG_FALLBACK;
+    }
+    (void)RamfbSetup(&Info, FwCfg, &FreeStart, RamBase + RamSize);
+
     ReserveEnd = FreeStart;
     if (ReserveEnd < RamBase) {
         ReserveEnd = RamBase;

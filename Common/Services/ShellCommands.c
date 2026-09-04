@@ -658,6 +658,7 @@ static void CommandHalt(int Argc, char **Argv) {
 void ShellCommandsRegisterVirtMin(void) {
     ConsoleRegister("ps", "list tasks", CommandPs);
     ConsoleRegister("mem", "physical memory stats", CommandMem);
+    ConsoleRegister("exec", "load ELF (TOYOS:FILE)", CommandExec);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
 }
 

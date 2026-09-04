@@ -1,126 +1,133 @@
 /*
- * HAL/RiscV/HalVideo.c — 帧缓冲门面桩（无 GOP；PR-A7 可链接）
+ * HAL/Arm64/HalVideo.c — 帧缓冲门面，委托 Drivers/Video（PR-V2 ramfb scanout）
  */
 #include "HalVideo.h"
+#include "Video.h"
+#include "PhysicalMemory.h"
 
-void HalVideoSet(const VIDEO_CONFIG *Config) { (void)Config; }
-void HalVideoInitBackbuffer(void) { }
-void HalVideoPresent(void) { }
-int HalVideoBackbufferEnabled(void) { return 0; }
+void HalVideoSet(const VIDEO_CONFIG *Config) {
+    VIDEO_CONFIG Local;
+
+    if (!Config) {
+        Local.FrameBufferBase = 0;
+        Local.FrameBufferSize = 0;
+        Local.HorizontalResolution = 0;
+        Local.VerticalResolution = 0;
+        Local.PixelsPerScanLine = 0;
+    } else {
+        Local = *Config;
+    }
+    VideoSet(&Local);
+}
+
+void HalVideoInitBackbuffer(void) {
+    UINT32 W;
+    UINT32 H;
+    UINT64 Bytes;
+    UINT32 Pages;
+    UINT32 *Buf;
+
+    VideoGetSize(&W, &H);
+    if (W == 0 || H == 0) {
+        return;
+    }
+    Bytes = (UINT64)W * (UINT64)H * sizeof(UINT32);
+    Pages = (UINT32)((Bytes + PAGE_SIZE - 1) / PAGE_SIZE);
+    if (Pages == 0) {
+        return;
+    }
+    Buf = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
+    if (Buf == 0) {
+        return;
+    }
+    VideoSetBackbuffer(Buf, Pages);
+}
+
+void HalVideoPresent(void) {
+    VideoPresent();
+}
+
+int HalVideoBackbufferEnabled(void) {
+    return VideoBackbufferEnabled();
+}
 
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height) {
-    if (Width) {
-        *Width = 0;
-    }
-    if (Height) {
-        *Height = 0;
-    }
+    VideoGetSize(Width, Height);
 }
 
 void HalVideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {
-    (void)X;
-    (void)Y;
-    (void)Color;
+    VideoDrawPixel(X, Y, Color);
 }
 
 void HalVideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color) {
-    (void)X;
-    (void)Y;
-    (void)Color;
+    VideoDrawPixelRaw(X, Y, Color);
 }
 
 UINT32 HalVideoReadPixel(UINT32 X, UINT32 Y) {
-    (void)X;
-    (void)Y;
-    return 0;
+    return VideoReadPixel(X, Y);
 }
 
 void HalVideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color) {
-    (void)X;
-    (void)Y;
-    (void)Width;
-    (void)Height;
-    (void)Color;
+    VideoFillRect(X, Y, Width, Height, Color);
 }
 
 void HalVideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
                       UINT32 Width, UINT32 Height) {
-    (void)SrcX;
-    (void)SrcY;
-    (void)DstX;
-    (void)DstY;
-    (void)Width;
-    (void)Height;
+    VideoCopyRect(SrcX, SrcY, DstX, DstY, Width, Height);
 }
 
 void HalVideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out) {
-    (void)X;
-    (void)Y;
-    (void)Width;
-    (void)Height;
-    (void)Out;
+    VideoReadRect(X, Y, Width, Height, Out);
 }
 
 void HalVideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UINT32 *In) {
-    (void)X;
-    (void)Y;
-    (void)Width;
-    (void)Height;
-    (void)In;
+    VideoWriteRect(X, Y, Width, Height, In);
 }
 
-void HalVideoClearScreen(UINT32 Color) { (void)Color; }
+void HalVideoClearScreen(UINT32 Color) {
+    VideoClearScreen(Color);
+}
+
 void HalVideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
-    (void)X;
-    (void)Y;
-    (void)C;
-    (void)Color;
+    VideoDrawCharAt(X, Y, C, Color);
 }
+
 void HalVideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
-    (void)X;
-    (void)Y;
-    (void)Cp;
-    (void)Color;
+    VideoDrawCodepointAt(X, Y, Cp, Color);
 }
+
 void HalVideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
-    (void)X;
-    (void)Y;
-    (void)Text;
-    (void)Color;
+    VideoDrawStringAt(X, Y, Text, Color);
 }
+
 void HalVideoDrawChar(char C, UINT32 Color) {
-    (void)C;
-    (void)Color;
+    VideoDrawChar(C, Color);
 }
+
 void HalVideoDrawString(const char *Text, UINT32 Color) {
-    (void)Text;
-    (void)Color;
+    VideoDrawString(Text, Color);
 }
-void HalVideoEraseLastChar(void) { }
+
+void HalVideoEraseLastChar(void) {
+    VideoEraseLastChar();
+}
+
 void HalVideoSetClipRegion(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Background) {
-    (void)X;
-    (void)Y;
-    (void)Width;
-    (void)Height;
-    (void)Background;
+    VideoSetClipRegion(X, Y, Width, Height, Background);
 }
+
 void HalVideoSetClipOrigin(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Background) {
-    (void)X;
-    (void)Y;
-    (void)Width;
-    (void)Height;
-    (void)Background;
+    VideoSetClipOrigin(X, Y, Width, Height, Background);
 }
+
 void HalVideoGetTextCursor(UINT32 *X, UINT32 *Y) {
-    if (X) {
-        *X = 0;
-    }
-    if (Y) {
-        *Y = 0;
-    }
+    VideoGetTextCursor(X, Y);
 }
+
 void HalVideoSetTextCursor(UINT32 X, UINT32 Y) {
-    (void)X;
-    (void)Y;
+    VideoSetTextCursor(X, Y);
 }
-void HalVideoClearClip(void) { }
+
+void HalVideoClearClip(void) {
+    VideoClearClip();
+}
