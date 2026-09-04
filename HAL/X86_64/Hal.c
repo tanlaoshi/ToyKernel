@@ -227,6 +227,14 @@ void HalUserEnter(struct HAL_FRAME *Frame) {
     UserEnter(Frame);
 }
 
+void HalUserCoopEnter(UINT64 Ksp, struct HAL_FRAME *Frame) {
+    (void)Ksp;
+    (void)Frame;
+}
+
+void HalUserCoopReturn(void) {
+}
+
 const char *HalArchName(void) {
     return "x86_64";
 }
@@ -255,6 +263,11 @@ HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type) {
     default:
         return HAL_ELF_RELOC_UNSUPPORTED;
     }
+}
+
+void HalSyncICache(void *Addr, UINTN Size) {
+    (void)Addr;
+    (void)Size;
 }
 
 void HalDebugWrite(const char *Text) {

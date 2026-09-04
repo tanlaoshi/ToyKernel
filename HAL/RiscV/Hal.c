@@ -253,9 +253,26 @@ UINT16 HalElfMachine(void) {
     return 243; /* EM_RISCV */
 }
 
+/* PR-A12：RISC-V ELF reloc → Common Elf.c 可处理 kind */
 HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type) {
-    (void)Type;
-    return HAL_ELF_RELOC_UNSUPPORTED;
+    switch (Type) {
+    case 3: /* R_RISCV_RELATIVE */
+        return HAL_ELF_RELOC_RELATIVE;
+    case 2: /* R_RISCV_64 */
+        return HAL_ELF_RELOC_ABS64;
+    case 5: /* R_RISCV_JUMP_SLOT */
+        return HAL_ELF_RELOC_JUMP_SLOT;
+    case 4: /* R_RISCV_COPY */
+        return HAL_ELF_RELOC_COPY;
+    default:
+        return HAL_ELF_RELOC_UNSUPPORTED;
+    }
+}
+
+void HalSyncICache(void *Addr, UINTN Size) {
+    (void)Addr;
+    (void)Size;
+    __asm__ volatile("fence.i" ::: "memory");
 }
 
 void HalDebugWrite(const char *Text) {

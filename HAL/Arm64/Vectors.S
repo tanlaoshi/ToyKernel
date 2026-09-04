@@ -235,6 +235,17 @@ HalUserEnter:
     ldp     x0, x1, [x0, #0]
     eret
 
+    /* PR-A12：与 SelfTestEnter/Return 同实现（协作 drain 复用返回槽） */
+    .global HalUserCoopEnter
+    .type HalUserCoopEnter, %function
+HalUserCoopEnter:
+    b       HalUserSelfTestEnter
+
+    .global HalUserCoopReturn
+    .type HalUserCoopReturn, %function
+HalUserCoopReturn:
+    b       HalUserSelfTestReturn
+
     .global HalUserSelfTestReturn
     .type HalUserSelfTestReturn, %function
 HalUserSelfTestReturn:

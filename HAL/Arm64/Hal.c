@@ -241,9 +241,41 @@ UINT16 HalElfMachine(void) {
     return 183; /* EM_AARCH64 */
 }
 
+/* PR-A12：AArch64 ELF reloc → Common Elf.c 可处理 kind */
 HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type) {
-    (void)Type;
-    return HAL_ELF_RELOC_UNSUPPORTED;
+    switch (Type) {
+    case 1027: /* R_AARCH64_RELATIVE */
+        return HAL_ELF_RELOC_RELATIVE;
+    case 257:  /* R_AARCH64_ABS64 */
+        return HAL_ELF_RELOC_ABS64;
+    case 1025: /* R_AARCH64_GLOB_DAT */
+        return HAL_ELF_RELOC_GLOB_DAT;
+    case 1026: /* R_AARCH64_JUMP_SLOT */
+        return HAL_ELF_RELOC_JUMP_SLOT;
+    case 1024: /* R_AARCH64_COPY */
+        return HAL_ELF_RELOC_COPY;
+    default:
+        return HAL_ELF_RELOC_UNSUPPORTED;
+    }
+}
+
+void HalSyncICache(void *Addr, UINTN Size) {
+    UINT8 *P = (UINT8 *)Addr;
+    UINT8 *End;
+    UINT64 Line = 64;
+
+    if (!Addr || Size == 0) {
+        return;
+    }
+    End = P + Size;
+    for (; P < End; P += Line) {
+        __asm__ volatile("dc cvau, %0" ::"r"(P) : "memory");
+    }
+    __asm__ volatile("dsb ish" ::: "memory");
+    for (P = (UINT8 *)Addr; P < End; P += Line) {
+        __asm__ volatile("ic ivau, %0" ::"r"(P) : "memory");
+    }
+    __asm__ volatile("dsb ish\n isb" ::: "memory");
 }
 
 void HalDebugWrite(const char *Text) {

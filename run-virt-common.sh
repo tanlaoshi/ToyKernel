@@ -116,6 +116,10 @@ toy_virt_ensure_elf() {
         echo "error: missing $TOY_VIRT_ELF" >&2
         exit 1
     fi
+    # PR-A12：确保本 arch HELLO.ELF 已构建（prepare 会装入盘）
+    if [ ! -f "Build/$TOY_VIRT_MAKE_ARCH/user/hello.elf" ]; then
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" BRINGUP=0 "Build/$TOY_VIRT_MAKE_ARCH/user/hello.elf"
+    fi
 }
 
 toy_virt_build_dev_args() {
@@ -130,6 +134,7 @@ toy_virt_build_dev_args() {
     fi
 
     if [ "${TOY_VIRT_NODISK:-0}" != "1" ]; then
+        export TOY_VIRT_MAKE_ARCH
         ./prepare-virt-rootfs.sh >/dev/null
         # N10：用 raw FAT 镜像，避免 QEMU fat:rw(vvfat) 与 virtio-net 同机 TX 故障
         DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=virt-rootfs.img"
@@ -202,9 +207,6 @@ toy_virt_run_interactive() {
 
 toy_virt_smoke_ok() {
     local Out="$1"
-    if [ -n "${TOY_VIRT_HELLO_PAT:-}" ] && grep -q "$TOY_VIRT_HELLO_PAT" "$Out" 2>/dev/null; then
-        return 0
-    fi
     if ! grep -qE 'user: (back in EL1|back in S-mode|EL0 syscall ok|U-mode syscall ok)' "$Out" 2>/dev/null; then
         return 1
     fi
@@ -233,7 +235,11 @@ toy_virt_smoke_ok() {
     if [ "${TOY_VIRT_NODISK:-0}" = "1" ]; then
         return 0
     fi
-    grep -qE 'default=TOYOS|TOYOS:|THEME' "$Out" 2>/dev/null
+    if ! grep -qE 'default=TOYOS|TOYOS:|THEME' "$Out" 2>/dev/null; then
+        return 1
+    fi
+    # PR-A12：本 arch exec HELLO.ELF
+    grep -qE 'Hello Ring3' "$Out" 2>/dev/null
 }
 
 toy_virt_run_headless() {
@@ -272,6 +278,10 @@ toy_virt_run_headless() {
     local Cmds=$'\nhelp\nvols\nls\ncat THEME.CFG\nmem\n'
     if [ "$TOY_VIRT_MODE" != "serial" ] && [ "${TOY_VIRT_NONET:-0}" != "1" ]; then
         Cmds+=$'ping 10.0.2.2\n'
+    fi
+    # PR-A12：本 arch HELLO.ELF
+    if [ "${TOY_VIRT_NODISK:-0}" != "1" ]; then
+        Cmds+=$'exec HELLO.ELF\n'
     fi
     Cmds+=$'halt\n'
     printf '%s' "$Cmds" | "${Cmd[@]}" >"$Out" 2>&1 &

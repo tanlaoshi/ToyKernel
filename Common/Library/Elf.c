@@ -86,6 +86,8 @@ static int ElfMapSegment(VM_ADDR_SPACE *Space, const UINT8 *Image,
             PhysicalMemoryFreePage(Page);
             return -1;
         }
+        /* Arm/RiscV：可执行映像经 D-cache 写入后须刷 I-cache（PR-A12） */
+        HalSyncICache(Page, PAGE_SIZE);
     }
     return 0;
 }

@@ -87,6 +87,11 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "Copied Build/Kernel.elf -> ../ToyImage/"
 else
     echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
+    if [ "$BRINGUP" = "0" ] && [ -f "Build/$ARCH/user/hello.elf" ]; then
+        mkdir -p virt-rootfs
+        cp -f "Build/$ARCH/user/hello.elf" virt-rootfs/HELLO.ELF
+        echo "Copied Build/$ARCH/user/hello.elf -> virt-rootfs/HELLO.ELF"
+    fi
 fi
 
 ls -lh "$ELF"

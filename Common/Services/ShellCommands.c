@@ -107,7 +107,10 @@ static void CommandExec(int Argc, char **Argv) {
         return;
     }
     if (ProcessExec(Argv[1]) == 0) {
-        ConsoleWaitPrompt();
+        /* virt：ProcessExec 内已协作跑完并 ShowPrompt；x86 等定时器收尸 */
+        if (!HalPlatformVirtConsole()) {
+            ConsoleWaitPrompt();
+        }
     }
 }
 

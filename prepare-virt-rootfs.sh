@@ -17,6 +17,14 @@ if [ -d "$IMG_ROOT" ]; then
     done
 fi
 
+# PR-A12：本 arch 用户 HELLO 覆盖盘上的 x86 机型
+ARCH="${TOY_VIRT_MAKE_ARCH:-}"
+if [ -n "$ARCH" ] && [ -f "Build/$ARCH/user/hello.elf" ]; then
+    cp -f "Build/$ARCH/user/hello.elf" "$ROOT/HELLO.ELF"
+elif [ -f virt-rootfs/HELLO.ELF ] && [ -n "$ARCH" ]; then
+    : # already staged by build.sh
+fi
+
 if [ ! -f "$ROOT/TOYOS.ID" ]; then
     printf "ToyOS root volume\n" > "$ROOT/TOYOS.ID"
 fi

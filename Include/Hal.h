@@ -134,6 +134,16 @@ typedef enum {
 
 HAL_ELF_RELOC_KIND HalElfRelocKind(UINT32 Type);
 
+/* PR-A12：装载可执行页后同步 I-cache（x86 空；Arm/RiscV 必需） */
+void HalSyncICache(void *Addr, UINTN Size);
+
+/*
+ * PR-A12：virt 无抢占时，从内核任务协作进入用户帧并在 exit 时返回。
+ * 实现复用 SelfTestEnter/Return（Arm/RiscV）；x86 不调用。
+ */
+void HalUserCoopEnter(UINT64 Ksp, struct HAL_FRAME *Frame);
+void HalUserCoopReturn(void);
+
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
 

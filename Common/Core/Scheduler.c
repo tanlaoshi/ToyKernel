@@ -1099,6 +1099,61 @@ UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
     return Ret;
 }
 
+static int gCoopDrain;
+
+void SchedulerCoopDrainUsers(void) {
+    TASK *Host;
+    UINT32 Cpu;
+    int i;
+
+    if (!HalPlatformVirtConsole()) {
+        return;
+    }
+
+    Host = CurrentTask();
+    if (!Host || Host->IsUser) {
+        return;
+    }
+
+    gCoopDrain = 1;
+    Cpu = HalCpuId();
+
+    for (;;) {
+        TASK *U = 0;
+        UINT64 Ksp;
+
+        SpinLockAcquire(&gSchedLock);
+        for (i = 0; i < MAX_TASKS; i++) {
+            if (gTasks[i].State == TASK_READY && gTasks[i].IsUser &&
+                gTasks[i].Frame != 0) {
+                U = &gTasks[i];
+                break;
+            }
+        }
+        if (!U) {
+            SpinLockRelease(&gSchedLock);
+            break;
+        }
+        ActivateTask(U);
+        U->Started = 1;
+        Ksp = (UINT64)(UINTN)(U->Stack + sizeof(U->Stack));
+        SpinLockRelease(&gSchedLock);
+
+        HalSetKernelStack(Ksp);
+        HalUserCoopEnter(Ksp, U->Frame);
+
+        /* exit → HalUserCoopReturn；恢复宿主内核任务 */
+        SpinLockAcquire(&gSchedLock);
+        ActivateTask(Host);
+        Host->State = TASK_RUNNING;
+        Host->OnCpu = (INT32)Cpu;
+        SpinLockRelease(&gSchedLock);
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+    }
+
+    gCoopDrain = 0;
+}
+
 UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     INT32 Code;
     TASK *Exiting;
@@ -1124,6 +1179,16 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     DebugWrite("\n");
 
     (void)TerminateUserLocked(Exiting, Code, &ShowPrompt);
+
+    if (gCoopDrain) {
+        SpinLockRelease(&gSchedLock);
+        if (ShowPrompt) {
+            ConsoleShowPrompt();
+        }
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        HalUserCoopReturn();
+        return 0;
+    }
 
     Cpu = HalCpuId();
     Next = FindRunnable(Cpu);

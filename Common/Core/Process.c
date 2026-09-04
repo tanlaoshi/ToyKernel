@@ -242,7 +242,7 @@ static void CopyPathName(char *Dst, int Max, const char *Path) {
 
 /*
  * 在新用户栈顶构造：argc | argv[] | NULL | envp NULL | 字符串区
- * 返回新 rsp（指向 argc）
+ * 返回新 rsp（指向 argc；16 字节对齐，供 AAPCS64 / SysV CRT）
  */
 static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
                                  char ArgBuf[][EXEC_ARG_LEN], int Argc,
@@ -251,6 +251,7 @@ static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
     UINT64 StrPtrs[EXEC_ARGV_MAX];
     UINT64 PtrSlot;
     UINT64 ArgcSlot;
+    UINT64 Need;
     int i;
     UINTN Len;
 
@@ -274,36 +275,27 @@ static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
         StrPtrs[i] = Sp;
     }
 
-    /* envp 终止 NULL */
-    Sp -= 8;
-    {
-        UINT64 Z = 0;
-        if (VirtualMemoryCopyToUser(Sp, &Z, 8) < 0) {
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
-            return -1;
-        }
-    }
-    /* argv 指针表 + 终止 NULL */
-    Sp -= 8ULL * (UINT64)(Argc + 1);
-    PtrSlot = Sp;
-    for (i = 0; i < Argc; i++) {
-        if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)i, &StrPtrs[i], 8) < 0) {
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
-            return -1;
-        }
-    }
-    {
-        UINT64 Z = 0;
-        if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)Argc, &Z, 8) < 0) {
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
-            return -1;
-        }
-    }
-    Sp -= 8;
+    /* argc + argv[]+NULL + envp NULL；整体 16 对齐 */
+    Need = 8ULL * (UINT64)(Argc + 3);
+    Sp = (Sp - Need) & ~0xFULL;
     ArgcSlot = Sp;
+    PtrSlot = Sp + 8;
     {
         UINT64 Ac = (UINT64)(UINT32)Argc;
+        UINT64 Z = 0;
+
         if (VirtualMemoryCopyToUser(ArgcSlot, &Ac, 8) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+        for (i = 0; i < Argc; i++) {
+            if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)i, &StrPtrs[i], 8) < 0) {
+                VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+                return -1;
+            }
+        }
+        if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)Argc, &Z, 8) < 0 ||
+            VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)(Argc + 1), &Z, 8) < 0) {
             VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
             return -1;
         }
@@ -413,7 +405,14 @@ int ProcessExec(const char *Path) {
     Info.StackTop = NewRsp;
     HalUserInstall();
     SchedulerReapOrphanZombies();
-    return ProcessStartElf(Space, &Info, Path);
+    if (ProcessStartElf(Space, &Info, Path) != 0) {
+        return -1;
+    }
+    /* virt 无定时抢占：协作跑完刚创建的用户任务（PR-A12） */
+    if (HalPlatformVirtConsole()) {
+        SchedulerCoopDrainUsers();
+    }
+    return 0;
 }
 
 /*

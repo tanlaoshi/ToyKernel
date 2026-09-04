@@ -175,6 +175,16 @@ HalUserEnter:
     ld      a0, 80(a0)
     sret
 
+    .global HalUserCoopEnter
+    .type HalUserCoopEnter, @function
+HalUserCoopEnter:
+    j       HalUserSelfTestEnter
+
+    .global HalUserCoopReturn
+    .type HalUserCoopReturn, @function
+HalUserCoopReturn:
+    j       HalUserSelfTestReturn
+
     .global HalUserSelfTestEnter
     .type HalUserSelfTestEnter, @function
     /* a0=Ksp a1=Frame* */

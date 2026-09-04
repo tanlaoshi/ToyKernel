@@ -190,6 +190,27 @@ EXTRA_OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o
 INCLUDES_HAL += -IHAL/X86_64/Drivers
 VIRT_VIDEO_OBJ = $(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/Video.o
 EXTRA_OBJS += $(VIRT_VIDEO_OBJ)
+# PR-A12：本 arch 静态 HELLO.ELF（用户 VA @ 0x100000000）
+USER_VIRT_DIR = $(BUILDDIR)/user
+ifeq ($(ARCH),arm64)
+USER_LD = User/user-arm64.ld
+USER_CRT0_SRC = User/crt/crt0_aarch64.S
+USER_SYSCALL_SRC = User/crt/syscall_aarch64.S
+USER_LDFLAGS =
+else
+USER_LD = User/user-riscv.ld
+USER_CRT0_SRC = User/crt/crt0_riscv.S
+USER_SYSCALL_SRC = User/crt/syscall_riscv.S
+USER_LDFLAGS = -m elf64lriscv
+endif
+USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
+	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include
+USER_HELLO_ELF = $(USER_VIRT_DIR)/hello.elf
+USER_HELLO_OBJ = $(USER_VIRT_DIR)/hello.o
+USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
+	$(USER_VIRT_DIR)/string.o $(USER_VIRT_DIR)/printf.o \
+	$(USER_VIRT_DIR)/malloc.o $(USER_VIRT_DIR)/errno.o \
+	$(USER_VIRT_DIR)/unistd.o
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -216,6 +237,10 @@ all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF) \
 	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF)
+endif
+else
+ifneq ($(BRINGUP),1)
+all: $(USER_HELLO_ELF)
 endif
 endif
 
@@ -395,6 +420,41 @@ $(USER_SYSFORK_ELF): $(USER_SYSFORK_OBJ) $(USER_LD)
 
 $(BUILDDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(BUILDDIR)
 	objcopy -I binary -O $(USER_BLOB_FMT) User/hello.elf $@
+endif
+
+ifneq ($(ARCH),x86_64)
+ifneq ($(BRINGUP),1)
+$(USER_VIRT_DIR):
+	mkdir -p $(USER_VIRT_DIR)
+
+$(USER_HELLO_OBJ): User/hello.c User/include/stdio.h User/include/stdlib.h \
+		User/include/string.h | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/hello.c -o $@
+
+$(USER_VIRT_DIR)/crt0.o: $(USER_CRT0_SRC) | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c $(USER_CRT0_SRC) -o $@
+
+$(USER_VIRT_DIR)/syscall.o: $(USER_SYSCALL_SRC) | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c $(USER_SYSCALL_SRC) -o $@
+
+$(USER_VIRT_DIR)/string.o: User/crt/string.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/string.c -o $@
+
+$(USER_VIRT_DIR)/printf.o: User/crt/printf.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/printf.c -o $@
+
+$(USER_VIRT_DIR)/malloc.o: User/crt/malloc.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/malloc.c -o $@
+
+$(USER_VIRT_DIR)/errno.o: User/crt/errno.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/errno.c -o $@
+
+$(USER_VIRT_DIR)/unistd.o: User/crt/unistd.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/unistd.c -o $@
+
+$(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
+endif
 endif
 
 clean:
