@@ -21,5 +21,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out);
  * 单击图标只记录待双击状态返回 1；点空白清除选择返回 0。
  */
 int DesktopHandleClick(UINT32 X, UINT32 Y);
+/* PR-I18N2：按当前语言刷新图标标签（不重绘） */
+void DesktopRefreshLabels(void);
 
 #endif

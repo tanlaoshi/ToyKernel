@@ -46,6 +46,21 @@ void HalSyscallInit(void);
 /* 用户任务内核栈顶 → TSS.RSP0 / 等价结构（PR-A1；取代 Common 调 ArchSetRsp0） */
 void HalSetKernelStack(UINT64 StackTop);
 
+/*
+ * PR-A2：可移植任务帧 / 系统调用 ABI。
+ * Common 用这些 API，不直接写 Cs/Ss/Rax/Rip 或 GDT 选择子字面量。
+ */
+void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop);
+void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserRsp);
+void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src);
+UINT64 HalFrameGetRip(const HAL_FRAME *F);
+UINT64 HalFrameSyscallNum(const HAL_FRAME *F);
+UINT64 HalFrameArg0(const HAL_FRAME *F);
+UINT64 HalFrameArg1(const HAL_FRAME *F);
+UINT64 HalFrameArg2(const HAL_FRAME *F);
+void HalFrameSetReturn(HAL_FRAME *F, UINT64 Value);
+void HalFrameSetReturn2(HAL_FRAME *F, UINT64 A, UINT64 B);
+
 struct HAL_FRAME;
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame);
 void HalSchedulerEnter(struct HAL_FRAME *Frame);

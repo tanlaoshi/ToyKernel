@@ -25,6 +25,7 @@ void HalVideoWriteRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const UI
 void HalVideoClearScreen(UINT32 Color);
 
 void HalVideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color);
+void HalVideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color);
 void HalVideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color);
 void HalVideoDrawChar(char C, UINT32 Color);
 void HalVideoDrawString(const char *Text, UINT32 Color);

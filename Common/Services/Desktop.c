@@ -10,6 +10,7 @@
 #include "UI.h"
 #include "Hal.h"
 #include "Font.h"
+#include "Locale.h"
 #include "Debug.h"
 
 #define DESKTOP_ICON_COUNT   3
@@ -64,14 +65,8 @@ static void IconBounds(const DESKTOP_ICON *Icon, UINT32 *X, UINT32 *Y,
     UINT32 LabelW;
     UINT32 TotalW;
     UINT32 TotalH;
-    const char *P;
 
-    LabelW = 0;
-    if (Icon->Label) {
-        for (P = Icon->Label; *P; P++) {
-            LabelW += FontAdvanceX();
-        }
-    }
+    LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
     TotalW = DESKTOP_ICON_SIZE;
     if (LabelW + 4 > TotalW) {
         TotalW = LabelW + 4;
@@ -124,20 +119,32 @@ static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
 
 static void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     UINT32 Cx = X;
-    const char *P;
-    char One[2];
 
     if (!Text) {
         return;
     }
-    One[1] = 0;
-    for (P = Text; *P; P++) {
-        One[0] = *P;
-        /* 字形左上角未被窗挡住才画，减少写穿 */
+    while (*Text) {
+        UINT32 Cp;
+        UINTN N;
+        UINT32 Adv;
+        char One[5];
+        UINTN k;
+
+        N = Utf8Decode(Text, &Cp);
+        if (N == 0) {
+            Text++;
+            continue;
+        }
+        Adv = FontCodepointAdvance(Cp);
+        for (k = 0; k < N && k < sizeof(One) - 1; k++) {
+            One[k] = Text[k];
+        }
+        One[k] = 0;
         if (!GuiPointInAnyWindow(Cx, Y)) {
             HalVideoDrawStringAt(Cx, Y, One, Color);
         }
-        Cx += FontAdvanceX();
+        Cx += Adv;
+        Text += N;
     }
 }
 
@@ -145,7 +152,6 @@ static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelX;
     UINT32 LabelY;
     UINT32 LabelW;
-    const char *P;
     UINT32 Border;
 
     /* GuiRedraw：先画图标再画窗，无需逐像素避让（避让在关中断下会拖死 USB 鼠标） */
@@ -162,12 +168,7 @@ static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     UiFillRectangle(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y,
                     14, 14, COLOR_LIGHT_GRAY);
 
-    LabelW = 0;
-    if (Icon->Label) {
-        for (P = Icon->Label; *P; P++) {
-            LabelW += FontAdvanceX();
-        }
-    }
+    LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
     LabelX = Icon->X;
     if (LabelW < DESKTOP_ICON_SIZE) {
         LabelX = Icon->X + (DESKTOP_ICON_SIZE - LabelW) / 2;
@@ -183,7 +184,6 @@ static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelX;
     UINT32 LabelY;
     UINT32 LabelW;
-    const char *P;
     UINT32 Border;
 
     FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
@@ -203,12 +203,7 @@ static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     FillRectFree(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y, 14, 14,
                  COLOR_LIGHT_GRAY);
 
-    LabelW = 0;
-    if (Icon->Label) {
-        for (P = Icon->Label; *P; P++) {
-            LabelW += FontAdvanceX();
-        }
-    }
+    LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
     LabelX = Icon->X;
     if (LabelW < DESKTOP_ICON_SIZE) {
         LabelX = Icon->X + (DESKTOP_ICON_SIZE - LabelW) / 2;
@@ -255,8 +250,6 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     UINT32 LabelY;
     const char *P;
     UINT32 Cx;
-    UINT32 AdvX;
-    UINT32 CellW;
     UINT32 CellH;
     const FONT_FACE *Face;
     UINT32 Scale;
@@ -264,8 +257,6 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     if (!Out) {
         return 0;
     }
-    AdvX = FontAdvanceX();
-    CellW = FontCellW();
     CellH = FontCellH();
     Face = FontGetCurrent();
     Scale = (Face && Face->Scale) ? Face->Scale : 1u;
@@ -311,10 +302,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
         if (!Icon->Label || Face == 0) {
             continue;
         }
-        LabelW = 0;
-        for (P = Icon->Label; *P; P++) {
-            LabelW += AdvX;
-        }
+        LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
         LabelX = Icon->X;
         if (LabelW < DESKTOP_ICON_SIZE) {
             LabelX = Icon->X + (DESKTOP_ICON_SIZE - LabelW) / 2;
@@ -324,30 +312,55 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
             continue;
         }
         Cx = LabelX;
-        for (P = Icon->Label; *P; P++) {
-            if (*P != '\n' && X >= Cx && X < Cx + AdvX) {
-                const UINT8 *Glyph = FontGlyph(*P);
-                UINT32 RelX = X - Cx;
-                UINT32 RelY = Y - LabelY;
+        P = Icon->Label;
+        while (P && *P) {
+            UINT32 Cp;
+            UINTN N;
+            UINT32 Adv;
+            UINT32 Gw;
+            UINT32 Gh;
+            const UINT8 *Glyph;
+
+            N = Utf8Decode(P, &Cp);
+            if (N == 0) {
+                P++;
+                continue;
+            }
+            Adv = FontCodepointAdvance(Cp);
+            if (Cp != '\n' && X >= Cx && X < Cx + Adv) {
+                UINT32 RelX;
+                UINT32 RelY;
                 UINT32 Gx;
                 UINT32 Gy;
 
-                if (Glyph != 0 && RelX < CellW && RelY < CellH) {
-                    Gx = RelX / Scale;
-                    Gy = RelY / Scale;
-                    if (Gx < Face->Width && Gy < Face->Height) {
-                        UINT8 Byte = Glyph[Gy * Face->BytesPerRow + (Gx / 8)];
-                        int Bit = 7 - (int)(Gx % 8);
+                Glyph = FontGlyphCp(Cp, &Gw, &Gh);
+                RelX = X - Cx;
+                RelY = Y - LabelY;
+                if (Glyph != 0) {
+                    UINT32 OffY = 0;
+                    UINT32 Bpr = (Gw + 7) / 8;
 
-                        if (Byte & (1 << Bit)) {
-                            *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
-                            return 1;
+                    if (CellH > Gh * Scale) {
+                        OffY = (CellH - Gh * Scale) / 2;
+                    }
+                    if (RelY >= OffY) {
+                        Gx = RelX / Scale;
+                        Gy = (RelY - OffY) / Scale;
+                        if (Gx < Gw && Gy < Gh) {
+                            UINT8 Byte = Glyph[Gy * Bpr + (Gx / 8)];
+                            int Bit = 7 - (int)(Gx % 8);
+
+                            if (Byte & (1 << Bit)) {
+                                *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
+                                return 1;
+                            }
                         }
                     }
                 }
-                return 0; /* 在该字单元格内但非前景 → 透出桌面 */
+                return 0;
             }
-            Cx += AdvX;
+            Cx += Adv;
+            P += N;
         }
     }
     return 0;
@@ -397,29 +410,34 @@ void DesktopInit(void) {
     UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
                   DESKTOP_ICON_GAP;
 
-    gIcons[0].Label = "Shell";
     gIcons[0].Action = DESKTOP_ACT_SHELL;
     gIcons[0].IconColor = COLOR_BLUE;
     gIcons[0].X = DESKTOP_ORIGIN_X;
     gIcons[0].Y = DESKTOP_ORIGIN_Y;
 
-    gIcons[1].Label = "Settings";
     gIcons[1].Action = DESKTOP_ACT_SETTINGS;
     gIcons[1].IconColor = 0x00606080;
     gIcons[1].X = DESKTOP_ORIGIN_X;
     gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
 
-    gIcons[2].Label = "Files";
     gIcons[2].Action = DESKTOP_ACT_FILES;
     gIcons[2].IconColor = 0x00208040;
     gIcons[2].X = DESKTOP_ORIGIN_X;
     gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
+
+    DesktopRefreshLabels();
 
     gSelected = -1;
     gSelectClock = 0;
     gSelectX = 0;
     gSelectY = 0;
     DebugWrite("desktop: icons ready (double-click within ~timer ticks)\n");
+}
+
+void DesktopRefreshLabels(void) {
+    gIcons[0].Label = LocStr(MSG_ICON_SHELL);
+    gIcons[1].Label = LocStr(MSG_ICON_SETTINGS);
+    gIcons[2].Label = LocStr(MSG_ICON_FILES);
 }
 
 int DesktopHandleClick(UINT32 X, UINT32 Y) {

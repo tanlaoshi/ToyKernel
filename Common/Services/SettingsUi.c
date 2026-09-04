@@ -12,13 +12,15 @@
 #include "UI.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "Locale.h"
 
 typedef enum {
     SETTINGS_PAGE_MAIN = 0,
     SETTINGS_PAGE_DESKTOP_BG,
     SETTINGS_PAGE_SHELL_BG,
     SETTINGS_PAGE_FONT,
-    SETTINGS_PAGE_DISPLAY
+    SETTINGS_PAGE_DISPLAY,
+    SETTINGS_PAGE_LANGUAGE
 } SETTINGS_PAGE;
 
 typedef struct {
@@ -185,16 +187,17 @@ static void PaintMenu(void) {
     Y = Cy + 8;
     MaxBottom = Cy + Ch;
 
-    DrawLine(&X, &Y, X0, MaxBottom, "Settings", COLOR_BLUE);
+    DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_TITLE), COLOR_BLUE);
     DrawLine(&X, &Y, X0, MaxBottom, "----------------", COLOR_DARK_GRAY);
 
     if (gPage == SETTINGS_PAGE_MAIN) {
         HalVideoGetSize(&NowW, &NowH);
-        DrawLine(&X, &Y, X0, MaxBottom, "[Main]", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, " 1. Desktop bg", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, " 2. Shell bg", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, " 3. Font", COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, " 4. Display (reboot)", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_MAIN), COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_DESKTOP_BG), COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_SHELL_BG), COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_FONT), COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_DISPLAY), COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_LANGUAGE), COLOR_BLACK);
         Line[0] = 'N';
         Line[1] = 'o';
         Line[2] = 'w';
@@ -222,13 +225,13 @@ static void PaintMenu(void) {
             CopyLabel(Line + N, (int)(sizeof(Line) - N), " nxt auto");
         }
         DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
-        DrawLine(&X, &Y, X0, MaxBottom, "1-4 open  Esc/0 back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_MAIN), COLOR_DARK_GRAY);
         if (gRebootHint) {
-            DrawLine(&X, &Y, X0, MaxBottom, "Saved. QEMU: quit+./run-split.sh", COLOR_BLUE);
+            DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
         CurColor = ThemeDesktopBg();
-        DrawLine(&X, &Y, X0, MaxBottom, "[Desktop bg]", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_DESKTOP), COLOR_BLACK);
         for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
             Line[0] = (gDesktopColors[i].Color == CurColor) ? '*' : ' ';
             Line[1] = ' ';
@@ -238,10 +241,10 @@ static void PaintMenu(void) {
             CopyLabel(Line + 5, (int)sizeof(Line) - 5, gDesktopColors[i].Label);
             DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
         }
-        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
     } else if (gPage == SETTINGS_PAGE_SHELL_BG) {
         CurColor = ThemeShellClientBg();
-        DrawLine(&X, &Y, X0, MaxBottom, "[Shell bg]", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_SHELL), COLOR_BLACK);
         for (i = 0; i < SHELL_COLOR_COUNT; i++) {
             Line[0] = (gShellColors[i].Color == CurColor) ? '*' : ' ';
             Line[1] = ' ';
@@ -251,10 +254,10 @@ static void PaintMenu(void) {
             CopyLabel(Line + 5, (int)sizeof(Line) - 5, gShellColors[i].Label);
             DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
         }
-        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
     } else if (gPage == SETTINGS_PAGE_FONT) {
         CurFont = ThemeFontId();
-        DrawLine(&X, &Y, X0, MaxBottom, "[Font]", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_FONT), COLOR_BLACK);
         for (i = 0; (UINT32)i < FontCount(); i++) {
             Face = FontGetById((UINT32)i);
             Line[0] = ((UINT32)i == CurFont) ? '*' : ' ';
@@ -266,13 +269,13 @@ static void PaintMenu(void) {
                       (Face && Face->Name) ? Face->Name : "?");
             DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
         }
-        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
     } else if (gPage == SETTINGS_PAGE_DISPLAY) {
         HasPref = ThemeHasDisplayPref();
         PrefW = ThemeDisplayWidth();
         PrefH = ThemeDisplayHeight();
         HalVideoGetSize(&NowW, &NowH);
-        DrawLine(&X, &Y, X0, MaxBottom, "[Display] reboot", COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_DISPLAY), COLOR_BLACK);
         Line[0] = (!HasPref) ? '*' : ' ';
         Line[1] = ' ';
         Line[2] = '1';
@@ -296,10 +299,21 @@ static void PaintMenu(void) {
         Line[3] = ' ';
         FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
         DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
-        DrawLine(&X, &Y, X0, MaxBottom, " 0. Back", COLOR_DARK_GRAY);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
         if (gRebootHint) {
-            DrawLine(&X, &Y, X0, MaxBottom, "Saved. QEMU: quit+./run-split.sh", COLOR_BLUE);
+            DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
+    } else if (gPage == SETTINGS_PAGE_LANGUAGE) {
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_LANG), COLOR_BLACK);
+        Line[0] = (LocaleGet() == LOC_LANG_EN) ? '*' : ' ';
+        Line[1] = 0;
+        CopyLabel(Line + 1, (int)sizeof(Line) - 1, LocStr(MSG_SET_LANG_EN));
+        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+        Line[0] = (LocaleGet() == LOC_LANG_ZH) ? '*' : ' ';
+        Line[1] = 0;
+        CopyLabel(Line + 1, (int)sizeof(Line) - 1, LocStr(MSG_SET_LANG_ZH));
+        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
     }
 
     GuiBackupSyncRect(Cx, Cy, Cw, Ch);
@@ -436,6 +450,9 @@ void SettingsUiOnDigit(char Digit) {
         } else if (N == 4) {
             gPage = SETTINGS_PAGE_DISPLAY;
             PaintMenu();
+        } else if (N == 5) {
+            gPage = SETTINGS_PAGE_LANGUAGE;
+            PaintMenu();
         }
         return;
     }
@@ -461,6 +478,16 @@ void SettingsUiOnDigit(char Digit) {
     if (gPage == SETTINGS_PAGE_DISPLAY) {
         /* 1=Auto，2..=预置 → ApplyDisplayChoice(N-1) */
         ApplyDisplayChoice(N - 1);
+        return;
+    }
+    if (gPage == SETTINGS_PAGE_LANGUAGE) {
+        if (N == 1) {
+            (void)LocaleSet(LOC_LANG_EN);
+            PaintMenu();
+        } else if (N == 2) {
+            (void)LocaleSet(LOC_LANG_ZH);
+            PaintMenu();
+        }
         return;
     }
 }

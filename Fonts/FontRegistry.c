@@ -144,3 +144,45 @@ const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH) {
     }
     return FontCjk16Lookup(Cp, OutW, OutH);
 }
+
+UINT32 FontCodepointAdvance(UINT32 Cp) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 Scale;
+    const FONT_FACE *F;
+
+    if (Cp < 128) {
+        return FontAdvanceX();
+    }
+    if (!FontGlyphCp(Cp, &W, &H)) {
+        return FontAdvanceX();
+    }
+    F = FontGetCurrent();
+    Scale = (F && F->Scale) ? F->Scale : 1u;
+    W = W * Scale;
+    if (W < FontAdvanceX()) {
+        W = FontAdvanceX();
+    }
+    return W;
+}
+
+UINT32 FontStringWidth(const char *S) {
+    UINT32 Total = 0;
+
+    while (S && *S) {
+        UINT32 Cp;
+        UINTN N;
+
+        if (*S == '\n') {
+            break;
+        }
+        N = Utf8Decode(S, &Cp);
+        if (N == 0) {
+            S++;
+            continue;
+        }
+        Total += FontCodepointAdvance(Cp);
+        S += N;
+    }
+    return Total;
+}

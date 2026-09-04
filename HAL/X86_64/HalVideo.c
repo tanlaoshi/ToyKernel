@@ -96,6 +96,10 @@ void HalVideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
     VideoDrawCharAt(X, Y, C, Color);
 }
 
+void HalVideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
+    VideoDrawCodepointAt(X, Y, Cp, Color);
+}
+
 void HalVideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     VideoDrawStringAt(X, Y, Text, Color);
 }

@@ -305,25 +305,7 @@ void VideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
 }
 
 static UINT32 CodepointAdvance(UINT32 Cp) {
-    UINT32 W;
-    UINT32 H;
-    UINT32 Scale;
-    const FONT_FACE *F;
-
-    if (Cp < 128) {
-        return FontAdvanceX();
-    }
-    if (!FontGlyphCp(Cp, &W, &H)) {
-        return FontAdvanceX();
-    }
-    F = FontGetCurrent();
-    Scale = (F && F->Scale) ? F->Scale : 1u;
-    /* 汉字按字形宽前进；至少一格 ASCII，避免挤在一起 */
-    W = W * Scale;
-    if (W < FontAdvanceX()) {
-        W = FontAdvanceX();
-    }
-    return W;
+    return FontCodepointAdvance(Cp);
 }
 
 void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {

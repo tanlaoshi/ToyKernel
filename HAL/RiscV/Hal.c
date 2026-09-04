@@ -32,6 +32,67 @@ void HalUserInstall(void) { }
 void HalSyscallInit(void) { }
 void HalSetKernelStack(UINT64 StackTop) { (void)StackTop; }
 
+void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
+    UINTN j;
+    if (!F) {
+        return;
+    }
+    for (j = 0; j < sizeof(HAL_FRAME); j++) {
+        ((UINT8 *)F)[j] = 0;
+    }
+    F->Rip = Entry;
+    F->Rsp = StackTop;
+}
+
+void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserRsp) {
+    HalFrameSetKernelEntry(F, Entry, UserRsp);
+}
+
+void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src) {
+    UINTN j;
+    if (!Dst || !Src) {
+        return;
+    }
+    for (j = 0; j < sizeof(HAL_FRAME); j++) {
+        ((UINT8 *)Dst)[j] = ((const UINT8 *)Src)[j];
+    }
+}
+
+UINT64 HalFrameGetRip(const HAL_FRAME *F) {
+    return F ? F->Rip : 0;
+}
+
+UINT64 HalFrameSyscallNum(const HAL_FRAME *F) {
+    (void)F;
+    return 0;
+}
+
+UINT64 HalFrameArg0(const HAL_FRAME *F) {
+    (void)F;
+    return 0;
+}
+
+UINT64 HalFrameArg1(const HAL_FRAME *F) {
+    (void)F;
+    return 0;
+}
+
+UINT64 HalFrameArg2(const HAL_FRAME *F) {
+    (void)F;
+    return 0;
+}
+
+void HalFrameSetReturn(HAL_FRAME *F, UINT64 Value) {
+    (void)F;
+    (void)Value;
+}
+
+void HalFrameSetReturn2(HAL_FRAME *F, UINT64 A, UINT64 B) {
+    (void)F;
+    (void)A;
+    (void)B;
+}
+
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
     (void)Frame;
     return 0;

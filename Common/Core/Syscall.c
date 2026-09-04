@@ -183,23 +183,25 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     /* 保持 IF=0 直到 iretq 恢复用户 RFLAGS，避免在返回路径嵌套定时器抢占 */
     HalIrqDisable();
 
-    switch (Frame->Rax) {
+    switch (HalFrameSyscallNum(Frame)) {
     case SYS_EXIT:
         Ret = SchedulerExitUser(Frame);
         break;
     case SYS_WRITE:
-        Frame->Rax = (UINT64)(long)SysWrite(
-            (int)Frame->Rdi, Frame->Rsi, (UINTN)Frame->Rdx);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysWrite(
+            (int)HalFrameArg0(Frame), HalFrameArg1(Frame),
+            (UINTN)HalFrameArg2(Frame)));
         break;
     case SYS_OPEN:
-        Frame->Rax = (UINT64)(long)SysOpen(Frame->Rdi);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysOpen(HalFrameArg0(Frame)));
         break;
     case SYS_READ:
-        Frame->Rax = (UINT64)(long)SysRead(
-            (int)Frame->Rdi, Frame->Rsi, (UINTN)Frame->Rdx);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysRead(
+            (int)HalFrameArg0(Frame), HalFrameArg1(Frame),
+            (UINTN)HalFrameArg2(Frame)));
         break;
     case SYS_CLOSE:
-        Frame->Rax = (UINT64)(long)SysClose((int)Frame->Rdi);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysClose((int)HalFrameArg0(Frame)));
         break;
     case SYS_FORK:
         Ret = SchedulerFork(Frame);
@@ -211,29 +213,32 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         Ret = SchedulerYield(Frame);
         break;
     case SYS_SOCKET:
-        Frame->Rax = (UINT64)(long)SysSocket(
-            (int)Frame->Rdi, (int)Frame->Rsi, (int)Frame->Rdx);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysSocket(
+            (int)HalFrameArg0(Frame), (int)HalFrameArg1(Frame),
+            (int)HalFrameArg2(Frame)));
         break;
     case SYS_CONNECT:
-        Frame->Rax = (UINT64)(long)SysConnect(
-            (int)Frame->Rdi, (UINT32)Frame->Rsi, (UINT16)Frame->Rdx);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysConnect(
+            (int)HalFrameArg0(Frame), (UINT32)HalFrameArg1(Frame),
+            (UINT16)HalFrameArg2(Frame)));
         break;
     case SYS_BIND:
-        Frame->Rax = (UINT64)(long)SysBind(
-            (int)Frame->Rdi, (UINT32)Frame->Rsi, (UINT16)Frame->Rdx);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysBind(
+            (int)HalFrameArg0(Frame), (UINT32)HalFrameArg1(Frame),
+            (UINT16)HalFrameArg2(Frame)));
         break;
     case SYS_LISTEN:
-        Frame->Rax = (UINT64)(long)SysListen(
-            (int)Frame->Rdi, (int)Frame->Rsi);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysListen(
+            (int)HalFrameArg0(Frame), (int)HalFrameArg1(Frame)));
         break;
     case SYS_ACCEPT:
-        Frame->Rax = (UINT64)(long)SysAccept((int)Frame->Rdi);
+        HalFrameSetReturn(Frame, (UINT64)(long)SysAccept((int)HalFrameArg0(Frame)));
         break;
     default:
         ConsoleWrite("syscall: unknown ");
-        ConsoleHex64(Frame->Rax);
+        ConsoleHex64(HalFrameSyscallNum(Frame));
         ConsoleWrite("\n");
-        Frame->Rax = (UINT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)-1);
         break;
     }
 

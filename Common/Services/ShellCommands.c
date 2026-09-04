@@ -14,6 +14,7 @@
 #include "LwIp.h"
 #include "VirtualMemory.h"
 #include "Gui.h"
+#include "Locale.h"
 
 static void CommandInfo(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -611,6 +612,26 @@ static void CommandZh(int Argc, char **Argv) {
     ConsoleWrite("你好，世界！中文测试\n");
 }
 
+static void CommandLang(int Argc, char **Argv) {
+    if (Argc < 2) {
+        ConsoleWrite(LocStr(MSG_LANG_USAGE));
+        ConsoleWrite(LocStr(MSG_LANG_NOW));
+        ConsoleWrite(LocaleGet() == LOC_LANG_ZH ? "zh\n" : "en\n");
+        return;
+    }
+    if (Argv[1][0] == 'z' && Argv[1][1] == 'h') {
+        (void)LocaleSet(LOC_LANG_ZH);
+        ConsoleWrite(LocStr(MSG_LANG_SET));
+        return;
+    }
+    if (Argv[1][0] == 'e' && Argv[1][1] == 'n') {
+        (void)LocaleSet(LOC_LANG_EN);
+        ConsoleWrite(LocStr(MSG_LANG_SET));
+        return;
+    }
+    ConsoleWrite(LocStr(MSG_LANG_BAD));
+}
+
 void ShellCommandsRegister(void) {
     ConsoleRegister("info", "boot framebuffer info", CommandInfo);
     ConsoleRegister("ps", "list tasks", CommandPs);
@@ -622,6 +643,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
+    ConsoleRegister("lang", "set UI language en|zh", CommandLang);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);

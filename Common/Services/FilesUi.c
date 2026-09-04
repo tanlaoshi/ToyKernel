@@ -13,6 +13,7 @@
 #include "UI.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "Locale.h"
 
 #define FILES_PATH_MAX     96
 #define FILES_VIEW_MAX     2048
@@ -368,7 +369,7 @@ static void PaintView(void) {
     }
 
     Title[0] = 0;
-    CopyStr(Title, sizeof(Title), "View: ");
+    CopyStr(Title, sizeof(Title), LocStr(MSG_FILES_VIEW));
     ti = 0;
     while (Title[ti]) {
         ti++;
@@ -450,11 +451,11 @@ static void PaintPrompt(void) {
     int i;
 
     if (gPromptKind == FILES_PROMPT_MKDIR) {
-        CopyStr(Title, sizeof(Title), "New directory");
+        CopyStr(Title, sizeof(Title), LocStr(MSG_FILES_NEW_DIR));
     } else if (gPromptKind == FILES_PROMPT_NEWFILE) {
-        CopyStr(Title, sizeof(Title), "New empty file");
+        CopyStr(Title, sizeof(Title), LocStr(MSG_FILES_NEW_FILE));
     } else {
-        CopyStr(Title, sizeof(Title), "Rename to");
+        CopyStr(Title, sizeof(Title), LocStr(MSG_FILES_RENAME));
     }
     Line2[0] = '>';
     Line2[1] = ' ';
@@ -464,7 +465,7 @@ static void PaintPrompt(void) {
     Line2[2 + i] = '_';
     Line2[3 + i] = 0;
     PaintList();
-    PaintOverlay(Title, Line2, "Enter=ok  Esc=cancel  Backspace");
+    PaintOverlay(Title, Line2, LocStr(MSG_FILES_PROMPT_HINT));
 }
 
 static void Paint(void) {

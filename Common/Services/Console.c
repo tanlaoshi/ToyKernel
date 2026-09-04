@@ -13,6 +13,7 @@
 #include "Gui.h"
 #include "Font.h"
 #include "SettingsUi.h"
+#include "Locale.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -54,28 +55,45 @@ static void ConsoleDrawString(const char *Text, UINT32 Color) {
     UINT32 T;
     UINT32 R;
     UINT32 B;
+    UINT32 Cx;
+    UINT32 Cy;
+    UINT32 Cw;
+    UINT32 Ch;
+    UINT32 Bg;
 
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
     HalConsoleGetTextCursor(&X0, &Y0);
     HalConsoleDrawString(Text, Color);
     HalConsoleGetTextCursor(&X1, &Y1);
-    /* PR-G10 L7：滚屏后光标 Y 回退，包围盒盖不住整客户区 → 整区 sync */
-    if (Y1 < Y0) {
-        UINT32 Cx;
-        UINT32 Cy;
-        UINT32 Cw;
-        UINT32 Ch;
-        UINT32 Bg;
-
+    /*
+     * 换行/滚屏后 X 回到行首：若仍用 (X0,X1) 轴对齐包围盒，
+     * max(X0,X1)+Advance 只盖住行首约一字，Compose 会把同行其余字盖掉 →「吞字」。
+     */
+    if (Y1 != Y0 || X1 < X0) {
         if (GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) && Cw > 0 && Ch > 0) {
-            GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+            if (Y1 < Y0) {
+                /* 滚屏：整客户区 */
+                GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+            } else {
+                T = Y0 < Y1 ? Y0 : Y1;
+                B = (Y0 > Y1 ? Y0 : Y1) + FontAdvanceY();
+                if (B > Cy + Ch) {
+                    B = Cy + Ch;
+                }
+                if (T < Cy) {
+                    T = Cy;
+                }
+                if (B > T) {
+                    GuiBackupSyncRect(Cx, T, Cw, B - T);
+                }
+            }
         }
     } else {
         L = X0 < X1 ? X0 : X1;
-        T = Y0 < Y1 ? Y0 : Y1;
+        T = Y0;
         R = (X0 > X1 ? X0 : X1) + FontAdvanceX();
-        B = (Y0 > Y1 ? Y0 : Y1) + FontAdvanceY();
+        B = Y0 + FontAdvanceY();
         if (R > L && B > T) {
             GuiBackupSyncRect(L, T, R - L, B - T);
         }
@@ -330,7 +348,8 @@ void ConsoleFocusLoad(void) {
     if (GuiConsoleHasDisplay()) {
         GuiFocusApplyClip();
         if (GuiConsoleNeedsPrompt()) {
-            ConsoleWrite("ToyOS console. Type help.\n");
+            ConsoleWrite(LocStr(MSG_CON_WELCOME));
+            ConsoleWrite("\n");
             Prompt();
             GuiConsoleMarkPrompt();
             GuiFocusSave();
@@ -343,7 +362,8 @@ void ConsoleFocusLoad(void) {
      */
     if (GuiConsoleNeedsPrompt()) {
         GuiFocusHome();
-        ConsoleWrite("ToyOS console. Type help.\n");
+        ConsoleWrite(LocStr(MSG_CON_WELCOME));
+        ConsoleWrite("\n");
         Prompt();
         GuiConsoleMarkPrompt();
         GuiFocusSave();
@@ -367,7 +387,8 @@ void ConsoleInit(void) {
     gLen = 0;
     gWaitPrompt = 0;
     gAtLineStart = 1;
-    HalConsoleWriteSerial("ToyOS ready. Type shell / settings, or any key to open Shell.\n");
+    HalConsoleWriteSerial(LocStr(MSG_CON_READY));
+    HalConsoleWriteSerial("\n");
 }
 
 void ConsoleOnShellOpened(void) {
@@ -391,7 +412,8 @@ void ConsolePaintShellWindow(int Idx) {
     gAtLineStart = 1;
     GuiFocusClearClient();
     GuiFocusHome();
-    ConsoleWrite("ToyOS console. Type help.\n");
+    ConsoleWrite(LocStr(MSG_CON_WELCOME));
+    ConsoleWrite("\n");
     Prompt();
     GuiConsoleMarkPrompt();
     GuiFocusSave();

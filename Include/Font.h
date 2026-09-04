@@ -52,5 +52,8 @@ UINTN Utf8Decode(const char *S, UINT32 *OutCp);
 /* ASCII→Terminus；基本汉字→CJK16；OutW/OutH 为点阵像素（未乘 Scale） */
 const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
 const UINT8 *FontCjk16Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
+/* UTF-8 字符串像素宽（含汉字前进） */
+UINT32 FontCodepointAdvance(UINT32 Cp);
+UINT32 FontStringWidth(const char *S);
 
 #endif

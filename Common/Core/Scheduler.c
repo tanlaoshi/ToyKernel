@@ -500,16 +500,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         }
         UINT8 *Top = gTasks[i].Stack + sizeof(gTasks[i].Stack);
         HAL_FRAME *F = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
-        for (UINTN j = 0; j < sizeof(HAL_FRAME); j++) {
-            ((UINT8 *)F)[j] = 0;
-        }
-        F->Rip = (UINT64)(UINTN)Entry;
-        F->Cs = 0x08;
-        F->Rflags = 0x202;
-        F->Rsp = (UINT64)(UINTN)Top;
-        F->Ss = 0x10;
-        F->Vector = VEC_TIMER;
-        F->ErrorCode = 0;
+        HalFrameSetKernelEntry(F, (UINT64)(UINTN)Entry, (UINT64)(UINTN)Top);
 
         gTasks[i].Frame = F;
         gTasks[i].State = TASK_READY;
@@ -551,16 +542,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         }
         UINT8 *Top = gTasks[i].Stack + sizeof(gTasks[i].Stack);
         HAL_FRAME *F = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
-        for (UINTN j = 0; j < sizeof(HAL_FRAME); j++) {
-            ((UINT8 *)F)[j] = 0;
-        }
-        F->Rip = Rip;
-        F->Cs = 0x23;
-        F->Rflags = 0x202;
-        F->Rsp = Rsp;
-        F->Ss = 0x1B;
-        F->Vector = VEC_TIMER;
-        F->ErrorCode = 0;
+        HalFrameSetUserEntry(F, Rip, Rsp);
 
         gTasks[i].Frame = F;
         gTasks[i].State = TASK_READY;
@@ -773,8 +755,9 @@ static int WakeWaitingParent(TASK *Zombie) {
         return 0;
     }
     if (P->Frame) {
-        P->Frame->Rax = (UINT64)(UINT32)TaskSlot(Zombie);
-        P->Frame->Rdx = (UINT64)(UINT32)Zombie->ExitCode;
+        HalFrameSetReturn2(P->Frame,
+                           (UINT64)(UINT32)TaskSlot(Zombie),
+                           (UINT64)(UINT32)Zombie->ExitCode);
     }
     P->Waiting = 0;
     P->State = TASK_READY;
@@ -830,7 +813,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
         }
     }
 
-    Code = (INT32)Frame->Rdi;
+    Code = (INT32)HalFrameArg0(Frame);
     DebugWrite("syscall: exit ");
     DebugWrite(Exiting->Name);
     DebugWrite(" code=");
@@ -886,13 +869,12 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     int Child;
     UINT8 *Top;
     HAL_FRAME *CF;
-    UINTN j;
 
     SpinLockAcquire(&gSchedLock);
     Parent = CurrentTask();
     ParentSlot = TaskSlot(Parent);
     if (Parent == 0 || ParentSlot < 0 || !Parent->IsUser || !Parent->UserSpace) {
-        Frame->Rax = (UINT64)(INT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         SpinLockRelease(&gSchedLock);
         return 0;
     }
@@ -905,17 +887,17 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
         }
     }
     if (Child < 0) {
-        Frame->Rax = (UINT64)(INT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         SpinLockRelease(&gSchedLock);
         return 0;
     }
 
-    Frame->Rax = (UINT64)(UINT32)(Child + 1);
+    HalFrameSetReturn(Frame, (UINT64)(UINT32)(Child + 1));
     SpinLockRelease(&gSchedLock);
 
     ChildSpace = VirtualMemorySpaceClone(Parent->UserSpace);
     if (!ChildSpace) {
-        Frame->Rax = (UINT64)(INT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         return 0;
     }
 
@@ -924,16 +906,14 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     if (gTasks[Child].State != TASK_UNUSED) {
         SpinLockRelease(&gSchedLock);
         VirtualMemorySpaceDestroy(ChildSpace);
-        Frame->Rax = (UINT64)(INT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         return 0;
     }
 
     Top = gTasks[Child].Stack + sizeof(gTasks[Child].Stack);
     CF = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
-    for (j = 0; j < sizeof(HAL_FRAME); j++) {
-        ((UINT8 *)CF)[j] = ((UINT8 *)Frame)[j];
-    }
-    CF->Rax = 0;
+    HalFrameCopy(CF, Frame);
+    HalFrameSetReturn(CF, 0);
 
     gTasks[Child].Frame = CF;
     gTasks[Child].State = TASK_READY;
@@ -954,7 +934,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTaskCount++;
     RunqEnqueue(PickHomeCpu(&gTasks[Child]), &gTasks[Child]);
 
-    Frame->Rax = (UINT64)(UINT32)(Child + 1);
+    HalFrameSetReturn(Frame, (UINT64)(UINT32)(Child + 1));
     Parent->Frame = Frame;
     SpinLockRelease(&gSchedLock);
     return 0;
@@ -973,20 +953,19 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     SpinLockAcquire(&gSchedLock);
     Self = CurrentTask();
     if (Self == 0 || !Self->IsUser) {
-        Frame->Rax = (UINT64)(INT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         SpinLockRelease(&gSchedLock);
         return 0;
     }
     MyId = TaskSlot(Self);
-    Options = Frame->Rdi;
+    Options = HalFrameArg0(Frame);
 
     for (i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State == TASK_ZOMBIE && gTasks[i].ParentId == MyId) {
             INT32 Code = gTasks[i].ExitCode;
             INT32 Cid = TaskSlot(&gTasks[i]);
             ReapZombie(&gTasks[i]);
-            Frame->Rax = (UINT64)(UINT32)Cid;
-            Frame->Rdx = (UINT64)(UINT32)Code;
+            HalFrameSetReturn2(Frame, (UINT64)(UINT32)Cid, (UINT64)(UINT32)Code);
             SpinLockRelease(&gSchedLock);
             return 0;
         }
@@ -1001,14 +980,13 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
         }
     }
     if (!Live) {
-        Frame->Rax = (UINT64)(INT64)-1;
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         SpinLockRelease(&gSchedLock);
         return 0;
     }
 
     if (Options & (UINT64)WNOHANG) {
-        Frame->Rax = 0;
-        Frame->Rdx = 0;
+        HalFrameSetReturn2(Frame, 0, 0);
         SpinLockRelease(&gSchedLock);
         return 0;
     }
@@ -1208,5 +1186,5 @@ UINT64 SchedulerTaskRip(const TASK *T) {
     if (!T || !T->Frame) {
         return 0;
     }
-    return T->Frame->Rip;
+    return HalFrameGetRip(T->Frame);
 }

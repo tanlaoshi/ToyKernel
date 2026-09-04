@@ -68,6 +68,8 @@ int GuiFocusIndex(void);
 int GuiOpenShell(void);
 int GuiOpenSettings(void);
 int GuiOpenFiles(void);
+/* PR-I18N2：按当前语言刷新窗标题并重绘 chrome */
+void GuiRefreshTitles(void);
 GUI_WIN_KIND GuiFocusKind(void);
 GUI_WIN_KIND GuiWindowKind(int Idx);
 

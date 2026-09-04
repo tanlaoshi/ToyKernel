@@ -16,6 +16,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "Locale.h"
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
@@ -543,7 +544,6 @@ static void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
     const char *S;
     UINT32 X;
     UINT32 Y;
-    UINT32 Adv;
 
     if (W->Title == 0 || W->Title[0] == 0) {
         return;
@@ -551,18 +551,26 @@ static void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
     S = W->Title;
     X = W->X + 8;
     Y = W->Y + 4;
-    Adv = FontAdvanceX();
-    if (Adv == 0) {
-        Adv = 8;
-    }
     while (*S) {
-        /* 逐字避让上层，避免标题写穿（M4） */
+        UINT32 Cp;
+        UINTN N;
+        UINT32 Adv;
+
+        N = Utf8Decode(S, &Cp);
+        if (N == 0) {
+            S++;
+            continue;
+        }
+        Adv = FontCodepointAdvance(Cp);
+        if (Adv == 0) {
+            Adv = 8;
+        }
         if (!PixelOccludedByAbove(Idx, X, Y) &&
             !PixelOccludedByAbove(Idx, X + Adv / 2, Y)) {
-            HalVideoDrawCharAt(X, Y, *S, COLOR_WHITE);
+            HalVideoDrawCodepointAt(X, Y, Cp, COLOR_WHITE);
         }
         X += Adv;
-        S++;
+        S += N;
     }
 }
 
@@ -2163,7 +2171,7 @@ int GuiOpenShell(void) {
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
     gWins[Idx].Background = ThemeShellClientBg();
-    gWins[Idx].Title = "ToyOS Shell";
+    gWins[Idx].Title = LocStr(MSG_APP_SHELL);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
     gWins[Idx].WaitPrompt = 0;
@@ -2233,7 +2241,7 @@ int GuiOpenSettings(void) {
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
     gWins[Idx].Background = ThemeSettingsClientBg();
-    gWins[Idx].Title = "Settings";
+    gWins[Idx].Title = LocStr(MSG_APP_SETTINGS);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
     gWins[Idx].WaitPrompt = 0;
@@ -2289,7 +2297,7 @@ int GuiOpenFiles(void) {
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
     gWins[Idx].Background = ThemeSettingsClientBg();
-    gWins[Idx].Title = "Files";
+    gWins[Idx].Title = LocStr(MSG_APP_FILES);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
     gWins[Idx].WaitPrompt = 0;
@@ -2325,6 +2333,34 @@ GUI_WIN_KIND GuiWindowKind(int Idx) {
 
 GUI_WIN_KIND GuiFocusKind(void) {
     return GuiWindowKind(gFocusWin);
+}
+
+void GuiRefreshTitles(void) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active) {
+            continue;
+        }
+        if (gWins[i].Kind == GUI_WIN_SHELL) {
+            gWins[i].Title = LocStr(MSG_APP_SHELL);
+        } else if (gWins[i].Kind == GUI_WIN_SETTINGS) {
+            gWins[i].Title = LocStr(MSG_APP_SETTINGS);
+        } else if (gWins[i].Kind == GUI_WIN_FILES) {
+            gWins[i].Title = LocStr(MSG_APP_FILES);
+        }
+    }
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    SyncWindowVisualsEx(1);
+    ComposeEnd();
+    if (GuiFocusKind() == GUI_WIN_SETTINGS) {
+        SettingsUiRepaint();
+    } else if (GuiFocusKind() == GUI_WIN_FILES) {
+        FilesUiRepaint();
+    }
 }
 
 void GuiInit(void) {

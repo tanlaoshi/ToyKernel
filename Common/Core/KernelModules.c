@@ -19,6 +19,7 @@
 #include "Font.h"
 #include "Theme.h"
 #include "Db.h"
+#include "Locale.h"
 
 static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
@@ -93,6 +94,7 @@ static int InitGuiModule(void) {
     /* FAT 已挂载：TOYOS.DB（可自 THEME.CFG 导入）→ ThemeLoad → 首帧配色 */
     (void)DbInit();
     (void)ThemeLoad();
+    LocaleInit();
     GuiInit();
     return 0;
 }
