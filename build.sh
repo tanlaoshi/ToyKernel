@@ -61,7 +61,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     cp User/netsrv.elf ../ToyImage/NETSRV.ELF
     cp User/syshello.elf ../ToyImage/SYSHELLO.ELF
     cp User/sysfork.elf ../ToyImage/SYSFORK.ELF
-    echo "Copied HELLO/COUNT/FORK/WAITNH/DYNDEMO/LIBTOY/CAT/WRITE/NETDEMO/NETSRV/SYSHELLO/SYSFORK -> ../ToyImage/"
+    cp User/execdemo.elf ../ToyImage/EXECDEMO.ELF
+    echo "Copied HELLO/COUNT/FORK/WAITNH/DYNDEMO/LIBTOY/CAT/WRITE/NETDEMO/NETSRV/SYSHELLO/SYSFORK/EXECDEMO -> ../ToyImage/"
     if [ -d ../ToyImage/rootfs ]; then
         cp -f ../ToyImage/Kernel.elf ../ToyImage/rootfs/Kernel.elf
         cp -f ../ToyImage/HELLO.ELF ../ToyImage/rootfs/HELLO.ELF
@@ -74,6 +75,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
         cp -f ../ToyImage/NETSRV.ELF ../ToyImage/rootfs/NETSRV.ELF
         cp -f ../ToyImage/SYSHELLO.ELF ../ToyImage/rootfs/SYSHELLO.ELF
         cp -f ../ToyImage/SYSFORK.ELF ../ToyImage/rootfs/SYSFORK.ELF
+        cp -f ../ToyImage/EXECDEMO.ELF ../ToyImage/rootfs/EXECDEMO.ELF
         echo "Synced Kernel/HELLO/CAT/WRITE/... -> ../ToyImage/rootfs/"
     fi
     echo "Copied Build/Kernel.elf -> ../ToyImage/"

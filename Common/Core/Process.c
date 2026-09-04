@@ -1,5 +1,5 @@
 /*
- * Process.c — 用户进程加载与 exec（支持 DT_NEEDED 简易动态链接）
+ * Process.c — 用户进程加载、exec（Shell）与 execve（替换当前映像，PR-P1）
  */
 #include "Process.h"
 #include "Elf.h"
@@ -12,6 +12,9 @@
 #include "PhysicalMemory.h"
 
 #define ELF_MAX_SIZE (512 * 1024)
+#define EXEC_ARGV_MAX 8
+#define EXEC_ARG_LEN  64
+#define EXEC_PATH_MAX 63
 
 extern char _binary_User_hello_elf_start[];
 extern char _binary_User_hello_elf_end[];
@@ -81,10 +84,6 @@ static int ProcessLoadNeeded(VM_ADDR_SPACE *Space, const void *MainImage,
             PhysicalMemoryFreePages(Buf, Pages);
             return -1;
         }
-        /*
-         * SO 符号表指针指向 Buf；重定位完成前不能释放。
-         * 暂把 Image 留在 Sos 中，由调用方在 Relocate 后释放。
-         */
         Sos[*SoCount].Image = (const UINT8 *)Buf;
         Sos[*SoCount].Size = Size;
         (*SoCount)++;
@@ -109,20 +108,21 @@ static void ProcessFreeSos(ELF_SO_INFO *Sos, int SoCount) {
     }
 }
 
-int ProcessExec(const char *Path) {
+/* 读盘并装载 ELF（含 DT_NEEDED）；成功时 *OutSpace 归属调用方 */
+static int ProcessLoadPath(const char *Path, VM_ADDR_SPACE **OutSpace,
+                           ELF_LOAD_RESULT *OutInfo) {
     UINT32 Pages;
     void *Buf;
     UINTN Size = 0;
     VM_ADDR_SPACE *Space;
-    ELF_LOAD_RESULT Info;
     ELF_SO_INFO Sos[ELF_MAX_SO];
     int SoCount = 0;
     int i;
 
-    if (!Path || !Path[0]) {
-        ConsoleWrite("exec: empty path\n");
+    if (!Path || !Path[0] || !OutSpace || !OutInfo) {
         return -1;
     }
+    *OutSpace = 0;
 
     Pages = (ELF_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE;
     Buf = PhysicalMemoryAllocatePages(Pages);
@@ -156,7 +156,7 @@ int ProcessExec(const char *Path) {
         return -1;
     }
 
-    if (ElfLoadFromMemory(Space, Buf, Size, &Info) != 0) {
+    if (ElfLoadFromMemory(Space, Buf, Size, OutInfo) != 0) {
         ConsoleWrite("exec: elf load failed\n");
         VirtualMemorySpaceDestroy(Space);
         PhysicalMemoryFreePages(Buf, Pages);
@@ -172,7 +172,6 @@ int ProcessExec(const char *Path) {
         Sos[i].Size = 0;
     }
 
-    /* 装载 DT_NEEDED 前先切到用户页表，便于 CopyToUser 写 GOT */
     VirtualMemoryLoadPageTable(VirtualMemorySpaceRoot(Space));
 
     if (ProcessLoadNeeded(Space, Buf, Size, Sos, &SoCount) != 0) {
@@ -197,10 +196,221 @@ int ProcessExec(const char *Path) {
     VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
     ProcessFreeSos(Sos, SoCount);
     PhysicalMemoryFreePages(Buf, Pages);
+    *OutSpace = Space;
+    return 0;
+}
 
+static int CopyUserCString(char *Dst, UINTN Max, UINT64 UserPtr) {
+    UINTN i;
+    char C;
+
+    if (!Dst || Max == 0) {
+        return -1;
+    }
+    if (UserPtr == 0) {
+        Dst[0] = 0;
+        return -1;
+    }
+    for (i = 0; i + 1 < Max; i++) {
+        if (VirtualMemoryCopyFromUser(&C, UserPtr + i, 1) < 0) {
+            Dst[0] = 0;
+            return -1;
+        }
+        Dst[i] = C;
+        if (C == 0) {
+            return 0;
+        }
+    }
+    Dst[Max - 1] = 0;
+    return 0;
+}
+
+static void CopyPathName(char *Dst, int Max, const char *Path) {
+    int i;
+    const char *Base = Path;
+
+    for (i = 0; Path[i]; i++) {
+        if (Path[i] == '/' || Path[i] == '\\' || Path[i] == ':') {
+            Base = &Path[i + 1];
+        }
+    }
+    for (i = 0; i < Max - 1 && Base[i]; i++) {
+        Dst[i] = Base[i];
+    }
+    Dst[i] = 0;
+}
+
+/*
+ * 在新用户栈顶构造：argc | argv[] | NULL | envp NULL | 字符串区
+ * 返回新 rsp（指向 argc）
+ */
+static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
+                                 char ArgBuf[][EXEC_ARG_LEN], int Argc,
+                                 UINT64 *OutRsp) {
+    UINT64 Sp = StackTop;
+    UINT64 StrPtrs[EXEC_ARGV_MAX];
+    UINT64 PtrSlot;
+    UINT64 ArgcSlot;
+    int i;
+    UINTN Len;
+
+    if (!Space || !OutRsp || Argc < 0 || Argc > EXEC_ARGV_MAX) {
+        return -1;
+    }
+
+    VirtualMemoryLoadPageTable(VirtualMemorySpaceRoot(Space));
+
+    for (i = Argc - 1; i >= 0; i--) {
+        Len = 0;
+        while (ArgBuf[i][Len] && Len + 1 < EXEC_ARG_LEN) {
+            Len++;
+        }
+        Len++; /* NUL */
+        Sp = (Sp - Len) & ~7ULL;
+        if (VirtualMemoryCopyToUser(Sp, ArgBuf[i], Len) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+        StrPtrs[i] = Sp;
+    }
+
+    /* envp 终止 NULL */
+    Sp -= 8;
+    {
+        UINT64 Z = 0;
+        if (VirtualMemoryCopyToUser(Sp, &Z, 8) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+    }
+    /* argv 指针表 + 终止 NULL */
+    Sp -= 8ULL * (UINT64)(Argc + 1);
+    PtrSlot = Sp;
+    for (i = 0; i < Argc; i++) {
+        if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)i, &StrPtrs[i], 8) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+    }
+    {
+        UINT64 Z = 0;
+        if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)Argc, &Z, 8) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+    }
+    Sp -= 8;
+    ArgcSlot = Sp;
+    {
+        UINT64 Ac = (UINT64)(UINT32)Argc;
+        if (VirtualMemoryCopyToUser(ArgcSlot, &Ac, 8) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+    }
+
+    *OutRsp = ArgcSlot;
+    return 0;
+}
+
+int ProcessExec(const char *Path) {
+    VM_ADDR_SPACE *Space;
+    ELF_LOAD_RESULT Info;
+
+    if (!Path || !Path[0]) {
+        ConsoleWrite("exec: empty path\n");
+        return -1;
+    }
+    if (ProcessLoadPath(Path, &Space, &Info) != 0) {
+        return -1;
+    }
     HalUserInstall();
     SchedulerReapOrphanZombies();
     return ProcessStartElf(Space, &Info, Path);
+}
+
+/*
+ * 替换当前用户任务映像。成功：改写 Frame，不返回用户态旧点；
+ * 失败：返回 -1（Frame 原样，可写 rax=-1）。
+ */
+int ProcessExecve(HAL_FRAME *Frame, const char *Path, UINT64 UserArgv,
+                  UINT64 UserEnvp) {
+    TASK *T;
+    VM_ADDR_SPACE *OldSpace;
+    VM_ADDR_SPACE *NewSpace;
+    ELF_LOAD_RESULT Info;
+    char ArgBuf[EXEC_ARGV_MAX][EXEC_ARG_LEN];
+    int Argc = 0;
+    int i;
+    UINT64 NewRsp;
+    char Name[16];
+
+    (void)UserEnvp;
+
+    T = SchedulerCurrent();
+    if (!T || !T->IsUser || !T->UserSpace || !Frame || !Path || !Path[0]) {
+        return -1;
+    }
+
+    /* 先从旧地址空间拷出 argv（再销毁页表） */
+    VirtualMemoryLoadPageTable(T->PageRoot);
+    if (UserArgv != 0) {
+        for (i = 0; i < EXEC_ARGV_MAX; i++) {
+            UINT64 Ptr = 0;
+            if (VirtualMemoryCopyFromUser(&Ptr, UserArgv + 8ULL * (UINT64)i, 8) < 0) {
+                break;
+            }
+            if (Ptr == 0) {
+                break;
+            }
+            if (CopyUserCString(ArgBuf[i], EXEC_ARG_LEN, Ptr) != 0) {
+                break;
+            }
+            Argc++;
+        }
+    }
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+
+    if (Argc == 0) {
+        CopyPathName(ArgBuf[0], EXEC_ARG_LEN, Path);
+        Argc = 1;
+    }
+
+    if (ProcessLoadPath(Path, &NewSpace, &Info) != 0) {
+        return -1;
+    }
+
+    if (ProcessSetupArgvStack(NewSpace, Info.StackTop, ArgBuf, Argc, &NewRsp) != 0) {
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        VirtualMemorySpaceDestroy(NewSpace);
+        ConsoleWrite("execve: argv stack failed\n");
+        return -1;
+    }
+
+    OldSpace = T->UserSpace;
+    T->UserSpace = NewSpace;
+    T->PageRoot = VirtualMemorySpaceRoot(NewSpace);
+    CopyPathName(Name, (int)sizeof(Name), Path);
+    for (i = 0; i < 15 && Name[i]; i++) {
+        T->Name[i] = Name[i];
+    }
+    T->Name[i] = 0;
+    T->Waiting = 0;
+    /* 保留 Fds / ParentId / Id；映像已换 */
+    HalFrameSetUserEntry(Frame, Info.Entry, NewRsp);
+    T->Frame = Frame;
+    T->Started = 1; /* 经 sysret/iret 回到用户，非 HalUserEnter 首入 */
+
+    VirtualMemoryLoadPageTable(T->PageRoot);
+    VirtualMemorySpaceDestroy(OldSpace);
+
+    HalUserInstall();
+    DebugWrite("execve: ");
+    DebugWrite(Path);
+    DebugWrite(" entry=");
+    DebugHex64(Info.Entry);
+    DebugWrite("\n");
+    return 0;
 }
 
 int ProcessRunDemo(void) {

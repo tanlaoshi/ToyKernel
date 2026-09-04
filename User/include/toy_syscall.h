@@ -18,6 +18,7 @@
 #define SYS_BIND    10
 #define SYS_LISTEN  11
 #define SYS_ACCEPT  12
+#define SYS_EXECVE  13
 
 #define WNOHANG 1
 
@@ -48,6 +49,11 @@ static inline long toy_close(long fd) {
 
 static inline long toy_yield(void) {
     return toy_syscall(SYS_YIELD, 0, 0, 0);
+}
+
+static inline long toy_execve(const char *path, char *const argv[],
+                              char *const envp[]) {
+    return toy_syscall(SYS_EXECVE, (long)path, (long)argv, (long)envp);
 }
 
 #endif

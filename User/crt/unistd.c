@@ -66,3 +66,16 @@ int close(int fd) {
     }
     return 0;
 }
+
+int execve(const char *path, char *const argv[], char *const envp[]) {
+    long r;
+
+    if (!path || !path[0]) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_execve(path, argv, envp);
+    /* 成功则映像已替换，不会回到这里 */
+    errno = (r < 0) ? ENOENT : EIO;
+    return -1;
+}

@@ -17,10 +17,12 @@
 #define SYS_BIND    10
 #define SYS_LISTEN  11
 #define SYS_ACCEPT  12
+#define SYS_EXECVE  13
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1
 
+/* SYS_EXECVE：rdi=path rsi=argv rdx=envp（envp 可忽略）；成功不返回 */
 /* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type(SOCK_STREAM=1) rdx=protocol
  * SYS_CONNECT：rdi=fd rsi=ip(host-order u32) rdx=port
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port

@@ -13,6 +13,7 @@
 #include "Scheduler.h"
 #include "Debug.h"
 #include "VirtualMemory.h"
+#include "Process.h"
 
 #define COPY_BUF_MAX 256
 /* 与 TASK_FD.Path[64] 对齐，便于 CRT 打开子路径 */
@@ -177,6 +178,35 @@ static int SysAccept(int Fd) {
     return SchedulerFdAccept(T, Fd);
 }
 
+static int SysExecve(HAL_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,
+                     UINT64 UserEnvp) {
+    char Path[PATH_MAX_LEN + 1];
+    UINTN i;
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser || !Frame) {
+        return -1;
+    }
+    VirtualMemoryLoadPageTable(T->PageRoot);
+    for (i = 0; i < PATH_MAX_LEN; i++) {
+        char C;
+        if (VirtualMemoryCopyFromUser(&C, UserPath + i, 1) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            return -1;
+        }
+        Path[i] = C;
+        if (C == 0) {
+            break;
+        }
+    }
+    Path[PATH_MAX_LEN] = 0;
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+    if (Path[0] == 0) {
+        return -1;
+    }
+    return ProcessExecve(Frame, Path, UserArgv, UserEnvp);
+}
+
 UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     UINT64 Ret = 0;
 
@@ -233,6 +263,13 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         break;
     case SYS_ACCEPT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysAccept((int)HalFrameArg0(Frame)));
+        break;
+    case SYS_EXECVE:
+        if (SysExecve(Frame, HalFrameArg0(Frame), HalFrameArg1(Frame),
+                      HalFrameArg2(Frame)) != 0) {
+            HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        }
+        /* 成功：Frame 已指向新入口，sysret 进新映像 */
         break;
     default:
         ConsoleWrite("syscall: unknown ");
