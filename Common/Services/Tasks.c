@@ -79,6 +79,11 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
                 FilesUiOnDeleteKey();
                 continue;
             }
+            if (Key == HID_KEY_CAPSLOCK) {
+                HIDKeyboardToggleCapsLock();
+                HalKeyboardSetLeds(HIDKeyboardGetLeds());
+                continue;
+            }
             {
                 char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
                 if (C != 0) {
