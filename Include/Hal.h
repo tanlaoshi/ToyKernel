@@ -51,6 +51,19 @@ void HalSyscallInit(void);
 void HalSetKernelStack(UINT64 StackTop);
 
 /*
+ * PR-A11：用户虚址布局（Common 不写死 0x40000000）。
+ * x86：代码 0x40000000；Arm/RiscV virt：躲开内核恒等（Arm 核 @0x40000000）→ 4GiB 起。
+ */
+UINT64 HalUserCodeVirt(void);
+UINT64 HalUserStackVirt(void);
+UINT64 HalUserStackSize(void);
+UINT64 HalUserBrkMax(void);
+UINT64 HalUserSoBase(void);
+UINT64 HalUserVirtEnd(void);
+/* 内嵌极小用户映像：进 EL0/U + write/exit（x86 空；virt 冒烟） */
+void HalUserSelfTest(void);
+
+/*
  * PR-A2：可移植任务帧 / 系统调用 ABI。
  * Common 用这些 API，不直接写 Cs/Ss/Rax/Rip 或 GDT 选择子字面量。
  */

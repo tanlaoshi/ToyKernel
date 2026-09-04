@@ -14,7 +14,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
 | 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
 | GUI | ≈ 可用 | x86 多窗口；**virt Arm/RiscV：PR-V5 同一套 Common Gui** |
-| 跨架构 virt | ✅ V1～V6 | 自有 Boot + ramfb/virtio；见 `./run-virt-*.sh` / `./smoke-virt.sh` |
+| 跨架构 virt | ✅ V1～V6 + A10～A11 | 自有 Boot + ramfb/virtio；真 MMU；用户态/syscall 自测；见 `./run-virt-*.sh` / `./smoke-virt.sh` |
 | 网络 | ✅ N9/N10 | x86 virtio-net；virt Arm/RiscV MMIO + 桌面挂 `net` + `ping`；可选 lwIP |
 | 多核 SMP | ✅ | PR-S1～S4：MADT/SIPI、每核 timer、调度大锁、每核 TSS/队列偷任务 |
 

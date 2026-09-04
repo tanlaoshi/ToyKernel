@@ -12,12 +12,13 @@
 #define PTE_USER     HAL_PAGE_USER
 /* COW 位布局见 HalPageIsCow / HalPageMarkCow（PR-A3） */
 
-#define USER_CODE_VIRT  0x40000000ULL
-#define USER_STACK_VIRT 0x40100000ULL
-#define USER_STACK_SIZE 0x4000ULL
-#define USER_VIRT_END   (USER_STACK_VIRT + USER_STACK_SIZE)
+/* 布局见 HalUser*（PR-A11）；宏便于既有调用点 */
+#define USER_CODE_VIRT  HalUserCodeVirt()
+#define USER_STACK_VIRT HalUserStackVirt()
+#define USER_STACK_SIZE HalUserStackSize()
+#define USER_VIRT_END   HalUserVirtEnd()
 /* 堆向上长到 SO 基址之前，避免盖住 USER_SO_BASE（PR-P3） */
-#define USER_BRK_MAX    0x40080000ULL
+#define USER_BRK_MAX    HalUserBrkMax()
 
 #define VM_SPACE_MAX_PAGES 128
 

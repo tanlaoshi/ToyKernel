@@ -40,8 +40,8 @@
 #define ELF_R_SYM(I)  ((I) >> 32)
 #define ELF_R_TYPE(I) ((UINT32)(I))
 
-/* 共享库固定装载基址（主程序约在 0x40000000..0x40004000，栈在 0x40100000） */
-#define USER_SO_BASE   0x40080000ULL
+/* 共享库基址：HalUserSoBase()（x86 仍 0x40080000；virt 见 PR-A11） */
+#define USER_SO_BASE   HalUserSoBase()
 #define USER_SO_STRIDE 0x20000ULL
 #define ELF_MAX_NEEDED 4
 #define ELF_MAX_SO     4

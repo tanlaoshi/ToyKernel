@@ -270,9 +270,11 @@ int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction 
 }
 
 int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
-    /* 用户 VA 落在 0x40000000 → VPN2=1；私有化槽 1 以免与内核 megapage 冲突——
-     * A10 尚无用户态；先私有化槽 0（与 Common/A3 形状一致）。A11 再按 arch 调整。 */
-    return HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx);
+    /* 根表已私有；用户 @4GiB → VPN2=4，不碰内核 megapage 槽 */
+    (void)Root;
+    (void)Alloc;
+    (void)Ctx;
+    return 0;
 }
 
 int HalPageIsCow(UINT64 Pte) {

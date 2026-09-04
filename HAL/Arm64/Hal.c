@@ -94,11 +94,46 @@ void HalVirtIdleLoop(void) {
     }
 }
 
-void HalUserInstall(void) { }
-void HalSyscallInit(void) { }
-void HalSetKernelStack(UINT64 StackTop) { (void)StackTop; }
+extern void HalExceptionVectorsInstall(void);
+extern void HalUserEnter(struct HAL_FRAME *Frame);
 
-void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
+void HalUserInstall(void) {
+    /* EL0 入口前确保向量表；SP_EL1 由当前内核栈承担 */
+    HalExceptionVectorsInstall();
+}
+
+void HalSyscallInit(void) {
+    HalExceptionVectorsInstall();
+    HalSerialWrite("syscall: Arm64 SVC (EL0) ready\n");
+    HalUserSelfTest();
+}
+
+void HalSetKernelStack(UINT64 StackTop) {
+    /* EL1 用 SP_EL1：切栈留给调用方；此处记录供将来 IRQ */
+    (void)StackTop;
+}
+
+/* 躲开内核 @0x40000000 恒等映射：用户区从 4GiB 起 */
+UINT64 HalUserCodeVirt(void) {
+    return 0x100000000ULL;
+}
+UINT64 HalUserStackVirt(void) {
+    return 0x100100000ULL;
+}
+UINT64 HalUserStackSize(void) {
+    return 0x4000ULL;
+}
+UINT64 HalUserBrkMax(void) {
+    return 0x100080000ULL;
+}
+UINT64 HalUserSoBase(void) {
+    return 0x100080000ULL;
+}
+UINT64 HalUserVirtEnd(void) {
+    return HalUserStackVirt() + HalUserStackSize();
+}
+
+static void FrameZero(HAL_FRAME *F) {
     UINTN j;
     if (!F) {
         return;
@@ -106,12 +141,27 @@ void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
     for (j = 0; j < sizeof(HAL_FRAME); j++) {
         ((UINT8 *)F)[j] = 0;
     }
+}
+
+void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
+    if (!F) {
+        return;
+    }
+    FrameZero(F);
     F->Rip = Entry;
     F->Rsp = StackTop;
+    F->Rflags = 0x3c5; /* EL1h + DAIF clear-ish；内核任务不经 eret */
 }
 
 void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserRsp) {
-    HalFrameSetKernelEntry(F, Entry, UserRsp);
+    if (!F) {
+        return;
+    }
+    FrameZero(F);
+    F->Rip = Entry;
+    F->Rsp = UserRsp;
+    F->Rflags = 0; /* EL0t */
+    F->Vec = VEC_SYSCALL;
 }
 
 void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src) {
@@ -128,35 +178,34 @@ UINT64 HalFrameGetRip(const HAL_FRAME *F) {
     return F ? F->Rip : 0;
 }
 
+/* Linux aarch64 形：x8=号，x0..x2=参数，返回 x0 */
 UINT64 HalFrameSyscallNum(const HAL_FRAME *F) {
-    (void)F;
-    return 0;
+    return F ? F->X[8] : 0;
 }
 
 UINT64 HalFrameArg0(const HAL_FRAME *F) {
-    (void)F;
-    return 0;
+    return F ? F->X[0] : 0;
 }
 
 UINT64 HalFrameArg1(const HAL_FRAME *F) {
-    (void)F;
-    return 0;
+    return F ? F->X[1] : 0;
 }
 
 UINT64 HalFrameArg2(const HAL_FRAME *F) {
-    (void)F;
-    return 0;
+    return F ? F->X[2] : 0;
 }
 
 void HalFrameSetReturn(HAL_FRAME *F, UINT64 Value) {
-    (void)F;
-    (void)Value;
+    if (F) {
+        F->X[0] = Value;
+    }
 }
 
 void HalFrameSetReturn2(HAL_FRAME *F, UINT64 A, UINT64 B) {
-    (void)F;
-    (void)A;
-    (void)B;
+    if (F) {
+        F->X[0] = A;
+        F->X[1] = B;
+    }
 }
 
 UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
@@ -173,7 +222,6 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
     }
     Entry = Frame->Rip;
     Stack = Frame->Rsp;
-    /* 首次进入内核任务：切栈并跳到 Entry（无返回；无抢占则该任务一直跑） */
     __asm__ volatile(
         "mov sp, %0\n"
         "br  %1\n"
@@ -182,12 +230,12 @@ void HalSchedulerEnter(struct HAL_FRAME *Frame) {
         : "memory");
     HalVirtIdleLoop();
 }
-void HalUserEnter(struct HAL_FRAME *Frame) { (void)Frame; }
+/* HalUserEnter 在 Vectors.S */
 
 /* 分页实现见 Page.c（PR-A7） */
 
 const char *HalArchName(void) { return "aarch64"; }
-const char *HalCpuInfo(void) { return "ARM64 (virt A8)"; }
+const char *HalCpuInfo(void) { return "ARM64 (virt A11)"; }
 
 UINT16 HalElfMachine(void) {
     return 183; /* EM_AARCH64 */

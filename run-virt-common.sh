@@ -205,6 +205,9 @@ toy_virt_smoke_ok() {
     if [ -n "${TOY_VIRT_HELLO_PAT:-}" ] && grep -q "$TOY_VIRT_HELLO_PAT" "$Out" 2>/dev/null; then
         return 0
     fi
+    if ! grep -qE 'user: (back in EL1|back in S-mode|EL0 syscall ok|U-mode syscall ok)' "$Out" 2>/dev/null; then
+        return 1
+    fi
     if ! grep -qE 'ToyOS ready|ToyOS 就绪' "$Out" 2>/dev/null; then
         return 1
     fi

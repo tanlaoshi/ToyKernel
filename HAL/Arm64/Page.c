@@ -343,6 +343,7 @@ int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction 
 }
 
 int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
+    /* L0[0] 私有：用户区 @4GiB+ 写 L1[4..] 不污染内核恒等表 */
     return HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx);
 }
 

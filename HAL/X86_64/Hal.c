@@ -115,6 +115,28 @@ void HalSetKernelStack(UINT64 StackTop) {
     ArchSetRsp0(StackTop);
 }
 
+UINT64 HalUserCodeVirt(void) {
+    return 0x40000000ULL;
+}
+UINT64 HalUserStackVirt(void) {
+    return 0x40100000ULL;
+}
+UINT64 HalUserStackSize(void) {
+    return 0x4000ULL;
+}
+UINT64 HalUserBrkMax(void) {
+    return 0x40080000ULL;
+}
+UINT64 HalUserSoBase(void) {
+    return 0x40080000ULL;
+}
+UINT64 HalUserVirtEnd(void) {
+    return HalUserStackVirt() + HalUserStackSize();
+}
+void HalUserSelfTest(void) {
+    /* x86 用户路径由 FAT ELF / runuser 覆盖；无需内嵌自测 */
+}
+
 static void FrameZero(HAL_FRAME *F) {
     UINTN j;
     for (j = 0; j < sizeof(HAL_FRAME); j++) {
