@@ -16,5 +16,8 @@ extern int errno;
 #define EEXIST  17
 #define EINVAL  22
 #define ENOSPC  28
+#define EMFILE  24
+#define EAGAIN  11
+#define ECHILD  10
 
 #endif

@@ -9,11 +9,15 @@
 #include "Hal.h"
 
 #define MAX_TASKS 16
-#define MAX_FDS   4
+#define MAX_FDS   8
 #define FD_MAX_BYTES (64 * 1024)
 
 #define FD_KIND_FILE   0
 #define FD_KIND_SOCKET 1
+#define FD_KIND_PIPE   2
+
+#define PIPE_END_READ  0
+#define PIPE_END_WRITE 1
 
 typedef enum {
     TASK_UNUSED = 0,
@@ -25,9 +29,9 @@ typedef enum {
 
 typedef struct {
     int     Used;
-    int     Kind;   /* FD_KIND_FILE / FD_KIND_SOCKET */
-    int     SockId; /* Kind==SOCKET 时为 LwIp socket id */
-    UINT8  *Data;
+    int     Kind;   /* FD_KIND_FILE / SOCKET / PIPE */
+    int     SockId; /* SOCKET=lwIP id；PIPE=PIPE_END_READ/WRITE */
+    UINT8  *Data;   /* FILE=缓冲；PIPE=(PIPE*) 共享对象 */
     UINTN   Size;
     UINTN   Pos;
     UINT32  Pages;
@@ -81,6 +85,9 @@ int SchedulerFdConnect(TASK *T, int Fd, UINT32 Ip, UINT16 Port);
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len);
 int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len);
 int SchedulerFdClose(TASK *T, int Fd);
+/* PR-P2：pipefd[0]=读端 pipefd[1]=写端；dup 复制槽位 */
+int SchedulerFdPipe(TASK *T, int PipeFd[2]);
+int SchedulerFdDup(TASK *T, int OldFd);
 
 void SchedulerReapOrphanZombies(void);
 

@@ -79,3 +79,54 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
     errno = (r < 0) ? ENOENT : EIO;
     return -1;
 }
+
+int pipe(int pipefd[2]) {
+    long r;
+
+    if (!pipefd) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_pipe(pipefd);
+    if (r < 0) {
+        errno = EMFILE;
+        return -1;
+    }
+    return 0;
+}
+
+int dup(int fd) {
+    long r;
+
+    if (fd < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    r = toy_dup(fd);
+    if (r < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    return (int)r;
+}
+
+pid_t fork(void) {
+    long r = toy_fork();
+    if (r < 0) {
+        errno = EAGAIN;
+        return -1;
+    }
+    return (pid_t)r;
+}
+
+pid_t wait(int *status) {
+    long r = toy_wait(0);
+    if (r < 0) {
+        errno = ECHILD;
+        return -1;
+    }
+    if (status) {
+        *status = 0;
+    }
+    return (pid_t)r;
+}

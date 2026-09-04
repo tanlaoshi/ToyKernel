@@ -271,6 +271,36 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         }
         /* 成功：Frame 已指向新入口，sysret 进新映像 */
         break;
+    case SYS_PIPE: {
+        TASK *T = SchedulerCurrent();
+        int Fds[2];
+        UINT64 UserPtr = HalFrameArg0(Frame);
+        if (!T || !T->IsUser || SchedulerFdPipe(T, Fds) != 0) {
+            HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+            break;
+        }
+        VirtualMemoryLoadPageTable(T->PageRoot);
+        if (VirtualMemoryCopyToUser(UserPtr, Fds, sizeof(Fds)) < 0) {
+            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            SchedulerFdClose(T, Fds[0]);
+            SchedulerFdClose(T, Fds[1]);
+            HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+            break;
+        }
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        HalFrameSetReturn(Frame, 0);
+        break;
+    }
+    case SYS_DUP: {
+        TASK *T = SchedulerCurrent();
+        if (!T || !T->IsUser) {
+            HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+            break;
+        }
+        HalFrameSetReturn(Frame, (UINT64)(long)SchedulerFdDup(
+            T, (int)HalFrameArg0(Frame)));
+        break;
+    }
     default:
         ConsoleWrite("syscall: unknown ");
         ConsoleHex64(HalFrameSyscallNum(Frame));

@@ -19,11 +19,14 @@
 #define SYS_LISTEN  11
 #define SYS_ACCEPT  12
 #define SYS_EXECVE  13
+#define SYS_PIPE    14
+#define SYS_DUP     15
 
 #define WNOHANG 1
 
 typedef long ssize_t;
 typedef unsigned long size_t;
+typedef long pid_t;
 
 long toy_syscall(long n, long a, long b, long c);
 
@@ -54,6 +57,22 @@ static inline long toy_yield(void) {
 static inline long toy_execve(const char *path, char *const argv[],
                               char *const envp[]) {
     return toy_syscall(SYS_EXECVE, (long)path, (long)argv, (long)envp);
+}
+
+static inline long toy_fork(void) {
+    return toy_syscall(SYS_FORK, 0, 0, 0);
+}
+
+static inline long toy_wait(long options) {
+    return toy_syscall(SYS_WAIT, options, 0, 0);
+}
+
+static inline long toy_pipe(int pipefd[2]) {
+    return toy_syscall(SYS_PIPE, (long)pipefd, 0, 0);
+}
+
+static inline long toy_dup(int fd) {
+    return toy_syscall(SYS_DUP, fd, 0, 0);
 }
 
 #endif
