@@ -2,7 +2,7 @@
 
 ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）配合，构成完整的教学/实验用操作系统。
 
-更细的模块说明见 [`结构说明.md`](结构说明.md)，分层与 API 边界见 [`架构分层.md`](架构分层.md)，发展规划见 [`路线图.md`](路线图.md)，用户态库见 [`用户态库.md`](用户态库.md)，驱动框架见 [`驱动框架.md`](驱动框架.md)，标识符整改清单见 [`命名整改.md`](命名整改.md)。家/公司同步见 [`同步说明.md`](同步说明.md)。
+更细的模块说明见 [`Documents/结构说明.md`](Documents/结构说明.md)，分层与 API 边界见 [`Documents/架构分层.md`](Documents/架构分层.md)，发展规划见 [`Documents/路线图.md`](Documents/路线图.md)，用户态库见 [`Documents/用户态库.md`](Documents/用户态库.md)，驱动框架见 [`Documents/驱动框架.md`](Documents/驱动框架.md)，标识符整改清单见 [`Documents/命名整改.md`](Documents/命名整改.md)。家/公司同步见 [`Documents/同步说明.md`](Documents/同步说明.md)。
 
 ---
 
@@ -136,7 +136,7 @@ TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
 
 ### Arm64 / RiscV（自有 Boot virt — PR-V6 / N10）
 
-**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`路线图.md`](路线图.md) **1.2e** ✅（文末 N10/G11/P4 归档）；下一阶段 **1.2f**。
+**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`Documents/路线图.md`](Documents/路线图.md)：**1.2e** ✅；**1.2f A10** ✅ 真 MMU；下一刀 **A11**。
 
 ```bash
 cd ToyKernel
@@ -219,9 +219,10 @@ echo hello | nc -u 127.0.0.1 5555
 
 ## 文档与后续
 
-- [`架构分层.md`](架构分层.md) — 分层、对外接口、禁止跨层依赖（PR-L0）
-- [`结构说明.md`](结构说明.md) — 启动流程、源文件职责、阅读顺序
-- [`路线图.md`](路线图.md) — 阶段规划与待办
+- [`Documents/`](Documents/) — 产品与架构文档归档
+  - [`架构分层.md`](Documents/架构分层.md) — 分层、对外接口、禁止跨层依赖（PR-L0）
+  - [`结构说明.md`](Documents/结构说明.md) — 启动流程、源文件职责、阅读顺序
+  - [`路线图.md`](Documents/路线图.md) — 阶段规划与待办
 - 计划中的后续：NVMe/virtio-blk Block 后端、真机安装器
 
 ---

@@ -130,6 +130,10 @@ void HalPagingEnable(UINT64 RootPhys) {
     __asm__ volatile ("mov %0, %%cr0" :: "r"(Cr0));
 }
 
+void HalPagingSelfTest(void) {
+    /* x86 缺页路径已在 Arch.c #PF → VirtualMemoryHandlePageFault */
+}
+
 int HalPageKernelSetup(UINTN IdentityMegabytes) {
     UINT64 *Pml4 = (UINT64 *)PageAllocTable();
     UINT64 *Pdpt = (UINT64 *)PageAllocTable();

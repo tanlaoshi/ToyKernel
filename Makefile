@@ -28,7 +28,7 @@ LDFLAGS_ARCH =
 endif
 ifeq ($(ARCH),riscv)
 HAL_ARCH = RiscV
-ARCH_CFLAGS = -march=rv64imac -mabi=lp64 -mcmodel=medany
+ARCH_CFLAGS = -march=rv64imac_zicsr_zifencei -mabi=lp64 -mcmodel=medany
 LDFLAGS_ARCH =
 ifneq ($(wildcard $(TOOLS_ROOT)/xpack-riscv-none-elf-gcc-*/bin/riscv-none-elf-gcc),)
 TOOLS_RISCV := $(lastword $(sort $(wildcard $(TOOLS_ROOT)/xpack-riscv-none-elf-gcc-*)))

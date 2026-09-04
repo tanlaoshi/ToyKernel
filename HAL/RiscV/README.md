@@ -1,7 +1,9 @@
-# RISC-V HAL（占位）
+# RISC-V HAL
 
-本目录为 RISC-V 64 架构 HAL 骨架，尚未实现完整启动与中断。
+QEMU virt riscv64：OpenSBI / `-kernel`、UART16550、ramfb / virtio-*。
 
-待实现：OpenSBI 入口、`Trap.S`、PLIC、SBI 定时器/控制台、Sv39 页表。
+**PR-A10**：真 MMU（Sv39 `satp`）、`TrapVec.S` 缺页路径、`HalPagingSelfTest`。
 
-构建：`make ARCH=riscv`（当前会因 `Common/VirtualMemory.c` 等 x86 专用代码而失败，需后续分架构编译 Common）。
+仍欠（见路线图 1.2f）：用户态 / syscall 帧（A11）、ELF reloc（A12）、SBI timer（A13）、SMP（A14）。
+
+构建：`./build.sh riscv` → `Build/riscv/Kernel.elf`；验收 `./run-virt-riscv.sh` / `./smoke-virt.sh`。

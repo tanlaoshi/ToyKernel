@@ -1,7 +1,9 @@
-# ARM64 HAL（占位）
+# ARM64 HAL
 
-本目录为 AArch64 架构 HAL 骨架，尚未实现完整启动与中断。
+QEMU virt aarch64：自有 Boot（`-kernel` + DTB）、PL011、ramfb / virtio-*。
 
-待实现：DTB / `-kernel` 入口、`Vectors.S`、GIC、Generic Timer、PL011 串口、4 级页表。
+**PR-A10**：真 MMU（TTBR0 / TCR / SCTLR.M）、`Vectors.S` 缺页路径、`HalPagingSelfTest`。
 
-构建：`make ARCH=arm64`（当前会因 `Common/VirtualMemory.c` 等 x86 专用代码而失败，需后续分架构编译 Common）。
+仍欠（见路线图 1.2f）：用户态 / syscall 帧（A11）、ELF reloc（A12）、GIC/timer（A13）、SMP（A14）。
+
+构建：`./build.sh arm64` → `Build/arm64/Kernel.elf`；验收 `./run-virt-arm.sh` / `./smoke-virt.sh`。

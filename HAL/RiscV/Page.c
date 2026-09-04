@@ -1,13 +1,28 @@
 /*
- * HAL/RiscV/Page.c — PR-A7 软页表（与 Common HAL_PAGE_* 对齐；暂不启用 MMU）
+ * HAL/RiscV/Page.c — PR-A10：真 MMU（Sv39 satp）+ 缺页陷阱
+ * Common 仍见 HAL_PAGE_*；GetEntry 返回规范化 PTE。
  */
 #include "Hal.h"
 #include "PhysicalMemory.h"
 
-#define PTE_HUGE (1ULL << 7)
+#define PTE_V (1ULL << 0)
+#define PTE_R (1ULL << 1)
+#define PTE_W (1ULL << 2)
+#define PTE_X (1ULL << 3)
+#define PTE_U (1ULL << 4)
+#define PTE_G (1ULL << 5)
+#define PTE_A (1ULL << 6)
+#define PTE_D (1ULL << 7)
+#define PTE_RSW_COW (1ULL << 8) /* RSW 软件位 */
+
+#define PTE_PPN_SHIFT 10
+#define SATP_MODE_SV39 (8ULL << 60)
+
+#define HAL_VIEW_COW (1ULL << 9)
 
 static UINT64 gKernelRoot;
 static UINT64 gCurrentRoot;
+static int gMmuOn;
 
 static UINT64 PagePhys(const void *Ptr) {
     return (UINT64)(UINTN)Ptr;
@@ -29,114 +44,176 @@ static void *PageAllocTable(void) {
     return Page;
 }
 
-static UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
-                        HalPageAllocateFunction Alloc, void *Ctx) {
-    UINT64 Pml4i = (Virt >> 39) & 0x1FF;
-    UINT64 Pdpti = (Virt >> 30) & 0x1FF;
-    UINT64 Pdi   = (Virt >> 21) & 0x1FF;
-    UINT64 Pti   = (Virt >> 12) & 0x1FF;
-    UINT64 TableFlags = HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
-    if (User) {
-        TableFlags |= HAL_PAGE_USER;
+static UINT64 NativeFromHal(UINT64 Phys, UINT64 HalFlags) {
+    UINT64 N = PTE_V | PTE_A | PTE_D | ((Phys >> 12) << PTE_PPN_SHIFT);
+    /* 内核可执行代码也在恒等映射内：叶子给 R|W|X */
+    N |= PTE_R | PTE_X;
+    if (HalFlags & HAL_PAGE_WRITABLE) {
+        N |= PTE_W;
     }
-
-    if (!(Pml4[Pml4i] & HAL_PAGE_PRESENT)) {
-        if (!Create) {
-            return 0;
+    if (HalFlags & HAL_PAGE_USER) {
+        N |= PTE_U;
+        /* 用户页一般不给 X 除非代码；此处与 x86 一致仅按 Flags */
+        if (!(HalFlags & HAL_PAGE_WRITABLE)) {
+            /* RO 用户：仍可读 */
         }
-        UINT64 *NewPdpt = Alloc ? (UINT64 *)Alloc(Ctx) : (UINT64 *)PageAllocTable();
-        if (!NewPdpt) {
-            return 0;
-        }
-        if (!Alloc) {
-            PageZero(NewPdpt, PAGE_SIZE);
-        }
-        Pml4[Pml4i] = PagePhys(NewPdpt) | TableFlags;
-    } else if (User && !(Pml4[Pml4i] & HAL_PAGE_USER)) {
-        Pml4[Pml4i] |= HAL_PAGE_USER;
     }
-
-    UINT64 *Pdpt = (UINT64 *)(UINTN)(Pml4[Pml4i] & ~0xFFFULL);
-    if (!(Pdpt[Pdpti] & HAL_PAGE_PRESENT)) {
-        if (!Create) {
-            return 0;
-        }
-        UINT64 *NewPd = Alloc ? (UINT64 *)Alloc(Ctx) : (UINT64 *)PageAllocTable();
-        if (!NewPd) {
-            return 0;
-        }
-        if (!Alloc) {
-            PageZero(NewPd, PAGE_SIZE);
-        }
-        Pdpt[Pdpti] = PagePhys(NewPd) | TableFlags;
-    } else if (User && !(Pdpt[Pdpti] & HAL_PAGE_USER)) {
-        Pdpt[Pdpti] |= HAL_PAGE_USER;
+    if (HalFlags & HAL_VIEW_COW) {
+        N |= PTE_RSW_COW;
+        N &= ~PTE_W;
     }
+    return N;
+}
 
-    UINT64 *Pd = (UINT64 *)(UINTN)(Pdpt[Pdpti] & ~0xFFFULL);
-    if (Pd[Pdi] & PTE_HUGE) {
+static UINT64 HalViewFromNative(UINT64 Native) {
+    UINT64 Out;
+    if (!(Native & PTE_V)) {
         return 0;
     }
+    /* 非叶子（仅 V）：不当作 present 映射页 */
+    if (!(Native & (PTE_R | PTE_W | PTE_X))) {
+        return 0;
+    }
+    Out = ((Native >> PTE_PPN_SHIFT) << 12) | HAL_PAGE_PRESENT;
+    if (Native & PTE_W) {
+        Out |= HAL_PAGE_WRITABLE;
+    }
+    if (Native & PTE_U) {
+        Out |= HAL_PAGE_USER;
+    }
+    if (Native & PTE_RSW_COW) {
+        Out |= HAL_VIEW_COW;
+    }
+    return Out;
+}
 
-    UINT64 *Pt = (UINT64 *)(UINTN)(Pd[Pdi] & ~0xFFFULL);
-    if (!(Pd[Pdi] & HAL_PAGE_PRESENT)) {
+static int IsLeaf(UINT64 Pte) {
+    return (Pte & PTE_V) && (Pte & (PTE_R | PTE_W | PTE_X));
+}
+
+/* Sv39：3 级 VPN[2:0] */
+static UINT64 *PageWalk(UINT64 *L2, UINT64 Virt, int Create,
+                        HalPageAllocateFunction Alloc, void *Ctx) {
+    UINT64 i2 = (Virt >> 30) & 0x1FF;
+    UINT64 i1 = (Virt >> 21) & 0x1FF;
+    UINT64 i0 = (Virt >> 12) & 0x1FF;
+    UINT64 *L1;
+    UINT64 *L0;
+
+    if (!(L2[i2] & PTE_V)) {
         if (!Create) {
             return 0;
         }
-        Pt = Alloc ? (UINT64 *)Alloc(Ctx) : (UINT64 *)PageAllocTable();
-        if (!Pt) {
+        L1 = Alloc ? (UINT64 *)Alloc(Ctx) : (UINT64 *)PageAllocTable();
+        if (!L1) {
             return 0;
         }
         if (!Alloc) {
-            PageZero(Pt, PAGE_SIZE);
+            PageZero(L1, PAGE_SIZE);
         }
-        Pd[Pdi] = PagePhys(Pt) | TableFlags;
-    } else if (User && !(Pd[Pdi] & HAL_PAGE_USER)) {
-        Pd[Pdi] |= HAL_PAGE_USER;
+        L2[i2] = PTE_V | ((PagePhys(L1) >> 12) << PTE_PPN_SHIFT);
+    } else if (IsLeaf(L2[i2])) {
+        return 0;
     }
+    L1 = (UINT64 *)(UINTN)(((L2[i2] >> PTE_PPN_SHIFT) << 12));
 
-    return &Pt[Pti];
+    if (!(L1[i1] & PTE_V)) {
+        if (!Create) {
+            return 0;
+        }
+        L0 = Alloc ? (UINT64 *)Alloc(Ctx) : (UINT64 *)PageAllocTable();
+        if (!L0) {
+            return 0;
+        }
+        if (!Alloc) {
+            PageZero(L0, PAGE_SIZE);
+        }
+        L1[i1] = PTE_V | ((PagePhys(L0) >> 12) << PTE_PPN_SHIFT);
+    } else if (IsLeaf(L1[i1])) {
+        return 0;
+    }
+    L0 = (UINT64 *)(UINTN)(((L1[i1] >> PTE_PPN_SHIFT) << 12));
+    return &L0[i0];
 }
 
 static UINT64 *PageLookup(UINT64 Root, UINT64 Virt) {
-    UINT64 *Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
-    return PageWalk(Pml4, Virt, 0, 0, 0, 0);
+    UINT64 *L2 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    return PageWalk(L2, Virt, 0, 0, 0);
 }
 
 void HalFlushTlb(UINT64 VirtualAddress) {
-    (void)VirtualAddress;
+    if (!gMmuOn) {
+        return;
+    }
+    __asm__ volatile("sfence.vma %0, zero" :: "r"(VirtualAddress) : "memory");
 }
 
 void HalLoadPageTable(UINT64 Root) {
     gCurrentRoot = Root;
+    if (!gMmuOn) {
+        return;
+    }
+    __asm__ volatile(
+        "csrw satp, %0\n"
+        "sfence.vma\n"
+        :: "r"(SATP_MODE_SV39 | (Root >> 12)) : "memory");
 }
 
 UINT64 HalGetPageTable(void) {
+    if (gMmuOn) {
+        UINT64 Satp;
+        __asm__ volatile("csrr %0, satp" : "=r"(Satp));
+        return (Satp & ((1ULL << 44) - 1)) << 12;
+    }
     return gCurrentRoot ? gCurrentRoot : gKernelRoot;
 }
 
+void HalTrapVectorInstall(void);
+
 void HalPagingEnable(UINT64 RootPhys) {
-    /* PR-A7：软件页表；真 MMU 后置 */
-    HalLoadPageTable(RootPhys);
+    HalTrapVectorInstall();
+    gCurrentRoot = RootPhys;
+    gKernelRoot = RootPhys;
+    __asm__ volatile(
+        "csrw satp, %0\n"
+        "sfence.vma\n"
+        :: "r"(SATP_MODE_SV39 | (RootPhys >> 12)) : "memory");
+    gMmuOn = 1;
+    HalSerialWrite("vmm: RiscV Sv39 on\n");
+    HalPagingSelfTest();
 }
 
+/*
+ * Sv39 恒等：0..4GiB，2MiB megapages（L1 leaf）。
+ * 低 1GiB 与其余同为 R|W|X（virt MMIO 可；真机可再拆）。
+ */
 int HalPageKernelSetup(UINTN IdentityMegabytes) {
-    UINT64 *Pml4 = (UINT64 *)PageAllocTable();
-    UINT64 *Pdpt = (UINT64 *)PageAllocTable();
-    UINT64 *Pd = (UINT64 *)PageAllocTable();
-    if (!Pml4 || !Pdpt || !Pd) {
+    UINT64 *L2;
+    UINTN GiB = 4;
+    UINTN g;
+    UINTN b;
+
+    (void)IdentityMegabytes;
+    L2 = (UINT64 *)PageAllocTable();
+    if (!L2) {
         return -1;
     }
 
-    Pml4[0] = PagePhys(Pdpt) | HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
-    Pdpt[0] = PagePhys(Pd) | HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
-
-    UINTN HugeCount = (IdentityMegabytes * 1024 * 1024) / (2 * 1024 * 1024);
-    for (UINTN i = 0; i < HugeCount; i++) {
-        Pd[i] = ((UINT64)i << 21) | HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE | PTE_HUGE;
+    for (g = 0; g < GiB; g++) {
+        UINT64 *L1 = (UINT64 *)PageAllocTable();
+        if (!L1) {
+            return -1;
+        }
+        L2[g] = PTE_V | ((PagePhys(L1) >> 12) << PTE_PPN_SHIFT);
+        for (b = 0; b < 512; b++) {
+            UINT64 Pa = ((UINT64)g << 30) + ((UINT64)b << 21);
+            /* 2MiB leaf @ L1：V|R|W|X|A|D + PPN of 2MiB page */
+            L1[b] = PTE_V | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D |
+                    ((Pa >> 12) << PTE_PPN_SHIFT);
+        }
     }
 
-    gKernelRoot = PagePhys(Pml4);
+    gKernelRoot = PagePhys(L2);
     gCurrentRoot = gKernelRoot;
     return 0;
 }
@@ -149,11 +226,11 @@ UINT64 HalPageRootCreate(HalPageAllocateFunction Alloc, void *Ctx) {
     if (!Alloc) {
         return 0;
     }
-    void *Pml4 = Alloc(Ctx);
-    if (!Pml4) {
+    void *L2 = Alloc(Ctx);
+    if (!L2) {
         return 0;
     }
-    return PagePhys(Pml4);
+    return PagePhys(L2);
 }
 
 void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
@@ -164,65 +241,56 @@ void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
     }
 }
 
-/*
- * 将根页表槽 Root[Index] 换成私有下一级表（x86：PML4→私有 PDPT）。
- * 内核恒等映射与用户空间都落在槽 0；浅拷贝后若不私有化，
- * Map/Unmap 用户页会改到共享表，fork/exit 会互相踩页表。
- */
 int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction Alloc, void *Ctx) {
-    UINT64 *Pml4;
-    UINT64 *OldPdpt;
-    UINT64 *NewPdpt;
-    UINT64 Flags;
+    UINT64 *L2;
+    UINT64 *Old;
+    UINT64 *New;
     int i;
 
     if (!Alloc || Index >= 512) {
         return -1;
     }
-    Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
-    if (!(Pml4[Index] & HAL_PAGE_PRESENT)) {
+    L2 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    if (!(L2[Index] & PTE_V)) {
         return 0;
     }
-    OldPdpt = (UINT64 *)(UINTN)(Pml4[Index] & ~0xFFFULL);
-    NewPdpt = (UINT64 *)Alloc(Ctx);
-    if (!NewPdpt) {
+    if (IsLeaf(L2[Index])) {
+        return -1;
+    }
+    Old = (UINT64 *)(UINTN)(((L2[Index] >> PTE_PPN_SHIFT) << 12));
+    New = (UINT64 *)Alloc(Ctx);
+    if (!New) {
         return -1;
     }
     for (i = 0; i < 512; i++) {
-        NewPdpt[i] = OldPdpt[i];
+        New[i] = Old[i];
     }
-    Flags = Pml4[Index] & 0xFFFULL;
-    Pml4[Index] = PagePhys(NewPdpt) | Flags | HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
+    L2[Index] = PTE_V | ((PagePhys(New) >> 12) << PTE_PPN_SHIFT);
     return 0;
 }
 
-/*
- * PR-A3：用户根私有化（软页表槽 0）。
- */
 int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
+    /* 用户 VA 落在 0x40000000 → VPN2=1；私有化槽 1 以免与内核 megapage 冲突——
+     * A10 尚无用户态；先私有化槽 0（与 Common/A3 形状一致）。A11 再按 arch 调整。 */
     return HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx);
 }
 
-/* 软 PTE bit9：fork COW */
-#define HAL_SOFT_PTE_COW (1ULL << 9)
-
 int HalPageIsCow(UINT64 Pte) {
-    return (Pte & HAL_SOFT_PTE_COW) != 0;
+    return (Pte & HAL_VIEW_COW) != 0;
 }
 
 UINT64 HalPageMarkCow(UINT64 Flags) {
-    return (Flags | HAL_SOFT_PTE_COW) & ~HAL_PAGE_WRITABLE;
+    return (Flags | HAL_VIEW_COW) & ~HAL_PAGE_WRITABLE;
 }
 
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx) {
-    int User = (Flags & HAL_PAGE_USER) != 0;
-    UINT64 *Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
-    UINT64 *Pte = PageWalk(Pml4, VirtualAddress, 1, User, Alloc, Ctx);
+    UINT64 *L2 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    UINT64 *Pte = PageWalk(L2, VirtualAddress, 1, Alloc, Ctx);
     if (!Pte) {
         return -1;
     }
-    *Pte = (PhysicalAddress & ~0xFFFULL) | Flags | HAL_PAGE_PRESENT;
+    *Pte = NativeFromHal(PhysicalAddress, Flags);
     HalFlushTlb(VirtualAddress);
     return 0;
 }
@@ -230,7 +298,12 @@ int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT6
 int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End) {
     for (UINT64 Virt = Start & ~(UINT64)(PAGE_SIZE - 1); Virt < End; Virt += PAGE_SIZE) {
         UINT64 *Pte = PageLookup(Root, Virt);
-        if (!Pte || !(*Pte & HAL_PAGE_PRESENT) || !(*Pte & HAL_PAGE_USER)) {
+        UINT64 View;
+        if (!Pte) {
+            continue;
+        }
+        View = HalViewFromNative(*Pte);
+        if (!(View & HAL_PAGE_PRESENT) || !(View & HAL_PAGE_USER)) {
             continue;
         }
         *Pte = 0;
@@ -242,9 +315,21 @@ int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End) {
 UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
     UINT64 *Pte = PageLookup(Root, Virt);
     if (!Pte) {
+        /* megapage @ L1：Lookup 走 L0 失败；对内核恒等可再查 L1 leaf */
+        UINT64 *L2 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+        UINT64 i2 = (Virt >> 30) & 0x1FF;
+        UINT64 i1 = (Virt >> 21) & 0x1FF;
+        UINT64 *L1;
+        if (!(L2[i2] & PTE_V) || IsLeaf(L2[i2])) {
+            return IsLeaf(L2[i2]) ? HalViewFromNative(L2[i2]) : 0;
+        }
+        L1 = (UINT64 *)(UINTN)(((L2[i2] >> PTE_PPN_SHIFT) << 12));
+        if (IsLeaf(L1[i1])) {
+            return HalViewFromNative(L1[i1]);
+        }
         return 0;
     }
-    return *Pte;
+    return HalViewFromNative(*Pte);
 }
 
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) {

@@ -83,6 +83,8 @@ void HalFlushTlb(UINT64 VirtualAddress);
 void HalLoadPageTable(UINT64 Root);
 UINT64 HalGetPageTable(void);
 void HalPagingEnable(UINT64 RootPhys);
+/* PR-A10：故意触未映射 VA，验收缺页路径（x86 可为空） */
+void HalPagingSelfTest(void);
 
 /* 分页：页表结构 */
 int HalPageKernelSetup(UINTN IdentityMegabytes);
