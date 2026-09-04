@@ -12,7 +12,7 @@
 #include "Font.h"
 #include "Debug.h"
 
-#define DESKTOP_ICON_COUNT   2
+#define DESKTOP_ICON_COUNT   3
 #define DESKTOP_ICON_SIZE    48
 #define DESKTOP_ICON_GAP     28
 #define DESKTOP_ORIGIN_X     36
@@ -29,7 +29,8 @@
 
 typedef enum {
     DESKTOP_ACT_SHELL = 0,
-    DESKTOP_ACT_SETTINGS
+    DESKTOP_ACT_SETTINGS,
+    DESKTOP_ACT_FILES
 } DESKTOP_ACTION;
 
 typedef struct {
@@ -372,6 +373,10 @@ static void OpenAction(DESKTOP_ACTION Action) {
     }
     if (Action == DESKTOP_ACT_SETTINGS) {
         (void)GuiOpenSettings();
+        return;
+    }
+    if (Action == DESKTOP_ACT_FILES) {
+        (void)GuiOpenFiles();
     }
 }
 
@@ -403,6 +408,12 @@ void DesktopInit(void) {
     gIcons[1].IconColor = 0x00606080;
     gIcons[1].X = DESKTOP_ORIGIN_X;
     gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
+
+    gIcons[2].Label = "Files";
+    gIcons[2].Action = DESKTOP_ACT_FILES;
+    gIcons[2].IconColor = 0x00208040;
+    gIcons[2].X = DESKTOP_ORIGIN_X;
+    gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
 
     gSelected = -1;
     gSelectClock = 0;

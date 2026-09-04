@@ -16,7 +16,8 @@ typedef struct {
 typedef enum {
     GUI_WIN_NONE = 0,
     GUI_WIN_SHELL,
-    GUI_WIN_SETTINGS
+    GUI_WIN_SETTINGS,
+    GUI_WIN_FILES
 } GUI_WIN_KIND;
 
 #define GUI_MAX_WINS        6
@@ -66,6 +67,7 @@ int GuiFocusIndex(void);
 /* PR-D3：打开应用窗；成功返回槽位，失败 -1 */
 int GuiOpenShell(void);
 int GuiOpenSettings(void);
+int GuiOpenFiles(void);
 GUI_WIN_KIND GuiFocusKind(void);
 GUI_WIN_KIND GuiWindowKind(int Idx);
 

@@ -17,9 +17,13 @@
 #define FAT_ATTR_HID  0x02
 #define FAT_ATTR_SYS  0x04
 #define FAT_ATTR_VOL  0x08
-#define FAT_ATTR_DIR  0x10
+/* FAT_ATTR_DIR 见 Fat.h */
 #define FAT_ATTR_ARCH 0x20
 #define FAT_ATTR_LFN  0x0F
+
+static FAT_DIR_ENT *gListOut;
+static int gListMax;
+static int gListCount;
 
 static UINT8 gSector[SECTOR];
 static UINT8 gCluster[SECTOR * 128];
@@ -427,7 +431,20 @@ static int ScanDirBuffer(UINT8 *Buf, UINT32 Bytes, const char *Name,
         if (ListOnly) {
             char Disp[FAT_NAME_MAX + 1];
             EntryDisplayName(E, Acc, Disp, sizeof(Disp));
-            PrintEntryNamed(Disp, E[11]);
+            if (ListOnly == 2) {
+                if (gListOut && gListCount < gListMax) {
+                    int k;
+                    for (k = 0; Disp[k] && k < FAT_ENT_NAME_MAX - 1; k++) {
+                        gListOut[gListCount].Name[k] = Disp[k];
+                    }
+                    gListOut[gListCount].Name[k] = 0;
+                    gListOut[gListCount].Attr = E[11];
+                    gListOut[gListCount].Size = Read32(E + 28);
+                    gListCount++;
+                }
+            } else {
+                PrintEntryNamed(Disp, E[11]);
+            }
             LfnAccClear(Acc);
             continue;
         }
@@ -460,7 +477,7 @@ static int ForEachDir(FAT_DIR_CTX Dir, int ListOnly, const char *Name,
                 if (ScanDirBuffer(gSector, SECTOR, Name, OutCluster, OutSize, 0, OutAttr, &Acc)) {
                     return 1;
                 }
-            } else if (!ScanDirBuffer(gSector, SECTOR, 0, 0, 0, 1, 0, &Acc)) {
+            } else if (!ScanDirBuffer(gSector, SECTOR, 0, 0, 0, ListOnly, 0, &Acc)) {
                 return 0;
             }
         }
@@ -479,7 +496,7 @@ static int ForEachDir(FAT_DIR_CTX Dir, int ListOnly, const char *Name,
                     if (ScanDirBuffer(gCluster, Bytes, Name, OutCluster, OutSize, 0, OutAttr, &Acc)) {
                         return 1;
                     }
-                } else if (!ScanDirBuffer(gCluster, Bytes, 0, 0, 0, 1, 0, &Acc)) {
+                } else if (!ScanDirBuffer(gCluster, Bytes, 0, 0, 0, ListOnly, 0, &Acc)) {
                     return 0;
                 }
             }
@@ -1333,6 +1350,28 @@ int FatListDir(const char *Path) {
     if (!ForEachDir(Dir, 1, 0, 0, 0, 0)) {
         return FAT_ERR_IO;
     }
+    return FAT_OK;
+}
+
+int FatListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+    FAT_DIR_CTX Dir;
+
+    if (!Out || !OutCount || Max <= 0) {
+        return FAT_ERR_INVAL;
+    }
+    gListOut = Out;
+    gListMax = Max;
+    gListCount = 0;
+    if (!ResolvePathAsDir(Path ? Path : "", &Dir)) {
+        gListOut = 0;
+        return FAT_ERR_NOENT;
+    }
+    if (!ForEachDir(Dir, 2, 0, 0, 0, 0)) {
+        gListOut = 0;
+        return FAT_ERR_IO;
+    }
+    *OutCount = gListCount;
+    gListOut = 0;
     return FAT_OK;
 }
 

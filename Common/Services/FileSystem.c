@@ -193,6 +193,18 @@ int FsListDir(const char *Path) {
     return FatListDir(Rel && Rel[0] ? Rel : 0);
 }
 
+int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+    const char *Rel;
+    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    if (!Path || Path[0] == 0) {
+        Rel = 0;
+    }
+    return FatListEntries(Rel && Rel[0] ? Rel : 0, Out, Max, OutCount);
+}
+
 int FsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
     const char *Rel;
     int Err = FsPrepare(Path, &Rel, 0);

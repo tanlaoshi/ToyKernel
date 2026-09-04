@@ -7,6 +7,7 @@
 #include "Console.h"
 #include "Gui.h"
 #include "SettingsUi.h"
+#include "FilesUi.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "LwIp.h"
@@ -52,6 +53,23 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
                 if (C >= '0' && C <= '9') {
                     SettingsUiOnDigit(C);
                 }
+            }
+            continue;
+        }
+
+        /* Files：Enter 打开；Esc 返回上级/退出预览 */
+        if (FilesUiIsFocused()) {
+            if (Key == HID_KEY_ESCAPE) {
+                FilesUiOnEscape();
+                continue;
+            }
+            if (Key == HID_KEY_ENTER) {
+                FilesUiOnEnter();
+                continue;
+            }
+            if (Key == HID_KEY_UP || Key == HID_KEY_DOWN) {
+                FilesUiOnArrow(Key == HID_KEY_DOWN);
+                continue;
             }
             continue;
         }
@@ -109,6 +127,14 @@ void ShellTask(void) {
                     SettingsUiOnEscape();
                 } else if (C >= '0' && C <= '9') {
                     SettingsUiOnDigit(C);
+                }
+                continue;
+            }
+            if (FilesUiIsFocused()) {
+                if (C == 0x1B) {
+                    FilesUiOnEscape();
+                } else if (C == '\r' || C == '\n') {
+                    FilesUiOnEnter();
                 }
                 continue;
             }

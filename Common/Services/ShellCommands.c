@@ -593,6 +593,17 @@ static void CommandSettings(int Argc, char **Argv) {
     }
 }
 
+static void CommandFiles(int Argc, char **Argv) {
+    int Idx;
+
+    (void)Argc;
+    (void)Argv;
+    Idx = GuiOpenFiles();
+    if (Idx < 0) {
+        ConsoleWrite("files: no free window\n");
+    }
+}
+
 void ShellCommandsRegister(void) {
     ConsoleRegister("info", "boot framebuffer info", CommandInfo);
     ConsoleRegister("ps", "list tasks", CommandPs);
@@ -602,6 +613,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("exec", "load ELF (TOYOS:FILE / A:FILE)", CommandExec);
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
+    ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);

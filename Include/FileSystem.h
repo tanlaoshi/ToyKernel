@@ -30,6 +30,8 @@ int FileSystemActivate(int VolIdx);
 
 /* 带前缀的路径操作（内部 Resolve+Activate+Fat*；写操作拒只读卷） */
 int FsListDir(const char *Path);
+/* PR-FB1：结构化目录枚举（供文件浏览器） */
+int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
 int FsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int FsWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int FsDeleteFile(const char *Path);

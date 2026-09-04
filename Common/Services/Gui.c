@@ -15,6 +15,7 @@
 #include "Font.h"
 #include "Desktop.h"
 #include "SettingsUi.h"
+#include "FilesUi.h"
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
@@ -1940,6 +1941,9 @@ void GuiRaiseToFront(int Idx) {
     if (gWins[Idx].Kind == GUI_WIN_SETTINGS) {
         SettingsUiRepaint();
         BackupWindowAt(Idx);
+    } else if (gWins[Idx].Kind == GUI_WIN_FILES) {
+        FilesUiRepaint();
+        BackupWindowAt(Idx);
     } else if (gWins[Idx].Kind == GUI_WIN_SHELL && !gWinBackupValid[Idx]) {
         /* 欢迎语级恢复；完整历史需备份一直有效 */
         ConsoleOnShellOpened();
@@ -2010,6 +2014,8 @@ void GuiApplyThemeColors(void) {
             gWins[i].WaitPrompt = 0;
         } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SETTINGS) {
             gWins[i].Background = ThemeSettingsClientBg();
+        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_FILES) {
+            gWins[i].Background = ThemeSettingsClientBg();
         }
     }
 }
@@ -2050,6 +2056,9 @@ void GuiComposeThemeScene(void) {
         } else if (gWins[i].Kind == GUI_WIN_SETTINGS) {
             gFocusWin = i;
             SettingsUiPaintFocused();
+        } else if (gWins[i].Kind == GUI_WIN_FILES) {
+            gFocusWin = i;
+            FilesUiPaintFocused();
         }
         /* 上层尚未画上：整窗备份，避免重叠区镂空透视 */
         BackupWindowAtEx(i, 1);
@@ -2251,6 +2260,62 @@ int GuiOpenSettings(void) {
     return gFocusWin;
 }
 
+int GuiOpenFiles(void) {
+    int Idx;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Margin = 40;
+
+    Idx = AllocWindowSlot();
+    if (Idx < 0) {
+        return -1;
+    }
+    W = 640;
+    H = 480;
+    if (W + Margin * 2 > gScreenW) {
+        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    }
+    if (H + Margin * 2 > gScreenH) {
+        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    }
+    X = Margin;
+    Y = (gScreenH > H + Margin) ? (gScreenH - H - Margin) : Margin;
+    gWins[Idx].Active = 1;
+    gWins[Idx].Kind = GUI_WIN_FILES;
+    gWins[Idx].X = X;
+    gWins[Idx].Y = Y;
+    gWins[Idx].Width = W;
+    gWins[Idx].Height = H;
+    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Title = "Files";
+    gWins[Idx].TermSet = 0;
+    gWins[Idx].InputLen = 0;
+    gWins[Idx].WaitPrompt = 0;
+    gWins[Idx].PromptShown = 0;
+    gWins[Idx].InputLine[0] = 0;
+
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
+    DrawWindowAt(Idx);
+    ComposeEnd();
+    gFocusWin = Idx;
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    FilesUiOpen();
+    BackupWindowAt(Idx);
+    GuiFocusApply();
+    BackupWindowAt(gFocusWin);
+    DebugWrite("gui: open files idx=");
+    DebugHex32((UINT32)gFocusWin);
+    DebugWrite("\n");
+    return gFocusWin;
+}
+
 GUI_WIN_KIND GuiWindowKind(int Idx) {
     if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
         return GUI_WIN_NONE;
@@ -2360,6 +2425,12 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         }
         if (GuiFocusKind() == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
+        } else if (GuiFocusKind() == GUI_WIN_FILES) {
+            if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+                FilesUiRepaint();
+            } else {
+                FilesUiOnClick(X, Y);
+            }
         } else if (GuiFocusKind() == GUI_WIN_SHELL &&
                    !gWinBackupValid[gFocusWin]) {
             ConsoleOnShellOpened();
@@ -2428,6 +2499,8 @@ static void GuiDragEnd(void) {
         }
         if (gWins[DragIdx].Kind == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
+        } else if (gWins[DragIdx].Kind == GUI_WIN_FILES) {
+            FilesUiRepaint();
         } else if (gWins[DragIdx].Kind == GUI_WIN_SHELL &&
                    !gWinBackupValid[DragIdx]) {
             ConsoleOnShellOpened();
