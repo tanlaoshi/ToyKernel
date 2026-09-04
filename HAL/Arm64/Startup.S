@@ -1,10 +1,13 @@
 /*
- * Startup.S — QEMU virt aarch64 -kernel 入口
+ * Startup.S — QEMU virt aarch64 -kernel 入口（PR-V1：保留 x0=DTB）
  */
     .section .text.boot, "ax"
     .global KernelEntry
     .type KernelEntry, %function
 KernelEntry:
+    /* Linux/QEMU aarch64：x0 = DTB 物理址 */
+    mov     x19, x0
+
     adrp    x0, gBootStack
     add     x0, x0, :lo12:gBootStack
     add     sp, x0, #65536
@@ -18,6 +21,7 @@ KernelEntry:
     str     xzr, [x0], #8
     b       1b
 2:
+    mov     x0, x19
     bl      StartupMain
 3:  wfi
     b       3b

@@ -1,16 +1,19 @@
 /*
- * Startup.c — QEMU virt riscv64：BRINGUP hello 或完整 KernelMain（PR-A7）
+ * Startup.c — QEMU virt riscv64：OpenSBI + DTB → BOOT_INFO（PR-V1）
  */
 #include "HalSerial.h"
 #include "Hal.h"
 #include "BootInfo.h"
 #include "Kernel.h"
+#include "Dtb.h"
 
 extern char __kernel_end[];
 
 #if TOY_BRINGUP
 
-void StartupMain(void) {
+void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
+    (void)HartId;
+    (void)DtbPhys;
     HalSerialInit();
     HalSerialWrite("ToyOS RiscV virt: hello\n");
     HalCpuHalt();
@@ -29,16 +32,47 @@ static int BootInfoAddRegion(BOOT_INFO *Info, UINT64 Phys, UINT64 Size, int Free
     return 0;
 }
 
-void StartupMain(void) {
+static void HexU64(UINT64 V) {
+    static const char Hex[] = "0123456789abcdef";
+    char Buf[17];
+    int i;
+    for (i = 15; i >= 0; i--) {
+        Buf[i] = Hex[V & 0xf];
+        V >>= 4;
+    }
+    Buf[16] = 0;
+    HalSerialWrite(Buf);
+}
+
+void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     BOOT_INFO Info;
-    UINT64 KernelStart = 0x80000000ULL;
+    /* OpenSBI 占 0x80000000；payload 链在 0x80200000（PR-V1） */
+    UINT64 KernelStart = 0x80200000ULL;
     UINT64 KernelEnd = (UINT64)(UINTN)__kernel_end;
+    UINT64 FirmwareEnd = KernelStart;
+    UINT64 RamBase = 0x80000000ULL;
     UINT64 RamSize = 256ULL * 1024ULL * 1024ULL;
     UINT64 FreeStart;
     UINTN i;
+    int FromDtb;
+
+    (void)HartId;
 
     HalSerialInit();
     HalSerialWrite("ToyOS RiscV virt: KernelMain\n");
+
+    FromDtb = (DtbMemoryRegion(DtbPhys, &RamBase, &RamSize) == 0);
+    if (FromDtb) {
+        HalSerialWrite("boot: DTB memory base=");
+        HexU64(RamBase);
+        HalSerialWrite(" size=");
+        HexU64(RamSize);
+        HalSerialWrite("\n");
+    } else {
+        HalSerialWrite("boot: DTB memory missing, fallback 256MiB @0x80000000\n");
+        RamBase = 0x80000000ULL;
+        RamSize = 256ULL * 1024ULL * 1024ULL;
+    }
 
     for (i = 0; i < sizeof(Info); i++) {
         ((UINT8 *)&Info)[i] = 0;
@@ -47,10 +81,20 @@ void StartupMain(void) {
     Info.KernelEnd = KernelEnd;
 
     FreeStart = (KernelEnd + 0xFFFULL) & ~0xFFFULL;
-    BootInfoAddRegion(&Info, KernelStart, FreeStart - KernelStart, 0);
-    if (FreeStart < KernelStart + RamSize) {
-        BootInfoAddRegion(&Info, FreeStart, KernelStart + RamSize - FreeStart, 1);
+    if (FreeStart < FirmwareEnd) {
+        FreeStart = FirmwareEnd;
     }
+
+    /* [RamBase, FreeStart) = OpenSBI + 内核（保留）；其后可分配 */
+    if (FreeStart > RamBase && FreeStart - RamBase <= RamSize) {
+        BootInfoAddRegion(&Info, RamBase, FreeStart - RamBase, 0);
+        if (FreeStart < RamBase + RamSize) {
+            BootInfoAddRegion(&Info, FreeStart, RamBase + RamSize - FreeStart, 1);
+        }
+    } else if (RamSize > 0) {
+        BootInfoAddRegion(&Info, RamBase, RamSize, 1);
+    }
+
     BootInfoSet(&Info);
     KernelMain();
     for (;;) {

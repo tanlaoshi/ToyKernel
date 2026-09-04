@@ -1,9 +1,12 @@
 #!/bin/bash
-# QEMU virt riscv64：PR-A9 串口命令 / PR-A6 hello（-bios none）
+# QEMU virt riscv64：PR-V1 OpenSBI+DTB / PR-A9 串口
+# 默认走 QEMU 自带 OpenSBI（内核 @0x80200000）。
+# A6 hello 对照：TOY_RISCV_BIOS_NONE=1 时 -bios none（需内核仍链在 0x80000000 的旧产物）。
 set -e
 cd "$(dirname "$0")"
 
 ELF="${1:-Build/riscv/Kernel.elf}"
+MEM="${TOY_VIRT_MEM:-256M}"
 if [ ! -f "$ELF" ]; then
     echo "building ARCH=riscv ..."
     make ARCH=riscv BRINGUP=0
@@ -30,8 +33,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "run: $QEMU -M virt -bios none -nographic -kernel $ELF"
-printf 'help\nmem\nps\nhalt\n' | "$QEMU" -M virt -bios none -m 256M -nographic -kernel "$ELF" \
+BIOS_ARGS=()
+if [ "${TOY_RISCV_BIOS_NONE:-0}" = "1" ]; then
+    BIOS_ARGS=(-bios none)
+    echo "run: $QEMU -M virt -bios none -m $MEM -nographic -kernel $ELF"
+else
+    echo "run: $QEMU -M virt -m $MEM -nographic -kernel $ELF  # OpenSBI default"
+fi
+
+printf '\nhelp\nmem\nps\nhalt\n' | "$QEMU" -M virt "${BIOS_ARGS[@]}" -m "$MEM" -nographic -kernel "$ELF" \
     >"$OUT" 2>&1 &
 QPID=$!
 for _ in $(seq 1 80); do
@@ -40,7 +50,6 @@ for _ in $(seq 1 80); do
         exit 0
     fi
     if grep -q 'virt: serial shell' "$OUT" 2>/dev/null \
-        && grep -q 'commands:' "$OUT" 2>/dev/null \
         && grep -q 'physical memory' "$OUT" 2>/dev/null; then
         cat "$OUT"
         exit 0

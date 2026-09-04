@@ -34,6 +34,10 @@ static void CommandInfo(int Argc, char **Argv) {
 }
 
 static void CommandMem(int Argc, char **Argv) {
+    const BOOT_INFO *Info = BootInfoGet();
+    UINT64 RegionBytes = 0;
+    UINT32 i;
+
     (void)Argc;
     (void)Argv;
     ConsoleWrite("physical memory\n  free  ");
@@ -43,6 +47,16 @@ static void CommandMem(int Argc, char **Argv) {
     ConsoleWrite(" pages)\n  total ");
     ConsoleHex64(PhysicalMemoryTotalPages() << PAGE_SHIFT);
     ConsoleWrite(" bytes tracked\n");
+    if (Info) {
+        for (i = 0; i < Info->RegionCount; i++) {
+            RegionBytes += Info->Regions[i].Size;
+        }
+        ConsoleWrite("  boot  ");
+        ConsoleHex64(RegionBytes);
+        ConsoleWrite(" bytes in ");
+        ConsoleHex32(Info->RegionCount);
+        ConsoleWrite(" region(s)\n");
+    }
 }
 
 static void CommandMemtest(int Argc, char **Argv) {

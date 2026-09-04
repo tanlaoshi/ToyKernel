@@ -1,5 +1,5 @@
 /*
- * link.ld — QEMU virt riscv64（-kernel ELF，配合 -bios none）
+ * link.ld — QEMU virt riscv64（OpenSBI payload @ 0x80200000，PR-V1）
  */
 OUTPUT_FORMAT(elf64-littleriscv)
 OUTPUT_ARCH(riscv)
@@ -7,7 +7,7 @@ ENTRY(KernelEntry)
 
 SECTIONS
 {
-    . = 0x80000000;
+    . = 0x80200000;
 
     .text : {
         KEEP(*(.text.boot))
