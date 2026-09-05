@@ -14,10 +14,67 @@
 #include "Debug.h"
 #include "VirtualMemory.h"
 #include "Process.h"
+#include "Gui.h"
 
 #define COPY_BUF_MAX 256
 /* 与 TASK_FD.Path[64] 对齐，便于 CRT 打开子路径 */
 #define PATH_MAX_LEN 63
+#define WIN_STR_MAX  127
+
+static int CopyUserCString(char *Dst, UINT64 UserSrc, UINTN MaxLen) {
+    UINTN i;
+
+    if (!Dst || MaxLen == 0) {
+        return -1;
+    }
+    for (i = 0; i < MaxLen; i++) {
+        char C;
+        if (VirtualMemoryCopyFromUser(&C, UserSrc + i, 1) < 0) {
+            return -1;
+        }
+        Dst[i] = C;
+        if (C == 0) {
+            return 0;
+        }
+    }
+    Dst[MaxLen - 1] = 0;
+    return 0;
+}
+
+static int SysCreateWindow(UINT64 UserTitle, UINT32 W, UINT32 H) {
+    char Title[64];
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser || W == 0 || H == 0) {
+        return -1;
+    }
+    if (CopyUserCString(Title, UserTitle, sizeof(Title)) < 0 || Title[0] == 0) {
+        return -1;
+    }
+    return GuiOpenUser(Title, W, H);
+}
+
+static int SysDamage(int Wid, UINT64 UserText) {
+    char Text[WIN_STR_MAX + 1];
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser || Wid < 0) {
+        return -1;
+    }
+    if (CopyUserCString(Text, UserText, sizeof(Text)) < 0) {
+        return -1;
+    }
+    return GuiDamageUser(Wid, Text);
+}
+
+static int SysPollInput(int Wid) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return GuiPollUserInput(Wid);
+}
 
 void SyscallInit(void) {
     /* 硬件入口已由 HalSyscallInit 安装；保留符号供旧调用点 / 文档 */
@@ -306,6 +363,19 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         break;
     case SYS_KILL:
         Ret = SchedulerKill(Frame);
+        break;
+    case SYS_CREATE_WINDOW:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysCreateWindow(
+            HalFrameGetArgument0(Frame), (UINT32)HalFrameGetArgument1(Frame),
+            (UINT32)HalFrameGetArgument2(Frame)));
+        break;
+    case SYS_DAMAGE:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysDamage(
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
+        break;
+    case SYS_POLL_INPUT:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysPollInput(
+            (int)HalFrameGetArgument0(Frame)));
         break;
     default:
         ConsoleWrite("syscall: unknown ");

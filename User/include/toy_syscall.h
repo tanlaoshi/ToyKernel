@@ -23,6 +23,9 @@
 #define SYS_DUP     15
 #define SYS_BRK     16
 #define SYS_KILL    17
+#define SYS_CREATE_WINDOW 18  /* PR-G14 */
+#define SYS_DAMAGE        19
+#define SYS_POLL_INPUT    20
 
 #define WNOHANG 1
 
@@ -87,6 +90,18 @@ static inline long toy_brk(long addr) {
 
 static inline long toy_kill(long pid, long sig) {
     return toy_syscall(SYS_KILL, pid, sig, 0);
+}
+
+static inline long toy_create_window(const char *title, long w, long h) {
+    return toy_syscall(SYS_CREATE_WINDOW, (long)title, w, h);
+}
+
+static inline long toy_damage(long wid, const char *text) {
+    return toy_syscall(SYS_DAMAGE, wid, (long)text, 0);
+}
+
+static inline long toy_poll_input(long wid) {
+    return toy_syscall(SYS_POLL_INPUT, wid, 0, 0);
 }
 
 #endif

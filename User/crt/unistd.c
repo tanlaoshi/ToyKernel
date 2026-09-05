@@ -154,3 +154,48 @@ int kill(pid_t pid, int sig) {
     }
     return 0;
 }
+
+int create_window(const char *title, unsigned w, unsigned h) {
+    long r;
+
+    if (!title || w == 0 || h == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_create_window(title, (long)w, (long)h);
+    if (r < 0) {
+        errno = ENOMEM;
+        return -1;
+    }
+    return (int)r;
+}
+
+int damage(int wid, const char *text) {
+    long r;
+
+    if (wid < 0 || !text) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_damage(wid, text);
+    if (r < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
+}
+
+int poll_input(int wid) {
+    long r;
+
+    if (wid < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_poll_input(wid);
+    if (r < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return (int)r;
+}

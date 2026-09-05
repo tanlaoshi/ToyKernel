@@ -45,6 +45,10 @@ typedef struct {
     int      InputLen;
     int      WaitPrompt;
     int      PromptShown;
+    /* PR-G14 */
+    char     TitleBuf[64];
+    char     ClientText[128];
+    int      ClosePending;
 } GUI_WINDOW;
 
 static GUI_WINDOW gWins[MAX_WINS];
@@ -138,6 +142,7 @@ static void GfxPresent(void) {
 
 static void DrawWindowAt(int Idx);
 static void DrawWindowAtEx(int Idx, int Occlude);
+static void PaintUserClient(int Idx);
 static void BackupWindowAt(int Idx);
 static void BackupWindowAtEx(int Idx, int ForceFull);
 static void RaiseWindow(int Idx);
@@ -391,6 +396,9 @@ static void CloseWindow(int Idx) {
     Y = gWins[Idx].Y;
     Ww = gWins[Idx].Width;
     Wh = gWins[Idx].Height;
+    if (gWins[Idx].Kind == GUI_WIN_USER) {
+        gWins[Idx].ClosePending = 1;
+    }
     gWins[Idx].Active = 0;
     gWins[Idx].Kind = GUI_WIN_NONE;
     gWins[Idx].TermSet = 0;
@@ -1947,6 +1955,9 @@ void GuiRaiseToFront(int Idx) {
     } else if (gWins[Idx].Kind == GUI_WIN_FILES) {
         FilesUiRepaint();
         BackupWindowAt(Idx);
+    } else if (gWins[Idx].Kind == GUI_WIN_USER) {
+        PaintUserClient(Idx);
+        BackupWindowAt(Idx);
     } else if (gWins[Idx].Kind == GUI_WIN_SHELL && !gWinBackupValid[Idx]) {
         /* 欢迎语级恢复；完整历史需备份一直有效 */
         ConsoleOnShellOpened();
@@ -2067,6 +2078,9 @@ void GuiComposeThemeScene(void) {
         } else if (gWins[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiPaintFocused();
+        } else if (gWins[i].Kind == GUI_WIN_USER) {
+            gFocusWin = i;
+            PaintUserClient(i);
         }
         /* 上层尚未画上：整窗备份，避免重叠区镂空透视 */
         BackupWindowAtEx(i, 1);
@@ -2324,6 +2338,153 @@ int GuiOpenFiles(void) {
     return gFocusWin;
 }
 
+static void CopyTitleBuf(char *Dst, UINTN Cap, const char *Src) {
+    UINTN i;
+
+    if (!Dst || Cap == 0) {
+        return;
+    }
+    if (!Src) {
+        Dst[0] = 0;
+        return;
+    }
+    for (i = 0; i + 1 < Cap && Src[i]; i++) {
+        Dst[i] = Src[i];
+    }
+    Dst[i] = 0;
+}
+
+static void PaintUserClient(int Idx) {
+    GUI_WINDOW *W;
+    UINT32 Cx;
+    UINT32 Cy;
+    UINT32 Cw;
+    UINT32 Ch;
+
+    if (Idx < 0 || Idx >= MAX_WINS) {
+        return;
+    }
+    W = &gWins[Idx];
+    if (!W->Active || W->Kind != GUI_WIN_USER) {
+        return;
+    }
+    if (W->Width <= 2 + GUI_CLIENT_PAD * 2 ||
+        W->Height <= TITLE_HEIGHT + 1 + GUI_CLIENT_PAD * 2) {
+        return;
+    }
+    Cx = W->X + 1 + GUI_CLIENT_PAD;
+    Cy = W->Y + TITLE_HEIGHT + GUI_CLIENT_PAD;
+    Cw = W->Width - 2 - GUI_CLIENT_PAD * 2;
+    Ch = W->Height - TITLE_HEIGHT - 1 - GUI_CLIENT_PAD * 2;
+    HalVideoClearClip();
+    FillRectOccluded(Idx, W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
+                     W->Height - TITLE_HEIGHT - 1, W->Background);
+    if (W->ClientText[0] != 0) {
+        HalVideoSetClipOrigin(Cx, Cy, Cw, Ch, W->Background);
+        HalVideoDrawStringAt(Cx, Cy, W->ClientText, COLOR_BLACK);
+        HalVideoClearClip();
+    }
+}
+
+int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
+    int Idx;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 Margin = 48;
+
+    Idx = AllocWindowSlot();
+    if (Idx < 0) {
+        return -1;
+    }
+    if (W < 160) {
+        W = 160;
+    }
+    if (H < 100) {
+        H = 100;
+    }
+    if (W + Margin * 2 > gScreenW) {
+        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    }
+    if (H + Margin * 2 > gScreenH) {
+        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    }
+    X = (gScreenW > W) ? (gScreenW - W) / 2 : 0;
+    Y = (gScreenH > H + 40) ? (gScreenH - H) / 3 : Margin;
+
+    gWins[Idx].Active = 1;
+    gWins[Idx].Kind = GUI_WIN_USER;
+    gWins[Idx].X = X;
+    gWins[Idx].Y = Y;
+    gWins[Idx].Width = W;
+    gWins[Idx].Height = H;
+    gWins[Idx].Background = ThemeSettingsClientBg();
+    CopyTitleBuf(gWins[Idx].TitleBuf, sizeof(gWins[Idx].TitleBuf), Title);
+    gWins[Idx].Title = gWins[Idx].TitleBuf;
+    gWins[Idx].ClientText[0] = 0;
+    gWins[Idx].ClosePending = 0;
+    gWins[Idx].TermSet = 0;
+    gWins[Idx].InputLen = 0;
+    gWins[Idx].WaitPrompt = 0;
+    gWins[Idx].PromptShown = 0;
+    gWins[Idx].InputLine[0] = 0;
+
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
+    DrawWindowAt(Idx);
+    ComposeEnd();
+    gFocusWin = Idx;
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    PaintUserClient(Idx);
+    BackupWindowAt(Idx);
+    GuiFocusApply();
+    BackupWindowAt(gFocusWin);
+    DebugWrite("gui: open user idx=");
+    DebugHex32((UINT32)gFocusWin);
+    DebugWrite("\n");
+    return gFocusWin;
+}
+
+int GuiDamageUser(int Wid, const char *Text) {
+    if (Wid < 0 || Wid >= MAX_WINS || !gWins[Wid].Active ||
+        gWins[Wid].Kind != GUI_WIN_USER) {
+        return -1;
+    }
+    CopyTitleBuf(gWins[Wid].ClientText, sizeof(gWins[Wid].ClientText), Text);
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    RaiseWindow(Wid);
+    SyncWindowVisuals();
+    PaintUserClient(Wid);
+    BackupWindowAt(Wid);
+    GuiFocusApply();
+    ComposeEnd();
+    GfxIrqEnter();
+    CursorPaint();
+    HalVideoPresent();
+    GfxIrqLeave();
+    return 0;
+}
+
+int GuiPollUserInput(int Wid) {
+    if (Wid < 0 || Wid >= MAX_WINS) {
+        return -1;
+    }
+    if (gWins[Wid].ClosePending) {
+        gWins[Wid].ClosePending = 0;
+        return 1;
+    }
+    if (!gWins[Wid].Active || gWins[Wid].Kind != GUI_WIN_USER) {
+        return -1;
+    }
+    return 0;
+}
+
 GUI_WIN_KIND GuiWindowKind(int Idx) {
     if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
         return GUI_WIN_NONE;
@@ -2541,6 +2702,8 @@ static void GuiDragEnd(void) {
             SettingsUiRepaint();
         } else if (gWins[DragIdx].Kind == GUI_WIN_FILES) {
             FilesUiRepaint();
+        } else if (gWins[DragIdx].Kind == GUI_WIN_USER) {
+            PaintUserClient(DragIdx);
         } else if (gWins[DragIdx].Kind == GUI_WIN_SHELL &&
                    !gWinBackupValid[DragIdx]) {
             ConsoleOnShellOpened();

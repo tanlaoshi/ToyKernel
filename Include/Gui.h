@@ -17,7 +17,8 @@ typedef enum {
     GUI_WIN_NONE = 0,
     GUI_WIN_SHELL,
     GUI_WIN_SETTINGS,
-    GUI_WIN_FILES
+    GUI_WIN_FILES,
+    GUI_WIN_USER   /* PR-G14：用户态窗口协议 */
 } GUI_WIN_KIND;
 
 #define GUI_MAX_WINS        6
@@ -70,6 +71,11 @@ int GuiFocusIndex(void);
 int GuiOpenShell(void);
 int GuiOpenSettings(void);
 int GuiOpenFiles(void);
+/* PR-G14：用户窗；成功返回 wid（槽位下标），失败 -1 */
+int GuiOpenUser(const char *Title, UINT32 W, UINT32 H);
+int GuiDamageUser(int Wid, const char *Text);
+/* 0=无事件 1=已点关闭（消费 ClosePending）-1=无效 */
+int GuiPollUserInput(int Wid);
 /* PR-I18N2：按当前语言刷新窗标题并重绘 chrome */
 void GuiRefreshTitles(void);
 GUI_WIN_KIND GuiFocusKind(void);

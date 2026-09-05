@@ -71,7 +71,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     cp User/pipedemo.elf ../ToyImage/PIPEDEMO.ELF
     cp User/brkdemo.elf ../ToyImage/BRKDEMO.ELF
     cp User/killdemo.elf ../ToyImage/KILLDEMO.ELF
-    echo "Copied HELLO/.../BRKDEMO/KILLDEMO -> ../ToyImage/"
+    cp User/windemo.elf ../ToyImage/WINDEMO.ELF
+    echo "Copied HELLO/.../KILLDEMO/WINDEMO -> ../ToyImage/"
     if [ -d ../ToyImage/rootfs ]; then
         cp -f ../ToyImage/Kernel.elf ../ToyImage/rootfs/Kernel.elf
         cp -f ../ToyImage/HELLO.ELF ../ToyImage/rootfs/HELLO.ELF
@@ -88,7 +89,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
         cp -f ../ToyImage/PIPEDEMO.ELF ../ToyImage/rootfs/PIPEDEMO.ELF
         cp -f ../ToyImage/BRKDEMO.ELF ../ToyImage/rootfs/BRKDEMO.ELF
         cp -f ../ToyImage/KILLDEMO.ELF ../ToyImage/rootfs/KILLDEMO.ELF
-        echo "Synced Kernel/HELLO/CAT/WRITE/.../KILLDEMO -> ../ToyImage/rootfs/"
+        cp -f ../ToyImage/WINDEMO.ELF ../ToyImage/rootfs/WINDEMO.ELF
+        echo "Synced Kernel/HELLO/.../KILLDEMO/WINDEMO -> ../ToyImage/rootfs/"
     fi
     echo "Copied $ELF -> ../ToyImage/"
 else

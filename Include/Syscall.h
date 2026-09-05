@@ -22,6 +22,9 @@
 #define SYS_DUP     15
 #define SYS_BRK     16
 #define SYS_KILL    17
+#define SYS_CREATE_WINDOW 18  /* PR-G14 */
+#define SYS_DAMAGE        19
+#define SYS_POLL_INPUT    20
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1
@@ -36,6 +39,9 @@
 /* SYS_DUP：rdi=fd → 新 fd（P2 仅管道） */
 /* SYS_BRK：rdi=new_brk（0=查询）；成功返回当前/新 break，失败 -1 */
 /* SYS_KILL：rdi=pid（与 fork 返回值一致 = 槽位+1）rsi=sig；成功 0，失败 -1 */
+/* SYS_CREATE_WINDOW：rdi=title rsi=w rdx=h → wid；失败 -1（PR-G14） */
+/* SYS_DAMAGE：rdi=wid rsi=text → 0；失败 -1 */
+/* SYS_POLL_INPUT：rdi=wid → 0 无事件 / 1 已关窗 / -1 无效 */
 /* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type(SOCK_STREAM=1) rdx=protocol
  * SYS_CONNECT：rdi=fd rsi=ip(host-order u32) rdx=port
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port

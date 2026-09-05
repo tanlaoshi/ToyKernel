@@ -18,5 +18,9 @@ pid_t wait(int *status);
 void *brk(void *addr);
 /* PR-P4：pid 与 fork 返回值一致；仅 SIGKILL/TERM/INT */
 int kill(pid_t pid, int sig);
+/* PR-G14：用户态窗口协议（内核 Gui 后端） */
+int create_window(const char *title, unsigned w, unsigned h);
+int damage(int wid, const char *text);
+int poll_input(int wid);
 
 #endif
