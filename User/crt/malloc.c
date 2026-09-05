@@ -1,9 +1,9 @@
 /*
  * malloc.c — PR-P3：经 SYS_BRK 扩展堆（替代 BSS 8KiB bump）
  */
-#include "stdlib.h"
-#include "string.h"
-#include "unistd.h"
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 void *malloc(size_t n) {
     size_t Align = 8;

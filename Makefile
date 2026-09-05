@@ -166,6 +166,7 @@ USER_BRKDEMO_ELF = User/brkdemo.elf
 USER_KILLDEMO_ELF = User/killdemo.elf
 USER_WINDEMO_ELF = User/windemo.elf
 USER_GUIDEMO_ELF = User/guidemo.elf
+USER_LIBCDEMO_ELF = User/libcdemo.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
@@ -184,15 +185,18 @@ USER_BRKDEMO_OBJ = User/brkdemo.o
 USER_KILLDEMO_OBJ = User/killdemo.o
 USER_WINDEMO_OBJ = User/windemo.o
 USER_GUIDEMO_OBJ = User/guidemo.o
+USER_LIBCDEMO_OBJ = User/libcdemo.o
 USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
 USER_LIB_TOY_UI_OBJ = User/Library/ToyUi/ToyUi.o
 USER_LIB_TOY_GFX_A = User/Library/ToyGfx/libToyGfx.a
 USER_LIB_TOY_UI_A = User/Library/ToyUi/libToyUi.a
+USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
+USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
+	User/crt/errno.o User/crt/unistd.o User/crt/stdlib.o User/crt/signal.o
 USER_LD = User/user.ld
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
-USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o User/crt/string.o \
-	User/crt/printf.o User/crt/malloc.o User/crt/errno.o User/crt/unistd.o
+USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
 else
 EXTRA_OBJS = $(HALDIR)/Startup_asm.o
 # PR-V2：复用 x86 帧缓冲绘制（scanout 由该 Arch ramfb 填入 BOOT_INFO）
@@ -219,7 +223,8 @@ USER_HELLO_OBJ = $(USER_VIRT_DIR)/hello.o
 USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 	$(USER_VIRT_DIR)/string.o $(USER_VIRT_DIR)/printf.o \
 	$(USER_VIRT_DIR)/malloc.o $(USER_VIRT_DIR)/errno.o \
-	$(USER_VIRT_DIR)/unistd.o
+	$(USER_VIRT_DIR)/unistd.o $(USER_VIRT_DIR)/stdlib.o \
+	$(USER_VIRT_DIR)/signal.o
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -246,7 +251,7 @@ all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF) \
 	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF) \
-	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF)
+	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_LIB_TOYOS_A)
 endif
 else
 ifneq ($(BRINGUP),1)
@@ -320,7 +325,8 @@ $(HALDIR)/SmpTramp_blob.o: $(HALDIR)/SmpTramp.bin
 	cd $(HALDIR) && objcopy -I binary -O elf64-x86-64 -B i386:x86-64 \
 		SmpTramp.bin SmpTramp_blob.o
 
-$(USER_HELLO_OBJ): User/hello.c User/include/stdio.h User/include/stdlib.h User/include/string.h
+$(USER_HELLO_OBJ): User/hello.c User/include/stdio.h User/include/stdlib.h \
+		User/include/string.h User/include/stddef.h
 	$(CC) $(USER_CFLAGS) -c User/hello.c -o $@
 
 User/crt/%.o: User/crt/%.c
@@ -383,6 +389,11 @@ $(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
 $(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ)
 	ar rcs $@ $(USER_LIB_TOY_UI_OBJ)
 
+# PR-L1：CRT C 部分打成 libtoyos.a，供 User/pkg 课外链接
+$(USER_LIB_TOYOS_A): $(USER_LIB_TOYOS_OBJS)
+	mkdir -p $(dir $@)
+	ar rcs $@ $(USER_LIB_TOYOS_OBJS)
+
 $(USER_GUIDEMO_OBJ): User/GuiDemo.c User/include/ToyUi.h User/include/ToyGfx.h \
 		User/include/stdio.h User/include/unistd.h
 	$(CC) $(USER_CFLAGS) -c User/GuiDemo.c -o $@
@@ -391,6 +402,13 @@ $(USER_GUIDEMO_ELF): $(USER_GUIDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX
 		$(USER_CRT_OBJS) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_GUIDEMO_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
+
+$(USER_LIBCDEMO_OBJ): User/libcdemo.c User/include/stdio.h User/include/stdlib.h \
+		User/include/string.h User/include/signal.h
+	$(CC) $(USER_CFLAGS) -c User/libcdemo.c -o $@
+
+$(USER_LIBCDEMO_ELF): $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
@@ -492,6 +510,12 @@ $(USER_VIRT_DIR)/errno.o: User/crt/errno.c | $(USER_VIRT_DIR)
 $(USER_VIRT_DIR)/unistd.o: User/crt/unistd.c | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c User/crt/unistd.c -o $@
 
+$(USER_VIRT_DIR)/stdlib.o: User/crt/stdlib.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/stdlib.c -o $@
+
+$(USER_VIRT_DIR)/signal.o: User/crt/signal.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/signal.c -o $@
+
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
 endif
@@ -510,13 +534,13 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
 	rm -f $(USER_NETDEMO_OBJ) $(USER_NETSRV_OBJ) $(USER_SYSHELLO_OBJ) $(USER_SYSFORK_OBJ)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_KILLDEMO_OBJ)
-	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ)
+	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_LIBCDEMO_OBJ)
 	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A)
+	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOYOS_A)
 	rm -f $(USER_CRT_OBJS)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 	rm -f $(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF)
 	rm -f $(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF)
-	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF)
+	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_LIBCDEMO_ELF)
 endif

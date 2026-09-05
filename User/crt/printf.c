@@ -1,93 +1,80 @@
 /*
- * printf.c — 最小 printf：%s %d %u %x %c %% → write(1)
+ * printf.c — printf / sprintf / snprintf（%s %d %u %x %c %%）（PR-L2）
  */
-#include "stdio.h"
-#include "errno.h"
-#include "string.h"
-#include "toy_syscall.h"
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <toyos/syscall.h>
 
-typedef __builtin_va_list va_list;
-#define va_start(ap, last) __builtin_va_start(ap, last)
-#define va_arg(ap, type)   __builtin_va_arg(ap, type)
-#define va_end(ap)         __builtin_va_end(ap)
+typedef struct {
+    char *Buf;
+    size_t Cap;   /* snprintf：含 NUL 的容量；0=无限（sprintf） */
+    size_t Pos;   /* 已写入字符数（不含 NUL；可超过 Cap-1） */
+    int ToFd;     /* 1=write(1)；0=写 Buf */
+} FmtOut;
 
-static int PutChar(char C) {
-    return (int)toy_write(1, &C, 1);
+static void OutChar(FmtOut *O, char C) {
+    if (O->ToFd) {
+        toy_write(1, &C, 1);
+        O->Pos++;
+        return;
+    }
+    if (O->Cap == 0 || O->Pos + 1 < O->Cap) {
+        if (O->Buf) {
+            O->Buf[O->Pos] = C;
+        }
+    }
+    O->Pos++;
 }
 
-static int PutStr(const char *S) {
-    size_t N;
+static void OutStr(FmtOut *O, const char *S) {
     if (!S) {
         S = "(null)";
     }
-    N = strlen(S);
-    if (N == 0) {
-        return 0;
+    while (*S) {
+        OutChar(O, *S++);
     }
-    return (int)toy_write(1, S, N);
 }
 
-static int PutUInt(unsigned long V, unsigned Base, int Upper) {
+static void OutUInt(FmtOut *O, unsigned long V, unsigned Base, int Upper) {
     char Buf[32];
     int i = 0;
-    int n;
     const char *Dig = Upper ? "0123456789ABCDEF" : "0123456789abcdef";
 
     if (Base < 2 || Base > 16) {
-        return 0;
+        return;
     }
     if (V == 0) {
-        return PutChar('0');
+        OutChar(O, '0');
+        return;
     }
     while (V > 0 && i < (int)sizeof(Buf)) {
         Buf[i++] = Dig[V % Base];
         V /= Base;
     }
-    n = 0;
     while (i > 0) {
-        n += PutChar(Buf[--i]);
+        OutChar(O, Buf[--i]);
     }
-    return n;
 }
 
-static int PutInt(long V) {
-    int n = 0;
+static void OutInt(FmtOut *O, long V) {
     if (V < 0) {
-        n += PutChar('-');
+        OutChar(O, '-');
         V = -V;
     }
-    n += PutUInt((unsigned long)V, 10, 0);
-    return n;
+    OutUInt(O, (unsigned long)V, 10, 0);
 }
 
-int puts(const char *s) {
-    int n = PutStr(s);
-    n += PutChar('\n');
-    return n;
-}
-
-void perror(const char *s) {
-    if (s && s[0]) {
-        PutStr(s);
-        PutStr(": ");
-    }
-    PutStr("errno=");
-    PutInt((long)errno);
-    PutChar('\n');
-}
-
-int printf(const char *fmt, ...) {
-    va_list ap;
-    int n = 0;
+static int Format(FmtOut *O, const char *fmt, va_list ap) {
     const char *p;
 
     if (!fmt) {
         return 0;
     }
-    va_start(ap, fmt);
     for (p = fmt; *p; p++) {
         if (*p != '%') {
-            n += PutChar(*p);
+            OutChar(O, *p);
             continue;
         }
         p++;
@@ -96,32 +83,118 @@ int printf(const char *fmt, ...) {
         }
         switch (*p) {
         case '%':
-            n += PutChar('%');
+            OutChar(O, '%');
             break;
         case 'c':
-            n += PutChar((char)va_arg(ap, int));
+            OutChar(O, (char)va_arg(ap, int));
             break;
         case 's':
-            n += PutStr(va_arg(ap, const char *));
+            OutStr(O, va_arg(ap, const char *));
             break;
         case 'd':
-            n += PutInt((long)va_arg(ap, int));
+            OutInt(O, (long)va_arg(ap, int));
             break;
         case 'u':
-            n += PutUInt((unsigned long)va_arg(ap, unsigned), 10, 0);
+            OutUInt(O, (unsigned long)va_arg(ap, unsigned), 10, 0);
             break;
         case 'x':
-            n += PutUInt((unsigned long)va_arg(ap, unsigned), 16, 0);
+            OutUInt(O, (unsigned long)va_arg(ap, unsigned), 16, 0);
             break;
         case 'X':
-            n += PutUInt((unsigned long)va_arg(ap, unsigned), 16, 1);
+            OutUInt(O, (unsigned long)va_arg(ap, unsigned), 16, 1);
             break;
         default:
-            n += PutChar('%');
-            n += PutChar(*p);
+            OutChar(O, '%');
+            OutChar(O, *p);
             break;
         }
     }
+    return (int)O->Pos;
+}
+
+int vprintf(const char *fmt, va_list ap) {
+    FmtOut O;
+    O.Buf = 0;
+    O.Cap = 0;
+    O.Pos = 0;
+    O.ToFd = 1;
+    return Format(&O, fmt, ap);
+}
+
+int printf(const char *fmt, ...) {
+    va_list ap;
+    int n;
+    va_start(ap, fmt);
+    n = vprintf(fmt, ap);
     va_end(ap);
     return n;
+}
+
+int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
+    FmtOut O;
+    int n;
+    O.Buf = buf;
+    O.Cap = size; /* 0 = 不截断（vsprintf） */
+    O.Pos = 0;
+    O.ToFd = 0;
+    n = Format(&O, fmt, ap);
+    if (buf) {
+        if (size == 0) {
+            buf[O.Pos] = 0;
+        } else {
+            size_t end = (O.Pos < size) ? O.Pos : size - 1;
+            buf[end] = 0;
+        }
+    }
+    return n;
+}
+
+int snprintf(char *buf, size_t size, const char *fmt, ...) {
+    va_list ap;
+    int n;
+    va_start(ap, fmt);
+    n = vsnprintf(buf, size, fmt, ap);
+    va_end(ap);
+    return n;
+}
+
+int vsprintf(char *buf, const char *fmt, va_list ap) {
+    return vsnprintf(buf, 0, fmt, ap);
+}
+
+int sprintf(char *buf, const char *fmt, ...) {
+    va_list ap;
+    int n;
+    va_start(ap, fmt);
+    n = vsprintf(buf, fmt, ap);
+    va_end(ap);
+    return n;
+}
+
+int puts(const char *s) {
+    FmtOut O;
+    va_list unused;
+    (void)unused;
+    O.Buf = 0;
+    O.Cap = 0;
+    O.Pos = 0;
+    O.ToFd = 1;
+    OutStr(&O, s);
+    OutChar(&O, '\n');
+    return (int)O.Pos;
+}
+
+void perror(const char *s) {
+    FmtOut O;
+    O.Buf = 0;
+    O.Cap = 0;
+    O.Pos = 0;
+    O.ToFd = 1;
+    if (s && s[0]) {
+        OutStr(&O, s);
+        OutStr(&O, ": ");
+    }
+    OutStr(&O, "errno=");
+    OutInt(&O, (long)errno);
+    OutChar(&O, '\n');
 }

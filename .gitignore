@@ -18,3 +18,6 @@ ThirdParty/lwip/
 .DS_Store
 .AppleDouble
 virt-rootfs.img
+
+# PR-L1 课外模板产物
+User/pkg/build/

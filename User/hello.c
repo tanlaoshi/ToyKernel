@@ -1,10 +1,10 @@
 /*
- * hello.c — CRT1：C + printf/malloc（HELLO.ELF）
+ * hello.c — CRT：C + printf/malloc（HELLO.ELF）
  * 旧 int 0x80 汇编见 hello_int80.S
  */
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int main(void) {
     char *p = (char *)malloc(8);

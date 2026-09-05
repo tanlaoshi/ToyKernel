@@ -1,10 +1,10 @@
 /*
  * unistd.c — open/read/write/close，失败置 errno（PR-CRT2）
  */
-#include "errno.h"
-#include "fcntl.h"
-#include "unistd.h"
-#include "toy_syscall.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <toyos/syscall.h>
 
 int open(const char *path, int flags) {
     long r;
@@ -198,4 +198,19 @@ int poll_input(int wid) {
         return -1;
     }
     return (int)r;
+}
+
+int ui_button(int wid, int button_id, const char *label) {
+    long r;
+
+    if (wid < 0 || button_id < 0 || button_id > 3 || !label) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_ui_button(wid, button_id, label);
+    if (r < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
 }
