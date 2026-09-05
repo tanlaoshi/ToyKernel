@@ -1,8 +1,8 @@
 /*
- * Vfs.h — VFS 面 FsOps（PR-F1；PR-F2 增 FileStat / FileSync）
+ * Vfs.h — VFS 面 FsOps（PR-F1；PR-F2 FileStat/FileSync；PR-F3 多后端）
  *
  * 卷前缀 / 只读策略仍在 FileSystem；本头是「已激活卷」上的可插拔后端。
- * FAT 为第一个后端；Common 业务继续走 Fs*（内部经本表）。
+ * FAT 为第一个后端；RES 为可选只读资源卷第二后端。Common 业务走 Fs*。
  */
 #ifndef VFS_H
 #define VFS_H
@@ -12,7 +12,7 @@
 
 typedef struct FS_OPS {
     const char *Name;
-    /* 挂载：对已选中的 Block 设备，以 StartLba 为卷起点初始化后端 */
+    /* 挂载：Block 后端以 StartLba 为卷起点；合成卷可忽略 StartLba */
     int (*Mount)(UINT32 StartLba);
     int (*ListDir)(const char *Path);
     int (*ListEntries)(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
@@ -25,10 +25,16 @@ typedef struct FS_OPS {
     /* PR-F2：可为 NULL（旧后端）；缺省 → FAT_ERR_IO */
     int (*FileStat)(const char *Path, FAT_FILE_STAT *Out);
     int (*FileSync)(void);
+    /* PR-F3：1 = 无 Block（合成卷）；0/缺省 = 需 BlockSelect + StartLba */
+    int Synthetic;
 } FS_OPS;
 
-/* 注册当前后端（F1：全局一份；F3 可扩多后端） */
+#define VFS_MAX_BACKENDS 4
+
+/* 注册后端（可多次；首次亦为当前后端）。成功 0，满表 -1 */
 int VfsRegister(const FS_OPS *Ops);
+/* 切换当前后端（Activate 时按卷选择） */
+int VfsSelect(const FS_OPS *Ops);
 const FS_OPS *VfsOps(void);
 
 /* 直接经表调用（已 Activate 的相对路径）；无后端 → FAT_ERR_IO */
@@ -44,7 +50,8 @@ int VfsRename(const char *OldPath, const char *NewPath);
 int VfsFileStat(const char *Path, FAT_FILE_STAT *Out);
 int VfsFileSync(void);
 
-/* FAT 后端描述符（定义于 FatFsOps.c） */
+/* FAT 后端（FatFsOps.c）；资源卷后端（ResFs.c） */
 const FS_OPS *FatFsOps(void);
+const FS_OPS *ResFsOps(void);
 
 #endif

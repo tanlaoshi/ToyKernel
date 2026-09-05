@@ -12,7 +12,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 |------|------|------|
 | 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80`（legacy）与 `syscall`/`sysret` |
 | 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
-| 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载 |
+| 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载；**F3** `RES:` 只读资源卷 + `dirstress` |
 | GUI | ≈ 可用 | x86 多窗口；**virt Arm/RiscV：PR-V5 同一套 Common Gui** |
 | 跨架构 virt | ✅ V1～V6 + A10～A14 | 自有 Boot + ramfb/virtio；真 MMU；用户态 + `HELLO.ELF`；GIC/SBI timer；virt `-smp 2` `HalSmp*`；见 `./run-virt-*.sh` / `./smoke-virt.sh` |
 | 网络 | ✅ N9/N10 | x86 virtio-net；virt Arm/RiscV MMIO + 桌面挂 `net` + `ping`；可选 lwIP |
@@ -33,8 +33,9 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 ### 存储与启动
 
 - **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32（8.3 + LFN，`.`/`..`，`mkdir`/`rmdir`，写 ≤1MB）
-- **卷选择**：优先挂载含 `TOYOS.ID` 的 FAT 卷
+- **卷选择**：优先挂载含 `TOYOS.ID` 的 FAT 卷；**PR-F3** 另挂只读 `RES:`（内嵌资源，无 Block）
 - **双盘 QEMU**：`ToyImage/run-split.sh` — 盘 0 为 Boot/ESP，盘 1 为 `rootfs/`（系统文件唯一来源）
+- **大目录**：Shell `dirstress`（默认 24 短名；`grow` 强制目录簇扩展，宜真 FAT/virt）
 
 ### 图形与输入
 

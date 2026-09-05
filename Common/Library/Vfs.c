@@ -1,14 +1,49 @@
 /*
- * Vfs.c — FsOps 注册与分发（PR-F1）
+ * Vfs.c — FsOps 注册与分发（PR-F1；PR-F3 多后端）
  */
 #include "Vfs.h"
 
 static const FS_OPS *gOps;
+static const FS_OPS *gBackends[VFS_MAX_BACKENDS];
+static int gBackendCount;
 
 int VfsRegister(const FS_OPS *Ops) {
+    int i;
+
     if (!Ops || !Ops->Mount || !Ops->ReadFile || !Ops->WriteFile) {
         return -1;
     }
+    for (i = 0; i < gBackendCount; i++) {
+        if (gBackends[i] == Ops) {
+            if (!gOps) {
+                gOps = Ops;
+            }
+            return 0;
+        }
+    }
+    if (gBackendCount >= VFS_MAX_BACKENDS) {
+        return -1;
+    }
+    gBackends[gBackendCount++] = Ops;
+    if (!gOps) {
+        gOps = Ops;
+    }
+    return 0;
+}
+
+int VfsSelect(const FS_OPS *Ops) {
+    int i;
+
+    if (!Ops) {
+        return -1;
+    }
+    for (i = 0; i < gBackendCount; i++) {
+        if (gBackends[i] == Ops) {
+            gOps = Ops;
+            return 0;
+        }
+    }
+    /* 未预先 Register 时仍允许 Select（Activate 路径） */
     gOps = Ops;
     return 0;
 }

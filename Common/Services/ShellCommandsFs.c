@@ -263,6 +263,13 @@ static void CommandVols(int Argc, char **Argv) {
             ConsoleWrite(" ro");
         }
         {
+            const char *Backend = 0;
+            if (FileSystemVolBackend(i, &Backend) == 0 && Backend) {
+                ConsoleWrite(" ");
+                ConsoleWrite(Backend);
+            }
+        }
+        {
             const char *N = Name;
             int IsToy = 1;
             const char *T = "TOYOS";
@@ -333,11 +340,66 @@ static void CommandFileSync(int Argc, char **Argv) {
     ConsoleWrite("filesync: ok\n");
 }
 
+/* PR-F3：大目录簇扩展回归 */
+static void CommandDirStress(int Argc, char **Argv) {
+    const char *Dir = "BIGDIR";
+    int MaxFiles = 0; /* 0 = 约填 70% 簇；grow → 负值强制扩展 */
+    int Created = 0;
+    int Grew = 0;
+    int Err;
+    int i;
+    int ForceGrow = 0;
+
+    if (Argc >= 2) {
+        Dir = Argv[1];
+    }
+    if (Argc >= 3) {
+        if (Argv[2][0] == 'g' || Argv[2][0] == 'G') {
+            /* grow — 强制 DirGrow（真 FAT；vvfat 可能崩） */
+            ForceGrow = 1;
+            MaxFiles = 0;
+        } else {
+            MaxFiles = 0;
+            for (i = 0; Argv[2][i]; i++) {
+                char C = Argv[2][i];
+                if (C < '0' || C > '9') {
+                    ConsoleWrite("usage: dirstress [dir] [count|grow]\n");
+                    return;
+                }
+                MaxFiles = MaxFiles * 10 + (C - '0');
+            }
+            if (MaxFiles <= 0) {
+                ConsoleWrite("dirstress: count must be > 0\n");
+                return;
+            }
+        }
+    }
+    if (ForceGrow) {
+        MaxFiles = -1;
+    }
+    Err = FsDirStress(Dir, MaxFiles, &Created, &Grew);
+    if (Err != FAT_OK) {
+        FatReport("dirstress", Err);
+        ConsoleWrite("dirstress: created=");
+        ConsoleHex32((UINT32)Created);
+        ConsoleWrite(" grew=");
+        ConsoleWrite(Grew ? "yes" : "no");
+        ConsoleWrite("\n");
+        return;
+    }
+    ConsoleWrite("dirstress: ok created=");
+    ConsoleHex32((UINT32)Created);
+    ConsoleWrite(" grew=");
+    ConsoleWrite(Grew ? "yes" : "no");
+    ConsoleWrite("\n");
+}
+
 void ShellCommandsRegisterFs(void) {
-    ConsoleRegister("ls", "list directory (TOYOS: / A:)", CommandLs);
+    ConsoleRegister("ls", "list directory (TOYOS: / A: / RES:)", CommandLs);
     ConsoleRegister("cat", "print file", CommandCat);
     ConsoleRegister("write", "write file text", CommandWrite);
     ConsoleRegister("wrbig", "write+verify large file (PR-FS3)", CommandWrbig);
+    ConsoleRegister("dirstress", "grow subdir clusters (PR-F3)", CommandDirStress);
     ConsoleRegister("rm", "remove file or empty dir", CommandRm);
     ConsoleRegister("mkdir", "create directory", CommandMkdir);
     ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);

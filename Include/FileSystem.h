@@ -18,9 +18,11 @@ int FileSystemInit(void);
 /* 卷数；下标 0..Count-1 */
 int FileSystemVolCount(void);
 int FileSystemDefaultVol(void);
-/* Name 如 "TOYOS"/"A"；Flags 可选输出只读等，可为 NULL */
+/* Name 如 "TOYOS"/"A"/"RES"；Flags 可选输出只读等，可为 NULL */
 int FileSystemVolInfo(int Idx, char *Name, int NameMax, UINT32 *Drive,
                       UINT32 *StartLba, int *ReadOnly);
+/* PR-F3：后端名 fat / res */
+int FileSystemVolBackend(int Idx, const char **OutName);
 
 /* 解析 Path → 卷下标 + 卷内相对路径（可指向 Path 内子串） */
 int FileSystemResolve(const char *Path, int *OutVol, const char **OutRel);
@@ -41,5 +43,7 @@ int FsRename(const char *OldPath, const char *NewPath);
 /* PR-F2：文件状态查询 / 落盘同步（名称写全，勿用孤立 stat/fsync） */
 int FsFileStat(const char *Path, FAT_FILE_STAT *Out);
 int FsFileSync(const char *Path);
+/* PR-F3：FAT 子目录簇扩展回归（RES 等合成卷 → ROFS/INVAL） */
+int FsDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew);
 
 #endif

@@ -12,10 +12,11 @@
 typedef struct {
     UINT32 Drive;
     UINT32 StartLba;
-    char   Name[FS_VOL_NAME_MAX]; /* 前缀名，不含冒号：TOYOS / A / ESP */
+    char   Name[FS_VOL_NAME_MAX]; /* 前缀名，不含冒号：TOYOS / A / ESP / RES */
     char   Letter;                /* 'A'+index，便于 A: 访问 */
     int    ReadOnly;
     int    HasToyId;
+    const FS_OPS *Ops;            /* PR-F3：每卷后端（fat / res） */
 } FS_VOLUME;
 
 static FS_VOLUME gVols[FS_MAX_VOLUMES];
@@ -24,6 +25,7 @@ static int gDefaultVol;
 static int gActiveVol = -1;
 static UINT32 gActiveDrive = 0xFFFFFFFFu;
 static UINT32 gActiveLba = 0xFFFFFFFFu;
+static const FS_OPS *gActiveOps;
 
 static int StrEqIgnoreCase(const char *A, const char *B) {
     while (*A && *B) {
@@ -56,22 +58,35 @@ static void CopyName(char *Dst, int Max, const char *Src) {
 }
 
 int FileSystemActivate(int VolIdx) {
+    const FS_OPS *Ops;
+
     if (VolIdx < 0 || VolIdx >= gVolCount) {
         return FAT_ERR_INVAL;
     }
+    Ops = gVols[VolIdx].Ops ? gVols[VolIdx].Ops : FatFsOps();
     if (gActiveVol == VolIdx &&
+        gActiveOps == Ops &&
         gActiveDrive == gVols[VolIdx].Drive &&
         gActiveLba == gVols[VolIdx].StartLba) {
         return FAT_OK;
     }
-    if (!BlockSelect(gVols[VolIdx].Drive)) {
+    if (VfsSelect(Ops) != 0) {
         return FAT_ERR_IO;
+    }
+    if (!Ops->Synthetic) {
+        if (!BlockSelect(gVols[VolIdx].Drive)) {
+            gActiveVol = -1;
+            gActiveOps = 0;
+            return FAT_ERR_IO;
+        }
     }
     if (VfsMount(gVols[VolIdx].StartLba) != FAT_OK) {
         gActiveVol = -1;
+        gActiveOps = 0;
         return FAT_ERR_IO;
     }
     gActiveVol = VolIdx;
+    gActiveOps = Ops;
     gActiveDrive = gVols[VolIdx].Drive;
     gActiveLba = gVols[VolIdx].StartLba;
     return FAT_OK;
@@ -298,6 +313,25 @@ int FsFileSync(const char *Path) {
     return VfsFileSync();
 }
 
+int FsDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew) {
+    const char *Rel;
+    const FS_OPS *Ops;
+    int Err;
+
+    if (!Path || !Path[0]) {
+        return FAT_ERR_INVAL;
+    }
+    Err = FsPrepare(Path, &Rel, 1);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    Ops = VfsOps();
+    if (!Ops || Ops->Synthetic) {
+        return FAT_ERR_ROFS;
+    }
+    return FatDirStress(Rel && Rel[0] ? Rel : Path, MaxFiles, OutCreated, OutGrew);
+}
+
 int FileSystemVolCount(void) {
     return gVolCount;
 }
@@ -326,6 +360,19 @@ int FileSystemVolInfo(int Idx, char *Name, int NameMax, UINT32 *Drive,
     return 0;
 }
 
+/* PR-F3：后端名（如 fat / res）；Out 可 NULL */
+int FileSystemVolBackend(int Idx, const char **OutName) {
+    const FS_OPS *Ops;
+    if (Idx < 0 || Idx >= gVolCount) {
+        return -1;
+    }
+    Ops = gVols[Idx].Ops ? gVols[Idx].Ops : FatFsOps();
+    if (OutName) {
+        *OutName = Ops->Name ? Ops->Name : "?";
+    }
+    return 0;
+}
+
 static int TryProbeDrive(UINT32 Drive, UINT32 *OutLba, int *OutIsEsp) {
     if (!BlockSelect(Drive)) {
         return 0;
@@ -346,6 +393,7 @@ static int MountAllVolumes(void) {
     gVolCount = 0;
     gDefaultVol = 0;
     gActiveVol = -1;
+    gActiveOps = 0;
     gActiveDrive = 0xFFFFFFFFu;
     gActiveLba = 0xFFFFFFFFu;
 
@@ -356,6 +404,9 @@ static int MountAllVolumes(void) {
         int Idx;
 
         if (!TryProbeDrive(d, &Start, &IsEsp)) {
+            continue;
+        }
+        if (VfsSelect(FatFsOps()) != 0) {
             continue;
         }
         if (!BlockSelect(d) || VfsMount(Start) != FAT_OK) {
@@ -369,6 +420,7 @@ static int MountAllVolumes(void) {
         V->Letter = (char)('A' + Idx);
         V->ReadOnly = IsEsp ? 1 : 0;
         V->HasToyId = 0;
+        V->Ops = FatFsOps();
         V->Name[0] = V->Letter;
         V->Name[1] = 0;
 
@@ -383,6 +435,7 @@ static int MountAllVolumes(void) {
 
         gVolCount++;
         gActiveVol = Idx;
+        gActiveOps = V->Ops;
         gActiveDrive = d;
         gActiveLba = Start;
 
@@ -395,14 +448,40 @@ static int MountAllVolumes(void) {
         DebugWrite("\n");
     }
 
+    /* PR-F3：可选只读资源卷（无盘亦可挂；有盘时占下一字母） */
+    if (gVolCount < FS_MAX_VOLUMES && ResFsOps()) {
+        FS_VOLUME *V = &gVols[gVolCount];
+        int Idx = gVolCount;
+
+        V->Drive = 0xFFFFFFFEu;
+        V->StartLba = 0;
+        V->Letter = (char)('A' + Idx);
+        V->ReadOnly = 1;
+        V->HasToyId = 0;
+        V->Ops = ResFsOps();
+        CopyName(V->Name, FS_VOL_NAME_MAX, "RES");
+        if (VfsSelect(V->Ops) == 0 && VfsMount(0) == FAT_OK) {
+            gVolCount++;
+            gActiveVol = Idx;
+            gActiveOps = V->Ops;
+            gActiveDrive = V->Drive;
+            gActiveLba = 0;
+            DebugWrite("fs: vol RES (resfs)\n");
+            HalConsoleWriteSerial("fs: res volume RES:\n");
+        }
+    }
+
     if (gVolCount <= 0) {
         return 0;
     }
     if (ToyVol >= 0) {
         int i;
         gDefaultVol = ToyVol;
-        /* 有 TOYOS 卷时，其余卷视为启动/ESP：只读，名 ESP（仍可用 A:） */
+        /* 有 TOYOS 卷时，其余 Block 卷视为启动/ESP：只读，名 ESP（仍可用 A:） */
         for (i = 0; i < gVolCount; i++) {
+            if (gVols[i].Ops && gVols[i].Ops->Synthetic) {
+                continue; /* RES 等合成卷保持原名 */
+            }
             if (!gVols[i].HasToyId) {
                 gVols[i].ReadOnly = 1;
                 if (!(gVols[i].Name[0] && gVols[i].Name[1])) {
@@ -414,7 +493,15 @@ static int MountAllVolumes(void) {
             }
         }
     } else {
-        gDefaultVol = 0;
+        int i;
+        int FatVol = -1;
+        for (i = 0; i < gVolCount; i++) {
+            if (!gVols[i].Ops || !gVols[i].Ops->Synthetic) {
+                FatVol = i;
+                break;
+            }
+        }
+        gDefaultVol = (FatVol >= 0) ? FatVol : 0;
     }
     if (FileSystemActivate(gDefaultVol) != FAT_OK) {
         return 0;
@@ -435,18 +522,21 @@ static int MountAllVolumes(void) {
 
 int FileSystemInit(void) {
     if (VfsRegister(FatFsOps()) != 0) {
-        DebugWrite("FS: VfsRegister failed\n");
+        DebugWrite("FS: VfsRegister(fat) failed\n");
+        return 0;
+    }
+    if (VfsRegister(ResFsOps()) != 0) {
+        DebugWrite("FS: VfsRegister(res) failed\n");
         return 0;
     }
     if (HalBlockInit() <= 0) {
-        DebugWrite("FS: skipped (no block device)\n");
-        return 0;
+        DebugWrite("FS: no block device (RES-only possible)\n");
     }
     if (!MountAllVolumes()) {
         DebugWrite("FS: no volumes mounted\n");
         return 0;
     }
     ShellCommandsRegisterFs();
-    DebugWrite("FS ready (ls, cat, write, wrbig, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");
+    DebugWrite("FS ready (ls, cat, write, wrbig, dirstress, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");
     return 0;
 }

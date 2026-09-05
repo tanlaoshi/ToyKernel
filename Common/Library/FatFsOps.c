@@ -17,6 +17,7 @@ static const FS_OPS gFatFsOps = {
     .Rename = FatRename,
     .FileStat = FatFileStat,
     .FileSync = FatFileSync,
+    .Synthetic = 0,
 };
 
 const FS_OPS *FatFsOps(void) {
