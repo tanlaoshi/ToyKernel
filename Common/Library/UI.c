@@ -338,6 +338,10 @@ static void UiScrollThumb(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
     UINT32 ThumbY;
     int MaxFirst;
 
+    /* 竖直滚动条：滑块 Y/H 只依赖轨道高度；X/Width 留给绘制侧 */
+    (void)X;
+    (void)Width;
+
     if (Total <= 0) {
         Total = 1;
     }

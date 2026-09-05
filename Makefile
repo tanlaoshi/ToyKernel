@@ -165,6 +165,7 @@ USER_PIPEDEMO_ELF = User/pipedemo.elf
 USER_BRKDEMO_ELF = User/brkdemo.elf
 USER_KILLDEMO_ELF = User/killdemo.elf
 USER_WINDEMO_ELF = User/windemo.elf
+USER_GUIDEMO_ELF = User/guidemo.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
@@ -182,6 +183,11 @@ USER_PIPEDEMO_OBJ = User/pipedemo.o
 USER_BRKDEMO_OBJ = User/brkdemo.o
 USER_KILLDEMO_OBJ = User/killdemo.o
 USER_WINDEMO_OBJ = User/windemo.o
+USER_GUIDEMO_OBJ = User/guidemo.o
+USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
+USER_LIB_TOY_UI_OBJ = User/Library/ToyUi/ToyUi.o
+USER_LIB_TOY_GFX_A = User/Library/ToyGfx/libToyGfx.a
+USER_LIB_TOY_UI_A = User/Library/ToyUi/libToyUi.a
 USER_LD = User/user.ld
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
@@ -240,7 +246,7 @@ all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF) \
 	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF) \
-	$(USER_WINDEMO_ELF)
+	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF)
 endif
 else
 ifneq ($(BRINGUP),1)
@@ -363,6 +369,29 @@ $(USER_WINDEMO_OBJ): User/windemo.c User/include/stdio.h User/include/unistd.h \
 $(USER_WINDEMO_ELF): $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS)
 
+$(USER_LIB_TOY_GFX_OBJ): User/Library/ToyGfx/ToyGfx.c User/include/ToyGfx.h \
+		User/include/unistd.h User/include/toy_syscall.h
+	$(CC) $(USER_CFLAGS) -c User/Library/ToyGfx/ToyGfx.c -o $@
+
+$(USER_LIB_TOY_UI_OBJ): User/Library/ToyUi/ToyUi.c User/include/ToyUi.h \
+		User/include/ToyGfx.h User/include/unistd.h User/include/toy_syscall.h
+	$(CC) $(USER_CFLAGS) -c User/Library/ToyUi/ToyUi.c -o $@
+
+$(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
+	ar rcs $@ $(USER_LIB_TOY_GFX_OBJ)
+
+$(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ)
+	ar rcs $@ $(USER_LIB_TOY_UI_OBJ)
+
+$(USER_GUIDEMO_OBJ): User/GuiDemo.c User/include/ToyUi.h User/include/ToyGfx.h \
+		User/include/stdio.h User/include/unistd.h
+	$(CC) $(USER_CFLAGS) -c User/GuiDemo.c -o $@
+
+$(USER_GUIDEMO_ELF): $(USER_GUIDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) \
+		$(USER_CRT_OBJS) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_GUIDEMO_OBJ) \
+		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
+
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
 
@@ -481,11 +510,13 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
 	rm -f $(USER_NETDEMO_OBJ) $(USER_NETSRV_OBJ) $(USER_SYSHELLO_OBJ) $(USER_SYSFORK_OBJ)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_KILLDEMO_OBJ)
-	rm -f $(USER_WINDEMO_OBJ)
+	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ)
+	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ)
+	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A)
 	rm -f $(USER_CRT_OBJS)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 	rm -f $(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF)
 	rm -f $(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF)
-	rm -f $(USER_WINDEMO_ELF)
+	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF)
 endif

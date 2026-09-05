@@ -74,7 +74,9 @@ int GuiOpenFiles(void);
 /* PR-G14：用户窗；成功返回 wid（槽位下标），失败 -1 */
 int GuiOpenUser(const char *Title, UINT32 W, UINT32 H);
 int GuiDamageUser(int Wid, const char *Text);
-/* 0=无事件 1=已点关闭（消费 ClosePending）-1=无效 */
+/* PR-G15：用户窗按钮；ButtonId 0..3；成功 0 */
+int GuiUserAddButton(int Wid, int ButtonId, const char *Label);
+/* 0=无事件 1=已点关闭 100+ButtonId=按钮；-1=无效 */
 int GuiPollUserInput(int Wid);
 /* PR-I18N2：按当前语言刷新窗标题并重绘 chrome */
 void GuiRefreshTitles(void);

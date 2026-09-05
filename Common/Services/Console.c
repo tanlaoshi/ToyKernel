@@ -131,6 +131,13 @@ void ConsoleWrite(const char *Text) {
     if (!HalConsoleVideoReady()) {
         return;
     }
+    /*
+     * 仅 Shell 客户区接受控制台绘制。焦点在 USER/Settings/Files 时若仍画 FB，
+     * 会与 GuiDemo 标签等叠字，并污染用户窗备份（透视/花屏）。
+     */
+    if (GuiFocusKind() != GUI_WIN_SHELL) {
+        return;
+    }
     ConsoleDrawString(Text, COLOR_WHITE);
 }
 
@@ -201,7 +208,7 @@ static void Prompt(void) {
     }
     HalConsoleWriteSerial("toyos> ");
     gAtLineStart = 0;
-    if (HalConsoleVideoReady()) {
+    if (HalConsoleVideoReady() && GuiFocusKind() == GUI_WIN_SHELL) {
         ConsoleDrawString("toyos> ", COLOR_CYAN);
     }
 }

@@ -26,6 +26,7 @@
 #define SYS_CREATE_WINDOW 18  /* PR-G14 */
 #define SYS_DAMAGE        19
 #define SYS_POLL_INPUT    20
+#define SYS_UI_BUTTON     21  /* PR-G15 */
 
 #define WNOHANG 1
 
@@ -102,6 +103,10 @@ static inline long toy_damage(long wid, const char *text) {
 
 static inline long toy_poll_input(long wid) {
     return toy_syscall(SYS_POLL_INPUT, wid, 0, 0);
+}
+
+static inline long toy_ui_button(long wid, long button_id, const char *label) {
+    return toy_syscall(SYS_UI_BUTTON, wid, button_id, (long)label);
 }
 
 #endif

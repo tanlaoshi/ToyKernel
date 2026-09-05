@@ -76,6 +76,19 @@ static int SysPollInput(int Wid) {
     return GuiPollUserInput(Wid);
 }
 
+static int SysUiButton(int Wid, int ButtonId, UINT64 UserLabel) {
+    char Label[24];
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    if (CopyUserCString(Label, UserLabel, sizeof(Label)) < 0 || Label[0] == 0) {
+        return -1;
+    }
+    return GuiUserAddButton(Wid, ButtonId, Label);
+}
+
 void SyscallInit(void) {
     /* 硬件入口已由 HalSyscallInit 安装；保留符号供旧调用点 / 文档 */
 }
@@ -376,6 +389,11 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
     case SYS_POLL_INPUT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysPollInput(
             (int)HalFrameGetArgument0(Frame)));
+        break;
+    case SYS_UI_BUTTON:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysUiButton(
+            (int)HalFrameGetArgument0(Frame), (int)HalFrameGetArgument1(Frame),
+            HalFrameGetArgument2(Frame)));
         break;
     default:
         ConsoleWrite("syscall: unknown ");
