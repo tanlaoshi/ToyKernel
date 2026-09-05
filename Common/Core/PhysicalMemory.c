@@ -5,6 +5,7 @@
 #include "BootInfo.h"
 #include "Console.h"
 #include "Debug.h"
+#include "SpinLock.h"
 
 #define PHYSICAL_MEMORY_MAX_PAGES (128u * 1024u)
 
@@ -13,6 +14,7 @@ static UINT16 gRefCount[PHYSICAL_MEMORY_MAX_PAGES];
 static UINT32 gMaxPage;
 static UINT64 gFreePages;
 static UINT64 gPhysBase; /* 页对齐；PFN 0 对应此物理地址（x86 常为 0） */
+static SPIN_LOCK gPhysLock;
 
 static UINT32 PhysToPfn(UINT64 Phys) {
     if (Phys < gPhysBase) {
@@ -125,6 +127,7 @@ int PhysicalMemoryInit(void) {
         gRefCount[i] = 0;
     }
     gFreePages = 0;
+    SpinLockInit(&gPhysLock);
 
     for (i = 0; i < Info->RegionCount; i++) {
         const BOOT_MEMORY_REGION *R = &Info->Regions[i];
@@ -148,27 +151,34 @@ int PhysicalMemoryInit(void) {
 }
 
 void *PhysicalMemoryAllocatePages(UINT32 Count) {
+    void *Ret = 0;
+
     if (Count == 0 || Count > gMaxPage) {
         return 0;
     }
 
-    UINT32 Run = 0;
-    for (UINT32 Pfn = 0; Pfn < gMaxPage; Pfn++) {
-        if (!PageUsed(Pfn)) {
-            Run++;
-            if (Run == Count) {
-                UINT32 Start = Pfn + 1 - Count;
-                for (UINT32 i = 0; i < Count; i++) {
-                    SetPage(Start + i, 1);
-                    gRefCount[Start + i] = 1;
+    SpinLockAcquire(&gPhysLock);
+    {
+        UINT32 Run = 0;
+        for (UINT32 Pfn = 0; Pfn < gMaxPage; Pfn++) {
+            if (!PageUsed(Pfn)) {
+                Run++;
+                if (Run == Count) {
+                    UINT32 Start = Pfn + 1 - Count;
+                    for (UINT32 i = 0; i < Count; i++) {
+                        SetPage(Start + i, 1);
+                        gRefCount[Start + i] = 1;
+                    }
+                    Ret = (void *)(UINTN)PfnToPhys(Start);
+                    break;
                 }
-                return (void *)(UINTN)PfnToPhys(Start);
+            } else {
+                Run = 0;
             }
-        } else {
-            Run = 0;
         }
     }
-    return 0;
+    SpinLockRelease(&gPhysLock);
+    return Ret;
 }
 
 void *PhysicalMemoryAllocatePage(void) {
@@ -178,19 +188,19 @@ void *PhysicalMemoryAllocatePage(void) {
 int PhysicalMemoryRetainPage(void *Page) {
     UINT64 Phys = (UINT64)(UINTN)Page;
     UINT32 Pfn;
+    int Ok = -1;
 
     if ((Phys & (PAGE_SIZE - 1)) != 0) {
         return -1;
     }
+    SpinLockAcquire(&gPhysLock);
     Pfn = PhysToPfn(Phys);
-    if (Pfn >= gMaxPage || gRefCount[Pfn] == 0) {
-        return -1;
+    if (Pfn < gMaxPage && gRefCount[Pfn] != 0 && gRefCount[Pfn] != 0xFFFF) {
+        gRefCount[Pfn]++;
+        Ok = 0;
     }
-    if (gRefCount[Pfn] == 0xFFFF) {
-        return -1;
-    }
-    gRefCount[Pfn]++;
-    return 0;
+    SpinLockRelease(&gPhysLock);
+    return Ok;
 }
 
 void PhysicalMemoryReleasePage(void *Page) {
@@ -200,14 +210,15 @@ void PhysicalMemoryReleasePage(void *Page) {
     if ((Phys & (PAGE_SIZE - 1)) != 0) {
         return;
     }
+    SpinLockAcquire(&gPhysLock);
     Pfn = PhysToPfn(Phys);
-    if (Pfn >= gMaxPage || gRefCount[Pfn] == 0) {
-        return;
+    if (Pfn < gMaxPage && gRefCount[Pfn] != 0) {
+        gRefCount[Pfn]--;
+        if (gRefCount[Pfn] == 0) {
+            SetPage(Pfn, 0);
+        }
     }
-    gRefCount[Pfn]--;
-    if (gRefCount[Pfn] == 0) {
-        SetPage(Pfn, 0);
-    }
+    SpinLockRelease(&gPhysLock);
 }
 
 void PhysicalMemoryFreePages(void *Page, UINT32 Count) {
@@ -215,16 +226,23 @@ void PhysicalMemoryFreePages(void *Page, UINT32 Count) {
     UINT32 Pfn;
     UINT32 i;
 
-    if ((Phys & (PAGE_SIZE - 1)) != 0) {
+    if ((Phys & (PAGE_SIZE - 1)) != 0 || Count == 0) {
         return;
     }
+    SpinLockAcquire(&gPhysLock);
     Pfn = PhysToPfn(Phys);
     for (i = 0; i < Count; i++) {
         if (Pfn + i >= gMaxPage) {
-            return;
+            break;
         }
-        PhysicalMemoryReleasePage((void *)(UINTN)PfnToPhys(Pfn + i));
+        if (gRefCount[Pfn + i] != 0) {
+            gRefCount[Pfn + i]--;
+            if (gRefCount[Pfn + i] == 0) {
+                SetPage(Pfn + i, 0);
+            }
+        }
     }
+    SpinLockRelease(&gPhysLock);
 }
 
 void PhysicalMemoryFreePage(void *Page) {
