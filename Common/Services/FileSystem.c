@@ -1,11 +1,11 @@
 /*
- * FileSystem.c — Block + GPT + FAT；PR-FS2 多卷与路径前缀（Shell 命令见 ShellCommandsFs.c）
+ * FileSystem.c — Block + GPT + VFS（PR-FS2 多卷；PR-F1 经 FsOps）
  */
 #include "FileSystem.h"
 #include "ShellCommands.h"
 #include "Block.h"
 #include "Gpt.h"
-#include "Fat.h"
+#include "Vfs.h"
 #include "Debug.h"
 #include "Hal.h"
 
@@ -67,7 +67,7 @@ int FileSystemActivate(int VolIdx) {
     if (!BlockSelect(gVols[VolIdx].Drive)) {
         return FAT_ERR_IO;
     }
-    if (FatInit(gVols[VolIdx].StartLba) != FAT_OK) {
+    if (VfsMount(gVols[VolIdx].StartLba) != FAT_OK) {
         gActiveVol = -1;
         return FAT_ERR_IO;
     }
@@ -183,7 +183,7 @@ int FsListDir(const char *Path) {
     if (!Path || Path[0] == 0) {
         Rel = 0;
     }
-    return FatListDir(Rel && Rel[0] ? Rel : 0);
+    return VfsListDir(Rel && Rel[0] ? Rel : 0);
 }
 
 int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
@@ -195,7 +195,7 @@ int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
     if (!Path || Path[0] == 0) {
         Rel = 0;
     }
-    return FatListEntries(Rel && Rel[0] ? Rel : 0, Out, Max, OutCount);
+    return VfsListEntries(Rel && Rel[0] ? Rel : 0, Out, Max, OutCount);
 }
 
 int FsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
@@ -204,7 +204,7 @@ int FsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
     if (Err != FAT_OK) {
         return Err;
     }
-    return FatReadFile(Rel, Buffer, MaxSize, OutSize);
+    return VfsReadFile(Rel, Buffer, MaxSize, OutSize);
 }
 
 int FsWriteFile(const char *Path, const void *Buffer, UINTN Size) {
@@ -213,7 +213,7 @@ int FsWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     if (Err != FAT_OK) {
         return Err;
     }
-    return FatWriteFile(Rel, Buffer, Size);
+    return VfsWriteFile(Rel, Buffer, Size);
 }
 
 int FsDeleteFile(const char *Path) {
@@ -222,7 +222,7 @@ int FsDeleteFile(const char *Path) {
     if (Err != FAT_OK) {
         return Err;
     }
-    return FatDeleteFile(Rel);
+    return VfsDeleteFile(Rel);
 }
 
 int FsMkdir(const char *Path) {
@@ -231,7 +231,7 @@ int FsMkdir(const char *Path) {
     if (Err != FAT_OK) {
         return Err;
     }
-    return FatMkdir(Rel);
+    return VfsMkdir(Rel);
 }
 
 int FsRmdir(const char *Path) {
@@ -240,7 +240,7 @@ int FsRmdir(const char *Path) {
     if (Err != FAT_OK) {
         return Err;
     }
-    return FatRmdir(Rel);
+    return VfsRmdir(Rel);
 }
 
 int FsRename(const char *OldPath, const char *NewPath) {
@@ -273,7 +273,7 @@ int FsRename(const char *OldPath, const char *NewPath) {
     if (Err != FAT_OK) {
         return Err;
     }
-    return FatRename(OldRel, NewRel);
+    return VfsRename(OldRel, NewRel);
 }
 
 int FileSystemVolCount(void) {
@@ -336,7 +336,7 @@ static int MountAllVolumes(void) {
         if (!TryProbeDrive(d, &Start, &IsEsp)) {
             continue;
         }
-        if (!BlockSelect(d) || FatInit(Start) != FAT_OK) {
+        if (!BlockSelect(d) || VfsMount(Start) != FAT_OK) {
             continue;
         }
 
@@ -350,7 +350,7 @@ static int MountAllVolumes(void) {
         V->Name[0] = V->Letter;
         V->Name[1] = 0;
 
-        if (FatReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
+        if (VfsReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
             V->HasToyId = 1;
             CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
             ToyVol = Idx;
@@ -412,6 +412,10 @@ static int MountAllVolumes(void) {
 }
 
 int FileSystemInit(void) {
+    if (VfsRegister(FatFsOps()) != 0) {
+        DebugWrite("FS: VfsRegister failed\n");
+        return 0;
+    }
     if (HalBlockInit() <= 0) {
         DebugWrite("FS: skipped (no block device)\n");
         return 0;
