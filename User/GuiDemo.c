@@ -1,11 +1,11 @@
 /*
- * GuiDemo.c — PR-G15：链 libToyUi/libToyGfx，不改内核菜单即可画按钮
+ * GuiDemo.c — 链 libToyUi/libToyGfx（课堂对照：Documents/用户态GUI入门.md）
  * Shell：exec GUIDEMO.ELF
  */
-#include "stdio.h"
-#include "unistd.h"
-#include "ToyUi.h"
-#include "toy_syscall.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <ToyUi.h>
+#include <toyos/syscall.h>
 
 int main(void) {
     int WindowId;
@@ -25,8 +25,9 @@ int main(void) {
         printf("guidemo: button fail\n");
         return 1;
     }
-    /* 日志只走串口：焦点在 USER 时 printf 不再画进本窗（见 ConsoleWrite） */
-    printf("guidemo: wid=%d\n", WindowId);
+    /* 日志只走串口：焦点在 USER 时 printf 不再画进本窗 */
+    printf("guidemo: wid=%d (ToyUi %s / ToyGfx %s)\n", WindowId,
+           TOY_UI_ABI_VERSION_STRING, TOY_GFX_ABI_VERSION_STRING);
     for (;;) {
         Event = ToyUiPoll(WindowId);
         if (Event < 0) {

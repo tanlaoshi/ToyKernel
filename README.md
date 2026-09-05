@@ -2,7 +2,7 @@
 
 ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）配合，构成完整的教学/实验用操作系统。
 
-更细的模块说明见 [`Documents/结构说明.md`](Documents/结构说明.md)，分层与 API 边界见 [`Documents/架构分层.md`](Documents/架构分层.md)，发展规划见 [`Documents/路线图.md`](Documents/路线图.md)，用户态库见 [`Documents/用户态库.md`](Documents/用户态库.md)，驱动框架见 [`Documents/驱动框架.md`](Documents/驱动框架.md)，标识符整改清单见 [`Documents/命名整改.md`](Documents/命名整改.md)。家/公司同步见 [`Documents/同步说明.md`](Documents/同步说明.md)。
+更细的模块说明见 [`Documents/结构说明.md`](Documents/结构说明.md)，分层与 API 边界见 [`Documents/架构分层.md`](Documents/架构分层.md)，发展规划见 [`Documents/路线图.md`](Documents/路线图.md)，用户态库见 [`Documents/用户态库.md`](Documents/用户态库.md)，**GUI 入门**见 [`Documents/用户态GUI入门.md`](Documents/用户态GUI入门.md)，驱动框架见 [`Documents/驱动框架.md`](Documents/驱动框架.md)，标识符整改清单见 [`Documents/命名整改.md`](Documents/命名整改.md)。家/公司同步见 [`Documents/同步说明.md`](Documents/同步说明.md)。
 
 ---
 

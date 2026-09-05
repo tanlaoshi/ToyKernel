@@ -44,14 +44,14 @@ make TOYKERNEL=/path/to/ToyKernel
 
 `crt0.o` + `syscall.o` + `libtoyos.a`（string/printf/malloc/errno/unistd）+ `user.ld`。
 
-GUI 程序可追加：
+GUI 程序可追加（或直接用 `User/pkg/gui/`）：
 
 ```make
 EXTRA_LIBS = $(TOYKERNEL)/User/Library/ToyUi/libToyUi.a \
              $(TOYKERNEL)/User/Library/ToyGfx/libToyGfx.a
 ```
 
-（先在 ToyKernel 里 `make` 生成这两个 `.a`。）
+教程：[`Documents/用户态GUI入门.md`](../../Documents/用户态GUI入门.md)（**PR-L3**）。
 
 ## 不要做的事
 

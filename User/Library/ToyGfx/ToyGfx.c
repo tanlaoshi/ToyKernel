@@ -1,8 +1,8 @@
 /*
- * ToyGfx.c — libToyGfx（PR-G15）
+ * ToyGfx.c — libToyGfx
  */
-#include "ToyGfx.h"
-#include "toy_syscall.h"
+#include <ToyGfx.h>
+#include <toyos/syscall.h>
 
 int ToyGfxDamageText(int WindowId, const char *Text) {
     if (WindowId < 0 || !Text) {

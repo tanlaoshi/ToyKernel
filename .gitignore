@@ -21,3 +21,4 @@ virt-rootfs.img
 
 # PR-L1 课外模板产物
 User/pkg/build/
+User/pkg/gui/build/

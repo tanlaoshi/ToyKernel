@@ -42,7 +42,7 @@ OBJS := $(addprefix $(BUILDDIR)/,$(SRCS:.c=.o))
 all: ensure-crt $(ELF)
 
 ensure-crt:
-	@$(MAKE) -C $(TOYKERNEL) $(CRT0_OBJ) $(SYSCALL_OBJ) $(LIBTOYOS_A)
+	@$(MAKE) -C $(TOYKERNEL) $(CRT0_OBJ) $(SYSCALL_OBJ) $(LIBTOYOS_A) $(EXTRA_LIBS)
 
 $(BUILDDIR):
 	mkdir -p $@

@@ -395,7 +395,7 @@ $(USER_LIB_TOYOS_A): $(USER_LIB_TOYOS_OBJS)
 	ar rcs $@ $(USER_LIB_TOYOS_OBJS)
 
 $(USER_GUIDEMO_OBJ): User/GuiDemo.c User/include/ToyUi.h User/include/ToyGfx.h \
-		User/include/stdio.h User/include/unistd.h
+		User/include/stdio.h User/include/unistd.h User/include/toyos/syscall.h
 	$(CC) $(USER_CFLAGS) -c User/GuiDemo.c -o $@
 
 $(USER_GUIDEMO_ELF): $(USER_GUIDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) \
