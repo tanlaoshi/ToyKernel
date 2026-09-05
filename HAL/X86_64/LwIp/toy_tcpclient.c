@@ -169,8 +169,7 @@ int LwIpTcpConnectSend(UINT32 DstIp, UINT16 DstPort,
             gClient.FailCode = 0;
             return Ret;
         }
-        HalNetPoll();
-        LwIpPoll();
+        LwIpService();
         HalCpuHalt();
     }
 

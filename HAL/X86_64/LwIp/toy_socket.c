@@ -244,8 +244,8 @@ int ToySocketAccept(int Sock, int TimeoutMs) {
     Forever = (TimeoutMs <= 0);
     Tries = Forever ? 1 : TimeoutMs;
     while (S->PendingCount == 0 && S->Phase == 4) {
-        HalNetPoll();
-        LwIpPoll();
+        LwIpService();
+        HalCpuHalt();
         if (!Forever) {
             if (--Tries <= 0) {
                 break;
@@ -273,32 +273,47 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
     if (S == NULL || S->Phase == 1 || S->Phase == 4 || S->IsListen) {
         return -1;
     }
-    if (S->Pcb == NULL) {
-        Pcb = tcp_new();
-        if (Pcb == NULL) {
-            return -1;
+    {
+        UINT64 IrqFlags = HalIrqSave();
+
+        if (S->Pcb == NULL) {
+            Pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+            if (Pcb == NULL) {
+                HalIrqRestore(IrqFlags);
+                return -1;
+            }
+            S->Pcb = Pcb;
+        } else {
+            Pcb = S->Pcb;
         }
-        S->Pcb = Pcb;
-    } else {
-        Pcb = S->Pcb;
+        S->Phase = 0;
+        S->Err = ERR_OK;
+        tcp_arg(Pcb, S);
+        tcp_err(Pcb, SockErrCb);
+        ToyHostIpToLwIp(DstIp, &Remote);
+        Err = tcp_connect(Pcb, ip_2_ip4(&Remote), DstPort, SockConnectedCb);
+        HalIrqRestore(IrqFlags);
     }
-    S->Phase = 0;
-    S->Err = ERR_OK;
-    tcp_arg(Pcb, S);
-    tcp_err(Pcb, SockErrCb);
-    ToyHostIpToLwIp(DstIp, &Remote);
-    Err = tcp_connect(Pcb, &Remote, DstPort, SockConnectedCb);
     if (Err != ERR_OK) {
         SockAbortPcb(S);
         S->Phase = -1;
         return -1;
     }
-    Tries = TimeoutMs > 0 ? TimeoutMs : 3000;
+    Tries = TimeoutMs > 0 ? TimeoutMs : 8000;
     while (S->Phase == 0 && Tries-- > 0) {
-        HalNetPoll();
-        LwIpPoll();
+        LwIpService();
+        HalCpuHalt(); /* 等定时器/网卡；无 halt 会把 TimeoutMs 当空转次数瞬间耗尽 */
     }
     if (S->Phase != 1) {
+        HalDebugWrite("sock: connect fail phase=");
+        HalDebugHex32((UINT32)S->Phase);
+        HalDebugWrite(" err=");
+        HalDebugHex32((UINT32)(INT32)S->Err);
+        if ((INT32)S->Err == -14) {
+            HalDebugWrite(" (RST: host nc -l -p PORT first?)\n");
+        } else {
+            HalDebugWrite("\n");
+        }
         SockAbortPcb(S);
         S->Phase = -1;
         return -1;
@@ -320,8 +335,8 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
         u16_t Avail = tcp_sndbuf(S->Pcb);
 
         if (Avail == 0) {
-            HalNetPoll();
-            LwIpPoll();
+            LwIpService();
+            HalCpuHalt();
             continue;
         }
         if (Chunk > Avail) {
@@ -333,8 +348,8 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
         Err = tcp_write(S->Pcb, (const UINT8 *)Data + Sent, (u16_t)Chunk,
                         TCP_WRITE_FLAG_COPY);
         if (Err == ERR_MEM) {
-            HalNetPoll();
-            LwIpPoll();
+            LwIpService();
+            HalCpuHalt();
             continue;
         }
         if (Err != ERR_OK) {
@@ -342,8 +357,7 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
         }
         (void)tcp_output(S->Pcb);
         Sent += Chunk;
-        HalNetPoll();
-        LwIpPoll();
+        LwIpService();
         if (S->Phase != 1) {
             break;
         }
@@ -362,8 +376,8 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
     }
     Tries = TimeoutMs > 0 ? TimeoutMs : 1;
     while (S->RxLen == 0 && S->Phase == 1 && Tries-- > 0) {
-        HalNetPoll();
-        LwIpPoll();
+        LwIpService();
+        HalCpuHalt();
     }
     if (S->RxLen == 0) {
         if (S->Phase == 2) {

@@ -19,7 +19,8 @@
 
 #define LINE_MAX 128
 #define ARG_MAX  8
-#define CMD_MAX  32
+/* builtins+Shell+FS+Db+lwip 已超 32；满表时 ConsoleRegister 静默失败会丢末尾命令（如 lwip） */
+#define CMD_MAX  48
 
 typedef struct {
     const char *Name;
@@ -289,7 +290,13 @@ static void CommandEcho(int Argc, char **Argv) {
 /* 注册一条 Shell 命令（名称、帮助、处理函数） */
 void ConsoleRegister(const char *Name, const char *Help,
                      void (*Handler)(int Argc, char **Argv)) {
-    if (gCmdCount >= CMD_MAX || Name == 0 || Handler == 0) {
+    if (Name == 0 || Handler == 0) {
+        return;
+    }
+    if (gCmdCount >= CMD_MAX) {
+        HalConsoleWriteSerial("console: CMD_MAX full, drop ");
+        HalConsoleWriteSerial(Name);
+        HalConsoleWriteSerial("\n");
         return;
     }
     gCommands[gCmdCount].Name = Name;

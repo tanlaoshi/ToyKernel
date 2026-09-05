@@ -10,7 +10,9 @@ int HalInit(void) {
 }
 
 void HalCpuHalt(void) {
-    __asm__ volatile ("sti; hlt; cli" ::: "memory");
+    /* 唤醒后保持 IF=1：若 hlt 后 cli，Shell 后续 NetPoll/绘屏整段关中断，
+     * USB MSI 只在极短 hlt 窗口投递，宿主忙或 -smp 2 时易丢键鼠。 */
+    __asm__ volatile ("sti; hlt" ::: "memory");
 }
 
 void HalCpuReboot(void) {

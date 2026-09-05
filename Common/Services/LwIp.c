@@ -27,27 +27,49 @@ u32_t sys_now(void) {
 }
 
 int LwIpInit(void) {
+    UINT64 IrqFlags;
+
     if (!HalNetReady()) {
         return -1;
     }
+    IrqFlags = HalIrqSave();
     TcpInit();
     UdpInit();
     lwip_init();
     if (ToyNetifAdd(HalNetGetIp(), TOY_LWIP_MASK, TOY_LWIP_GW) != 0) {
+        HalIrqRestore(IrqFlags);
         return -1;
     }
     HalNetSetLwIpRx(1);
     gLwIpReady = 1;
+    HalIrqRestore(IrqFlags);
     DebugWrite("lwip: up\n");
     return 0;
 }
 
 void LwIpPoll(void) {
+    UINT64 IrqFlags;
+
     if (!gLwIpReady) {
         return;
     }
+    IrqFlags = HalIrqSave();
     gLwIpMs++;
     sys_check_timeouts();
+    HalIrqRestore(IrqFlags);
+}
+
+/* 一次关中断内完成收发包 + lwIP 定时器，避免 NO_SYS 重入打坏 pbuf */
+void LwIpService(void) {
+    UINT64 IrqFlags;
+
+    IrqFlags = HalIrqSave();
+    HalNetPoll();
+    if (gLwIpReady) {
+        gLwIpMs++;
+        sys_check_timeouts();
+    }
+    HalIrqRestore(IrqFlags);
 }
 
 int LwIpActive(void) {
@@ -90,7 +112,7 @@ int LwIpSocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort) {
     if (!gLwIpReady) {
         return -1;
     }
-    return ToySocketConnect(Sock, DstIp, DstPort, 3000);
+    return ToySocketConnect(Sock, DstIp, DstPort, 8000);
 }
 
 int LwIpSocketSend(int Sock, const void *Data, UINTN Len) {
@@ -112,6 +134,10 @@ int LwIpInit(void) {
 }
 
 void LwIpPoll(void) {
+}
+
+void LwIpService(void) {
+    HalNetPoll();
 }
 
 int LwIpActive(void) {

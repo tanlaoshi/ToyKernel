@@ -167,6 +167,7 @@ USER_KILLDEMO_ELF = User/killdemo.elf
 USER_WINDEMO_ELF = User/windemo.elf
 USER_GUIDEMO_ELF = User/guidemo.elf
 USER_LIBCDEMO_ELF = User/libcdemo.elf
+USER_NETLIB_ELF = User/netlibdemo.elf
 USER_HELLO_OBJ = User/hello.o
 USER_COUNT_OBJ = User/count.o
 USER_FORK_OBJ = User/fork.o
@@ -186,10 +187,13 @@ USER_KILLDEMO_OBJ = User/killdemo.o
 USER_WINDEMO_OBJ = User/windemo.o
 USER_GUIDEMO_OBJ = User/guidemo.o
 USER_LIBCDEMO_OBJ = User/libcdemo.o
+USER_NETLIB_OBJ = User/netlibdemo.o
 USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
 USER_LIB_TOY_UI_OBJ = User/Library/ToyUi/ToyUi.o
+USER_LIB_TOY_NET_OBJ = User/Library/ToyNet/ToyNet.o
 USER_LIB_TOY_GFX_A = User/Library/ToyGfx/libToyGfx.a
 USER_LIB_TOY_UI_A = User/Library/ToyUi/libToyUi.a
+USER_LIB_TOY_NET_A = User/Library/ToyNet/libToyNet.a
 USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
 USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 	User/crt/errno.o User/crt/unistd.o User/crt/stdlib.o User/crt/signal.o
@@ -251,7 +255,8 @@ all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF) \
 	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF) \
-	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_LIB_TOYOS_A)
+	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_NETLIB_ELF) \
+	$(USER_LIB_TOYOS_A) $(USER_LIB_TOY_NET_A)
 endif
 else
 ifneq ($(BRINGUP),1)
@@ -389,6 +394,14 @@ $(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
 $(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ)
 	ar rcs $@ $(USER_LIB_TOY_UI_OBJ)
 
+$(USER_LIB_TOY_NET_OBJ): User/Library/ToyNet/ToyNet.c User/include/ToyNet.h \
+		User/include/unistd.h User/include/errno.h User/include/toyos/syscall.h
+	$(CC) $(USER_CFLAGS) -c User/Library/ToyNet/ToyNet.c -o $@
+
+$(USER_LIB_TOY_NET_A): $(USER_LIB_TOY_NET_OBJ)
+	mkdir -p $(dir $@)
+	ar rcs $@ $(USER_LIB_TOY_NET_OBJ)
+
 # PR-L1：CRT C 部分打成 libtoyos.a，供 User/pkg 课外链接
 $(USER_LIB_TOYOS_A): $(USER_LIB_TOYOS_OBJS)
 	mkdir -p $(dir $@)
@@ -409,6 +422,14 @@ $(USER_LIBCDEMO_OBJ): User/libcdemo.c User/include/stdio.h User/include/stdlib.h
 
 $(USER_LIBCDEMO_ELF): $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS)
+
+$(USER_NETLIB_OBJ): User/netlibdemo.c User/include/ToyNet.h User/include/stdio.h \
+		User/include/string.h User/include/unistd.h
+	$(CC) $(USER_CFLAGS) -c User/netlibdemo.c -o $@
+
+$(USER_NETLIB_ELF): $(USER_NETLIB_OBJ) $(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS) $(USER_LD)
+	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_NETLIB_OBJ) \
+		$(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS)
 
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
@@ -534,13 +555,13 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
 	rm -f $(USER_NETDEMO_OBJ) $(USER_NETSRV_OBJ) $(USER_SYSHELLO_OBJ) $(USER_SYSFORK_OBJ)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_KILLDEMO_OBJ)
-	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_LIBCDEMO_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOYOS_A)
+	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_NETLIB_OBJ)
+	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_NET_OBJ)
+	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_TOYOS_A)
 	rm -f $(USER_CRT_OBJS)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 	rm -f $(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF)
 	rm -f $(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_KILLDEMO_ELF)
-	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_LIBCDEMO_ELF)
+	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_NETLIB_ELF)
 endif

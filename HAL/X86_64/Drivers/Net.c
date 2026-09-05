@@ -347,7 +347,13 @@ static void VirtQueueFreeDescriptor(VIRTQ *Q, UINT16 Idx) {
 }
 
 static void VirtQueueSubmitAvailable(VIRTQ *Q, UINT16 Head) {
-    UINT16 Slot = Q->AvailIdx % Q->Size;
+    UINT16 Slot;
+
+    if (Head >= Q->Size) {
+        DebugWrite("net: bad avail head\n");
+        return;
+    }
+    Slot = Q->AvailIdx % Q->Size;
     Q->Avail->Ring[Slot] = Head;
     __asm__ volatile("" ::: "memory");
     Q->AvailIdx++;
@@ -427,6 +433,7 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     UINT16 Slot;
     int Wait;
     UINTN WireLen;
+    UINT64 IrqFlags;
 
     if (!gNetOk || FrameLen + VIRTIO_NET_HDR_LEN > RX_BUF_SIZE) {
         return -1;
@@ -435,20 +442,26 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     /* Pad to Ethernet minimum so short ARP frames are accepted. */
     WireLen = FrameLen < ETH_MIN_FRAME ? ETH_MIN_FRAME : FrameLen;
 
+    /* 关中断：避免 syscall/Halt 期间被定时器抢到 shell 再进 NetPoll 打坏 vring */
+    IrqFlags = HalIrqSave();
+
     /* Wait for previous TX descriptors to complete (single-buffer TX). */
     Wait = 100000;
     while (gTxQ.NumFree < gTxQ.Size && Wait-- > 0) {
         UINT16 DoneHead;
         UINT32 DoneLen;
         while (VirtQueuePopUsed(&gTxQ, &DoneHead, &DoneLen)) {
-            VirtQueueFreeDescriptor(&gTxQ, DoneHead);
-            gTxDone++;
+            if (DoneHead < gTxQ.Size) {
+                VirtQueueFreeDescriptor(&gTxQ, DoneHead);
+                gTxDone++;
+            }
             (void)DoneLen;
         }
     }
 
     Head = VirtQueueAllocateDescriptor(&gTxQ);
-    if (Head == (UINT16)~0) {
+    if (Head == (UINT16)~0 || Head >= gTxQ.Size) {
+        HalIrqRestore(IrqFlags);
         return -1;
     }
     MemSet(gTxBuf, 0, VIRTIO_NET_HDR_LEN + WireLen);
@@ -463,6 +476,7 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     gTxQ.AvailIdx++;
     gTxQ.Avail->Idx = gTxQ.AvailIdx;
     VirtQueueKick(&gTxQ, TX_QUEUE_ID);
+    HalIrqRestore(IrqFlags);
     return 0;
 }
 
@@ -895,19 +909,24 @@ void NetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
 void NetPoll(void) {
     UINT16 Head;
     UINT32 Len;
+    UINT64 IrqFlags;
 
     if (!gNetOk) {
         return;
     }
+    IrqFlags = HalIrqSave();
     if (gIsr) {
         *gIsr = 0;
     }
     while (VirtQueuePopUsed(&gTxQ, &Head, &Len)) {
-        VirtQueueFreeDescriptor(&gTxQ, Head);
-        gTxDone++;
+        if (Head < gTxQ.Size) {
+            VirtQueueFreeDescriptor(&gTxQ, Head);
+            gTxDone++;
+        }
         (void)Len;
     }
     NetProcessRx();
+    HalIrqRestore(IrqFlags);
 }
 
 void NetGetMac(UINT8 Mac[6]) {

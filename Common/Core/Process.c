@@ -172,10 +172,8 @@ static int ProcessLoadPath(const char *Path, VM_ADDR_SPACE **OutSpace,
         Sos[i].Size = 0;
     }
 
-    VirtualMemoryLoadPageTable(VirtualMemorySpaceRoot(Space));
-
+    /* 不切换 CR3：LoadNeeded 只改 Space 页表；重定位经 CopyToSpace 写物理页 */
     if (ProcessLoadNeeded(Space, Buf, Size, Sos, &SoCount) != 0) {
-        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
         ProcessFreeSos(Sos, SoCount);
         VirtualMemorySpaceDestroy(Space);
         PhysicalMemoryFreePages(Buf, Pages);
@@ -185,7 +183,6 @@ static int ProcessLoadPath(const char *Path, VM_ADDR_SPACE **OutSpace,
     if (SoCount > 0) {
         if (ElfRelocateProgram(Space, Buf, Size, Sos, SoCount) != 0) {
             ConsoleWrite("exec: relocate failed\n");
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
             ProcessFreeSos(Sos, SoCount);
             VirtualMemorySpaceDestroy(Space);
             PhysicalMemoryFreePages(Buf, Pages);
@@ -193,7 +190,6 @@ static int ProcessLoadPath(const char *Path, VM_ADDR_SPACE **OutSpace,
         }
     }
 
-    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
     ProcessFreeSos(Sos, SoCount);
     PhysicalMemoryFreePages(Buf, Pages);
     *OutSpace = Space;
@@ -259,8 +255,7 @@ static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
         return -1;
     }
 
-    VirtualMemoryLoadPageTable(VirtualMemorySpaceRoot(Space));
-
+    /* 经 Space 页表写物理页，不 mov CR3——避免与定时器抢占互相踩页表 */
     for (i = Argc - 1; i >= 0; i--) {
         Len = 0;
         while (ArgBuf[i][Len] && Len + 1 < EXEC_ARG_LEN) {
@@ -268,8 +263,7 @@ static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
         }
         Len++; /* NUL */
         Sp = (Sp - Len) & ~7ULL;
-        if (VirtualMemoryCopyToUser(Sp, ArgBuf[i], Len) < 0) {
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        if (VirtualMemoryCopyToSpace(Space, Sp, ArgBuf[i], Len) < 0) {
             return -1;
         }
         StrPtrs[i] = Sp;
@@ -284,19 +278,18 @@ static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
         UINT64 Ac = (UINT64)(UINT32)Argc;
         UINT64 Z = 0;
 
-        if (VirtualMemoryCopyToUser(ArgcSlot, &Ac, 8) < 0) {
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        if (VirtualMemoryCopyToSpace(Space, ArgcSlot, &Ac, 8) < 0) {
             return -1;
         }
         for (i = 0; i < Argc; i++) {
-            if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)i, &StrPtrs[i], 8) < 0) {
-                VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+            if (VirtualMemoryCopyToSpace(Space, PtrSlot + 8ULL * (UINT64)i, &StrPtrs[i],
+                                        8) < 0) {
                 return -1;
             }
         }
-        if (VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)Argc, &Z, 8) < 0 ||
-            VirtualMemoryCopyToUser(PtrSlot + 8ULL * (UINT64)(Argc + 1), &Z, 8) < 0) {
-            VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        if (VirtualMemoryCopyToSpace(Space, PtrSlot + 8ULL * (UINT64)Argc, &Z, 8) < 0 ||
+            VirtualMemoryCopyToSpace(Space, PtrSlot + 8ULL * (UINT64)(Argc + 1), &Z, 8) <
+                0) {
             return -1;
         }
     }

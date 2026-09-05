@@ -759,7 +759,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].PendingKill = 0;
-        gTasks[i].Affinity = -1; /* PR-S4：每核 TSS，用户态可上 AP */
+        gTasks[i].Affinity = 0; /* Console/串口非 SMP 安全；用户先钉 BSP */
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
         gTasks[i].InRunq = 0;
@@ -1272,7 +1272,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
     gTasks[Child].PendingKill = 0;
-    gTasks[Child].Affinity = -1;
+    gTasks[Child].Affinity = 0; /* 与 CreateUser 一致：Console 钉 BSP */
     gTasks[Child].OnCpu = -1;
     gTasks[Child].HomeCpu = 0;
     gTasks[Child].InRunq = 0;

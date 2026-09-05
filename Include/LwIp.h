@@ -9,6 +9,8 @@
 
 int  LwIpInit(void);
 void LwIpPoll(void);
+/* 关中断下 HalNetPoll + lwIP timers（NO_SYS 防重入） */
+void LwIpService(void);
 int  LwIpActive(void);
 int  LwIpPing(UINT32 DstIp, int TimeoutMs);
 int  LwIpTcpListen(UINT16 Port);

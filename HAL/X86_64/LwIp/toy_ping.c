@@ -105,8 +105,7 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
 
     Tries = TimeoutMs > 0 ? TimeoutMs : 3000;
     while (Tries-- > 0 && !gPingDone) {
-        HalNetPoll();
-        LwIpPoll();
+        LwIpService();
         HalCpuHalt();
     }
     raw_remove(Pcb);

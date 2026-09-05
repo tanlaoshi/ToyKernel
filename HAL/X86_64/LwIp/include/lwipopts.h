@@ -49,7 +49,8 @@
 
 #define LWIP_ARP                    1
 #define ARP_TABLE_SIZE              4
-#define ARP_QUEUEING                0
+#define ARP_QUEUEING                1
+#define ETHARP_SUPPORT_STATIC_ENTRIES 1
 
 #define IP_FORWARD                  0
 #define IP_REASSEMBLY               0

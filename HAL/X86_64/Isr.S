@@ -118,8 +118,8 @@ IsrCommon:
     jmp KernelEnter
 3:
     and rax, -4
-    mov rsp, rax
-    jmp 4f
+    mov rdi, rax
+    jmp UserEnter
 4:
     pop rax
     pop rbx
@@ -146,6 +146,11 @@ KernelEnter:
     mov rsp, [rdi + 160]    /* StackPointer（创建时为 16 字节对齐栈顶） */
     push rax                /* 占位返回地址 → RSP≡8，满足 SysV / SSE */
     jmp rax
+
+/* 调度器首次进入任务（须在 .text；勿放进下方 .rodata，否则会 #UD） */
+.global SchedulerEnter
+SchedulerEnter:
+    jmp KernelEnter
 
 /* 用户态首次进入：rdi=INT_FRAME*，构造 iretq 帧 */
 .global UserEnter
@@ -178,7 +183,3 @@ IsrException:
 IsrPic:
     .quad Isr32, Isr33, Isr34, Isr35, Isr36, Isr37, Isr38, Isr39
     .quad Isr40, Isr41, Isr42, Isr43, Isr44, Isr45, Isr46, Isr47
-
-.global SchedulerEnter
-SchedulerEnter:
-    jmp KernelEnter

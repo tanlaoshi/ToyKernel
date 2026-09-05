@@ -45,6 +45,9 @@ void *VirtualMemorySpaceAllocateAndTrack(VM_ADDR_SPACE *Space);
 int VirtualMemoryUserAccessOk(UINT64 Virt, UINTN Len);
 int VirtualMemoryCopyFromUser(void *Dst, UINT64 UserSrc, UINTN Len);
 int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len);
+/* 经 Space->Root 写用户页（不切换 CR3；供 exec 装栈/重定位） */
+int VirtualMemoryCopyToSpace(VM_ADDR_SPACE *Space, UINT64 UserDst, const void *Src,
+                             UINTN Len);
 
 VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src);
 

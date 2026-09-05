@@ -164,6 +164,42 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
     return (int)Len;
 }
 
+int VirtualMemoryCopyToSpace(VM_ADDR_SPACE *Space, UINT64 UserDst, const void *Src,
+                             UINTN Len) {
+    const UINT8 *S = (const UINT8 *)Src;
+    UINTN i;
+
+    if (!Space || !Src) {
+        return -1;
+    }
+    if (Len == 0) {
+        return 0;
+    }
+    if (UserDst < USER_CODE_VIRT || UserDst + Len > USER_VIRT_END ||
+        UserDst + Len < UserDst) {
+        return -1;
+    }
+
+    for (i = 0; i < Len; i++) {
+        UINT64 Va = UserDst + i;
+        UINT64 Pte = HalPageGetEntry(Space->Root, Va);
+        UINT64 Phys;
+        UINT8 *Dst;
+
+        if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
+            return -1;
+        }
+        if (!(Pte & HAL_PAGE_WRITABLE)) {
+            /* exec 装栈/重定位不应碰到只读/未拆 COW；失败即可 */
+            return -1;
+        }
+        Phys = Pte & ~0xFFFULL;
+        Dst = (UINT8 *)(UINTN)(Phys + (Va & (PAGE_SIZE - 1)));
+        *Dst = S[i];
+    }
+    return (int)Len;
+}
+
 /*
  * COW fork：共享用户物理页；原可写页双方去掉 W、打上 COW（HalPageMarkCow）。
  * 页表仍私有（SpaceCreate 已 HalPagePrepareUserRoot）。

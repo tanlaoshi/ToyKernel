@@ -407,8 +407,6 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
     UINTN i;
     int HaveSym = 0;
 
-    (void)Space;
-
     if (RelaVa == 0 || RelaSz == 0 || RelaEnt < sizeof(Elf64_Rela)) {
         return 0;
     }
@@ -489,7 +487,7 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
             }
         }
 
-        if (VirtualMemoryCopyToUser(Dest, &Value, sizeof(Value)) < 0) {
+        if (VirtualMemoryCopyToSpace(Space, Dest, &Value, sizeof(Value)) < 0) {
             ConsoleWrite("elf: reloc write failed\n");
             return -1;
         }

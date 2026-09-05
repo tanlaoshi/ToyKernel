@@ -129,6 +129,7 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
 
 void GuiTask(void) {
     for (;;) {
+        HalInputPoll();
         GuiPollMouse();
         HalCpuHalt();
     }
@@ -172,6 +173,8 @@ void ShellTask(void) {
             }
         }
         HalCpuHalt();
+        /* 主动排空 XHCI 事件：不单靠 MSI 窗口，减少「桌面假死」 */
+        HalInputPoll();
         /* PR-V5 virt：无抢占，GuiTask 饿死；在 shell 循环里顺带刷鼠标 */
         if (HalPlatformVirtConsole()) {
             GuiPollMouse();
@@ -181,14 +184,16 @@ void ShellTask(void) {
             FeedHid(&Report, &Previous);
             Previous = Report;
         }
-        HalNetPoll();
-#ifndef TOY_LWIP
-        TcpPoll();
-#else
-        if (!LwIpActive()) {
+#ifdef TOY_LWIP
+        if (LwIpActive()) {
+            LwIpService();
+        } else {
+            HalNetPoll();
             TcpPoll();
         }
-        LwIpPoll();
+#else
+        HalNetPoll();
+        TcpPoll();
 #endif
         {
             UDP_DATAGRAM Dg;
