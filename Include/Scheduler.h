@@ -7,6 +7,7 @@
 #include "BootTypes.h"
 #include "VirtualMemory.h"
 #include "Hal.h"
+#include "Fat.h"
 
 #define MAX_TASKS 16
 #define MAX_FDS   8
@@ -15,6 +16,7 @@
 #define FD_KIND_FILE   0
 #define FD_KIND_SOCKET 1
 #define FD_KIND_PIPE   2
+#define FD_KIND_DIR    3  /* PR-F4：目录快照（Data=FAT_DIR_ENT[]） */
 
 #define PIPE_END_READ  0
 #define PIPE_END_WRITE 1
@@ -84,6 +86,11 @@ int SchedulerIsOnline(void);
 
 void SchedulerFdCloseAll(TASK *T);
 int SchedulerFdOpen(TASK *T, const char *Path);
+/* PR-F4：打开目录并快照枚举；成功返回 dirfd */
+int SchedulerFdOpenDirectory(TASK *T, const char *Path);
+/* PR-F4：拷贝下一项到 Out；1=有项，0=结束，-1=失败 */
+int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIR_ENT *Out);
+int SchedulerFdFileStat(TASK *T, const char *Path, FAT_FILE_STAT *Out);
 int SchedulerFdSocket(TASK *T, int Domain, int Type, int Protocol);
 int SchedulerFdBind(TASK *T, int Fd, UINT32 Ip, UINT16 Port);
 int SchedulerFdListen(TASK *T, int Fd, int Backlog);

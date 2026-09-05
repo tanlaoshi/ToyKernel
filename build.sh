@@ -74,8 +74,9 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     cp User/windemo.elf ../ToyImage/WINDEMO.ELF
     cp User/guidemo.elf ../ToyImage/GUIDEMO.ELF
     cp User/libcdemo.elf ../ToyImage/LIBCDEMO.ELF
+    cp User/dirdemo.elf ../ToyImage/DIRDEMO.ELF
     cp User/netlibdemo.elf ../ToyImage/NETLIB.ELF
-    echo "Copied HELLO/.../GUIDEMO/LIBCDEMO/NETLIB -> ../ToyImage/"
+    echo "Copied HELLO/.../GUIDEMO/LIBCDEMO/DIRDEMO/NETLIB -> ../ToyImage/"
     if [ -d ../ToyImage/rootfs ]; then
         cp -f ../ToyImage/Kernel.elf ../ToyImage/rootfs/Kernel.elf
         cp -f ../ToyImage/HELLO.ELF ../ToyImage/rootfs/HELLO.ELF
@@ -95,8 +96,9 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
         cp -f ../ToyImage/WINDEMO.ELF ../ToyImage/rootfs/WINDEMO.ELF
         cp -f ../ToyImage/GUIDEMO.ELF ../ToyImage/rootfs/GUIDEMO.ELF
         cp -f ../ToyImage/LIBCDEMO.ELF ../ToyImage/rootfs/LIBCDEMO.ELF
+        cp -f ../ToyImage/DIRDEMO.ELF ../ToyImage/rootfs/DIRDEMO.ELF
         cp -f ../ToyImage/NETLIB.ELF ../ToyImage/rootfs/NETLIB.ELF
-        echo "Synced Kernel/HELLO/.../NETLIB -> ../ToyImage/rootfs/"
+        echo "Synced Kernel/HELLO/.../DIRDEMO/NETLIB -> ../ToyImage/rootfs/"
     fi
     echo "Copied $ELF -> ../ToyImage/"
 else

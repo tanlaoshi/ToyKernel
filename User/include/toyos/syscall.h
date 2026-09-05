@@ -30,6 +30,9 @@
 #define SYS_DAMAGE        19
 #define SYS_POLL_INPUT    20
 #define SYS_UI_BUTTON     21
+#define SYS_FILE_STAT     22
+#define SYS_OPEN_DIRECTORY 23
+#define SYS_READ_DIRECTORY 24
 
 #define WNOHANG 1
 
@@ -106,6 +109,18 @@ static inline long toy_poll_input(long wid) {
 
 static inline long toy_ui_button(long wid, long button_id, const char *label) {
     return toy_syscall(SYS_UI_BUTTON, wid, button_id, (long)label);
+}
+
+static inline long toy_file_stat(const char *path, void *out) {
+    return toy_syscall(SYS_FILE_STAT, (long)path, (long)out, 0);
+}
+
+static inline long toy_open_directory(const char *path) {
+    return toy_syscall(SYS_OPEN_DIRECTORY, (long)path, 0, 0);
+}
+
+static inline long toy_read_directory(long dirfd, void *out) {
+    return toy_syscall(SYS_READ_DIRECTORY, dirfd, (long)out, 0);
 }
 
 static inline long toy_socket(long domain, long type, long protocol) {

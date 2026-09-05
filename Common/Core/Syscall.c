@@ -15,6 +15,7 @@
 #include "VirtualMemory.h"
 #include "Process.h"
 #include "Gui.h"
+#include "Fat.h"
 
 #define COPY_BUF_MAX 256
 /* 与 TASK_FD.Path[64] 对齐，便于 CRT 打开子路径 */
@@ -201,6 +202,81 @@ static int SysClose(int Fd) {
         return -1;
     }
     return SchedulerFdClose(T, Fd);
+}
+
+/* PR-F4：用户态 FileStat / OpenDirectory / ReadDirectory */
+static int SysFileStat(UINT64 UserPath, UINT64 UserOut) {
+    char Path[PATH_MAX_LEN + 1];
+    FAT_FILE_STAT St;
+    TASK *T = SchedulerCurrent();
+    UINTN i;
+
+    if (!T || !T->IsUser || UserOut == 0) {
+        return -1;
+    }
+    for (i = 0; i < PATH_MAX_LEN; i++) {
+        char C;
+        if (VirtualMemoryCopyFromUser(&C, UserPath + i, 1) < 0) {
+            return -1;
+        }
+        Path[i] = C;
+        if (C == 0) {
+            break;
+        }
+    }
+    Path[PATH_MAX_LEN] = 0;
+    if (SchedulerFdFileStat(T, Path, &St) < 0) {
+        return -1;
+    }
+    if (VirtualMemoryCopyToUser(UserOut, &St, sizeof(St)) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int SysOpenDirectory(UINT64 UserPath) {
+    char Path[PATH_MAX_LEN + 1];
+    TASK *T = SchedulerCurrent();
+    UINTN i;
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    /* 空路径 = 默认卷根 */
+    if (UserPath == 0) {
+        Path[0] = 0;
+    } else {
+        for (i = 0; i < PATH_MAX_LEN; i++) {
+            char C;
+            if (VirtualMemoryCopyFromUser(&C, UserPath + i, 1) < 0) {
+                return -1;
+            }
+            Path[i] = C;
+            if (C == 0) {
+                break;
+            }
+        }
+        Path[PATH_MAX_LEN] = 0;
+    }
+    return SchedulerFdOpenDirectory(T, Path);
+}
+
+static int SysReadDirectory(int Fd, UINT64 UserOut) {
+    FAT_DIR_ENT Ent;
+    TASK *T = SchedulerCurrent();
+    int Rc;
+
+    if (!T || !T->IsUser || UserOut == 0) {
+        return -1;
+    }
+    Rc = SchedulerFdReadDirectory(T, Fd, &Ent);
+    if (Rc <= 0) {
+        return Rc;
+    }
+    if (VirtualMemoryCopyToUser(UserOut, &Ent, sizeof(Ent)) < 0) {
+        return -1;
+    }
+    return 1;
 }
 
 static int SysSocket(int Domain, int Type, int Protocol) {
@@ -394,6 +470,18 @@ UINT64 SyscallDispatch(HAL_FRAME *Frame) {
         HalFrameSetReturn(Frame, (UINT64)(long)SysUiButton(
             (int)HalFrameGetArgument0(Frame), (int)HalFrameGetArgument1(Frame),
             HalFrameGetArgument2(Frame)));
+        break;
+    case SYS_FILE_STAT:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysFileStat(
+            HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
+        break;
+    case SYS_OPEN_DIRECTORY:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysOpenDirectory(
+            HalFrameGetArgument0(Frame)));
+        break;
+    case SYS_READ_DIRECTORY:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysReadDirectory(
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
         break;
     default:
         ConsoleWrite("syscall: unknown ");

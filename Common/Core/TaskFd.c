@@ -131,6 +131,84 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     return Slot;
 }
 
+/* PR-F4：目录 fd — 打开时 FsListEntries 快照到内核缓冲 */
+int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
+    int Slot;
+    UINT32 Pages;
+    FAT_DIR_ENT *Buf;
+    FAT_FILE_STAT St;
+    int Count = 0;
+    int Err;
+    const char *ListPath;
+
+    if (!T) {
+        return -1;
+    }
+    ListPath = Path ? Path : "";
+    Err = FsFileStat(ListPath, &St);
+    if (Err != FAT_OK) {
+        return -1;
+    }
+    if ((St.Attr & FAT_ATTR_DIR) == 0) {
+        return -1;
+    }
+    Slot = FdAllocSlot(T);
+    if (Slot < 0) {
+        return -1;
+    }
+    Pages = (UINT32)((sizeof(FAT_DIR_ENT) * (UINTN)FAT_LIST_MAX + PAGE_SIZE - 1) / PAGE_SIZE);
+    if (Pages == 0) {
+        Pages = 1;
+    }
+    Buf = (FAT_DIR_ENT *)PhysicalMemoryAllocatePages(Pages);
+    if (!Buf) {
+        return -1;
+    }
+    Err = FsListEntries(ListPath, Buf, FAT_LIST_MAX, &Count);
+    if (Err != FAT_OK) {
+        PhysicalMemoryFreePages(Buf, Pages);
+        return -1;
+    }
+    T->Fds[Slot].Used = 1;
+    T->Fds[Slot].Kind = FD_KIND_DIR;
+    T->Fds[Slot].SockId = -1;
+    T->Fds[Slot].Data = (UINT8 *)Buf;
+    T->Fds[Slot].Size = (UINTN)Count;
+    T->Fds[Slot].Pos = 0;
+    T->Fds[Slot].Pages = Pages;
+    FdCopyPath(&T->Fds[Slot], ListPath[0] ? ListPath : "/");
+    T->Fds[Slot].Dirty = 0;
+    return Slot;
+}
+
+int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIR_ENT *Out) {
+    TASK_FD *F;
+
+    if (!T || !Out || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
+        return -1;
+    }
+    F = &T->Fds[Fd];
+    if (F->Kind != FD_KIND_DIR || !F->Data) {
+        return -1;
+    }
+    if (F->Pos >= F->Size) {
+        return 0;
+    }
+    *Out = ((FAT_DIR_ENT *)(UINTN)F->Data)[F->Pos];
+    F->Pos++;
+    return 1;
+}
+
+int SchedulerFdFileStat(TASK *T, const char *Path, FAT_FILE_STAT *Out) {
+    if (!T || !Out) {
+        return -1;
+    }
+    if (FsFileStat(Path ? Path : "", Out) != FAT_OK) {
+        return -1;
+    }
+    return 0;
+}
+
 int SchedulerFdSocket(TASK *T, int Domain, int Type, int Protocol) {
     int Slot = -1;
     int Sock;
@@ -270,6 +348,9 @@ int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
         P->Len -= N;
         return (int)N;
     }
+    if (F->Kind == FD_KIND_DIR) {
+        return -1;
+    }
     if (F->Pos >= F->Size) {
         return 0;
     }
@@ -318,6 +399,9 @@ int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len) {
         P->Len += N;
         return (int)N;
     }
+    if (F->Kind == FD_KIND_DIR) {
+        return -1;
+    }
     if (F->Pos > FD_MAX_BYTES) {
         return -1;
     }
@@ -357,6 +441,10 @@ int SchedulerFdClose(TASK *T, int Fd) {
             if (P->Readers <= 0 && P->Writers <= 0) {
                 PhysicalMemoryFreePages(P, P->Pages ? P->Pages : 1);
             }
+        }
+    } else if (T->Fds[Fd].Kind == FD_KIND_DIR) {
+        if (T->Fds[Fd].Data) {
+            PhysicalMemoryFreePages(T->Fds[Fd].Data, T->Fds[Fd].Pages);
         }
     } else {
         FdFlush(&T->Fds[Fd]);
