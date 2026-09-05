@@ -276,6 +276,28 @@ int FsRename(const char *OldPath, const char *NewPath) {
     return VfsRename(OldRel, NewRel);
 }
 
+int FsFileStat(const char *Path, FAT_FILE_STAT *Out) {
+    const char *Rel;
+    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    if (!Path || Path[0] == 0) {
+        Rel = 0;
+    }
+    return VfsFileStat(Rel && Rel[0] ? Rel : 0, Out);
+}
+
+int FsFileSync(const char *Path) {
+    const char *Rel;
+    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    (void)Rel;
+    return VfsFileSync();
+}
+
 int FileSystemVolCount(void) {
     return gVolCount;
 }
@@ -425,6 +447,6 @@ int FileSystemInit(void) {
         return 0;
     }
     ShellCommandsRegisterFs();
-    DebugWrite("FS ready (ls, cat, write, wrbig, rm, mkdir, rmdir, mv, vols)\n");
+    DebugWrite("FS ready (ls, cat, write, wrbig, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");
     return 0;
 }

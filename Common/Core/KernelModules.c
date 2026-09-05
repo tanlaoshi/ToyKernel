@@ -113,7 +113,8 @@ static int InitNetModule(void) {
 }
 
 static int InitDrv(void) {
-    /* D1：框架就绪；具体驱动在 D2/D3 注册。ProbeAll 允许 0 绑定。 */
+    /* PR-D2：先注册平台驱动；ProbeAll 可早绑 ATA；virtio-blk 待 VMM 后由 HalBlockInit 再 Probe */
+    HalDrvRegister();
     return ToyDrvProbeAll();
 }
 

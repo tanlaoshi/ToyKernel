@@ -1,5 +1,5 @@
 /*
- * Vfs.h — VFS 面 FsOps（PR-F1）
+ * Vfs.h — VFS 面 FsOps（PR-F1；PR-F2 增 FileStat / FileSync）
  *
  * 卷前缀 / 只读策略仍在 FileSystem；本头是「已激活卷」上的可插拔后端。
  * FAT 为第一个后端；Common 业务继续走 Fs*（内部经本表）。
@@ -22,6 +22,9 @@ typedef struct FS_OPS {
     int (*Mkdir)(const char *Path);
     int (*Rmdir)(const char *Path);
     int (*Rename)(const char *OldPath, const char *NewPath);
+    /* PR-F2：可为 NULL（旧后端）；缺省 → FAT_ERR_IO */
+    int (*FileStat)(const char *Path, FAT_FILE_STAT *Out);
+    int (*FileSync)(void);
 } FS_OPS;
 
 /* 注册当前后端（F1：全局一份；F3 可扩多后端） */
@@ -38,6 +41,8 @@ int VfsDeleteFile(const char *Path);
 int VfsMkdir(const char *Path);
 int VfsRmdir(const char *Path);
 int VfsRename(const char *OldPath, const char *NewPath);
+int VfsFileStat(const char *Path, FAT_FILE_STAT *Out);
+int VfsFileSync(void);
 
 /* FAT 后端描述符（定义于 FatFsOps.c） */
 const FS_OPS *FatFsOps(void);

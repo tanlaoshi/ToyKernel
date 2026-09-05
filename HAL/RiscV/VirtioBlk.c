@@ -1,10 +1,12 @@
 /*
- * VirtioBlk.c — virtio-blk MMIO（PR-V4）
+ * VirtioBlk.c — virtio-blk MMIO（PR-V4；PR-D2 经 Drv Block 类）
  */
 #include "VirtioBlk.h"
 #include "VirtioMmio.h"
 #include "HalSerial.h"
 #include "PhysicalMemory.h"
+#include "Drv.h"
+#include "DrvBlock.h"
 
 #define VIRTIO_BLK_T_IN  0u
 #define VIRTIO_BLK_T_OUT 1u
@@ -131,9 +133,10 @@ static int BlkWrite(UINT32 Drive, UINT32 Lba, UINT32 Count, const void *Buffer) 
 }
 
 static const BLOCK_BACKEND gBlkBackend = {
-    BlkProbe,
-    BlkRead,
-    BlkWrite,
+    .Probe = BlkProbe,
+    .ReadSectors = BlkRead,
+    .WriteSectors = BlkWrite,
+    .Flush = 0,
 };
 
 typedef struct {
@@ -147,24 +150,33 @@ static void BlkScanCb(UINT64 Base, UINT32 DeviceId, void *Ctx) {
     }
 }
 
-int VirtioBlkInit(void) {
+static int VirtioBlkDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     BLK_SCAN_CTX Ctx;
     UINT8 *Meta;
+
+    (void)Self;
+    (void)BusCtx;
+    if (gBlkReady) {
+        if (OutPriv) {
+            *OutPriv = 0;
+        }
+        return 0;
+    }
 
     Ctx.FoundBase = 0;
     VirtioMmioScan(BlkScanCb, &Ctx);
     if (Ctx.FoundBase == 0) {
-        return 0;
+        return -1;
     }
 
     if (VirtioMmioSetupQueue(&gBlk, Ctx.FoundBase, VIRTIO_DEV_BLOCK, 8, 0) != 0) {
         HalSerialWrite("virtio-blk: setup failed\n");
-        return 0;
+        return -1;
     }
 
     Meta = (UINT8 *)PhysicalMemoryAllocatePages(1);
     if (!Meta) {
-        return 0;
+        return -1;
     }
     gReq = (VIRTIO_BLK_REQ *)(UINTN)Meta;
     gStatusByte = Meta + 64;
@@ -175,6 +187,39 @@ int VirtioBlkInit(void) {
     HexU32((UINT32)Ctx.FoundBase);
     HalSerialWrite("\n");
 
-    BlockRegisterBackend(&gBlkBackend);
+    if (OutPriv) {
+        *OutPriv = 0;
+    }
+    return 0;
+}
+
+static int VirtioBlkDrvBind(TOY_DRV_INSTANCE *Inst) {
+    (void)Inst;
+    return ToyDrvBlockAttach(&gBlkBackend);
+}
+
+static void VirtioBlkDrvRemove(TOY_DRV_INSTANCE *Inst) {
+    (void)Inst;
+    gBlkReady = 0;
+}
+
+static const TOY_DRIVER gVirtioBlkDriver = {
+    .Name = "virtio-blk",
+    .Class = TOY_DRV_CLASS_BLOCK,
+    .Match = 0,
+    .Probe = VirtioBlkDrvProbe,
+    .Bind = VirtioBlkDrvBind,
+    .Remove = VirtioBlkDrvRemove,
+};
+
+void VirtioBlkRegister(void) {
+    (void)ToyDrvRegister(&gVirtioBlkDriver);
+}
+
+int VirtioBlkInit(void) {
+    (void)ToyDrvProbeClass(TOY_DRV_CLASS_BLOCK);
+    if (!BlockBackendReady()) {
+        return 0;
+    }
     return BlockInit();
 }

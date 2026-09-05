@@ -28,7 +28,7 @@ int FileSystemResolve(const char *Path, int *OutVol, const char **OutRel);
 /* 切换 Block + FatInit 到指定卷；成功 FAT_OK */
 int FileSystemActivate(int VolIdx);
 
-/* 带前缀的路径操作（内部 Resolve+Activate+Fat*；写操作拒只读卷） */
+/* 带前缀的路径操作（内部 Resolve+Activate+Vfs*；写操作拒只读卷） */
 int FsListDir(const char *Path);
 /* PR-FB1：结构化目录枚举（供文件浏览器） */
 int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
@@ -38,5 +38,8 @@ int FsDeleteFile(const char *Path);
 int FsMkdir(const char *Path);
 int FsRmdir(const char *Path);
 int FsRename(const char *OldPath, const char *NewPath);
+/* PR-F2：文件状态查询 / 落盘同步（名称写全，勿用孤立 stat/fsync） */
+int FsFileStat(const char *Path, FAT_FILE_STAT *Out);
+int FsFileSync(const char *Path);
 
 #endif

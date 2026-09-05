@@ -23,6 +23,24 @@ int ToyDrvRegister(const TOY_DRIVER *Drv) {
 }
 
 int ToyDrvProbeAll(void) {
+    return ToyDrvProbeClass(TOY_DRV_CLASS_NONE);
+}
+
+static int DriverAlreadyBound(const TOY_DRIVER *D) {
+    UINTN i;
+    for (i = 0; i < gInstanceCount; i++) {
+        if (gInstances[i].Drv == D && gInstances[i].Bound) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * Class == TOY_DRV_CLASS_NONE：Probe 全部（D1 行为）。
+ * 其它：只 Probe 该类；已绑定的驱动跳过（供 HalBlockInit 在 VMM 后再试 virtio-blk）。
+ */
+int ToyDrvProbeClass(TOY_DRV_CLASS Class) {
     UINTN i;
     int Bound = 0;
 
@@ -31,6 +49,12 @@ int ToyDrvProbeAll(void) {
         void *Priv = 0;
         TOY_DRV_INSTANCE *Inst;
 
+        if (Class != TOY_DRV_CLASS_NONE && D->Class != Class) {
+            continue;
+        }
+        if (DriverAlreadyBound(D)) {
+            continue;
+        }
         if (D->Probe(D, 0, &Priv) != 0) {
             continue;
         }
@@ -66,8 +90,10 @@ int ToyDrvProbeAll(void) {
     HalDebugWrite("drv: registered=");
     HalDebugHex32((UINT32)gDriverCount);
     HalDebugWrite(" bound=");
+    HalDebugHex32((UINT32)gInstanceCount);
+    HalDebugWrite(" (+");
     HalDebugHex32((UINT32)Bound);
-    HalDebugWrite("\n");
+    HalDebugWrite(")\n");
     return 0;
 }
 

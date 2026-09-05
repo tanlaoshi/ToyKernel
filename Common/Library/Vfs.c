@@ -83,3 +83,17 @@ int VfsRename(const char *OldPath, const char *NewPath) {
     }
     return gOps->Rename(OldPath, NewPath);
 }
+
+int VfsFileStat(const char *Path, FAT_FILE_STAT *Out) {
+    if (!gOps || !gOps->FileStat) {
+        return NoBackend();
+    }
+    return gOps->FileStat(Path, Out);
+}
+
+int VfsFileSync(void) {
+    if (!gOps || !gOps->FileSync) {
+        return NoBackend();
+    }
+    return gOps->FileSync();
+}

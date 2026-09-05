@@ -828,6 +828,9 @@ int FatRmdir(const char *Path) {
     if (!(Attr & FAT_ATTR_DIR)) {
         return FAT_ERR_NOTDIR;
     }
+    if (Attr & FAT_ATTR_RO) {
+        return FAT_ERR_ROFS;
+    }
     if (Cluster < 2) {
         return FAT_ERR_INVAL;
     }

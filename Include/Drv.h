@@ -43,6 +43,8 @@ struct TOY_DRV_INSTANCE {
 int ToyDrvRegister(const TOY_DRIVER *Drv);
 /* 对已注册驱动调用 Probe；成功则 Bind 并记入实例表 */
 int ToyDrvProbeAll(void);
+/* PR-D2：只 Probe 指定类；已有该驱动实例则跳过 */
+int ToyDrvProbeClass(TOY_DRV_CLASS Class);
 void ToyDrvRemoveAll(void);
 
 UINTN ToyDrvRegisteredCount(void);

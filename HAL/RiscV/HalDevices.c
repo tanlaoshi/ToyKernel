@@ -6,6 +6,10 @@
 #include "VirtioInput.h"
 #include "VirtioNet.h"
 
+void HalDrvRegister(void) {
+    VirtioBlkRegister();
+}
+
 int HalBlockInit(void) {
     return VirtioBlkInit();
 }

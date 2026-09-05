@@ -1,5 +1,5 @@
 /*
- * Fat.h — FAT16/FAT32 文件系统接口（PR-FS1）
+ * Fat.h — FAT16/FAT32 文件系统接口（PR-FS1；PR-F2 文件状态 / 落盘同步）
  *
  * 依赖 Block 读写扇区。支持 8.3 与 LFN；路径含 . / ..；读/写/删/建目录。
  * 公开 API 统一：返回 0 (FAT_OK) 成功，负值错误码；细节见 FatStrError。
@@ -20,11 +20,12 @@
 #define FAT_ERR_INVAL      (-8)   /* 非法参数/路径 */
 #define FAT_ERR_NAMETOOLONG (-9)  /* 名过长 */
 #define FAT_ERR_FBIG       (-10)  /* 超过写大小上限 */
-#define FAT_ERR_ROFS       (-11)  /* 只读卷（PR-FS2 ESP 等） */
+#define FAT_ERR_ROFS       (-11)  /* 只读卷或只读目录项（PR-FS2 / PR-F2） */
 
 /* PR-FS3：单次 FatWriteFile 上限（须有顶）；超过 → FAT_ERR_FBIG */
 #define FAT_WRITE_MAX      (8u * 1024u * 1024u)
 
+#define FAT_ATTR_RO         0x01
 #define FAT_ATTR_DIR        0x10
 #define FAT_ENT_NAME_MAX    64
 #define FAT_LIST_MAX        64
@@ -34,6 +35,13 @@ typedef struct {
     UINT8  Attr;
     UINT32 Size;
 } FAT_DIR_ENT;
+
+/* PR-F2：路径上的文件/目录状态（教学用，非完整 POSIX struct stat） */
+typedef struct {
+    UINT8  Attr;
+    UINT32 Size;
+    UINT32 Cluster;
+} FAT_FILE_STAT;
 
 const char *FatStrError(int Err);
 
@@ -49,5 +57,13 @@ int FatMkdir(const char *Path);
 int FatRmdir(const char *Path);
 /* 同卷改名/移动目录项（不拷贝数据）；成功 FAT_OK */
 int FatRename(const char *OldPath, const char *NewPath);
+
+/* PR-F2：查询路径状态；空路径/"/" → 卷根目录 */
+int FatFileStat(const char *Path, FAT_FILE_STAT *Out);
+/*
+ * PR-F2：落盘同步。当前写路径已逐扇区 Store；本调用再经 BlockFlush
+ *（后端无 Flush 时为成功空操作），便于教学与后续写缓存。
+ */
+int FatFileSync(void);
 
 #endif

@@ -7,7 +7,7 @@
 void ShellCommandsRegister(void);
 /* PR-A9：virt 串口最小集 help(已内置)/mem/ps/halt */
 void ShellCommandsRegisterVirtMin(void);
-/* PR-R3：ls/cat/write/wrbig/rm/mkdir/rmdir/mv/vols */
+/* PR-R3 / PR-F2：ls/cat/…/vols/filestat/filesync */
 void ShellCommandsRegisterFs(void);
 void ShellOnInterrupt(void);
 

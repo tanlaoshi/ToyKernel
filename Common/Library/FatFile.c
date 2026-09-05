@@ -95,6 +95,9 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         if (OldAttr & FAT_ATTR_DIR) {
             return FAT_ERR_ISDIR;
         }
+        if (OldAttr & FAT_ATTR_RO) {
+            return FAT_ERR_ROFS;
+        }
     }
 
     Cb = ClusterBytes();
@@ -201,6 +204,9 @@ int FatDeleteFile(const char *Path) {
     if (!FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &Cluster, &Attr) || !Existing) {
         return FAT_ERR_NOENT;
     }
+    if (Attr & FAT_ATTR_RO) {
+        return FAT_ERR_ROFS;
+    }
     if (Attr & FAT_ATTR_DIR) {
         FAT_DIR_CTX Sub;
         Sub.IsFat16Root = 0;
@@ -272,6 +278,9 @@ int FatRename(const char *OldPath, const char *NewPath) {
     if (!LookupInDir(OldParent, OldLeaf, &Cluster, &Size, &Attr)) {
         return FAT_ERR_NOENT;
     }
+    if (Attr & FAT_ATTR_RO) {
+        return FAT_ERR_ROFS;
+    }
     if (!ResolvePathParentLeaf(NewPath, &NewParent, NewLeaf)) {
         return FAT_ERR_NOENT;
     }
@@ -291,6 +300,51 @@ int FatRename(const char *OldPath, const char *NewPath) {
         /* 尽力回滚新名（会误释放簇，尽量避免走到这里） */
         (void)DirUnlinkKeepClusters(NewParent, NewLeaf);
         return Rc;
+    }
+    return FAT_OK;
+}
+
+int FatFileStat(const char *Path, FAT_FILE_STAT *Out) {
+    FAT_DIR_CTX Parent;
+    char Leaf[FAT_NAME_MAX + 1];
+    UINT32 Cluster = 0;
+    UINT32 Size = 0;
+    UINT8 Attr = 0;
+
+    if (!Out) {
+        return FAT_ERR_INVAL;
+    }
+    /* 空路径或根：卷根目录 */
+    if (!Path || !Path[0] || ((Path[0] == '/' || Path[0] == '\\') && !Path[1])) {
+        Out->Attr = FAT_ATTR_DIR;
+        Out->Size = 0;
+        Out->Cluster = (gFatType == 32) ? gRootCluster : 0;
+        return FAT_OK;
+    }
+    if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
+        return FAT_ERR_NOENT;
+    }
+    if (CompIsDot(Leaf)) {
+        Out->Attr = FAT_ATTR_DIR;
+        Out->Size = 0;
+        Out->Cluster = Parent.IsFat16Root ? 0 : Parent.Cluster;
+        return FAT_OK;
+    }
+    if (CompIsDotDot(Leaf)) {
+        return FAT_ERR_INVAL;
+    }
+    if (!LookupInDir(Parent, Leaf, &Cluster, &Size, &Attr)) {
+        return FAT_ERR_NOENT;
+    }
+    Out->Attr = Attr;
+    Out->Size = Size;
+    Out->Cluster = Cluster;
+    return FAT_OK;
+}
+
+int FatFileSync(void) {
+    if (!BlockFlush()) {
+        return FAT_ERR_IO;
     }
     return FAT_OK;
 }

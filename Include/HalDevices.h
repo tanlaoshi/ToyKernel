@@ -28,6 +28,8 @@ typedef struct {
 } HAL_MOUSE_REPORT;
 
 int HalBlockInit(void);
+/* PR-D2：注册平台驱动描述符（ATA / virtio-blk 等）；InitDrv 内调用 */
+void HalDrvRegister(void);
 
 int HalUsbInit(void);
 void HalInputPoll(void);

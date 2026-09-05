@@ -12,6 +12,10 @@ void BlockRegisterBackend(const BLOCK_BACKEND *Backend) {
     gBackend = Backend;
 }
 
+int BlockBackendReady(void) {
+    return gBackend != 0;
+}
+
 int BlockSelect(UINT32 Drive) {
     if (Drive >= BLOCK_MAX_DRIVES || !gReady[Drive]) {
         return 0;
@@ -71,4 +75,14 @@ int BlockWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {
         return 0;
     }
     return gBackend->WriteSectors(gDrive, Lba, Count, Buffer);
+}
+
+int BlockFlush(void) {
+    if (!gBackend) {
+        return 0;
+    }
+    if (!gBackend->Flush) {
+        return 1;
+    }
+    return gBackend->Flush(gDrive);
 }

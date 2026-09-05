@@ -16,11 +16,10 @@
 #endif
 #define FAT_NAME_MAX 255
 #define FAT_PATH_DEPTH 16
-#define FAT_ATTR_RO   0x01
+/* FAT_ATTR_RO / FAT_ATTR_DIR 见 Fat.h */
 #define FAT_ATTR_HID  0x02
 #define FAT_ATTR_SYS  0x04
 #define FAT_ATTR_VOL  0x08
-/* FAT_ATTR_DIR 见 Fat.h */
 #define FAT_ATTR_ARCH 0x20
 #define FAT_ATTR_LFN  0x0F
 

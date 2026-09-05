@@ -226,7 +226,6 @@ static void CommandMv(int Argc, char **Argv) {
     ConsoleWrite("mv: ok\n");
 }
 
-/* PR-FS2：列出已挂载卷（经 FileSystemVol* 公开面） */
 static void CommandVols(int Argc, char **Argv) {
     int i;
     int Count;
@@ -288,6 +287,52 @@ static void CommandVols(int Argc, char **Argv) {
     }
 }
 
+/* PR-F2：文件状态查询（全称 filestat，勿用孤立 stat） */
+static void CommandFileStat(int Argc, char **Argv) {
+    FAT_FILE_STAT St;
+    int Err;
+    const char *Path;
+
+    if (Argc < 2) {
+        ConsoleWrite("usage: filestat <path>\n");
+        return;
+    }
+    Path = Argv[1];
+    Err = FsFileStat(Path, &St);
+    if (Err != FAT_OK) {
+        FatReport("filestat", Err);
+        return;
+    }
+    ConsoleWrite(Path);
+    ConsoleWrite(": ");
+    if (St.Attr & FAT_ATTR_DIR) {
+        ConsoleWrite("dir");
+    } else {
+        ConsoleWrite("file");
+    }
+    if (St.Attr & FAT_ATTR_RO) {
+        ConsoleWrite(" ro");
+    }
+    ConsoleWrite(" size=");
+    ConsoleHex32(St.Size);
+    ConsoleWrite(" cluster=");
+    ConsoleHex32(St.Cluster);
+    ConsoleWrite(" attr=");
+    ConsoleHex32((UINT32)St.Attr);
+    ConsoleWrite("\n");
+}
+
+/* PR-F2：落盘同步（全称 filesync） */
+static void CommandFileSync(int Argc, char **Argv) {
+    const char *Path = (Argc >= 2) ? Argv[1] : "";
+    int Err = FsFileSync(Path);
+    if (Err != FAT_OK) {
+        FatReport("filesync", Err);
+        return;
+    }
+    ConsoleWrite("filesync: ok\n");
+}
+
 void ShellCommandsRegisterFs(void) {
     ConsoleRegister("ls", "list directory (TOYOS: / A:)", CommandLs);
     ConsoleRegister("cat", "print file", CommandCat);
@@ -298,4 +343,6 @@ void ShellCommandsRegisterFs(void) {
     ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);
     ConsoleRegister("mv", "rename/move file or dir", CommandMv);
     ConsoleRegister("vols", "list mounted volumes", CommandVols);
+    ConsoleRegister("filestat", "file/dir status (PR-F2 FileStat)", CommandFileStat);
+    ConsoleRegister("filesync", "flush volume to disk (PR-F2 FileSync)", CommandFileSync);
 }
