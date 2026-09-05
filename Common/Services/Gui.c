@@ -347,7 +347,7 @@ static void SyncWindowVisualsEx(int ClearDesktop) {
     GfxIrqLeave();
     HalVideoClearClip();
     if (ClearDesktop) {
-        UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+        DesktopFillRect(0, 0, gScreenW, gScreenH);
         DesktopDraw();
     }
     for (i = 0; i < MAX_WINS; i++) {
@@ -415,7 +415,7 @@ static void CloseWindow(int Idx) {
     GfxIrqLeave();
     ComposeBegin();
     HalVideoClearClip();
-    UiFillRectangle(X, Y, Ww, Wh, ThemeDesktopBg());
+    DesktopFillRect(X, Y, Ww, Wh);
     DesktopDrawRect(X, Y, Ww, Wh);
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWins[i].Active) {
@@ -704,14 +704,13 @@ static void FillDesktopRectClipped(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
                 InRun = 1;
             } else if (Cover && InRun) {
                 if (Col > RunStart) {
-                    HalVideoFillRect(RunStart, Row, Col - RunStart, 1,
-                                  ThemeDesktopBg());
+                    DesktopFillRect(RunStart, Row, Col - RunStart, 1);
                 }
                 InRun = 0;
             }
         }
         if (InRun && X + W > RunStart) {
-            HalVideoFillRect(RunStart, Row, X + W - RunStart, 1, ThemeDesktopBg());
+            DesktopFillRect(RunStart, Row, X + W - RunStart, 1);
         }
     }
 }
@@ -953,10 +952,10 @@ static UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     UINT32 Ly;
 
     if (!W->Active) {
-        return ThemeDesktopBg();
+        return DesktopBgAt(Px, Py);
     }
     if (Px < W->X || Py < W->Y || Px >= W->X + W->Width || Py >= W->Y + W->Height) {
-        return ThemeDesktopBg();
+        return DesktopBgAt(Px, Py);
     }
     Lx = Px - W->X;
     Ly = Py - W->Y;
@@ -994,7 +993,7 @@ static UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
     if (DesktopSamplePixel(Px, Py, &IconColor)) {
         return IconColor;
     }
-    return ThemeDesktopBg();
+    return DesktopBgAt(Px, Py);
 }
 
 static int EnsureDragDirtyBuf(UINT32 Ww, UINT32 Hh) {
@@ -1102,8 +1101,7 @@ static void CaptureDragRestoreData(int DragIdx) {
      */
     HalVideoClearClip();
     gWins[DragIdx].Active = 0;
-    UiFillRectangle(gDragStartX, gDragStartY, gDragStartW, gDragStartH,
-                    ThemeDesktopBg());
+    DesktopFillRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH);
     DesktopDrawRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH);
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWins[i].Active || i == DragIdx) {
@@ -1262,17 +1260,17 @@ static UINT32 SampleWindowBackupPixel(int Idx, UINT32 Px, UINT32 Py) {
     UINT32 Ly;
 
     if (!gWinBackupValid[Idx] || gWinBackup[Idx] == 0 || !W->Active) {
-        return ThemeDesktopBg();
+        return DesktopBgAt(Px, Py);
     }
     Bw = gWinBackupW[Idx];
     Bh = gWinBackupH[Idx];
     if (Px < W->X || Py < W->Y) {
-        return ThemeDesktopBg();
+        return DesktopBgAt(Px, Py);
     }
     Lx = Px - W->X;
     Ly = Py - W->Y;
     if (Lx >= Bw || Ly >= Bh) {
-        return ThemeDesktopBg();
+        return DesktopBgAt(Px, Py);
     }
     return gWinBackup[Idx][Ly * Bw + Lx];
 }
@@ -1990,7 +1988,7 @@ void GuiRedraw(void) {
     CursorRestore();
     GfxIrqLeave();
     HalVideoClearClip();
-    UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+    DesktopFillRect(0, 0, gScreenW, gScreenH);
     DesktopDraw();
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindowAt(i);
@@ -2000,6 +1998,11 @@ void GuiRedraw(void) {
     HalVideoPresent();
     GfxIrqLeave();
     ComposeEnd();
+}
+
+/* PR-G13：菜单开合后清桌面并恢复窗备份（避免全屏 Fill 抹掉刚打开的 Shell） */
+void GuiRefreshDesktop(void) {
+    SyncWindowVisualsEx(1);
 }
 
 void GuiApplyThemeColors(void) {
@@ -2042,7 +2045,7 @@ void GuiComposeThemeScene(void) {
     HalVideoClearClip();
 
     /* 先铺底：有 DeferPresent 时整屏 wipe 不会露到屏幕 */
-    UiFillRectangle(0, 0, gScreenW, gScreenH, ThemeDesktopBg());
+    DesktopFillRect(0, 0, gScreenW, gScreenH);
     DesktopDraw();
 
     for (i = 0; i < MAX_WINS; i++) {

@@ -10,11 +10,15 @@ mkdir -p "$ROOT"
 IMG_ROOT="../ToyImage/rootfs"
 if [ -d "$IMG_ROOT" ]; then
     for F in TOYOS.ID THEME.CFG HELLO.ELF CAT.ELF WRITE.ELF \
-             SYSHELLO.ELF EXECDEMO.ELF PIPEDEMO.ELF BRKDEMO.ELF KILLDEMO.ELF TOYOS.DB; do
+             SYSHELLO.ELF EXECDEMO.ELF PIPEDEMO.ELF BRKDEMO.ELF KILLDEMO.ELF TOYOS.DB WALL.BMP; do
         if [ -f "$IMG_ROOT/$F" ]; then
             cp -f "$IMG_ROOT/$F" "$ROOT/$F"
         fi
     done
+fi
+# PR-G13：壁纸样本（Image 未同步时用 assets）
+if [ ! -f "$ROOT/WALL.BMP" ] && [ -f assets/WALL.BMP ]; then
+    cp -f assets/WALL.BMP "$ROOT/WALL.BMP"
 fi
 
 # PR-A12：本 arch 用户 HELLO 覆盖盘上的 x86 机型

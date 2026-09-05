@@ -35,6 +35,8 @@ void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);
 void GuiOnArrowKey(UINT8 Key);
 void GuiRedraw(void);
+/* PR-G13：清桌面（壁纸/图标/任务栏）并按备份重贴各窗 */
+void GuiRefreshDesktop(void);
 /* PR-D2：按 Theme 刷新已开窗客户区底色（不立即重绘） */
 void GuiApplyThemeColors(void);
 /* PR-G8：桌面+各窗内容自下而上一次合成并备份 */

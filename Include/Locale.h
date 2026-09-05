@@ -20,6 +20,7 @@ typedef enum {
     MSG_ICON_SHELL,
     MSG_ICON_SETTINGS,
     MSG_ICON_FILES,
+    MSG_START,
     MSG_SET_TITLE,
     MSG_SET_MAIN,
     MSG_SET_DESKTOP_BG,
