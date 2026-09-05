@@ -113,7 +113,7 @@ LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_udp.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_tcpclient.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_socket.c
-LWIP_PORT_OBJS = $(patsubst HAL/$(HAL_ARCH)/LwIp/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/LwIp/%.o,$(LWIP_PORT_SRCS))
+LWIP_PORT_OBJS = $(patsubst HAL/$(HAL_ARCH)/LwIp/%.c,$(HALDIR)/LwIp/%.o,$(LWIP_PORT_SRCS))
 endif
 
 CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON) $(LWIPINCLUDES)
@@ -123,10 +123,11 @@ LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
 LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
+# Build/ 镜像源码树：Common、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
+# Common/Fonts 的 .o 随当前 ARCH 编译（不可三架构并存同一套 .o）；clean 会清掉它们。
+# 各 Arch 的 Kernel.elf / HAL .o 留在 Build/HAL/<Arch>/，换架构 clean 不删其它 Arch 成品。
 BUILDDIR = Build
-ifneq ($(ARCH),x86_64)
-BUILDDIR = Build/$(ARCH)
-endif
+HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
@@ -141,12 +142,12 @@ CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_S
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
 FONT_OBJS     := $(patsubst Fonts/%.c,$(BUILDDIR)/Fonts/%.o,$(FONT_SRCS))
-DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o,$(DRIVER_SRCS))
-ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_SRCS))
-ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o,$(ARCH_ASM))
+DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
+ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(HALDIR)/%.o,$(ARCH_SRCS))
+ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(HALDIR)/%.o,$(ARCH_ASM))
 
 ifeq ($(ARCH),x86_64)
-EXTRA_OBJS = $(BUILDDIR)/User_hello_blob.o $(BUILDDIR)/SmpTramp_blob.o
+EXTRA_OBJS = $(HALDIR)/User_hello_blob.o $(HALDIR)/SmpTramp_blob.o
 USER_HELLO_ELF = User/hello.elf
 USER_COUNT_ELF = User/count.elf
 USER_FORK_ELF = User/fork.elf
@@ -185,13 +186,13 @@ USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o User/crt/string.o \
 	User/crt/printf.o User/crt/malloc.o User/crt/errno.o User/crt/unistd.o
 else
-EXTRA_OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o
+EXTRA_OBJS = $(HALDIR)/Startup_asm.o
 # PR-V2：复用 x86 帧缓冲绘制（scanout 由该 Arch ramfb 填入 BOOT_INFO）
 INCLUDES_HAL += -IHAL/X86_64/Drivers
-VIRT_VIDEO_OBJ = $(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/Video.o
+VIRT_VIDEO_OBJ = $(HALDIR)/Drivers/Video.o
 EXTRA_OBJS += $(VIRT_VIDEO_OBJ)
-# PR-A12：本 arch 静态 HELLO.ELF（用户 VA @ 0x100000000）
-USER_VIRT_DIR = $(BUILDDIR)/user
+# PR-A12：本 arch 静态 HELLO.ELF（用户 VA @ 0x100000000）；放在 Arch 目录以免换架构互相覆盖
+USER_VIRT_DIR = $(HALDIR)/user
 ifeq ($(ARCH),arm64)
 USER_LD = User/user-arm64.ld
 USER_CRT0_SRC = User/crt/crt0_aarch64.S
@@ -214,14 +215,14 @@ USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
-TARGET = $(BUILDDIR)/Kernel.elf
+TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
 # PR-A6：Startup.S + Startup.c + HalSerial + Hal（Halt），不链 Common
-OBJS = $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o \
-       $(BUILDDIR)/HAL/$(HAL_ARCH)/Startup.o \
-       $(BUILDDIR)/HAL/$(HAL_ARCH)/HalSerial.o \
-       $(BUILDDIR)/HAL/$(HAL_ARCH)/Hal.o
+OBJS = $(HALDIR)/Startup_asm.o \
+       $(HALDIR)/Startup.o \
+       $(HALDIR)/HalSerial.o \
+       $(HALDIR)/Hal.o
 EXTRA_OBJS =
 endif
 
@@ -244,10 +245,10 @@ all: $(USER_HELLO_ELF)
 endif
 endif
 
-$(BUILDDIR):
-	mkdir -p $(BUILDDIR)
+$(BUILDDIR) $(HALDIR):
+	mkdir -p $@
 
-$(TARGET): $(OBJS) | $(BUILDDIR)
+$(TARGET): $(OBJS) | $(HALDIR)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBGCC)
 
 $(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
@@ -266,21 +267,21 @@ $(BUILDDIR)/Fonts/%.o: Fonts/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/HAL/$(HAL_ARCH)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(BUILDDIR)
+$(HALDIR)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifneq ($(ARCH),x86_64)
-$(VIRT_VIDEO_OBJ): HAL/X86_64/Drivers/Video.c | $(BUILDDIR)
+$(VIRT_VIDEO_OBJ): HAL/X86_64/Drivers/Video.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
 
-$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.c | $(BUILDDIR)
+$(HALDIR)/%.o: HAL/$(HAL_ARCH)/%.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
-$(BUILDDIR)/HAL/$(HAL_ARCH)/LwIp/%.o: HAL/$(HAL_ARCH)/LwIp/%.c | $(BUILDDIR)
+$(HALDIR)/LwIp/%.o: HAL/$(HAL_ARCH)/LwIp/%.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
@@ -290,24 +291,24 @@ $(BUILDDIR)/lwip/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
 
-$(BUILDDIR)/HAL/$(HAL_ARCH)/%.o: HAL/$(HAL_ARCH)/%.S | $(BUILDDIR)
+$(HALDIR)/%.o: HAL/$(HAL_ARCH)/%.S | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 # PR-A6：Startup.S 与 Startup.c 同名冲突，汇编产出 Startup_asm.o
-$(BUILDDIR)/HAL/$(HAL_ARCH)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(BUILDDIR)
+$(HALDIR)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
-$(BUILDDIR)/SmpTramp.bin: HAL/X86_64/SmpTrampoline.S HAL/X86_64/SmpTrampoline.ld | $(BUILDDIR)
-	$(CC) -c HAL/X86_64/SmpTrampoline.S -o $(BUILDDIR)/SmpTrampoline_low.o
-	$(LD) -T HAL/X86_64/SmpTrampoline.ld -o $(BUILDDIR)/SmpTrampoline_low.elf \
-		$(BUILDDIR)/SmpTrampoline_low.o
-	objcopy -O binary $(BUILDDIR)/SmpTrampoline_low.elf $@
+$(HALDIR)/SmpTramp.bin: HAL/X86_64/SmpTrampoline.S HAL/X86_64/SmpTrampoline.ld | $(HALDIR)
+	$(CC) -c HAL/X86_64/SmpTrampoline.S -o $(HALDIR)/SmpTrampoline_low.o
+	$(LD) -T HAL/X86_64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
+		$(HALDIR)/SmpTrampoline_low.o
+	objcopy -O binary $(HALDIR)/SmpTrampoline_low.elf $@
 
-$(BUILDDIR)/SmpTramp_blob.o: $(BUILDDIR)/SmpTramp.bin
-	cd $(BUILDDIR) && objcopy -I binary -O elf64-x86-64 -B i386:x86-64 \
+$(HALDIR)/SmpTramp_blob.o: $(HALDIR)/SmpTramp.bin
+	cd $(HALDIR) && objcopy -I binary -O elf64-x86-64 -B i386:x86-64 \
 		SmpTramp.bin SmpTramp_blob.o
 
 $(USER_HELLO_OBJ): User/hello.c User/include/stdio.h User/include/stdlib.h User/include/string.h
@@ -418,7 +419,7 @@ $(USER_SYSHELLO_ELF): $(USER_SYSHELLO_OBJ) $(USER_LD)
 $(USER_SYSFORK_ELF): $(USER_SYSFORK_OBJ) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_SYSFORK_OBJ)
 
-$(BUILDDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(BUILDDIR)
+$(HALDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(HALDIR)
 	objcopy -I binary -O $(USER_BLOB_FMT) User/hello.elf $@
 endif
 
@@ -458,7 +459,13 @@ endif
 endif
 
 clean:
-	rm -rf $(BUILDDIR)
+	# 只清当前 Arch 的 HAL 产物；共享 Common/Fonts/.o 必须清（随 ARCH 重编）
+	rm -rf $(HALDIR)
+	rm -rf $(BUILDDIR)/Common $(BUILDDIR)/Fonts $(BUILDDIR)/lwip
+	# 旧布局残留
+	rm -rf Build/arm64 Build/riscv
+	rm -f Build/Kernel.elf Build/SmpTramp.bin Build/SmpTramp_blob.o \
+		Build/SmpTrampoline_low.elf Build/SmpTrampoline_low.o Build/User_hello_blob.o
 ifeq ($(ARCH),x86_64)
 	rm -f $(USER_HELLO_OBJ) $(USER_COUNT_OBJ) $(USER_FORK_OBJ) $(USER_WAITNH_OBJ)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)

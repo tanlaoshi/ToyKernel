@@ -1,9 +1,9 @@
 /*
- * SettingsUi.c — Settings 一级/二级文字菜单（PR-D5）+ 分辨率（PR-D7）
+ * SettingsUi.c — Settings 菜单（PR-D5/D7 + PR-G12 控件化）
  *
  * 分辨率经 ThemeSave → TOYOS.DB + THEME.CFG mode=WxH。
  * QEMU：退出后 ./run-split.sh（edid from rootfs）；真机：Guest reboot。
- * 勿依赖 Guest reboot 在 QEMU 上换分辨率。
+ * PR-G12：主/子页用 UiDrawButton；鼠标点选与数字键等价。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -34,8 +34,20 @@ typedef struct {
     UINT32      H;
 } SETTINGS_MODE;
 
+typedef struct {
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    int    Action; /* 与数字键相同：0=返回，1..=选项 */
+} SETTINGS_HIT;
+
+#define SETTINGS_HIT_MAX 16
+
 static SETTINGS_PAGE gPage = SETTINGS_PAGE_MAIN;
 static int gRebootHint;
+static SETTINGS_HIT gHits[SETTINGS_HIT_MAX];
+static int gHitCount;
 
 static const SETTINGS_COLOR gDesktopColors[] = {
     { "Dark Gray", COLOR_DARK_GRAY },
@@ -71,7 +83,6 @@ static int FocusSettingsWindow(void) {
     int i;
 
     if (GuiFocusKind() == GUI_WIN_SETTINGS) {
-        /* 已是焦点则不再 Raise，避免 SettingsUiRepaint→PaintMenu→Raise 递归 */
         return 1;
     }
     for (i = 0; i < GUI_MAX_WINS; i++) {
@@ -81,17 +92,6 @@ static int FocusSettingsWindow(void) {
         }
     }
     return 0;
-}
-
-static void DrawLine(UINT32 *X, UINT32 *Y, UINT32 X0, UINT32 MaxBottom,
-                     const char *Text, UINT32 Color) {
-    /* 禁止画到客户区外（否则叠在下层 Shell / 桌面上） */
-    if (*Y + FontCellH() > MaxBottom) {
-        return;
-    }
-    HalVideoDrawStringAt(*X, *Y, Text, Color);
-    *Y += FontAdvanceY();
-    *X = X0;
 }
 
 static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {
@@ -148,18 +148,61 @@ static void CopyLabel(char *Dst, int DstMax, const char *S) {
     Dst[j] = 0;
 }
 
+static void HitClear(void) {
+    gHitCount = 0;
+}
+
+static void HitAdd(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, int Action) {
+    if (gHitCount >= SETTINGS_HIT_MAX || W == 0 || H == 0) {
+        return;
+    }
+    gHits[gHitCount].X = X;
+    gHits[gHitCount].Y = Y;
+    gHits[gHitCount].W = W;
+    gHits[gHitCount].H = H;
+    gHits[gHitCount].Action = Action;
+    gHitCount++;
+}
+
+static void DrawHint(UINT32 X, UINT32 *Y, UINT32 MaxBottom, const char *Text, UINT32 Color) {
+    if (*Y + FontCellH() > MaxBottom) {
+        return;
+    }
+    HalVideoDrawStringAt(X, *Y, Text, Color);
+    *Y += FontAdvanceY();
+}
+
+static void DrawButtonRow(UINT32 X, UINT32 *Y, UINT32 Bw, UINT32 Bh, UINT32 Gap,
+                          UINT32 MaxBottom, const char *Text, int Selected,
+                          int Action) {
+    UINT32 Bg;
+    UINT32 Fg;
+
+    if (*Y + Bh > MaxBottom) {
+        return;
+    }
+    Bg = Selected ? COLOR_BLUE : COLOR_LIGHT_GRAY;
+    Fg = Selected ? COLOR_WHITE : COLOR_BLACK;
+    UiDrawButton(X, *Y, Bw, Bh, Text, Fg, Bg);
+    HitAdd(X, *Y, Bw, Bh, Action);
+    *Y += Bh + Gap;
+}
+
 static void PaintMenu(void) {
     UINT32 Cx;
     UINT32 Cy;
     UINT32 Cw;
     UINT32 Ch;
     UINT32 Bg;
-    UINT32 X;
-    UINT32 Y;
     UINT32 X0;
+    UINT32 Y;
     UINT32 MaxBottom;
+    UINT32 Bw;
+    UINT32 Bh;
+    UINT32 Gap;
     int i;
     char Line[56];
+    char Btn[56];
     const FONT_FACE *Face;
     UINT32 CurColor;
     UINT32 CurFont;
@@ -178,31 +221,38 @@ static void PaintMenu(void) {
         return;
     }
 
+    HitClear();
     GuiFrameBufferBegin();
     HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
     HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
 
-    /* PR-G11：客户区浅接入 UiDrawRectangle 边框（非全面控件化） */
     if (Cw > 8 && Ch > 8) {
         UiDrawRectangle(Cx + 4, Cy + 4, Cw - 8, Ch - 8, COLOR_DARK_GRAY);
     }
 
     X0 = Cx + 12;
-    X = X0;
     Y = Cy + 8;
-    MaxBottom = Cy + Ch;
+    MaxBottom = Cy + Ch - 4;
+    Bw = Cw > 24 ? Cw - 24 : Cw;
+    Bh = FontCellH() + 10;
+    if (Bh < 24) {
+        Bh = 24;
+    }
+    Gap = 4;
 
-    DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_TITLE), COLOR_BLUE);
-    DrawLine(&X, &Y, X0, MaxBottom, "----------------", COLOR_DARK_GRAY);
+    DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_TITLE), COLOR_BLUE);
+    DrawHint(X0, &Y, MaxBottom, "----------------", COLOR_DARK_GRAY);
+    Y += 4;
 
     if (gPage == SETTINGS_PAGE_MAIN) {
         HalVideoGetSize(&NowW, &NowH);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_MAIN), COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_DESKTOP_BG), COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_SHELL_BG), COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_FONT), COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_DISPLAY), COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_LANGUAGE), COLOR_BLACK);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_MAIN), COLOR_BLACK);
+        Y += 2;
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DESKTOP_BG), 0, 1);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_SHELL_BG), 0, 2);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_FONT), 0, 3);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DISPLAY), 0, 4);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANGUAGE), 0, 5);
         Line[0] = 'N';
         Line[1] = 'o';
         Line[2] = 'w';
@@ -229,96 +279,79 @@ static void PaintMenu(void) {
             }
             CopyLabel(Line + N, (int)(sizeof(Line) - N), " nxt auto");
         }
-        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_MAIN), COLOR_DARK_GRAY);
+        DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_HINT_MAIN), COLOR_DARK_GRAY);
         if (gRebootHint) {
-            DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
+            DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
         CurColor = ThemeDesktopBg();
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_DESKTOP), COLOR_BLACK);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DESKTOP), COLOR_BLACK);
+        Y += 2;
         for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
-            Line[0] = (gDesktopColors[i].Color == CurColor) ? '*' : ' ';
-            Line[1] = ' ';
-            Line[2] = (char)('1' + i);
-            Line[3] = '.';
-            Line[4] = ' ';
-            CopyLabel(Line + 5, (int)sizeof(Line) - 5, gDesktopColors[i].Label);
-            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+            Btn[0] = (gDesktopColors[i].Color == CurColor) ? '*' : ' ';
+            Btn[1] = ' ';
+            CopyLabel(Btn + 2, (int)sizeof(Btn) - 2, gDesktopColors[i].Label);
+            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
+                          gDesktopColors[i].Color == CurColor, i + 1);
         }
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
     } else if (gPage == SETTINGS_PAGE_SHELL_BG) {
         CurColor = ThemeShellClientBg();
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_SHELL), COLOR_BLACK);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_SHELL), COLOR_BLACK);
+        Y += 2;
         for (i = 0; i < SHELL_COLOR_COUNT; i++) {
-            Line[0] = (gShellColors[i].Color == CurColor) ? '*' : ' ';
-            Line[1] = ' ';
-            Line[2] = (char)('1' + i);
-            Line[3] = '.';
-            Line[4] = ' ';
-            CopyLabel(Line + 5, (int)sizeof(Line) - 5, gShellColors[i].Label);
-            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+            Btn[0] = (gShellColors[i].Color == CurColor) ? '*' : ' ';
+            Btn[1] = ' ';
+            CopyLabel(Btn + 2, (int)sizeof(Btn) - 2, gShellColors[i].Label);
+            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
+                          gShellColors[i].Color == CurColor, i + 1);
         }
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
     } else if (gPage == SETTINGS_PAGE_FONT) {
         CurFont = ThemeFontId();
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_FONT), COLOR_BLACK);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_FONT), COLOR_BLACK);
+        Y += 2;
         for (i = 0; (UINT32)i < FontCount(); i++) {
             Face = FontGetById((UINT32)i);
-            Line[0] = ((UINT32)i == CurFont) ? '*' : ' ';
-            Line[1] = ' ';
-            Line[2] = (char)('1' + i);
-            Line[3] = '.';
-            Line[4] = ' ';
-            CopyLabel(Line + 5, (int)sizeof(Line) - 5,
+            Btn[0] = ((UINT32)i == CurFont) ? '*' : ' ';
+            Btn[1] = ' ';
+            CopyLabel(Btn + 2, (int)sizeof(Btn) - 2,
                       (Face && Face->Name) ? Face->Name : "?");
-            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
+                          (UINT32)i == CurFont, i + 1);
         }
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
     } else if (gPage == SETTINGS_PAGE_DISPLAY) {
         HasPref = ThemeHasDisplayPref();
         PrefW = ThemeDisplayWidth();
         PrefH = ThemeDisplayHeight();
         HalVideoGetSize(&NowW, &NowH);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_DISPLAY), COLOR_BLACK);
-        Line[0] = (!HasPref) ? '*' : ' ';
-        Line[1] = ' ';
-        Line[2] = '1';
-        Line[3] = '.';
-        Line[4] = ' ';
-        CopyLabel(Line + 5, (int)sizeof(Line) - 5, "Auto");
-        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DISPLAY), COLOR_BLACK);
+        Y += 2;
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, "Auto", !HasPref, 1);
         for (i = 0; i < MODE_COUNT; i++) {
             int Mark = HasPref && gModes[i].W == PrefW && gModes[i].H == PrefH;
-            Line[0] = Mark ? '*' : ' ';
-            Line[1] = ' ';
-            Line[2] = (char)('2' + i);
-            Line[3] = '.';
-            Line[4] = ' ';
-            CopyLabel(Line + 5, (int)sizeof(Line) - 5, gModes[i].Label);
-            DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
+            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, gModes[i].Label, Mark, 2 + i);
         }
         Line[0] = 'N';
         Line[1] = 'o';
         Line[2] = 'w';
         Line[3] = ' ';
         FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
-        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_DARK_GRAY);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
+        DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
         if (gRebootHint) {
-            DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
+            DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_LANGUAGE) {
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_PAGE_LANG), COLOR_BLACK);
-        Line[0] = (LocaleGet() == LOC_LANG_EN) ? '*' : ' ';
-        Line[1] = 0;
-        CopyLabel(Line + 1, (int)sizeof(Line) - 1, LocStr(MSG_SET_LANG_EN));
-        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
-        Line[0] = (LocaleGet() == LOC_LANG_ZH) ? '*' : ' ';
-        Line[1] = 0;
-        CopyLabel(Line + 1, (int)sizeof(Line) - 1, LocStr(MSG_SET_LANG_ZH));
-        DrawLine(&X, &Y, X0, MaxBottom, Line, COLOR_BLACK);
-        DrawLine(&X, &Y, X0, MaxBottom, LocStr(MSG_SET_HINT_BACK), COLOR_DARK_GRAY);
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_LANG), COLOR_BLACK);
+        Y += 2;
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANG_EN),
+                      LocaleGet() == LOC_LANG_EN, 1);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANG_ZH),
+                      LocaleGet() == LOC_LANG_ZH, 2);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
     }
 
     GuiBackupSyncRect(Cx, Cy, Cw, Ch);
@@ -353,7 +386,6 @@ static void ApplyFont(int Index) {
 }
 
 static void ApplyDisplayChoice(int Index) {
-    /* Index 0 = Auto；1..MODE_COUNT = 预置 */
     if (Index == 0) {
         ThemeClearDisplayMode();
     } else if (Index >= 1 && Index <= MODE_COUNT) {
@@ -386,7 +418,6 @@ void SettingsUiRepaint(void) {
     GuiBackupFocusWindow();
 }
 
-/* PR-G8：焦点已在 Settings 时只画菜单，不 Raise（主题一次合成） */
 void SettingsUiPaintFocused(void) {
     if (!SettingsUiIsFocused()) {
         return;
@@ -408,9 +439,6 @@ void SettingsUiRefresh(void) {
         if (GuiWindowKind(i) != GUI_WIN_SETTINGS) {
             continue;
         }
-        /*
-         * 必须先置顶再画：否则菜单字写在上层 Shell 上，随后被抓进 Shell 备份成「印字」。
-         */
         GuiRaiseToFront(i);
         GuiPaintWindow(i);
         PaintMenu();
@@ -427,7 +455,6 @@ void SettingsUiOnEscape(void) {
         PaintMenu();
         return;
     }
-    /* 一级再 Esc：保持主菜单（关窗用标题栏 ×） */
     PaintMenu();
 }
 
@@ -481,7 +508,6 @@ void SettingsUiOnDigit(char Digit) {
         return;
     }
     if (gPage == SETTINGS_PAGE_DISPLAY) {
-        /* 1=Auto，2..=预置 → ApplyDisplayChoice(N-1) */
         ApplyDisplayChoice(N - 1);
         return;
     }
@@ -494,5 +520,20 @@ void SettingsUiOnDigit(char Digit) {
             PaintMenu();
         }
         return;
+    }
+}
+
+/* PR-G12：客户区点选 → 与数字键同一 Action */
+void SettingsUiOnClick(UINT32 X, UINT32 Y) {
+    int i;
+
+    if (!SettingsUiIsFocused()) {
+        return;
+    }
+    for (i = 0; i < gHitCount; i++) {
+        if (UiHitRect(gHits[i].X, gHits[i].Y, gHits[i].W, gHits[i].H, X, Y)) {
+            SettingsUiOnDigit((char)('0' + gHits[i].Action));
+            return;
+        }
     }
 }

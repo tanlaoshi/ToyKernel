@@ -8,8 +8,9 @@
 # 由 run-virt-arm.sh / run-virt-riscv.sh source；调用方须先设：
 #   TOY_VIRT_ARCH=arm64|riscv
 #   TOY_VIRT_QEMU=qemu-system-...
-#   TOY_VIRT_ELF=Build/.../Kernel.elf
+#   TOY_VIRT_ELF=Build/HAL/<Arch>/Kernel.elf
 #   TOY_VIRT_MAKE_ARCH=arm64|riscv
+#   TOY_VIRT_HAL_ARCH=Arm64|RiscV
 #   可选：TOY_VIRT_QEMU_EXTRA=(...)  TOY_VIRT_HELLO_PAT=...
 #
 # 用法（经包装脚本）：
@@ -118,11 +119,11 @@ toy_virt_ensure_elf() {
         exit 1
     fi
     # PR-A12：确保本 arch HELLO.ELF 已构建（prepare 会装入盘）
-    if [ ! -f "Build/$TOY_VIRT_MAKE_ARCH/user/hello.elf" ]; then
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" BRINGUP=0 "Build/$TOY_VIRT_MAKE_ARCH/user/hello.elf"
+    local HelloElf="Build/HAL/${TOY_VIRT_HAL_ARCH}/user/hello.elf"
+    if [ ! -f "$HelloElf" ]; then
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" BRINGUP=0 "$HelloElf"
     fi
 }
-
 toy_virt_build_dev_args() {
     MEM="${TOY_VIRT_MEM:-256M}"
     SMP="${TOY_VIRT_SMP:-2}"

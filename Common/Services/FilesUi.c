@@ -55,6 +55,18 @@ static UINT32 gClickX;
 static UINT32 gClickY;
 static int gHoverIdx = -1;
 
+/* PR-G12：列表滚动条几何（PaintList 写入，OnClick/OnHover 读取） */
+#define FILES_SB_W 12u
+static UINT32 gSbX;
+static UINT32 gSbY;
+static UINT32 gSbW;
+static UINT32 gSbH;
+static int gSbVisible;
+static int gListVisible;
+static UINT32 gListTop;
+static UINT32 gListRowW;
+static UINT32 gListLineH;
+
 static UINT64 FilesClock(void) {
     return HalCpuTicks(0);
 }
@@ -309,25 +321,29 @@ static void PaintList(void) {
         gScroll = 0;
     }
 
-    RowY = Y + 8 + LineH * 3 + 4;
+    gListVisible = Visible;
+    gListTop = Y + 8 + LineH * 3 + 4;
+    gListLineH = LineH;
+    gSbVisible = (gCount > Visible) ? 1 : 0;
+    gSbW = FILES_SB_W;
+    gSbH = (UINT32)Visible * LineH;
+    if (gSbH + gListTop > Y + H) {
+        gSbH = (Y + H > gListTop) ? (Y + H - gListTop) : 0;
+    }
+    gSbX = (W > FILES_SB_W + 8) ? (X + W - FILES_SB_W - 4) : (X + 4);
+    gSbY = gListTop;
+    gListRowW = W > 8 ? W - 8 : W;
+    if (gSbVisible && gListRowW > FILES_SB_W + 8) {
+        gListRowW -= (FILES_SB_W + 4);
+    }
+
+    RowY = gListTop;
     for (i = 0; i < Visible && gScroll + i < gCount; i++) {
         const FAT_DIR_ENT *E = &gEnts[gScroll + i];
         int Idx = gScroll + i;
-        UINT32 Fg = COLOR_BLACK;
         int k = 0;
         int j;
-        UINT32 RowW = W > 8 ? W - 8 : W;
 
-        if (Idx == gSelected) {
-            /* PR-G11：选中行焦点对比（蓝底白字 + 边框） */
-            HalVideoFillRect(X + 4, RowY, RowW, LineH, COLOR_BLUE);
-            UiDrawRectangle(X + 4, RowY, RowW, LineH, COLOR_DARK_GRAY);
-            Fg = COLOR_WHITE;
-        } else if (Idx == gHoverIdx) {
-            HalVideoFillRect(X + 4, RowY, RowW, LineH, COLOR_LIGHT_GRAY);
-            UiDrawRectangle(X + 4, RowY, RowW, LineH, COLOR_GRAY);
-            Fg = COLOR_BLACK;
-        }
         if (E->Attr & FAT_ATTR_DIR) {
             Line[k++] = '[';
             Line[k++] = 'D';
@@ -343,8 +359,12 @@ static void PaintList(void) {
             Line[k++] = E->Name[j];
         }
         Line[k] = 0;
-        DrawLine(X + 8, RowY, Line, Fg);
+        UiDrawListRow(X + 4, RowY, gListRowW, LineH, Line,
+                      Idx == gSelected, Idx == gHoverIdx);
         RowY += LineH;
+    }
+    if (gSbVisible && gSbH > 0) {
+        UiDrawScrollBar(gSbX, gSbY, gSbW, gSbH, gScroll, Visible, gCount);
     }
     if (gCount == 0) {
         /* PR-G11：空目录可见空状态区（不只一行灰 (empty)） */
@@ -723,11 +743,9 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
     UINT32 Cw;
     UINT32 Ch;
     UINT32 Bg;
-    UINT32 LineH;
-    UINT32 ListTop;
-    int Visible;
     int Row;
     int Idx;
+    int NextScroll;
     UINT64 Now;
     UINT64 Dt;
     UINT32 Dx;
@@ -744,23 +762,31 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
         return;
     }
 
-    LineH = FontAdvanceY();
-    if (LineH < 16) {
-        LineH = 16;
-    }
-    ListTop = Cy + 8 + LineH * 3 + 4;
-    if (Y < ListTop) {
+    /* PR-G12：滚动条点选 */
+    if (gSbVisible &&
+        UiScrollBarHit(gSbX, gSbY, gSbW, gSbH, gScroll, gListVisible, gCount,
+                       X, Y, &NextScroll)) {
+        gScroll = NextScroll;
+        if (gSelected < gScroll) {
+            gSelected = gScroll;
+        }
+        if (gSelected >= gScroll + gListVisible) {
+            gSelected = gScroll + gListVisible - 1;
+        }
+        gHoverIdx = -1;
+        PaintList();
         return;
     }
-    Visible = 0;
-    if (Ch > 8 + LineH * 4) {
-        Visible = (int)((Ch - 8 - LineH * 4) / LineH);
+
+    if (Y < gListTop) {
+        return;
     }
-    if (Visible < 1) {
-        Visible = 1;
+    Row = UiListRowFromY(gListTop, gListLineH, gListVisible, Y);
+    if (Row < 0) {
+        return;
     }
-    Row = (int)((Y - ListTop) / LineH);
-    if (Row < 0 || Row >= Visible) {
+    /* 点在滚动条列上时不当行选 */
+    if (gSbVisible && X >= gSbX) {
         return;
     }
     Idx = gScroll + Row;
@@ -798,9 +824,6 @@ void FilesUiOnHover(UINT32 X, UINT32 Y) {
     UINT32 Cw;
     UINT32 Ch;
     UINT32 Bg;
-    UINT32 LineH;
-    UINT32 ListTop;
-    int Visible;
     int Row;
     int Idx;
     int Prev;
@@ -822,24 +845,14 @@ void FilesUiOnHover(UINT32 X, UINT32 Y) {
         return;
     }
 
-    LineH = FontAdvanceY();
-    if (LineH < 16) {
-        LineH = 16;
-    }
-    ListTop = Cy + 8 + LineH * 3 + 4;
     Prev = gHoverIdx;
-    if (Y < ListTop || gCount <= 0) {
+    if (gSbVisible && X >= gSbX) {
+        Idx = -1;
+    } else if (Y < gListTop || gCount <= 0 || gListLineH == 0) {
         Idx = -1;
     } else {
-        Visible = 0;
-        if (Ch > 8 + LineH * 4) {
-            Visible = (int)((Ch - 8 - LineH * 4) / LineH);
-        }
-        if (Visible < 1) {
-            Visible = 1;
-        }
-        Row = (int)((Y - ListTop) / LineH);
-        if (Row < 0 || Row >= Visible) {
+        Row = UiListRowFromY(gListTop, gListLineH, gListVisible, Y);
+        if (Row < 0) {
             Idx = -1;
         } else {
             Idx = gScroll + Row;

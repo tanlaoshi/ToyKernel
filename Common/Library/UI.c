@@ -5,6 +5,7 @@
  */
 #include "UI.h"
 #include "HalVideo.h"
+#include "Font.h"
 
 /* 整数绝对值 */
 static int Abs(int x) {
@@ -248,27 +249,204 @@ void UiFillTriangle(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 X3, UINT3
 //  UI 元素
 // ============================================================
 
-/* 绘制圆角按钮（背景 + 居中文字） */
+/* 绘制圆角按钮（背景 + 居中文字；PR-G12 改走 DrawStringAt） */
 void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text, UINT32 TextColor, UINT32 BgColor) {
+    UINT32 TextLen = 0;
+    UINT32 CellW;
+    UINT32 CellH;
+    UINT32 TextW;
+    UINT32 TextX;
+    UINT32 TextY;
+
+    if (!Text) {
+        Text = "";
+    }
     UiFillRoundRectangle(X, Y, Width, Height, 5, BgColor);
     UiDrawRoundRectangle(X, Y, Width, Height, 5, COLOR_WHITE);
-    UiDrawRoundRectangle(X + 1, Y + 1, Width - 2, Height - 2, 5, COLOR_DARK_GRAY);
-    
-    UINT32 textLen = 0;
-    while (Text[textLen]) textLen++;
-    // Calculate text position for centered alignment (for future implementation)
-    // UINT32 textX = X + (Width - textLen * 10) / 2;
-    // UINT32 textY = Y + (Height - 16) / 2;
-    HalVideoDrawString(Text, TextColor);
+    if (Width > 2 && Height > 2) {
+        UiDrawRoundRectangle(X + 1, Y + 1, Width - 2, Height - 2, 5, COLOR_DARK_GRAY);
+    }
+
+    while (Text[TextLen]) {
+        TextLen++;
+    }
+    CellW = FontCellW();
+    CellH = FontCellH();
+    if (CellW == 0) {
+        CellW = 8;
+    }
+    if (CellH == 0) {
+        CellH = 16;
+    }
+    TextW = TextLen * CellW;
+    TextX = X + 8;
+    if (TextW + 16 < Width) {
+        TextX = X + (Width - TextW) / 2;
+    }
+    TextY = Y + (Height > CellH ? (Height - CellH) / 2 : 0);
+    HalVideoDrawStringAt(TextX, TextY, Text, TextColor);
 }
 
 /* 绘制水平进度条 */
 void UiDrawProgressBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Progress, UINT32 MaxProgress, UINT32 Color, UINT32 BgColor) {
     UiFillRoundRectangle(X, Y, Width, Height, 3, BgColor);
     UiDrawRoundRectangle(X, Y, Width, Height, 3, COLOR_GRAY);
-    
-    UINT32 fillWidth = (Progress * (Width - 4)) / MaxProgress;
-    if (fillWidth > 0) {
-        UiFillRoundRectangle(X + 2, Y + 2, fillWidth, Height - 4, 2, Color);
+
+    if (MaxProgress == 0) {
+        return;
     }
+    {
+        UINT32 FillWidth = (Progress * (Width - 4)) / MaxProgress;
+        if (FillWidth > 0) {
+            UiFillRoundRectangle(X + 2, Y + 2, FillWidth, Height - 4, 2, Color);
+        }
+    }
+}
+
+int UiHitRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Px, UINT32 Py) {
+    return Px >= X && Py >= Y && Px < X + Width && Py < Y + Height;
+}
+
+void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text,
+                   int Selected, int Hovered) {
+    UINT32 Fg = COLOR_BLACK;
+    UINT32 Pad = 4;
+
+    if (!Text) {
+        Text = "";
+    }
+    if (Selected) {
+        UiFillRectangle(X, Y, Width, Height, COLOR_BLUE);
+        UiDrawRectangle(X, Y, Width, Height, COLOR_DARK_GRAY);
+        Fg = COLOR_WHITE;
+    } else if (Hovered) {
+        UiFillRectangle(X, Y, Width, Height, COLOR_LIGHT_GRAY);
+        UiDrawRectangle(X, Y, Width, Height, COLOR_GRAY);
+        Fg = COLOR_BLACK;
+    }
+    if (Width > Pad * 2 && Height > 2) {
+        HalVideoDrawStringAt(X + Pad, Y + (Height > FontCellH() ? (Height - FontCellH()) / 2 : 0),
+                             Text, Fg);
+    }
+}
+
+static void UiScrollThumb(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                          int First, int Visible, int Total,
+                          UINT32 *OutThumbY, UINT32 *OutThumbH) {
+    UINT32 TrackH = Height;
+    UINT32 ThumbH;
+    UINT32 ThumbY;
+    int MaxFirst;
+
+    if (Total <= 0) {
+        Total = 1;
+    }
+    if (Visible <= 0) {
+        Visible = 1;
+    }
+    if (Visible >= Total) {
+        ThumbH = TrackH;
+        ThumbY = Y;
+    } else {
+        ThumbH = (TrackH * (UINT32)Visible) / (UINT32)Total;
+        if (ThumbH < 12) {
+            ThumbH = 12;
+        }
+        if (ThumbH > TrackH) {
+            ThumbH = TrackH;
+        }
+        MaxFirst = Total - Visible;
+        if (First < 0) {
+            First = 0;
+        }
+        if (First > MaxFirst) {
+            First = MaxFirst;
+        }
+        if (MaxFirst <= 0 || TrackH <= ThumbH) {
+            ThumbY = Y;
+        } else {
+            ThumbY = Y + ((TrackH - ThumbH) * (UINT32)First) / (UINT32)MaxFirst;
+        }
+    }
+    if (OutThumbY) {
+        *OutThumbY = ThumbY;
+    }
+    if (OutThumbH) {
+        *OutThumbH = ThumbH;
+    }
+}
+
+void UiDrawScrollBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                     int First, int Visible, int Total) {
+    UINT32 ThumbY;
+    UINT32 ThumbH;
+
+    if (Width == 0 || Height == 0) {
+        return;
+    }
+    UiFillRectangle(X, Y, Width, Height, COLOR_LIGHT_GRAY);
+    UiDrawRectangle(X, Y, Width, Height, COLOR_GRAY);
+    if (Total <= Visible || Total <= 0) {
+        return;
+    }
+    UiScrollThumb(X, Y, Width, Height, First, Visible, Total, &ThumbY, &ThumbH);
+    if (Width > 4 && ThumbH > 2) {
+        UiFillRectangle(X + 2, ThumbY, Width > 4 ? Width - 4 : Width, ThumbH, COLOR_DARK_GRAY);
+    }
+}
+
+int UiScrollBarHit(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                   int First, int Visible, int Total,
+                   UINT32 ClickX, UINT32 ClickY, int *OutFirst) {
+    UINT32 ThumbY;
+    UINT32 ThumbH;
+    int MaxFirst;
+    int Next;
+
+    if (!OutFirst || !UiHitRect(X, Y, Width, Height, ClickX, ClickY)) {
+        return 0;
+    }
+    if (Visible <= 0) {
+        Visible = 1;
+    }
+    if (Total <= Visible) {
+        *OutFirst = 0;
+        return 1;
+    }
+    MaxFirst = Total - Visible;
+    UiScrollThumb(X, Y, Width, Height, First, Visible, Total, &ThumbY, &ThumbH);
+
+    if (ClickY < ThumbY) {
+        Next = First - Visible;
+    } else if (ClickY >= ThumbY + ThumbH) {
+        Next = First + Visible;
+    } else {
+        /* 点在滑块上：按轨道比例跳转 */
+        if (Height > ThumbH) {
+            Next = (int)(((ClickY - Y) * (UINT32)MaxFirst) / (Height - ThumbH));
+        } else {
+            Next = First;
+        }
+    }
+    if (Next < 0) {
+        Next = 0;
+    }
+    if (Next > MaxFirst) {
+        Next = MaxFirst;
+    }
+    *OutFirst = Next;
+    return 1;
+}
+
+int UiListRowFromY(UINT32 ListTop, UINT32 LineH, int Visible, UINT32 ClickY) {
+    int Row;
+
+    if (LineH == 0 || ClickY < ListTop) {
+        return -1;
+    }
+    Row = (int)((ClickY - ListTop) / LineH);
+    if (Row < 0 || Row >= Visible) {
+        return -1;
+    }
+    return Row;
 }

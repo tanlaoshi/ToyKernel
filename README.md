@@ -103,7 +103,8 @@ cd ToyKernel
 
 产物：
 
-- `Build/Kernel.elf` — 内核
+- `Build/` — 镜像源码树：`Common/`、`Fonts/` 与 `HAL/` 同级；`Build/HAL/{X86_64,Arm64,RiscV}/Kernel.elf`
+
 - `Build/User/*.elf` — 用户程序（hello / count / fork / catfile）
 - 自动复制到 `../ToyImage/Kernel.elf`
 - x86_64 下同时复制 `HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`

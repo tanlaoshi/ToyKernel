@@ -2457,7 +2457,11 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             gDragArmed = 1;
         }
         if (GuiFocusKind() == GUI_WIN_SETTINGS) {
-            SettingsUiRepaint();
+            if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+                SettingsUiRepaint();
+            } else {
+                SettingsUiOnClick(X, Y);
+            }
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
             if (PointInTitle(&gWins[gFocusWin], X, Y)) {
                 FilesUiRepaint();

@@ -31,14 +31,20 @@ fi
 
 echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
 
+case "$ARCH" in
+    x86_64) HAL_ARCH=X86_64 ;;
+    arm64)  HAL_ARCH=Arm64 ;;
+    riscv)  HAL_ARCH=RiscV ;;
+    *)
+        echo "error: unknown ARCH=$ARCH (expected x86_64|arm64|riscv)" >&2
+        exit 1
+        ;;
+esac
+ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
+USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
+
 make clean ARCH="$ARCH"
 make ARCH="$ARCH" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP"
-
-if [ "$ARCH" = "x86_64" ]; then
-    ELF=Build/Kernel.elf
-else
-    ELF="Build/$ARCH/Kernel.elf"
-fi
 
 if [ ! -f "$ELF" ]; then
     echo "Build failed!"
@@ -48,7 +54,7 @@ fi
 echo "Build successful: $ELF (DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
 if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
-    cp Build/Kernel.elf ../ToyImage/
+    cp "$ELF" ../ToyImage/
     cp User/hello.elf ../ToyImage/HELLO.ELF
     cp User/count.elf ../ToyImage/COUNT.ELF
     cp User/fork.elf ../ToyImage/FORK.ELF
@@ -84,13 +90,13 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
         cp -f ../ToyImage/KILLDEMO.ELF ../ToyImage/rootfs/KILLDEMO.ELF
         echo "Synced Kernel/HELLO/CAT/WRITE/.../KILLDEMO -> ../ToyImage/rootfs/"
     fi
-    echo "Copied Build/Kernel.elf -> ../ToyImage/"
+    echo "Copied $ELF -> ../ToyImage/"
 else
     echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
-    if [ "$BRINGUP" = "0" ] && [ -f "Build/$ARCH/user/hello.elf" ]; then
+    if [ "$BRINGUP" = "0" ] && [ -f "$USER_HELLO" ]; then
         mkdir -p virt-rootfs
-        cp -f "Build/$ARCH/user/hello.elf" virt-rootfs/HELLO.ELF
-        echo "Copied Build/$ARCH/user/hello.elf -> virt-rootfs/HELLO.ELF"
+        cp -f "$USER_HELLO" virt-rootfs/HELLO.ELF
+        echo "Copied $USER_HELLO -> virt-rootfs/HELLO.ELF"
     fi
 fi
 

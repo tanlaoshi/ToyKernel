@@ -19,8 +19,15 @@ fi
 
 # PR-A12：本 arch 用户 HELLO 覆盖盘上的 x86 机型
 ARCH="${TOY_VIRT_MAKE_ARCH:-}"
-if [ -n "$ARCH" ] && [ -f "Build/$ARCH/user/hello.elf" ]; then
-    cp -f "Build/$ARCH/user/hello.elf" "$ROOT/HELLO.ELF"
+HAL_ARCH="${TOY_VIRT_HAL_ARCH:-}"
+if [ -z "$HAL_ARCH" ]; then
+    case "$ARCH" in
+        arm64) HAL_ARCH=Arm64 ;;
+        riscv) HAL_ARCH=RiscV ;;
+    esac
+fi
+if [ -n "$HAL_ARCH" ] && [ -f "Build/HAL/$HAL_ARCH/user/hello.elf" ]; then
+    cp -f "Build/HAL/$HAL_ARCH/user/hello.elf" "$ROOT/HELLO.ELF"
 elif [ -f virt-rootfs/HELLO.ELF ] && [ -n "$ARCH" ]; then
     : # already staged by build.sh
 fi

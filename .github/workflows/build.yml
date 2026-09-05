@@ -15,4 +15,4 @@ jobs:
       - name: Build
         run: ./build.sh x86_64
       - name: Check Kernel.elf
-        run: test -f Build/Kernel.elf && ls -lh Build/Kernel.elf
+        run: test -f Build/HAL/X86_64/Kernel.elf && ls -lh Build/HAL/X86_64/Kernel.elf
