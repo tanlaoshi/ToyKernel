@@ -2953,7 +2953,8 @@ static void GuiDragEnd(void) {
 
     gDragWin = -1;
     gDragArmed = 0;
-    if (DragIdx >= 0 && gWins[DragIdx].Active) {
+    /* 与 GuiDragUpdate 一致：-1 哨兵 + 上界，避免 -Warray-bounds */
+    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWins[DragIdx].Active) {
         if (DidDrag) {
             INT32 Nx = (INT32)gCursorX - gDragOffX;
             INT32 Ny = (INT32)gCursorY - gDragOffY;

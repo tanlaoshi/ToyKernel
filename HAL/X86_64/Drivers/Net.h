@@ -1,5 +1,5 @@
 /*
- * Net.h — virtio-net 驱动与 IPv4/ARP/ICMP，并为 UDP/TCP 提供发送入口
+ * Net.h — virtio-net 驱动与 IPv4/ARP/ICMP，并为 UDP/TCP 提供发送入口（PR-D3）
  */
 #ifndef NET_H
 #define NET_H
@@ -11,6 +11,8 @@
 #define NET_IP_PROTO_TCP  6
 #define NET_IP_PROTO_UDP  17
 
+/* PR-D3：向 Drv 注册描述符（不 Probe） */
+void NetDrvRegister(void);
 int  NetInit(void);
 int  NetReady(void);
 void NetPoll(void);

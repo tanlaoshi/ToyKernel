@@ -308,9 +308,16 @@ int VirtualMemoryInit(void) {
     return 0;
 }
 
+static int gVirtualMemoryEnabled;
+
 void VirtualMemoryEnable(void) {
     HalPagingEnable(HalPageKernelRoot());
+    gVirtualMemoryEnabled = 1;
     DebugWrite("VMM: paging enabled\n");
+}
+
+int VirtualMemoryEnabled(void) {
+    return gVirtualMemoryEnabled;
 }
 
 UINT64 VirtualMemoryKernelRoot(void) {

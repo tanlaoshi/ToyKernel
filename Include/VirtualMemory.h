@@ -30,6 +30,8 @@ typedef struct {
 
 int VirtualMemoryInit(void);
 void VirtualMemoryEnable(void);
+/* PR-D3：供需 MMIO Map 的驱动在 InitDrv 早 Probe 时跳过 */
+int VirtualMemoryEnabled(void);
 UINT64 VirtualMemoryKernelRoot(void);
 void VirtualMemoryLoadPageTable(UINT64 Root);
 

@@ -46,7 +46,7 @@ static const TOY_DRIVER gAtaDriver = {
     .Remove = AtaDrvRemove,
 };
 
-void HalDrvRegister(void) {
+void AtaDrvRegister(void) {
     (void)ToyDrvRegister(&gAtaDriver);
 }
 

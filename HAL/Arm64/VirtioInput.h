@@ -1,15 +1,12 @@
 /*
- * VirtioInput.h — virtio-keyboard / tablet（PR-V3）
+ * VirtioInput.h — virtio-keyboard / tablet（PR-V3 / PR-D3）
  */
 #ifndef HAL_VIRTIO_INPUT_H
 #define HAL_VIRTIO_INPUT_H
 
-#include "HalDevices.h"
-
+/* PR-D3：向 Drv 注册描述符（不 Probe） */
+void VirtioInputRegister(void);
+/* Probe Input 类；有键鼠返回 0，否则 -1 */
 int VirtioInputInit(void);
-void VirtioInputPoll(void);
-int VirtioInputKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
-int VirtioInputMousePresent(void);
-int VirtioInputMouseDequeue(HAL_MOUSE_REPORT *Report);
 
 #endif

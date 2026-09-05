@@ -1,89 +1,46 @@
 /*
- * HalDevices.c — x86 USB 输入与 virtio-net HAL 门面
+ * HalDevices.c — x86：Input / Net 经 Drv 类门面（PR-D3）
+ *
+ * Common 只见 HalInput* / HalNet*；本文件不 include XHCI/Net 私有实现细节以外的
+ * 注册入口头（仍经 Drivers/ 薄包装注册）。
  */
 #include "Hal.h"
-#include "PCIe.h"
-#include "XHCI.h"
+#include "DrvInput.h"
+#include "DrvNet.h"
+#include "InputXhci.h"
 #include "Net.h"
-#include "Debug.h"
 
-static USB_CONTROLLER gXhciDev;
+/* BlockAta.c */
+void AtaDrvRegister(void);
+
+void HalDrvRegister(void) {
+    AtaDrvRegister();
+    InputXhciRegister();
+    NetDrvRegister();
+}
 
 int HalUsbInit(void) {
-    USB_CONTROLLER Controllers[8];
-    int Count = PciScanUSBControllers(Controllers, 8);
-    int Found = 0;
-
-    for (int i = 0; i < Count; i++) {
-        if (Controllers[i].Type == 0x30) {
-            gXhciDev = Controllers[i];
-            Found = 1;
-            break;
-        }
-    }
-    if (!Found) {
-        UINT64 Fallback = HalPlatformXhciFallback();
-        if (Fallback == 0) {
-            return -1;
-        }
-        gXhciDev.BaseAddress = Fallback;
-        gXhciDev.Bar[0] = Fallback;
-        gXhciDev.Type = 0x30;
-    }
-    if (!XhciInit(gXhciDev.BaseAddress)) {
-        return -1;
-    }
-    if (!XhciEnableIrq(&gXhciDev)) {
-        DebugWrite("XHCI: IRQ not enabled\n");
-        return -1;
-    }
-    return 0;
+    return InputXhciInit();
 }
 
 void HalInputPoll(void) {
-    if (XhciUsesIrq()) {
-        XhciDrainEvents();
-    }
+    ToyDrvInputPoll();
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
-    USB_KEYBOARD_REPORT Raw;
-
-    if (!Report) {
-        return 0;
-    }
-    if (!XhciDequeueKeyboard(&Raw)) {
-        return 0;
-    }
-    Report->ModifierKeys = Raw.ModifierKeys;
-    Report->Reserved = Raw.Reserved;
-    for (int i = 0; i < 6; i++) {
-        Report->KeyCode[i] = Raw.KeyCode[i];
-    }
-    return 1;
+    return ToyDrvInputKeyboardDequeue(Report);
 }
 
 int HalKeyboardSetLeds(UINT8 Leds) {
-    return XhciKeyboardSetLeds(Leds);
+    return ToyDrvInputKeyboardSetLeds(Leds);
 }
 
 int HalMousePresent(void) {
-    return XhciMousePresent();
+    return ToyDrvInputMousePresent();
 }
 
 int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
-    USB_MOUSE_REPORT Raw;
-
-    if (!Report) {
-        return 0;
-    }
-    if (!XhciDequeueMouse(&Raw)) {
-        return 0;
-    }
-    Report->X = Raw.X;
-    Report->Y = Raw.Y;
-    Report->Buttons = Raw.Buttons;
-    return 1;
+    return ToyDrvInputMouseDequeue(Report);
 }
 
 int HalNetInit(void) {
@@ -91,45 +48,45 @@ int HalNetInit(void) {
 }
 
 int HalNetReady(void) {
-    return NetReady();
+    return ToyDrvNetReady();
 }
 
 void HalNetPoll(void) {
-    NetPoll();
+    ToyDrvNetPoll();
 }
 
 void HalNetGetMac(UINT8 Mac[6]) {
-    NetGetMac(Mac);
+    ToyDrvNetGetMac(Mac);
 }
 
 UINT32 HalNetGetIp(void) {
-    return NetGetIp();
+    return ToyDrvNetGetIp();
 }
 
 void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
-    NetFormatIp(Ip, Buf, BufLen);
+    ToyDrvNetFormatIp(Ip, Buf, BufLen);
 }
 
 int HalNetParseIp(const char *Text, UINT32 *Ip) {
-    return NetParseIp(Text, Ip);
+    return ToyDrvNetParseIp(Text, Ip);
 }
 
 int HalNetPing(const char *Host, int TimeoutMs) {
-    return NetPing(Host, TimeoutMs);
+    return ToyDrvNetPing(Host, TimeoutMs);
 }
 
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
-    NetGetStats(TxDone, RxFrames);
+    ToyDrvNetGetStats(TxDone, RxFrames);
 }
 
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
-    return NetSendIp(DstIp, Proto, Payload, PayloadLen);
+    return ToyDrvNetSendIp(DstIp, Proto, Payload, PayloadLen);
 }
 
 UINT16 HalNetChecksum(const void *Data, UINTN Len) {
-    return NetChecksum(Data, Len);
+    return ToyDrvNetChecksum(Data, Len);
 }
 
 void HalNetSetLwIpRx(int Enable) {
-    NetSetLwIpRx(Enable);
+    ToyDrvNetSetLwIpRx(Enable);
 }

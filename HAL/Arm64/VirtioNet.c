@@ -1,8 +1,9 @@
 /*
- * VirtioNet.c — virtio-net MMIO + ARP/ICMP（PR-N9）
+ * VirtioNet.c — virtio-net MMIO + ARP/ICMP（PR-N9 / PR-D3）
  *
  * QEMU：-device virtio-net-device,netdev=n0 -netdev user,id=n0
  * 默认 IP 10.0.2.15；网关 10.0.2.2。ARP/ICMP 留在本 Arch HAL。
+ * PR-D3：经 Drv Net 类注册，HalDevices 只见 HalNet*。
  */
 #include "VirtioNet.h"
 #include "VirtioMmio.h"
@@ -11,6 +12,8 @@
 #include "Hal.h"
 #include "Udp.h"
 #include "Tcp.h"
+#include "Drv.h"
+#include "DrvNet.h"
 #ifdef TOY_LWIP
 #include "toy_netif.h"
 #endif
@@ -402,6 +405,19 @@ static void NetProcessRx(void) {
     VirtioMmioNotifyQueue(&gRx, RX_QUEUE_ID);
 }
 
+static int VirtioNetReady(void);
+static void VirtioNetPoll(void);
+static void VirtioNetGetMac(UINT8 Mac[6]);
+static UINT32 VirtioNetGetIp(void);
+static void VirtioNetFormatIp(UINT32 Ip, char *Buf, int BufLen);
+static int VirtioNetParseIp(const char *Text, UINT32 *Ip);
+static int VirtioNetPing(const char *Host, int TimeoutMs);
+static void VirtioNetGetStats(UINT32 *TxDone, UINT32 *RxFrames);
+static int VirtioNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload,
+                           UINTN PayloadLen);
+static UINT16 VirtioNetChecksum(const void *Data, UINTN Len);
+static void VirtioNetSetLwIpRx(int Enable);
+
 static int NetResolve(UINT32 TargetIp, UINT8 Mac[6], int TimeoutMs) {
     int Tries = TimeoutMs > 0 ? TimeoutMs / 10 : 100;
     if (ArpLookup(TargetIp, Mac)) {
@@ -418,25 +434,30 @@ static int NetResolve(UINT32 TargetIp, UINT8 Mac[6], int TimeoutMs) {
     return -1;
 }
 
-int VirtioNetInit(void) {
+static int VirtioNetDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     UINT64 Base = 0;
     UINT32 Ver;
     volatile VIRTIO_NET_CFG *Cfg;
     UINT32 i;
     UINT8 *Page;
 
+    (void)Self;
+    (void)BusCtx;
     if (gNetOk) {
+        if (OutPriv) {
+            *OutPriv = 0;
+        }
         return 0;
     }
     gLwIpRx = 0;
     VirtioMmioScan(NetFindCb, &Base);
     if (Base == 0) {
-        return 0;
+        return -1;
     }
 
     if (VirtioMmioNegotiate(&gRx, Base, VIRTIO_DEV_NET, VIRTIO_NET_F_MAC) != 0) {
         HalSerialWrite("boot: virtio-net negotiate failed\n");
-        return 0;
+        return -1;
     }
     Ver = VirtioMmioRead32(Base, 0x004u);
     gNetHdrLen = (Ver >= 2) ? VIRTIO_NET_HDR_V1 : VIRTIO_NET_HDR_LEGACY;
@@ -447,16 +468,16 @@ int VirtioNetInit(void) {
 
     if (VirtioMmioSetupOneQueue(&gRx, RX_QUEUE_ID, RX_BUF_COUNT) != 0) {
         HalSerialWrite("boot: virtio-net rx queue failed\n");
-        return 0;
+        return -1;
     }
     if (VirtioMmioSetupOneQueue(&gTx, TX_QUEUE_ID, 4) != 0) {
         HalSerialWrite("boot: virtio-net tx queue failed\n");
-        return 0;
+        return -1;
     }
 
     Page = (UINT8 *)PhysicalMemoryAllocatePages(RX_BUF_COUNT + 1);
     if (!Page) {
-        return 0;
+        return -1;
     }
     for (i = 0; i < RX_BUF_COUNT; i++) {
         gRxBuf[i] = Page + (UINTN)i * PAGE_SIZE;
@@ -474,14 +495,61 @@ int VirtioNetInit(void) {
 
     gNetOk = 1;
     HalSerialWrite("boot: virtio-net\n");
+    if (OutPriv) {
+        *OutPriv = 0;
+    }
     return 0;
 }
 
-int VirtioNetReady(void) {
+static void VirtioNetDrvRemove(TOY_DRV_INSTANCE *Inst);
+
+static const NET_BACKEND gNetBackend = {
+    .Ready = VirtioNetReady,
+    .Poll = VirtioNetPoll,
+    .GetMac = VirtioNetGetMac,
+    .GetIp = VirtioNetGetIp,
+    .FormatIp = VirtioNetFormatIp,
+    .ParseIp = VirtioNetParseIp,
+    .Ping = VirtioNetPing,
+    .GetStats = VirtioNetGetStats,
+    .SendIp = VirtioNetSendIp,
+    .Checksum = VirtioNetChecksum,
+    .SetLwIpRx = VirtioNetSetLwIpRx,
+};
+
+static int VirtioNetDrvBind(TOY_DRV_INSTANCE *Inst) {
+    (void)Inst;
+    return ToyDrvNetAttach(&gNetBackend);
+}
+
+static void VirtioNetDrvRemove(TOY_DRV_INSTANCE *Inst) {
+    (void)Inst;
+    gNetOk = 0;
+}
+
+static const TOY_DRIVER gVirtioNetDriver = {
+    .Name = "virtio-net",
+    .Class = TOY_DRV_CLASS_NET,
+    .Match = 0,
+    .Probe = VirtioNetDrvProbe,
+    .Bind = VirtioNetDrvBind,
+    .Remove = VirtioNetDrvRemove,
+};
+
+void VirtioNetRegister(void) {
+    (void)ToyDrvRegister(&gVirtioNetDriver);
+}
+
+int VirtioNetInit(void) {
+    (void)ToyDrvProbeClass(TOY_DRV_CLASS_NET);
+    return 0;
+}
+
+static int VirtioNetReady(void) {
     return gNetOk;
 }
 
-void VirtioNetPoll(void) {
+static void VirtioNetPoll(void) {
     if (!gNetOk) {
         return;
     }
@@ -491,15 +559,15 @@ void VirtioNetPoll(void) {
     NetProcessRx();
 }
 
-void VirtioNetGetMac(UINT8 Mac[6]) {
+static void VirtioNetGetMac(UINT8 Mac[6]) {
     MemCpy(Mac, gMac, 6);
 }
 
-UINT32 VirtioNetGetIp(void) {
+static UINT32 VirtioNetGetIp(void) {
     return gIp;
 }
 
-void VirtioNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
+static void VirtioNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
     UINT8 B[4];
     int Pos = 0;
     int P;
@@ -531,7 +599,7 @@ void VirtioNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
     Buf[Pos] = 0;
 }
 
-int VirtioNetParseIp(const char *Text, UINT32 *Ip) {
+static int VirtioNetParseIp(const char *Text, UINT32 *Ip) {
     UINT32 Parts[4];
     int Part = 0;
     UINT32 Val = 0;
@@ -567,7 +635,7 @@ int VirtioNetParseIp(const char *Text, UINT32 *Ip) {
     return 0;
 }
 
-void VirtioNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
+static void VirtioNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
     if (TxDone) {
         *TxDone = gTxDone;
     }
@@ -576,7 +644,7 @@ void VirtioNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
     }
 }
 
-int VirtioNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload,
+static int VirtioNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload,
                     UINTN PayloadLen) {
     UINT8 DstMac[6];
     UINT8 Frame[ETH_HDR_LEN + IP_HDR_LEN + 1400];
@@ -613,15 +681,15 @@ int VirtioNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload,
     return NetSendFrame(Frame, ETH_HDR_LEN + IpTotal);
 }
 
-UINT16 VirtioNetChecksum(const void *Data, UINTN Len) {
+static UINT16 VirtioNetChecksum(const void *Data, UINTN Len) {
     return Sum16((const UINT8 *)Data, Len);
 }
 
-void VirtioNetSetLwIpRx(int Enable) {
+static void VirtioNetSetLwIpRx(int Enable) {
     gLwIpRx = Enable ? 1 : 0;
 }
 
-int VirtioNetPing(const char *Host, int TimeoutMs) {
+static int VirtioNetPing(const char *Host, int TimeoutMs) {
     UINT32 Target;
     UINT8 DstMac[6];
     UINT8 Frame[ETH_HDR_LEN + IP_HDR_LEN + ICMP_HDR_LEN + PING_PAYLOAD];
