@@ -46,7 +46,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 - **virtio-net**：ARP、ICMP；默认走自研 builtin 栈（`Net`/`Udp`/`Tcp`，**legacy**）
 - **x86 默认仍 `LWIP=0`**（builtin 课）：`./build.sh` / `./build.sh x86_64` 不含 lwIP
 - **课堂开 lwIP（不改默认）**：`./build.sh LWIP=1` → 内核带 lwIP；串口 `lwip on` 后 RX/TX 走 lwIP；同名 Shell 命令自动切换；再 `exec NETDEMO.ELF` / `NETSRV.ELF`
-- **用户态 socket**：`socket`/`connect`/`bind`/`listen`/`accept`（需 `LWIP=1`）
+- **用户态 socket**：`socket`/`connect`/`bind`/`listen`/`accept`（需 `LWIP=1`）；**libToyNet**（PR-L4）+ `NETLIB.ELF`
 - **virt Arm/RiscV（PR-N10）**：桌面模块表挂 `net`；`run-virt-*.sh` 默认 `-netdev user` + `virtio-net-device`；`TOY_VIRT_NONET=1` 可关；`--headless` 验 `[mod] net` + `ping 10.0.2.2`
 - **双栈策略**：运行时一帧一栈、不热切回 builtin；新功能以 lwIP 为准 → 详见 [`ThirdParty/README.md`](ThirdParty/README.md)
 

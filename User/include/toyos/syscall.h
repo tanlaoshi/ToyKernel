@@ -108,4 +108,24 @@ static inline long toy_ui_button(long wid, long button_id, const char *label) {
     return toy_syscall(SYS_UI_BUTTON, wid, button_id, (long)label);
 }
 
+static inline long toy_socket(long domain, long type, long protocol) {
+    return toy_syscall(SYS_SOCKET, domain, type, protocol);
+}
+
+static inline long toy_connect(long fd, long ip, long port) {
+    return toy_syscall(SYS_CONNECT, fd, ip, port);
+}
+
+static inline long toy_bind(long fd, long ip, long port) {
+    return toy_syscall(SYS_BIND, fd, ip, port);
+}
+
+static inline long toy_listen(long fd, long backlog) {
+    return toy_syscall(SYS_LISTEN, fd, backlog, 0);
+}
+
+static inline long toy_accept(long fd) {
+    return toy_syscall(SYS_ACCEPT, fd, 0, 0);
+}
+
 #endif

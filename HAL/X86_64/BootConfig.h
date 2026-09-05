@@ -1,33 +1,20 @@
 /*
- * BootConfig.h — x86 UEFI 引导参数（仅 ToyBoot ↔ HAL/X86_64/Startup 使用）
+ * BootConfig.h — x86 UEFI 引导参数（ToyBoot ↔ HAL/X86_64/Startup）
  *
- * 布局必须与 ToyBoot/Boot.c 中对应结构完全一致。
- * 不要将此头文件包含进 EDK2 工程。
+ * 布局见 BootHandoff.h（单一 ABI 源，PR-R1）。
  */
 #ifndef BOOT_CONFIG_H
 #define BOOT_CONFIG_H
 
-#include "BootTypes.h"
+#include "BootHandoff.h"
 #include "BootInfo.h"
 
-typedef UINT64 EFI_PHYSICAL_ADDRESS;
-typedef void   VOID;
+typedef TOY_BOOT_CONFIG BOOT_CONFIG;
+typedef TOY_MEMORY_MAP  MEMORY_MAP;
 
-typedef struct {
-    VOID  *Buffer;
-    UINTN  MapSize;
-    UINTN  MapKey;
-    UINTN  DescriptorSize;
-    UINT32 DescriptorVersion;
-} MEMORY_MAP;
-
-typedef struct {
-    VIDEO_CONFIG         VideoConfig;
-    MEMORY_MAP           MemoryMap;
-    EFI_PHYSICAL_ADDRESS KernelEntry;
-    EFI_PHYSICAL_ADDRESS RsdpAddress;
-    VOID                *SystemTable;
-    UINT64               XhciBaseAddress;
-} BOOT_CONFIG;
+#if defined(__GNUC__)
+/* Common VIDEO_CONFIG 与交接 TOY_VIDEO_CONFIG 同布局 */
+_Static_assert(sizeof(VIDEO_CONFIG) == sizeof(TOY_VIDEO_CONFIG), "VIDEO_CONFIG ABI");
+#endif
 
 #endif

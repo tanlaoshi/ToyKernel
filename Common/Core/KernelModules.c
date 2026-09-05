@@ -20,6 +20,7 @@
 #include "Theme.h"
 #include "Db.h"
 #include "Locale.h"
+#include "Drv.h"
 
 static int gVirtDesktop; /* PR-V5：有帧缓冲则走桌面模块表 */
 
@@ -111,6 +112,11 @@ static int InitNetModule(void) {
     return 0;
 }
 
+static int InitDrv(void) {
+    /* D1：框架就绪；具体驱动在 D2/D3 注册。ProbeAll 允许 0 绑定。 */
+    return ToyDrvProbeAll();
+}
+
 static int InitSched(void) {
     SchedulerInit();
     return 0;
@@ -132,6 +138,7 @@ static int InitConsole(void) {
 static const MODULE gModulesFull[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
+    { "drv",     InitDrv },
     { "vmm",     InitVmm },
     { "video",   InitVideo },
     { "cpu",     InitCpu },
@@ -148,6 +155,7 @@ static const MODULE gModulesFull[] = {
 static const MODULE gModulesVirt[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
+    { "drv",     InitDrv },
     { "vmm",     InitVmm },
     { "cpu",     InitCpu },
     { "smp",     InitSmp },
@@ -159,6 +167,7 @@ static const MODULE gModulesVirt[] = {
 static const MODULE gModulesVirtDesktop[] = {
     { "serial",  InitSerial },
     { "mem",     InitMem },
+    { "drv",     InitDrv },
     { "vmm",     InitVmm },
     { "video",   InitVideo },
     { "cpu",     InitCpu },

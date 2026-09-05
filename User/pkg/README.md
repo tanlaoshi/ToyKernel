@@ -51,7 +51,8 @@ EXTRA_LIBS = $(TOYKERNEL)/User/Library/ToyUi/libToyUi.a \
              $(TOYKERNEL)/User/Library/ToyGfx/libToyGfx.a
 ```
 
-教程：[`Documents/用户态GUI入门.md`](../../Documents/用户态GUI入门.md)（**PR-L3**）。
+教程：[`Documents/用户态GUI入门.md`](../../Documents/用户态GUI入门.md)（**PR-L3**）。  
+网络模板：`User/pkg/net/`（**PR-L4**，需 `LWIP=1`）。
 
 ## 不要做的事
 
