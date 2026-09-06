@@ -44,7 +44,18 @@ if [ ! -f "$ROOT/Assets/Fonts/VGA8X16.FNT" ] && [ -d Assets/Fonts ]; then
     mkdir -p "$ROOT/Assets/Fonts"
     cp -a Assets/Fonts/. "$ROOT/Assets/Fonts/"
 fi
-mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Locale" "$ROOT/Assets/Fonts"
+if [ ! -f "$ROOT/Assets/Store/catalog.txt" ] && [ -d Assets/Store ]; then
+    mkdir -p "$ROOT/Assets/Store"
+    cp -a Assets/Store/. "$ROOT/Assets/Store/"
+fi
+mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Locale" "$ROOT/Assets/Fonts" "$ROOT/Assets/Store"
+mkdir -p "$ROOT/Apps" "$ROOT/Store"
+if [ -d Apps ]; then
+    cp -a Apps/. "$ROOT/Apps/" 2>/dev/null || true
+fi
+if [ -d Store ]; then
+    cp -a Store/. "$ROOT/Store/" 2>/dev/null || true
+fi
 # 清理旧扁平落点，避免双份
 rm -f "$ROOT/WALL.BMP"
 

@@ -1,0 +1,6 @@
+# ToyOS offline store catalog (PR-S0)
+# id|type|version|file|sha256|arch|title
+# sha256=- means unchecked until S1; payloads still live at volume root today.
+hello|app|1|HELLO.ELF|-|x86_64|Hello
+guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo
+cat|app|1|CAT.ELF|-|x86_64|Cat
