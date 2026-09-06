@@ -58,7 +58,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 - **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
 - **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X86_64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
 - **HAL 设备门面（PR-4）**：`Block` 后端注册 + `HalDevices.h`（USB 输入 / virtio-net）；Common 不再 `#include` ATA/PCIe/XHCI/Net 驱动头
-- **Drv 类（PR-D1～D3）**：`TOY_DRIVER`；Block / Input / Net 经 `ToyDrv*Attach`；见 [`Documents/写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md)
+- **Drv 类（PR-D1～D4）**：`TOY_DRIVER`；Block / Input / Net 经 `ToyDrv*Attach`；Shell `lsdev`；见 [`Documents/写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md)
 - **HAL 去 x86 命名（PR-6）**：`HalIrqVectorSet`、`HalPagePrivatizeRootSlot`、`TASK.PageRoot` / `VirtualMemory*Root|LoadPageTable`
 - **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
 
@@ -229,8 +229,8 @@ echo hello | nc -u 127.0.0.1 5555
   - [`路线图.md`](Documents/路线图.md) — 阶段规划与待办
   - [`启动与板级支持.md`](Documents/启动与板级支持.md) — UEFI/U-Boot/DTB、Startup、Board 包
   - [`驱动框架.md`](Documents/驱动框架.md) — Drv 模型
-  - [`写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md) — 加 virtio 驱动步骤（PR-D3）
-- 计划中的后续：见路线图 **1.3b/c/d**（板包、x86 真机、**D4** `lsdev`）
+  - [`写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md) — 加 virtio 驱动步骤（PR-D3）；`lsdev` 验收（PR-D4）
+- 计划中的后续：见路线图 **1.3b/c**（板包、x86 真机）与 **1.3r R2**（Gui 断环）
 
 ---
 

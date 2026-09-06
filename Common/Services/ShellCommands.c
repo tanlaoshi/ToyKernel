@@ -4,6 +4,7 @@
 #include "ShellCommands.h"
 #include "BootInfo.h"
 #include "Console.h"
+#include "Drv.h"
 #include "PhysicalMemory.h"
 #include "Process.h"
 #include "Scheduler.h"
@@ -703,11 +704,61 @@ static void CommandHalt(int Argc, char **Argv) {
     HalCpuPark();
 }
 
+/* PR-D4：列出已绑定驱动（TOY_DRIVER.Name + 类） */
+static const char *DrvClassName(TOY_DRV_CLASS Class) {
+    switch (Class) {
+    case TOY_DRV_CLASS_BLOCK:
+        return "block";
+    case TOY_DRV_CLASS_INPUT:
+        return "input";
+    case TOY_DRV_CLASS_NET:
+        return "net";
+    case TOY_DRV_CLASS_DISPLAY:
+        return "display";
+    default:
+        return "?";
+    }
+}
+
+static void CommandLsdev(int Argc, char **Argv) {
+    UINTN i;
+    UINTN Bound = 0;
+    (void)Argc;
+    (void)Argv;
+
+    for (i = 0; i < ToyDrvInstanceCount(); i++) {
+        const TOY_DRV_INSTANCE *Inst = ToyDrvInstanceGet(i);
+        if (!Inst || !Inst->Bound || !Inst->Drv || !Inst->Drv->Name) {
+            continue;
+        }
+        Bound++;
+    }
+    if (Bound == 0) {
+        ConsoleWrite("lsdev: none\n");
+        return;
+    }
+    ConsoleWrite("lsdev: bound=");
+    ConsoleHex32((UINT32)Bound);
+    ConsoleWrite("\n");
+    for (i = 0; i < ToyDrvInstanceCount(); i++) {
+        const TOY_DRV_INSTANCE *Inst = ToyDrvInstanceGet(i);
+        if (!Inst || !Inst->Bound || !Inst->Drv || !Inst->Drv->Name) {
+            continue;
+        }
+        ConsoleWrite("  ");
+        ConsoleWrite(Inst->Drv->Name);
+        ConsoleWrite("  ");
+        ConsoleWrite(DrvClassName(Inst->Drv->Class));
+        ConsoleWrite("\n");
+    }
+}
+
 void ShellCommandsRegisterVirtMin(void) {
     ConsoleRegister("ps", "list tasks", CommandPs);
     ConsoleRegister("mem", "physical memory stats", CommandMem);
     ConsoleRegister("exec", "load ELF (TOYOS:FILE)", CommandExec);
     ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
+    ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
 }
 
@@ -726,6 +777,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("lang", "set UI language en|zh", CommandLang);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
+    ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
     ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);

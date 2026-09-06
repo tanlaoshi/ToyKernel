@@ -118,9 +118,19 @@ cd ToyKernel && ./build.sh arm64
 rg 'Drivers/' Common    # 应无匹配
 ```
 
-### `lsdev`（PR-D4）
+### `lsdev`（PR-D4 ✅）
 
-用户可见枚举（Shell/串口列出已绑定 `TOY_DRIVER.Name`）属 **D4**。D3 用串口 `drv: registered=… bound=…` 与上表功能冒烟即可；D4 落地后按 README 补一行 `lsdev` 验收。
+Shell / 串口：
+
+```text
+toyos> lsdev
+lsdev: bound=0x00000003
+  ata-pio  block
+  xhci-hid  input
+  virtio-net-pci  net
+```
+
+virt Arm/RiscV 典型名：`virtio-blk` / `virtio-input` / `virtio-net`。
 
 ---
 
