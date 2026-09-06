@@ -111,8 +111,8 @@ toy_virt_ensure_elf() {
         TOY_VIRT_ELF="$TOY_VIRT_ELF_ARG"
     fi
     if [ ! -f "$TOY_VIRT_ELF" ]; then
-        echo "building ARCH=$TOY_VIRT_MAKE_ARCH ..."
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" BRINGUP=0
+        echo "building ARCH=$TOY_VIRT_MAKE_ARCH BOARD=${BOARD:-virt} ..."
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=${BOARD:-virt}" BRINGUP=0
     fi
     if [ ! -f "$TOY_VIRT_ELF" ]; then
         echo "error: missing $TOY_VIRT_ELF" >&2
@@ -121,7 +121,7 @@ toy_virt_ensure_elf() {
     # PR-A12：确保本 arch HELLO.ELF 已构建（prepare 会装入盘）
     local HelloElf="Build/HAL/${TOY_VIRT_HAL_ARCH}/user/hello.elf"
     if [ ! -f "$HelloElf" ]; then
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" BRINGUP=0 "$HelloElf"
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=${BOARD:-virt}" BRINGUP=0 "$HelloElf"
     fi
 }
 toy_virt_build_dev_args() {

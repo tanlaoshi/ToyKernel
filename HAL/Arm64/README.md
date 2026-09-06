@@ -14,4 +14,4 @@ QEMU virt aarch64：自有 Boot（`-kernel` + DTB）、PL011、ramfb / virtio-*�
 
 **PR-A15**：`HAL_FRAME` 门面字段 `InstructionPointer`/`StackPointer`；`HalFrameGetInstructionPointer` / `HalFrameGetArgument0..2`（去 x86 `Rip`/`Rsp`/`Arg*` 名）。
 
-构建：`./build.sh arm64` → `Build/HAL/Arm64/Kernel.elf`；验收 `./run-virt-arm.sh` / `./smoke-virt.sh`。
+构建：`./build.sh arm64`（默认 `BOARD=virt`）→ `Build/HAL/Arm64/Kernel.elf`；验收 `./run-virt-arm.sh` / `./smoke-virt.sh`。板包：`HAL/Arm64/Board/virt/`（**PR-B2**）。

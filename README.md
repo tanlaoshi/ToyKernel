@@ -2,7 +2,7 @@
 
 ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）配合，构成完整的教学/实验用操作系统。
 
-更细的模块说明见 [`Documents/结构说明.md`](Documents/结构说明.md)，分层与 API 边界见 [`Documents/架构分层.md`](Documents/架构分层.md)，发展规划见 [`Documents/路线图.md`](Documents/路线图.md)，用户态库见 [`Documents/用户态库.md`](Documents/用户态库.md)，**GUI 入门**见 [`Documents/用户态GUI入门.md`](Documents/用户态GUI入门.md)，驱动框架见 [`Documents/驱动框架.md`](Documents/驱动框架.md)，**启动/U-Boot/DTB/板包**见 [`Documents/启动与板级支持.md`](Documents/启动与板级支持.md)，标识符整改清单见 [`Documents/命名整改.md`](Documents/命名整改.md)。家/公司同步见 [`Documents/同步说明.md`](Documents/同步说明.md)。
+更细的模块说明见 [`Documents/结构说明.md`](Documents/结构说明.md)，分层与 API 边界见 [`Documents/架构分层.md`](Documents/架构分层.md)，发展规划见 [`Documents/路线图.md`](Documents/路线图.md)，用户态库见 [`Documents/用户态库.md`](Documents/用户态库.md)，**GUI 入门**见 [`Documents/用户态GUI入门.md`](Documents/用户态GUI入门.md)，驱动见 [`Documents/驱动框架.md`](Documents/驱动框架.md) / [`Documents/如何增加一个驱动.md`](Documents/如何增加一个驱动.md)，板级见 [`Documents/启动与板级支持.md`](Documents/启动与板级支持.md) / [`Documents/如何增加板级支持.md`](Documents/如何增加板级支持.md)，字体与语言见 [`Documents/字体与多语言.md`](Documents/字体与多语言.md)，扩展边界见 [`Documents/模块化扩展边界.md`](Documents/模块化扩展边界.md)，应用商店见 [`Documents/应用商店规划.md`](Documents/应用商店规划.md)，标识符整改见 [`Documents/命名整改.md`](Documents/命名整改.md)，同步见 [`Documents/同步说明.md`](Documents/同步说明.md)。
 
 ---
 
@@ -58,7 +58,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 - **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
 - **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
 - **HAL 设备门面（PR-4）**：`Block` 后端注册 + `HalDevices.h`（USB 输入 / virtio-net）；Common 不再 `#include` ATA/PCIe/XHCI/Net 驱动头
-- **Drv 类（PR-D1～D4）**：`TOY_DRIVER`；Block / Input / Net 经 `ToyDrv*Attach`；Shell `lsdev`；见 [`Documents/写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md)
+- **Driver 类（PR-D1～D4）**：`TOY_DRIVER`；Block / Input / Net 经 `ToyDriver*Attach`；Shell `lsdev`；见 [`Documents/写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md)
 - **HAL 去 x86 命名（PR-6）**：`HalIrqVectorSet`、`HalPagePrivatizeRootSlot`、`TASK.PageRoot` / `VirtualMemory*Root|LoadPageTable`
 - **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
 
@@ -100,7 +100,9 @@ cd ToyKernel
 ./build.sh DEBUG=1      # 打开 DebugWrite 串口输出
 ./build.sh riscv        # PR-A9：virt 串口 help/mem/ps/halt
 ./build.sh arm64
+./build.sh arm64 BOARD=virt   # PR-B2：选 HAL/Arm64/Board/<board>（默认 virt）
 ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
+make boards ARCH=arm64       # 列出可用板包
 ./run-virt-arm.sh --headless # PR-V6/N10 virt 冒烟（含 ping）
 ```
 
@@ -228,8 +230,8 @@ echo hello | nc -u 127.0.0.1 5555
   - [`结构说明.md`](Documents/结构说明.md) — 启动流程、源文件职责、阅读顺序
   - [`路线图.md`](Documents/路线图.md) — 阶段规划与待办
   - [`启动与板级支持.md`](Documents/启动与板级支持.md) — UEFI/U-Boot/DTB、Startup、Board 包
-  - [`HAL/Board/README.md`](HAL/Board/README.md) — 板包约定 + `_template`（**PR-B0**）
-  - [`驱动框架.md`](Documents/驱动框架.md) — Drv 模型
+  - [`HAL/Board/README.md`](HAL/Board/README.md) — 板包约定 + `_template`（**PR-B0**）；`BOARD=` 选包（**PR-B2**）
+  - [`驱动框架.md`](Documents/驱动框架.md) — Driver 模型
   - [`写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md) — 加 virtio 驱动步骤（PR-D3）；`lsdev` 验收（PR-D4）
 - 计划中的后续：见路线图 **1.3b**（**B0 ✅**；B1～B3）∥ **1.3c**（H0～H4）
 

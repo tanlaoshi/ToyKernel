@@ -28,7 +28,7 @@
 #define TOY_BOARD_HAS_NET         0 /* 本柱不要求 */
 #define TOY_BOARD_CONSOLE_ONLY    1 /* 与 !HAS_FRAMEBUFFER 对齐时可同为 1 */
 
-/* --- 模块子集意图（B2 起由 Makefile/BOARD 接线；此处仅文档化） --- */
+/* --- 模块子集意图（Makefile BOARD= 已接线；此处仅文档化） --- */
 /* console-only：serial → mem → … → console（跳过 video/gui） */
 
 #endif /* TOY_BOARD_CONFIG_H */

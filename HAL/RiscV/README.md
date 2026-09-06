@@ -14,4 +14,4 @@ QEMU virt riscv64：OpenSBI / `-kernel`、UART16550、ramfb / virtio-*。
 
 **PR-A15**：同上门面帧中立命名（`InstructionPointer`/`StackPointer` + `GetInstructionPointer` / `GetArgument*`）。
 
-构建：`./build.sh riscv` → `Build/HAL/RiscV/Kernel.elf`；验收 `./run-virt-riscv.sh` / `./smoke-virt.sh`。
+构建：`./build.sh riscv`（默认 `BOARD=virt`）→ `Build/HAL/RiscV/Kernel.elf`；验收 `./run-virt-riscv.sh` / `./smoke-virt.sh`。板包：`HAL/RiscV/Board/virt/`（**PR-B2**）。
