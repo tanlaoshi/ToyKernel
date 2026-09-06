@@ -99,6 +99,7 @@ static int InitializeFileSystem(void) {
 
 static int InitializeGui(void) {
     (void)DbInit();
+    (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
     (void)ThemeLoad();
     LocaleInit();
     GuiInit();

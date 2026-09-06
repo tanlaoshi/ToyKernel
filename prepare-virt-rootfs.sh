@@ -40,7 +40,11 @@ if [ ! -f "$ROOT/Assets/Locale/en.txt" ] && [ -d Assets/Locale ]; then
     mkdir -p "$ROOT/Assets/Locale"
     cp -a Assets/Locale/. "$ROOT/Assets/Locale/"
 fi
-mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Locale"
+if [ ! -f "$ROOT/Assets/Fonts/VGA8X16.FNT" ] && [ -d Assets/Fonts ]; then
+    mkdir -p "$ROOT/Assets/Fonts"
+    cp -a Assets/Fonts/. "$ROOT/Assets/Fonts/"
+fi
+mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Locale" "$ROOT/Assets/Fonts"
 # 清理旧扁平落点，避免双份
 rm -f "$ROOT/WALL.BMP"
 

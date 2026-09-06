@@ -17,6 +17,7 @@
 #include "VirtualMemory.h"
 #include "Gui.h"
 #include "Locale.h"
+#include "Font.h"
 
 static void CommandInfo(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -677,6 +678,29 @@ static void CommandZh(int Argc, char **Argv) {
     ConsoleWrite("你好，世界！中文测试\n");
 }
 
+static void CommandFont(int Argc, char **Argv) {
+    UINT32 i;
+    const FONT_FACE *F;
+
+    if (Argc >= 2 && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
+        Argv[1][2] == 'l' && Argv[1][3] == 'o' && Argv[1][4] == 'a' &&
+        Argv[1][5] == 'd' && Argv[1][6] == 0) {
+        (void)FontReloadAssets();
+        ConsoleWrite("font: assets reloaded\n");
+        return;
+    }
+    ConsoleWrite("fonts:\n");
+    for (i = 0; i < FontCount(); i++) {
+        F = FontGetById(i);
+        ConsoleWrite(i == FontCurrentId() ? " * " : "   ");
+        ConsoleWrite(F && F->Name ? F->Name : "?");
+        ConsoleWrite("\n");
+    }
+    if (Argc < 2) {
+        ConsoleWrite("usage: font [reload]\n");
+    }
+}
+
 static void CommandLang(int Argc, char **Argv) {
     if (Argc < 2) {
         ConsoleWrite(LocStr(MSG_LANG_USAGE));
@@ -783,6 +807,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
+    ConsoleRegister("font", "font [reload] (Assets/Fonts TOYF)", CommandFont);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);

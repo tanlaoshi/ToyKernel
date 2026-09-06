@@ -1,22 +1,248 @@
 /*
- * Fonts/FontRegistry.c — 字体注册表与当前字体（PR-D1）
+ * Fonts/FontRegistry.c — 字体注册表与当前字体（PR-D1）+ Assets/Fonts TOYF（PR-T3）
+ *
+ * TOYF v1（小端）：
+ *   0  magic "TOYF"
+ *   4  version=1, scale, char_spacing, line_spacing  (4×u8)
+ *   8  width, height, first_char, glyph_count         (4×u16 LE)
+ *  16  name[16] NUL 填充
+ *  32  glyph bytes = glyph_count * height * ((width+7)/8)
  */
 #include "Font.h"
+#include "FileSystem.h"
+#include "Fat.h"
+#include "PhysicalMemory.h"
+#include "HalConsole.h"
 
-static const FONT_FACE *gFonts[] = {
-    &gFontFaceTerminus16x32,
-    &gFontFaceTerminusX2,
-    &gFontFaceTerminus10x18, /* PR-T2：非 Scale×2 的独立尺寸 */
-};
+#define FONT_TOYF_MAGIC   0x46594F54u /* 'TOYF' LE */
+#define FONT_TOYF_VERSION 1u
+#define FONT_TOYF_HDR     32u
+#define FONT_FILE_MAX     (64u * 1024u)
+#define FONT_RUNTIME_MAX  2u
+#define FONT_NAME_MAX     16u
+#define FONT_TABLE_MAX    8u
 
+typedef struct FONT_RUNTIME_SLOT {
+    FONT_FACE Face;
+    char Name[FONT_NAME_MAX];
+    UINT8 *Pages;
+    UINT32 PageCount;
+    int Used;
+} FONT_RUNTIME_SLOT;
+
+static FONT_RUNTIME_SLOT gRuntime[FONT_RUNTIME_MAX];
+static const FONT_FACE *gFonts[FONT_TABLE_MAX];
+static UINT32 gFontCount;
 static UINT32 gCurrentId;
 
+static UINT16 RdU16(const UINT8 *P) {
+    return (UINT16)P[0] | ((UINT16)P[1] << 8);
+}
+
+static UINT32 RdU32(const UINT8 *P) {
+    return (UINT32)P[0] | ((UINT32)P[1] << 8) | ((UINT32)P[2] << 16) |
+           ((UINT32)P[3] << 24);
+}
+
+static void RebuildFontTable(void) {
+    UINT32 i;
+
+    gFontCount = 0;
+    gFonts[gFontCount++] = &gFontFaceTerminus16x32;
+    gFonts[gFontCount++] = &gFontFaceTerminusX2;
+    gFonts[gFontCount++] = &gFontFaceTerminus10x18;
+    for (i = 0; i < FONT_RUNTIME_MAX; i++) {
+        if (gRuntime[i].Used && gFontCount < FONT_TABLE_MAX) {
+            gFonts[gFontCount++] = &gRuntime[i].Face;
+        }
+    }
+}
+
+static void FreeRuntimeSlot(FONT_RUNTIME_SLOT *S) {
+    if (S->Pages && S->PageCount) {
+        PhysicalMemoryFreePages(S->Pages, S->PageCount);
+    }
+    S->Pages = 0;
+    S->PageCount = 0;
+    S->Used = 0;
+    S->Face.Glyphs = 0;
+    S->Face.Name = S->Name;
+}
+
+static void ClearRuntime(void) {
+    UINT32 i;
+
+    for (i = 0; i < FONT_RUNTIME_MAX; i++) {
+        FreeRuntimeSlot(&gRuntime[i]);
+    }
+    RebuildFontTable();
+}
+
+static int ParseToyf(const UINT8 *Buf, UINTN Size, FONT_RUNTIME_SLOT *Out) {
+    UINT32 Magic;
+    UINT32 Width;
+    UINT32 Height;
+    UINT32 First;
+    UINT32 Count;
+    UINT32 Bpr;
+    UINT32 GlyphBytes;
+    UINT32 Need;
+    UINT32 i;
+    UINT8 Scale;
+    UINT8 CharSp;
+    UINT8 LineSp;
+
+    if (Size < FONT_TOYF_HDR) {
+        return -1;
+    }
+    Magic = RdU32(Buf);
+    if (Magic != FONT_TOYF_MAGIC || Buf[4] != FONT_TOYF_VERSION) {
+        return -1;
+    }
+    Scale = Buf[5];
+    CharSp = Buf[6];
+    LineSp = Buf[7];
+    Width = RdU16(Buf + 8);
+    Height = RdU16(Buf + 10);
+    First = RdU16(Buf + 12);
+    Count = RdU16(Buf + 14);
+    if (Scale == 0) {
+        Scale = 1;
+    }
+    if (Width == 0 || Width > 64 || Height == 0 || Height > 64 || Count == 0 ||
+        Count > 256) {
+        return -1;
+    }
+    Bpr = (Width + 7u) / 8u;
+    GlyphBytes = Count * Height * Bpr;
+    Need = FONT_TOYF_HDR + GlyphBytes;
+    if (Size < Need) {
+        return -1;
+    }
+
+    FreeRuntimeSlot(Out);
+    Out->PageCount = (GlyphBytes + 4095u) / 4096u;
+    if (Out->PageCount == 0) {
+        Out->PageCount = 1;
+    }
+    Out->Pages = (UINT8 *)PhysicalMemoryAllocatePages(Out->PageCount);
+    if (!Out->Pages) {
+        Out->PageCount = 0;
+        return -1;
+    }
+    for (i = 0; i < GlyphBytes; i++) {
+        Out->Pages[i] = Buf[FONT_TOYF_HDR + i];
+    }
+
+    for (i = 0; i < FONT_NAME_MAX; i++) {
+        Out->Name[i] = (char)Buf[16 + i];
+    }
+    Out->Name[FONT_NAME_MAX - 1] = 0;
+    if (Out->Name[0] == 0) {
+        Out->Name[0] = 'F';
+        Out->Name[1] = 'N';
+        Out->Name[2] = 'T';
+        Out->Name[3] = 0;
+    }
+
+    Out->Face.Name = Out->Name;
+    Out->Face.Width = Width;
+    Out->Face.Height = Height;
+    Out->Face.BytesPerGlyph = Height * Bpr;
+    Out->Face.BytesPerRow = Bpr;
+    Out->Face.CharSpacing = CharSp;
+    Out->Face.LineSpacing = LineSp;
+    Out->Face.Scale = Scale;
+    Out->Face.Glyphs = Out->Pages;
+    Out->Face.GlyphCount = Count;
+    Out->Face.FirstChar = First;
+    Out->Used = 1;
+    return 0;
+}
+
+static int TryLoadPath(const char *Path, FONT_RUNTIME_SLOT *Slot) {
+    UINT8 *Buf;
+    UINT32 Pages;
+    UINTN Size;
+    int Err;
+
+    Pages = (FONT_FILE_MAX + 4095u) / 4096u;
+    Buf = (UINT8 *)PhysicalMemoryAllocatePages(Pages);
+    if (!Buf) {
+        return -1;
+    }
+    Size = 0;
+    Err = FileSystemReadFile(Path, Buf, FONT_FILE_MAX, &Size);
+    if (Err != FAT_OK || Size == 0) {
+        PhysicalMemoryFreePages(Buf, Pages);
+        return -1;
+    }
+    Err = ParseToyf(Buf, Size, Slot);
+    PhysicalMemoryFreePages(Buf, Pages);
+    if (Err != 0) {
+        HalConsoleWriteSerial("font: bad TOYF ");
+        HalConsoleWriteSerial(Path);
+        HalConsoleWriteSerial("\n");
+        return -1;
+    }
+    HalConsoleWriteSerial("font: loaded ");
+    HalConsoleWriteSerial(Path);
+    HalConsoleWriteSerial(" (");
+    HalConsoleWriteSerial(Slot->Name);
+    HalConsoleWriteSerial(")\n");
+    return 0;
+}
+
 void FontInit(void) {
+    UINT32 i;
+
     gCurrentId = 0;
+    for (i = 0; i < FONT_RUNTIME_MAX; i++) {
+        gRuntime[i].Used = 0;
+        gRuntime[i].Pages = 0;
+        gRuntime[i].PageCount = 0;
+        gRuntime[i].Face.Name = gRuntime[i].Name;
+    }
+    RebuildFontTable();
+}
+
+int FontLoadAssets(void) {
+    static const char *const Paths[] = {
+        "Assets/Fonts/VGA8X16.FNT",
+        "Assets/Fonts/EXTRA.FNT",
+    };
+    UINT32 Slot;
+    UINT32 i;
+    int Any = 0;
+
+    ClearRuntime();
+    Slot = 0;
+    for (i = 0; i < sizeof(Paths) / sizeof(Paths[0]) && Slot < FONT_RUNTIME_MAX;
+         i++) {
+        if (TryLoadPath(Paths[i], &gRuntime[Slot]) == 0) {
+            Slot++;
+            Any = 1;
+        }
+    }
+    RebuildFontTable();
+    if (!Any) {
+        HalConsoleWriteSerial("font: using built-in faces (no Assets/Fonts TOYF)\n");
+    }
+    return Any ? 0 : -1;
+}
+
+int FontReloadAssets(void) {
+    UINT32 Cur = gCurrentId;
+
+    (void)FontLoadAssets();
+    if (FontSetById(Cur) != 0) {
+        (void)FontSetById(0);
+    }
+    return 0;
 }
 
 UINT32 FontCount(void) {
-    return (UINT32)(sizeof(gFonts) / sizeof(gFonts[0]));
+    return gFontCount;
 }
 
 UINT32 FontCurrentId(void) {
@@ -24,7 +250,7 @@ UINT32 FontCurrentId(void) {
 }
 
 const FONT_FACE *FontGetById(UINT32 Id) {
-    if (Id >= FontCount()) {
+    if (Id >= gFontCount) {
         return 0;
     }
     return gFonts[Id];
@@ -39,7 +265,7 @@ const FONT_FACE *FontGetCurrent(void) {
 }
 
 int FontSetById(UINT32 Id) {
-    if (Id >= FontCount()) {
+    if (Id >= gFontCount) {
         return -1;
     }
     gCurrentId = Id;
@@ -154,11 +380,9 @@ UINT32 FontGlyphStretch(UINT32 GlyphH) {
     if (GlyphH == 0) {
         return FaceScale;
     }
-    /* 已与行高齐（乘 Face Scale 后）→ 不额外拉 */
     if (GlyphH * FaceScale >= CellH) {
         return FaceScale;
     }
-    /* PR-T1：CJK 16 → Terminus 行高 32（或 ×2 时 64） */
     return CellH / GlyphH;
 }
 
