@@ -2,7 +2,7 @@
  * TaskFd.c — 每任务 FD / 管道 / 套接字（PR-R3 自 Scheduler.c 拆出）
  */
 #include "Scheduler.h"
-#include "FileSystem.h"
+#include "CoreOps.h"
 #include "Fat.h"
 #include "PhysicalMemory.h"
 #include "LwIp.h"
@@ -41,7 +41,7 @@ static PIPE *PipeFromFd(TASK_FD *F) {
 
 static void FdFlush(TASK_FD *F) {
     if (F->Used && F->Kind == FD_KIND_FILE && F->Dirty && F->Path[0] && F->Data) {
-        (void)FsWriteFile(F->Path, F->Data, F->Size);
+        (void)VfsServiceWriteFile(F->Path, F->Data, F->Size);
         F->Dirty = 0;
     }
 }
@@ -116,7 +116,7 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     if (!Buf) {
         return -1;
     }
-    if (FsReadFile(Path, Buf, FD_MAX_BYTES, &Size) != FAT_OK) {
+    if (VfsServiceReadFile(Path, Buf, FD_MAX_BYTES, &Size) != FAT_OK) {
         Size = 0;
     }
     T->Fds[Slot].Used = 1;
@@ -145,7 +145,7 @@ int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
         return -1;
     }
     ListPath = Path ? Path : "";
-    Err = FsFileStat(ListPath, &St);
+    Err = VfsServiceFileStat(ListPath, &St);
     if (Err != FAT_OK) {
         return -1;
     }
@@ -164,7 +164,7 @@ int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
     if (!Buf) {
         return -1;
     }
-    Err = FsListEntries(ListPath, Buf, FAT_LIST_MAX, &Count);
+    Err = VfsServiceListEntries(ListPath, Buf, FAT_LIST_MAX, &Count);
     if (Err != FAT_OK) {
         PhysicalMemoryFreePages(Buf, Pages);
         return -1;
@@ -203,7 +203,7 @@ int SchedulerFdFileStat(TASK *T, const char *Path, FAT_FILE_STAT *Out) {
     if (!T || !Out) {
         return -1;
     }
-    if (FsFileStat(Path ? Path : "", Out) != FAT_OK) {
+    if (VfsServiceFileStat(Path ? Path : "", Out) != FAT_OK) {
         return -1;
     }
     return 0;

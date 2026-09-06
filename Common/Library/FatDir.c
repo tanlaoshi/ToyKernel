@@ -4,7 +4,7 @@
 #include "Fat.h"
 #include "FatPriv.h"
 #include "Block.h"
-#include "Console.h"
+#include "LibWrite.h"
 
 FAT_DIR_ENT *gListOut;
 int gListMax;
@@ -12,12 +12,12 @@ int gListCount;
 
 void PrintEntryNamed(const char *Name, UINT8 Attr) {
     if (Attr & FAT_ATTR_DIR) {
-        ConsoleWrite("[DIR] ");
+        LibWrite("[DIR] ");
     } else {
-        ConsoleWrite("      ");
+        LibWrite("      ");
     }
-    ConsoleWrite(Name);
-    ConsoleWrite("\n");
+    LibWrite(Name);
+    LibWrite("\n");
 }
 
 int ScanDirBuffer(UINT8 *Buf, UINT32 Bytes, const char *Name,

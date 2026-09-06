@@ -3,7 +3,6 @@
  */
 #include "Elf.h"
 #include "PhysicalMemory.h"
-#include "Console.h"
 #include "Hal.h"
 
 static void MemZero(void *Ptr, UINTN Size) {
@@ -332,7 +331,7 @@ int ElfLoadShared(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
         return -1;
     }
     if (!ElfHeaderOk(Hdr, Size, ET_DYN)) {
-        ConsoleWrite("elf: shared not ET_DYN\n");
+        HalDebugWrite("elf: shared not ET_DYN\n");
         return -1;
     }
     if (ElfPhdrs(Bytes, Size, Hdr, &Ph, &Pn) != 0) {
@@ -343,7 +342,7 @@ int ElfLoadShared(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
             continue;
         }
         if (ElfMapSegment(Space, Bytes, &Ph[i], Base) != 0) {
-            ConsoleWrite("elf: map shared segment failed\n");
+            HalDebugWrite("elf: map shared segment failed\n");
             return -1;
         }
     }
@@ -352,7 +351,7 @@ int ElfLoadShared(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     Info->Image = Bytes;
     Info->Size = Size;
     if (ElfFillSoSyms(Info, Ph, Pn) != 0) {
-        ConsoleWrite("elf: shared dynsym failed\n");
+        HalDebugWrite("elf: shared dynsym failed\n");
         return -1;
     }
     return 0;
@@ -413,7 +412,7 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
     if (ElfVaToFileOff(Ph, Pn, RelaVa, Bias, &RelaOff, Size) != 0) {
         /* EXEC 的 JMPREL 是绝对 VA，Bias=0 */
         if (Bias != 0 || ElfVaToFileOff(Ph, Pn, RelaVa, 0, &RelaOff, Size) != 0) {
-            ConsoleWrite("elf: rela va translate failed\n");
+            HalDebugWrite("elf: rela va translate failed\n");
             return -1;
         }
     }
@@ -454,7 +453,7 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
             case HAL_ELF_RELOC_GLOB_DAT:
             case HAL_ELF_RELOC_ABS64:
                 if (!HaveSym) {
-                    ConsoleWrite("elf: reloc needs symtab\n");
+                    HalDebugWrite("elf: reloc needs symtab\n");
                     return -1;
                 }
                 {
@@ -468,9 +467,9 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
                     Name = (const char *)(Bytes + StrOff + Sym->st_name);
                     Value = ElfLookupSymbol(Sos, SoCount, Name);
                     if (Value == 0) {
-                        ConsoleWrite("elf: unresolved ");
-                        ConsoleWrite(Name);
-                        ConsoleWrite("\n");
+                        HalDebugWrite("elf: unresolved ");
+                        HalDebugWrite(Name);
+                        HalDebugWrite("\n");
                         return -1;
                     }
                     if (Kind == HAL_ELF_RELOC_ABS64) {
@@ -479,16 +478,16 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
                 }
                 break;
             case HAL_ELF_RELOC_COPY:
-                ConsoleWrite("elf: COPY reloc unsupported\n");
+                HalDebugWrite("elf: COPY reloc unsupported\n");
                 return -1;
             default:
-                ConsoleWrite("elf: unsupported reloc\n");
+                HalDebugWrite("elf: unsupported reloc\n");
                 return -1;
             }
         }
 
         if (VirtualMemoryCopyToSpace(Space, Dest, &Value, sizeof(Value)) < 0) {
-            ConsoleWrite("elf: reloc write failed\n");
+            HalDebugWrite("elf: reloc write failed\n");
             return -1;
         }
     }
@@ -583,11 +582,11 @@ int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     UINT64 BrkBase = USER_CODE_VIRT;
 
     if (!ElfHeaderOk(Hdr, Size, ET_EXEC)) {
-        ConsoleWrite("elf: bad header\n");
+        HalDebugWrite("elf: bad header\n");
         return -1;
     }
     if (ElfPhdrs(Bytes, Size, Hdr, &Phdrs, &Pn) != 0) {
-        ConsoleWrite("elf: phdr out of range\n");
+        HalDebugWrite("elf: phdr out of range\n");
         return -1;
     }
 
@@ -598,7 +597,7 @@ int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
             continue;
         }
         if (ElfMapSegment(Space, Bytes, &Phdrs[i], 0) != 0) {
-            ConsoleWrite("elf: map segment failed\n");
+            HalDebugWrite("elf: map segment failed\n");
             return -1;
         }
         SegEnd = Phdrs[i].p_vaddr + Phdrs[i].p_memsz;
@@ -608,7 +607,7 @@ int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     }
 
     if (ElfMapStack(Space) != 0) {
-        ConsoleWrite("elf: map stack failed\n");
+        HalDebugWrite("elf: map stack failed\n");
         return -1;
     }
 

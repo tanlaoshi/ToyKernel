@@ -16,6 +16,7 @@
 #include "Locale.h"
 #include "HIDKeyboard.h"
 #include "KernelModules.h"
+#include "LibWrite.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
@@ -407,6 +408,7 @@ void ConsoleInit(void) {
     Ops.OnShellOpened = ConsoleOnShellOpened;
     Ops.PaintShellWindow = ConsolePaintShellWindow;
     GuiRegisterConsoleOps(&Ops);
+    LibWriteRegister(ConsoleWrite);
 
     gLen = 0;
     gWaitPrompt = 0;

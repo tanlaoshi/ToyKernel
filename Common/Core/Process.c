@@ -3,13 +3,14 @@
  */
 #include "Process.h"
 #include "Elf.h"
-#include "FileSystem.h"
+#include "CoreOps.h"
 #include "Scheduler.h"
 #include "VirtualMemory.h"
 #include "Hal.h"
 #include "Console.h"
 #include "Debug.h"
 #include "PhysicalMemory.h"
+#include "Fat.h"
 
 #define ELF_MAX_SIZE (512 * 1024)
 #define EXEC_ARGV_MAX 8
@@ -65,7 +66,7 @@ static int ProcessLoadNeeded(VM_ADDR_SPACE *Space, const void *MainImage,
             return -1;
         }
         Size = 0;
-        if (FsReadFile(Needed[i], Buf, ELF_MAX_SIZE, &Size) != FAT_OK || Size < 64) {
+        if (VfsServiceReadFile(Needed[i], Buf, ELF_MAX_SIZE, &Size) != FAT_OK || Size < 64) {
             ConsoleWrite("exec: missing shared lib: ");
             ConsoleWrite(Needed[i]);
             ConsoleWrite("\n");
@@ -131,7 +132,7 @@ static int ProcessLoadPath(const char *Path, VM_ADDR_SPACE **OutSpace,
         return -1;
     }
 
-    if (FsReadFile(Path, Buf, ELF_MAX_SIZE, &Size) != FAT_OK) {
+    if (VfsServiceReadFile(Path, Buf, ELF_MAX_SIZE, &Size) != FAT_OK) {
         ConsoleWrite("exec: file not found: ");
         ConsoleWrite(Path);
         ConsoleWrite("\n");

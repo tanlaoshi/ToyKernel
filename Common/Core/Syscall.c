@@ -14,7 +14,7 @@
 #include "Debug.h"
 #include "VirtualMemory.h"
 #include "Process.h"
-#include "Gui.h"
+#include "CoreOps.h"
 #include "Fat.h"
 
 #define COPY_BUF_MAX 256
@@ -52,7 +52,7 @@ static int SysCreateWindow(UINT64 UserTitle, UINT32 W, UINT32 H) {
     if (CopyUserCString(Title, UserTitle, sizeof(Title)) < 0 || Title[0] == 0) {
         return -1;
     }
-    return GuiOpenUser(Title, W, H);
+    return WindowOpenUser(Title, W, H);
 }
 
 static int SysDamage(int Wid, UINT64 UserText) {
@@ -65,7 +65,7 @@ static int SysDamage(int Wid, UINT64 UserText) {
     if (CopyUserCString(Text, UserText, sizeof(Text)) < 0) {
         return -1;
     }
-    return GuiDamageUser(Wid, Text);
+    return WindowDamageUser(Wid, Text);
 }
 
 static int SysPollInput(int Wid) {
@@ -74,7 +74,7 @@ static int SysPollInput(int Wid) {
     if (!T || !T->IsUser) {
         return -1;
     }
-    return GuiPollUserInput(Wid);
+    return WindowPollUserInput(Wid);
 }
 
 static int SysUiButton(int Wid, int ButtonId, UINT64 UserLabel) {
@@ -87,7 +87,7 @@ static int SysUiButton(int Wid, int ButtonId, UINT64 UserLabel) {
     if (CopyUserCString(Label, UserLabel, sizeof(Label)) < 0 || Label[0] == 0) {
         return -1;
     }
-    return GuiUserAddButton(Wid, ButtonId, Label);
+    return WindowAddButton(Wid, ButtonId, Label);
 }
 
 void SyscallInit(void) {

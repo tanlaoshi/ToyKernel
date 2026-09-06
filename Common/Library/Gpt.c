@@ -5,7 +5,6 @@
  */
 #include "Gpt.h"
 #include "Block.h"
-#include "Console.h"
 #include "Debug.h"
 
 #define SECTOR 512

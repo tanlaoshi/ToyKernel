@@ -12,6 +12,7 @@
 #include "FilesUi.h"
 #include "Locale.h"
 #include "PhysicalMemory.h"
+#include "CoreOps.h"
 
 GUI_WINDOW gWins[MAX_WINS];
 UINT32 gScreenW;
@@ -581,6 +582,15 @@ void GuiInit(void) {
     DesktopSetPointOccupied(GuiPointInAnyWindow);
     DesktopSetRequestRefresh(GuiRefreshDesktop);
     DesktopInit();
+    {
+        WINDOW_OPS Ops;
+
+        Ops.OpenUser = GuiOpenUser;
+        Ops.DamageUser = GuiDamageUser;
+        Ops.PollUserInput = GuiPollUserInput;
+        Ops.AddButton = GuiUserAddButton;
+        WindowOpsRegister(&Ops);
+    }
     GuiRedraw();
     DebugWrite("gui: desktop ready (icons + no app windows)\n");
 }

@@ -2,11 +2,11 @@
  * ResFs.c — 只读「资源卷」第二 VFS 后端（PR-F3）
  *
  * 无 Block：内核内嵌只读文件表。挂载名 RES:；写/删/建目录一律 ROFS。
- * ListDir 与 Fat 一样暂用 ConsoleWrite（R4 再统一 HalDebug）。
+ * ListDir 经 LibWrite（PR-R4；ConsoleInit 注册 ConsoleWrite）。
  */
 #include "Vfs.h"
 #include "Fat.h"
-#include "Console.h"
+#include "LibWrite.h"
 
 typedef struct {
     const char *Name;
@@ -87,8 +87,8 @@ static int ResListDir(const char *Path) {
         return FAT_ERR_NOENT;
     }
     for (i = 0; i < RES_FILE_COUNT; i++) {
-        ConsoleWrite(gFiles[i].Name);
-        ConsoleWrite("\n");
+        LibWrite(gFiles[i].Name);
+        LibWrite("\n");
     }
     return FAT_OK;
 }

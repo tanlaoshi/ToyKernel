@@ -8,6 +8,7 @@
 #include "Vfs.h"
 #include "Debug.h"
 #include "Hal.h"
+#include "CoreOps.h"
 
 typedef struct {
     UINT32 Drive;
@@ -521,6 +522,8 @@ static int MountAllVolumes(void) {
 }
 
 int FileSystemInit(void) {
+    VFS_SERVICE_OPS Svc;
+
     if (VfsRegister(FatFsOps()) != 0) {
         DebugWrite("FS: VfsRegister(fat) failed\n");
         return 0;
@@ -536,6 +539,11 @@ int FileSystemInit(void) {
         DebugWrite("FS: no volumes mounted\n");
         return 0;
     }
+    Svc.ReadFile = FsReadFile;
+    Svc.WriteFile = FsWriteFile;
+    Svc.ListEntries = FsListEntries;
+    Svc.FileStat = FsFileStat;
+    VfsServiceOpsRegister(&Svc);
     ShellCommandsRegisterFs();
     DebugWrite("FS ready (ls, cat, write, wrbig, dirstress, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");
     return 0;
