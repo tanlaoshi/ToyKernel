@@ -17,6 +17,7 @@
 #define TCP_FLAG_ACK      0x10
 
 #define TCP_SND_BUF       2048
+#define TCP_RCV_BUF       32768 /* PR-S2：可缓冲一小 ELF + HTTP 头 */
 #define TCP_MSS           512
 #define TCP_ADV_WND       4096
 #define TCP_RTO_POLLS     8000
@@ -51,6 +52,10 @@ static UINT32 gRcvNxt;
 static UINT32 gPollTicks;
 static UINT32 gRtoDeadline;
 static UINT8  gRetransCount;
+static int    gClientMode; /* PR-S2：主动连接收包，不回显 */
+static UINT8  gRcvBuf[TCP_RCV_BUF];
+static UINT32 gRcvBufLen;
+static int    gPeerClosed;
 
 static UINT16 HostToNet16(UINT16 V) {
     return (UINT16)((V >> 8) | (V << 8));
@@ -93,7 +98,7 @@ static void TcpBufConsume(UINT32 Bytes) {
 }
 
 static UINT16 TcpChecksum(UINT32 SrcIp, UINT32 DstIp, const UINT8 *TcpSeg, UINTN TcpLen) {
-    UINT8 Pseudo[12 + 1500];
+    UINT8 Pseudo[12 + TCP_HDR_LEN + TCP_MSS];
     UINTN i;
 
     if (TcpLen + 12 > sizeof(Pseudo)) {
@@ -117,6 +122,22 @@ static UINT16 TcpChecksum(UINT32 SrcIp, UINT32 DstIp, const UINT8 *TcpSeg, UINTN
     return HostToNet16(HalNetChecksum(Pseudo, 12 + TcpLen));
 }
 
+static UINT16 TcpAdvertiseWindow(void) {
+    UINT32 Space;
+
+    if (!gClientMode) {
+        return TCP_ADV_WND;
+    }
+    Space = TCP_RCV_BUF - gRcvBufLen;
+    if (Space > 0xFFFF) {
+        Space = 0xFFFF;
+    }
+    if (Space == 0) {
+        return 0;
+    }
+    return (UINT16)Space;
+}
+
 static int TcpSendSegment(UINT8 Flags, const void *Data, UINTN Len, UINT32 Seq, UINT32 Ack) {
     UINT8 Buf[TCP_HDR_LEN + TCP_MSS];
     TCP_HDR *Hdr;
@@ -132,7 +153,7 @@ static int TcpSendSegment(UINT8 Flags, const void *Data, UINTN Len, UINT32 Seq, 
     Hdr->Ack = HostToNet32(Ack);
     Hdr->DataOff = (TCP_HDR_LEN / 4) << 4;
     Hdr->Flags = Flags;
-    Hdr->Window = HostToNet16(TCP_ADV_WND);
+    Hdr->Window = HostToNet16(TcpAdvertiseWindow());
     Hdr->Checksum = 0;
     Hdr->Urgent = 0;
     for (i = 0; i < Len; i++) {
@@ -265,6 +286,9 @@ void TcpInit(void) {
     gPollTicks = 0;
     gRtoDeadline = 0;
     gRetransCount = 0;
+    gClientMode = 0;
+    gRcvBufLen = 0;
+    gPeerClosed = 0;
 }
 
 int TcpListen(UINT16 Port) {
@@ -285,13 +309,21 @@ void TcpListenStop(void) {
 
 int TcpConnect(UINT32 DstIp, UINT16 DstPort) {
     TcpInit();
+    gClientMode = 1;
     gLocalPort = (UINT16)(40000 + (gIss & 0xFF));
     gPeerIp = DstIp;
     gPeerPort = DstPort;
     gSndUna = gIss;
     gSndNxt = gIss;
     gState = TCP_SYN_SENT;
-    return TcpSendSegment(TCP_FLAG_SYN, 0, 0, gSndNxt, 0);
+    if (TcpSendSegment(TCP_FLAG_SYN, 0, 0, gSndNxt, 0) != 0) {
+        gState = TCP_CLOSED;
+        return -1;
+    }
+    /* SYN 占一序号，便于超时重传 */
+    gSndNxt = gIss + 1;
+    TcpArmRetrans();
+    return 0;
 }
 
 int TcpSend(const void *Data, UINTN Len) {
@@ -463,51 +495,126 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
             TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
             return;
         }
-        gRcvNxt = Seq + (UINT32)DataLen;
-        /* 回显：直接发送（不经 snd_buf，避免与 snd_una 序号错位） */
-        if (TcpSendSegment(TCP_FLAG_ACK | TCP_FLAG_PSH, Data, DataLen,
-                           gSndNxt, gRcvNxt) != 0) {
-            ConsoleWrite("tcp: echo send failed\n");
-            DebugWrite("tcp: echo send failed\n");
-            return;
-        }
-        gSndNxt += (UINT32)DataLen;
-        if (gSndUna < gSndNxt) {
-            TcpArmRetrans();
-        }
-        {
-            char Buf[96];
-            int Pos = 0;
-            UINTN i;
-            const char *Prefix = "tcp echo: ";
+        if (gClientMode) {
+            /* PR-S2：客户端收包进缓冲，仅 ACK；满则不推进序号（等 TcpRecv） */
+            UINT32 Space = TCP_RCV_BUF - gRcvBufLen;
+            UINT32 Copy = (UINT32)DataLen;
+            UINT32 i;
 
-            while (Prefix[Pos] && Pos < (int)sizeof(Buf) - 2) {
-                Buf[Pos] = Prefix[Pos];
-                Pos++;
+            if (Space == 0) {
+                TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+                return;
             }
-            for (i = 0; i < DataLen && Pos < (int)sizeof(Buf) - 2; i++) {
-                char C = (char)((const UINT8 *)Data)[i];
-                if (C >= 32 && C <= 126) {
-                    Buf[Pos++] = C;
+            if (Copy > Space) {
+                Copy = Space;
+            }
+            for (i = 0; i < Copy; i++) {
+                gRcvBuf[gRcvBufLen + i] = Data[i];
+            }
+            gRcvBufLen += Copy;
+            gRcvNxt = Seq + Copy;
+            TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+            if (Copy < (UINT32)DataLen) {
+                return; /* 未收完；对端重传剩余 */
+            }
+        } else {
+            gRcvNxt = Seq + (UINT32)DataLen;
+            /* 回显：直接发送（不经 snd_buf，避免与 snd_una 序号错位） */
+            if (TcpSendSegment(TCP_FLAG_ACK | TCP_FLAG_PSH, Data, DataLen,
+                               gSndNxt, gRcvNxt) != 0) {
+                ConsoleWrite("tcp: echo send failed\n");
+                DebugWrite("tcp: echo send failed\n");
+                return;
+            }
+            gSndNxt += (UINT32)DataLen;
+            if (gSndUna < gSndNxt) {
+                TcpArmRetrans();
+            }
+            {
+                char Buf[96];
+                int Pos = 0;
+                UINTN i;
+                const char *Prefix = "tcp echo: ";
+
+                while (Prefix[Pos] && Pos < (int)sizeof(Buf) - 2) {
+                    Buf[Pos] = Prefix[Pos];
+                    Pos++;
                 }
+                for (i = 0; i < DataLen && Pos < (int)sizeof(Buf) - 2; i++) {
+                    char C = (char)((const UINT8 *)Data)[i];
+                    if (C >= 32 && C <= 126) {
+                        Buf[Pos++] = C;
+                    }
+                }
+                Buf[Pos++] = '\n';
+                Buf[Pos] = 0;
+                ConsoleNotify(Buf);
             }
-            Buf[Pos++] = '\n';
-            Buf[Pos] = 0;
-            ConsoleNotify(Buf);
         }
     }
 
     if (Flags & TCP_FLAG_FIN) {
         gRcvNxt = Seq + (UINT32)DataLen + 1;
-        TcpSendSegment(TCP_FLAG_ACK | TCP_FLAG_FIN, 0, 0, gSndNxt, gRcvNxt);
-        gSndNxt++;
+        TcpSendSegment(TCP_FLAG_ACK | (gClientMode ? 0 : TCP_FLAG_FIN), 0, 0,
+                       gSndNxt, gRcvNxt);
+        if (!gClientMode) {
+            gSndNxt++;
+        }
+        gPeerClosed = 1;
         gState = TCP_CLOSED;
         DebugWrite("tcp: closed\n");
     }
 }
 
+int TcpRecv(void *Buf, UINTN Max, UINTN *OutLen) {
+    UINT32 N;
+    UINT32 i;
+    UINT8 *D = (UINT8 *)Buf;
+
+    if (OutLen) {
+        *OutLen = 0;
+    }
+    if (!Buf || Max == 0) {
+        return -1;
+    }
+    N = gRcvBufLen;
+    if (N > (UINT32)Max) {
+        N = (UINT32)Max;
+    }
+    for (i = 0; i < N; i++) {
+        D[i] = gRcvBuf[i];
+    }
+    if (N < gRcvBufLen) {
+        for (i = 0; i < gRcvBufLen - N; i++) {
+            gRcvBuf[i] = gRcvBuf[N + i];
+        }
+    }
+    gRcvBufLen -= N;
+    if (OutLen) {
+        *OutLen = N;
+    }
+    return 0;
+}
+
+int TcpPeerClosed(void) {
+    return gPeerClosed || gState == TCP_CLOSED;
+}
+
 void TcpPoll(void) {
     gPollTicks++;
+    if (gState == TCP_SYN_SENT) {
+        if (gPollTicks >= gRtoDeadline) {
+            if (gRetransCount >= TCP_MAX_RETRANS) {
+                gState = TCP_CLOSED;
+                return;
+            }
+            if (TcpSendSegment(TCP_FLAG_SYN, 0, 0, gIss, 0) == 0) {
+                gRetransCount++;
+                TcpArmRetrans();
+            }
+        }
+        return;
+    }
     if (gState != TCP_ESTABLISHED) {
         return;
     }

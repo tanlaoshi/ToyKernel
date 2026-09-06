@@ -681,10 +681,93 @@ static void CommandZh(int Argc, char **Argv) {
 }
 
 static void CommandStore(int Argc, char **Argv) {
-    STORE_ENTRY Tab[STORE_ENTRIES_MAX];
+    STORE_ENTRY *Tab;
     int Count = 0;
     int i;
     int Err;
+    UINT32 Ip;
+    UINT16 Port;
+    char IpBuf[24];
+
+    if (Argc >= 2 && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
+        Argv[1][2] == 'p' && Argv[1][3] == 'o' && Argv[1][4] == 0) {
+        if (Argc >= 3) {
+            if (StoreRepoSet(Argv[2]) != 0) {
+                ConsoleWrite("store repo: bad ip:port\n");
+                return;
+            }
+            ConsoleWrite("store: repo set\n");
+            return;
+        }
+        StoreRepoGet(&Ip, &Port);
+        HalNetFormatIp(Ip, IpBuf, (int)sizeof(IpBuf));
+        ConsoleWrite("store repo ");
+        ConsoleWrite(IpBuf);
+        ConsoleWrite(":");
+        ConsoleHex32(Port);
+        ConsoleWrite("\n");
+        return;
+    }
+
+    if (Argc >= 2 && Argv[1][0] == 's' && Argv[1][1] == 'y' &&
+        Argv[1][2] == 'n' && Argv[1][3] == 'c' && Argv[1][4] == 0) {
+        Err = StoreSyncCatalog();
+        if (Err == -41 || Err == -2) {
+            ConsoleWrite("store sync: HTTP not 200 (host http.server + /catalog.txt?)\n");
+            return;
+        }
+        if (Err == -40) {
+            ConsoleWrite("store sync: net/tcp fail (repo up? store repo)\n");
+            return;
+        }
+        if (Err == -43) {
+            ConsoleWrite("store sync: out of memory\n");
+            return;
+        }
+        if (Err != 0) {
+            ConsoleWrite("store sync: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store: synced Store/catalog.txt\n");
+        return;
+    }
+
+    if (Argc >= 2 && Argv[1][0] == 'f' && Argv[1][1] == 'e' &&
+        Argv[1][2] == 't' && Argv[1][3] == 'c' && Argv[1][4] == 'h' &&
+        Argv[1][5] == 0) {
+        if (Argc < 3) {
+            ConsoleWrite("usage: store fetch <id>\n");
+            return;
+        }
+        Err = StoreFetchId(Argv[2]);
+        if (Err == -41 || Err == -2) {
+            ConsoleWrite("store fetch: HTTP not 200\n");
+            return;
+        }
+        if (Err == -42 || Err == -3) {
+            ConsoleWrite("store fetch: hash mismatch\n");
+            return;
+        }
+        if (Err == -40) {
+            ConsoleWrite("store fetch: net/tcp fail\n");
+            return;
+        }
+        if (Err == -43) {
+            ConsoleWrite("store fetch: out of memory\n");
+            return;
+        }
+        if (Err != 0) {
+            ConsoleWrite("store fetch: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store: fetched to Store/\n");
+        ConsoleWrite("hint: store install <id>\n");
+        return;
+    }
 
     if (Argc >= 2 && Argv[1][0] == 'i' && Argv[1][1] == 'n' &&
         Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 'a' &&
@@ -705,6 +788,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
+    Tab = StoreScratchTab();
     Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
     if (Err < 0) {
         ConsoleWrite("store: catalog ");
@@ -728,7 +812,7 @@ static void CommandStore(int Argc, char **Argv) {
     }
     if (Argc < 2 || (Argv[1][0] == 'l' && Argv[1][1] == 'i' &&
                      Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 0)) {
-        ConsoleWrite("usage: store [list] | store install <id>\n");
+        ConsoleWrite("usage: store [list]|install|sync|fetch <id>|repo [ip:port]\n");
     }
 }
 
@@ -870,7 +954,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
     ConsoleRegister("font", "font [reload] (Assets/Fonts TOYF)", CommandFont);
-    ConsoleRegister("store", "store [list]|install <id> (Apps/)", CommandStore);
+    ConsoleRegister("store", "store list|install|sync|fetch|repo", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegister("exit", "alias of halt", CommandExit);

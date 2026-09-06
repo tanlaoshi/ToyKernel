@@ -13,6 +13,13 @@
 #define STORE_CATALOG_MAX  (8u * 1024u)
 #define STORE_COPY_MAX     FAT_WRITE_MAX
 
+/* 内核任务栈仅 8KiB；catalog 表放 BSS，避免 store sync/HTTP 栈溢出闪退 */
+static STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
+
+STORE_ENTRY *StoreScratchTab(void) {
+    return gStoreTab;
+}
+
 static int StrEq(const char *A, const char *B) {
     if (!A || !B) {
         return 0;
@@ -176,11 +183,12 @@ static int LoadCatalogPath(const char *Path, STORE_ENTRY *Out, int Max, int *Out
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
     int Err;
 
-    Err = LoadCatalogPath(STORE_CATALOG_PATH, Out, Max, OutCount);
+    /* PR-S2：已 sync 的 Store/catalog.txt 优先覆盖镜像内 Assets */
+    Err = LoadCatalogPath(STORE_CATALOG_ALT, Out, Max, OutCount);
     if (Err == FAT_OK && *OutCount > 0) {
         return *OutCount;
     }
-    Err = LoadCatalogPath(STORE_CATALOG_ALT, Out, Max, OutCount);
+    Err = LoadCatalogPath(STORE_CATALOG_PATH, Out, Max, OutCount);
     if (Err == FAT_OK) {
         return *OutCount;
     }
@@ -219,7 +227,7 @@ static int TryCopy(const char *Src, const char *Dst) {
         return FAT_ERR_NOENT;
     }
     Size = St.Size;
-    if (Size == 0 || Size > STORE_COPY_MAX) {
+    if (Size < 4 || Size > STORE_COPY_MAX) {
         return FAT_ERR_FBIG;
     }
     Pages = (UINT32)((Size + 4095u) / 4096u);
@@ -236,6 +244,11 @@ static int TryCopy(const char *Src, const char *Dst) {
         PhysicalMemoryFreePages(Buf, Pages);
         return Err != FAT_OK ? Err : FAT_ERR_IO;
     }
+    /* 跳过明显损坏的 ELF（空/截断 Store 缓存） */
+    if (!(Buf[0] == 0x7F && Buf[1] == 'E' && Buf[2] == 'L' && Buf[3] == 'F')) {
+        PhysicalMemoryFreePages(Buf, Pages);
+        return FAT_ERR_INVAL;
+    }
     Err = FileSystemWriteFile(Dst, Buf, Got);
     PhysicalMemoryFreePages(Buf, Pages);
     return Err;
@@ -250,7 +263,7 @@ static int EnsureAppsDir(void) {
 }
 
 int StoreInstall(const char *Id) {
-    STORE_ENTRY Tab[STORE_ENTRIES_MAX];
+    STORE_ENTRY *Tab = gStoreTab;
     int Count = 0;
     int i;
     int Err;

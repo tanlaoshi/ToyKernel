@@ -849,7 +849,7 @@ static int VirtioNetStart(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 BarPhys) {
 
 int NetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
     UINT8 DstMac[6];
-    UINT8 Frame[ETH_HDR_LEN + IP_HDR_LEN + 1400];
+    static UINT8 Frame[ETH_HDR_LEN + IP_HDR_LEN + 1400]; /* 任务栈仅 8KiB */
     ETH_HDR *Eth;
     IP_HDR *Ip;
     UINT16 IpTotal;

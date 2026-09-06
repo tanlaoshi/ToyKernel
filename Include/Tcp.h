@@ -28,6 +28,10 @@ UINT16 TcpLocalPort(void);
 UINT32 TcpPeerIp(void);
 UINT16 TcpPeerPort(void);
 
+/* PR-S2：客户端收包（TcpConnect 后）；OutLen 可为 NULL */
+int TcpRecv(void *Buf, UINTN Max, UINTN *OutLen);
+int TcpPeerClosed(void);
+
 void TcpGetWindowStats(UINT32 *SndUna, UINT32 *SndNxt, UINT32 *BufLen,
                        UINT16 *PeerWnd, UINT8 *Retrans);
 

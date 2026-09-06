@@ -1,5 +1,5 @@
 /*
- * Store.h — 本地/离线商店（PR-S1）：读 catalog → 复制 ELF 到 Apps/
+ * Store.h — 本地商店（PR-S1）+ 联网拉取（PR-S2）
  */
 #ifndef STORE_H
 #define STORE_H
@@ -20,12 +20,12 @@ typedef struct STORE_ENTRY {
     char Type[12];
     UINT32 Version;
     char File[STORE_FILE_MAX];
-    char Sha256[72]; /* "-" or hex */
+    char Sha256[72]; /* "-" / 8hex FNV / 跳过其它 */
     char Arch[STORE_ARCH_MAX];
     char Title[STORE_TITLE_MAX];
 } STORE_ENTRY;
 
-/* 加载 catalog；成功返回条目数，失败负值 */
+/* 加载 catalog；优先 Store/（S2 同步后），再 Assets/；成功返回条目数 */
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 
 /* 按 id 安装 type=app 到 Apps/<file>；成功 0 */
@@ -33,5 +33,18 @@ int StoreInstall(const char *Id);
 
 /* 当前本机 arch 标签（如 x86_64） */
 const char *StoreHostArch(void);
+
+/* PR-S2：仓库 ip:port（ToyDB store.repo=；默认 10.0.2.2:8080） */
+void StoreRepoLoadFromDb(void);
+int  StoreRepoSet(const char *IpPort);
+void StoreRepoGet(UINT32 *OutIp, UINT16 *OutPort);
+
+/* GET → 写 DestRel；ExpectHash "-" 跳过；成功 0，HTTP 非200 → -2，哈希 → -3 */
+int StoreFetchPath(const char *UrlPath, const char *DestRel, const char *ExpectHash);
+int StoreSyncCatalog(void);
+int StoreFetchId(const char *Id);
+
+/* 内核任务栈仅 8KiB；list 用 BSS scratch，勿在栈上开 STORE_ENTRY[N] */
+STORE_ENTRY *StoreScratchTab(void);
 
 #endif
