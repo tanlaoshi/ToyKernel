@@ -11,14 +11,16 @@
 #include "InputPs2.h"
 #include "Net.h"
 
-/* BlockAta.c / BlockAhci.c（PR-H1：AHCI 为第二 Block 后端） */
+/* BlockAta / BlockAhci（H1）/ BlockNvme（H5） */
 void AtaDriverRegister(void);
 void AhciDriverRegister(void);
+void NvmeDriverRegister(void);
 
 void HalDriverRegister(void) {
-    /* AHCI 先注册；VMM 后 HalBlockInit 再 Probe 时可覆盖 ATA 后端 */
+    /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
     AhciDriverRegister();
     AtaDriverRegister();
+    NvmeDriverRegister();
     InputXhciRegister();
     InputPs2Register(); /* PR-H2：仅当 xhci-hid 未绑定时生效 */
     NetDriverRegister();

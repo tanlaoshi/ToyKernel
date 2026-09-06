@@ -64,7 +64,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 缺口 | 状态 | 后续 |
 |------|------|------|
-| 真机无遗留 IDE：需 AHCI/NVMe | **H1 ✅** AHCI（`Ahci.c` / `TOY_DISK=ahci`） | NVMe / USB MSC 可后 |
+| 真机无遗留 IDE：需 AHCI/NVMe | **H1 ✅** AHCI；**H5 ✅** NVMe | USB MSC 可后 |
 | USB 键盘在部分机箱不响应 | **H2 ✅** 端口普查 + 无 MSI 仍 poll；`ps2-kbd` fallback | 见下 H2 |
 | 无 COM1 → 无串口冒烟 | **H3 ✅** GOP 文本镜像 | 见下 H3 |
 | 网卡非 virtio | 预期 | **H4** 可选 |
@@ -92,6 +92,14 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - 串口有：`boot: COM1 serial ok`（课堂 QEMU / `smoke-boot` 不回归）
 - 课堂强制验 GOP 路径：`./build.sh NO_COM1=1` 后 `./run-split.sh`（有显示窗）应见黄字 `ToyOS GOP console (no COM1)`
 - **未做**：USB-UART；完整独立 TTY 窗；Arm/RiscV 无此刀
+
+### H5：NVMe Block
+
+- 驱动：`HAL/X64/Drivers/Nvme.c` + `BlockNvme.c`（Driver Block / **D2**）
+- PCI class `01.08.02`；Admin + 单 IO 队列；同步轮询；512B LBA；单页 PRP bounce
+- 课堂：`TOY_DISK=nvme ./smoke-boot.sh`（串口 `boot: nvme drives=`；双盘=2）
+- 真机：PCIe NVMe 上 FAT（含 `TOYOS.ID`）可 `ls` / `exec`；**4KiB LBA / 多 NS / MSI 本刀不做**
+- Common FAT/VFS 无改动；注册在 AHCI 之后，有 NVMe 时覆盖后端
 
 **机型笔记**（贡献者追加一行即可）：
 

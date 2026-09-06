@@ -2,7 +2,7 @@
  * Block.h — 块设备读写抽象（与文件系统解耦）
  *
  * 后端经 BlockRegisterBackend / ToyDriverBlockAttach（PR-D2）注册；
- * x86 ATA / AHCI（PR-H1）、virt Arm/RiscV virtio-blk 经 Driver Block 类挂上。
+ * x86 ATA / AHCI（PR-H1）/ NVMe（PR-H5）、virt Arm/RiscV virtio-blk 经 Driver Block 类挂上。
  */
 #ifndef BLOCK_H
 #define BLOCK_H
