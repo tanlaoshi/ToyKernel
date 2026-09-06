@@ -36,7 +36,11 @@ if [ ! -f "$ROOT/Assets/Icons/bmp48/SHELL.BMP" ] && [ -d Assets/Icons ]; then
     mkdir -p "$ROOT/Assets/Icons"
     cp -a Assets/Icons/. "$ROOT/Assets/Icons/"
 fi
-mkdir -p "$ROOT/Assets/Icons"
+if [ ! -f "$ROOT/Assets/Locale/en.txt" ] && [ -d Assets/Locale ]; then
+    mkdir -p "$ROOT/Assets/Locale"
+    cp -a Assets/Locale/. "$ROOT/Assets/Locale/"
+fi
+mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Locale"
 # 清理旧扁平落点，避免双份
 rm -f "$ROOT/WALL.BMP"
 

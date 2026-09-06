@@ -684,6 +684,14 @@ static void CommandLang(int Argc, char **Argv) {
         ConsoleWrite(LocaleGet() == LOC_LANG_ZH ? "zh\n" : "en\n");
         return;
     }
+    if (Argv[1][0] == 'r' && Argv[1][1] == 'e' && Argv[1][2] == 'l' &&
+        Argv[1][3] == 'o' && Argv[1][4] == 'a' && Argv[1][5] == 'd' &&
+        Argv[1][6] == 0) {
+        /* lang reload — 重读 Assets/Locale/en.txt 与 zh.txt */
+        LocaleReload();
+        ConsoleWrite("locale reloaded\n");
+        return;
+    }
     if (Argv[1][0] == 'z' && Argv[1][1] == 'h') {
         (void)LocaleSet(LOC_LANG_ZH);
         ConsoleWrite(LocStr(MSG_LANG_SET));
@@ -774,7 +782,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
-    ConsoleRegister("lang", "set UI language en|zh", CommandLang);
+    ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);

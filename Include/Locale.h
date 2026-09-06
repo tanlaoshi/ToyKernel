@@ -1,7 +1,8 @@
 /*
- * Locale.h — UI 字符串表与语言切换（PR-I18N2）
+ * Locale.h — UI 字符串与语言切换
  *
  * 持久化：TOYOS.DB 键 lang=en|zh（缺省 en）
+ * 文案：优先 Assets/Locale/{en,zh}.txt（可编辑）；缺省内建 fallback
  */
 #ifndef LOCALE_H
 #define LOCALE_H
@@ -55,6 +56,8 @@ typedef enum {
 } MSG_ID;
 
 void LocaleInit(void);
+/* 重新读 Assets/Locale/en.txt 与 zh.txt（改文件后可 lang reload） */
+void LocaleReload(void);
 LOC_LANG LocaleGet(void);
 /* 成功 0；写盘失败仍切换内存语言并返回非 0 */
 int LocaleSet(LOC_LANG Lang);

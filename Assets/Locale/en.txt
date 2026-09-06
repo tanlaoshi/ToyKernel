@@ -1,0 +1,42 @@
+# ToyOS UI strings — edit with any text editor; no kernel rebuild.
+# Format: MSG_KEY=value   (# starts a comment)
+# After edit on the TOYOS volume: lang reload
+# Language choice itself: TOYOS.DB key lang=en|zh
+
+MSG_APP_SHELL=ToyOS Shell
+MSG_APP_SETTINGS=Settings
+MSG_APP_FILES=Files
+MSG_ICON_SHELL=Shell
+MSG_ICON_SETTINGS=Settings
+MSG_ICON_FILES=Files
+MSG_START=Start
+MSG_SET_TITLE=Settings
+MSG_SET_MAIN=[Main]
+MSG_SET_DESKTOP_BG= 1. Desktop bg
+MSG_SET_SHELL_BG= 2. Shell bg
+MSG_SET_FONT= 3. Font
+MSG_SET_DISPLAY= 4. Display (reboot)
+MSG_SET_LANGUAGE= 5. Language
+MSG_SET_HINT_MAIN=1-5 open  Esc/0 back
+MSG_SET_HINT_BACK= 0. Back
+MSG_SET_SAVED=Saved. QEMU: quit+./run-split.sh
+MSG_SET_LANG_EN= 1. English
+MSG_SET_LANG_ZH= 2. Chinese
+MSG_SET_PAGE_DESKTOP=[Desktop bg]
+MSG_SET_PAGE_SHELL=[Shell bg]
+MSG_SET_PAGE_FONT=[Font]
+MSG_SET_PAGE_DISPLAY=[Display] reboot
+MSG_SET_PAGE_LANG=[Language]
+MSG_FILES_VIEW=View: 
+MSG_FILES_NEW_DIR=New directory
+MSG_FILES_NEW_FILE=New empty file
+MSG_FILES_RENAME=Rename to
+MSG_FILES_PROMPT_HINT=Enter=ok  Esc=cancel  Backspace
+MSG_FILES_EMPTY=This folder is empty
+MSG_FILES_EMPTY_HINT=n = mkdir    f = new file
+MSG_CON_WELCOME=ToyOS console. Type help.
+MSG_CON_READY=ToyOS ready. Type shell / settings, or any key to open Shell.
+MSG_LANG_USAGE=usage: lang en|zh|reload\n
+MSG_LANG_NOW=lang: 
+MSG_LANG_SET=lang set\n
+MSG_LANG_BAD=lang: bad value (use en|zh|reload)\n

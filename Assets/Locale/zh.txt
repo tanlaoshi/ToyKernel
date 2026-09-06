@@ -1,0 +1,42 @@
+# ToyOS UI strings — edit with any text editor; no kernel rebuild.
+# Format: MSG_KEY=value   (# starts a comment)
+# After edit on the TOYOS volume: lang reload
+# Language choice itself: TOYOS.DB key lang=en|zh
+
+MSG_APP_SHELL=ToyOS 外壳
+MSG_APP_SETTINGS=设置
+MSG_APP_FILES=文件
+MSG_ICON_SHELL=外壳
+MSG_ICON_SETTINGS=设置
+MSG_ICON_FILES=文件
+MSG_START=开始
+MSG_SET_TITLE=设置
+MSG_SET_MAIN=[主菜单]
+MSG_SET_DESKTOP_BG= 1. 桌面背景
+MSG_SET_SHELL_BG= 2. 外壳背景
+MSG_SET_FONT= 3. 字体
+MSG_SET_DISPLAY= 4. 显示（重启）
+MSG_SET_LANGUAGE= 5. 语言
+MSG_SET_HINT_MAIN=1-5 打开  Esc/0 返回
+MSG_SET_HINT_BACK= 0. 返回
+MSG_SET_SAVED=已保存。QEMU: 退出后 ./run-split.sh
+MSG_SET_LANG_EN= 1. English
+MSG_SET_LANG_ZH= 2. 中文
+MSG_SET_PAGE_DESKTOP=[桌面背景]
+MSG_SET_PAGE_SHELL=[外壳背景]
+MSG_SET_PAGE_FONT=[字体]
+MSG_SET_PAGE_DISPLAY=[显示] 重启
+MSG_SET_PAGE_LANG=[语言]
+MSG_FILES_VIEW=查看: 
+MSG_FILES_NEW_DIR=新建目录
+MSG_FILES_NEW_FILE=新建空文件
+MSG_FILES_RENAME=重命名为
+MSG_FILES_PROMPT_HINT=Enter=确认 Esc=取消 Backspace
+MSG_FILES_EMPTY=此文件夹为空
+MSG_FILES_EMPTY_HINT=n = 新建目录    f = 新建文件
+MSG_CON_WELCOME=ToyOS 控制台。输入 help。
+MSG_CON_READY=ToyOS 就绪。输入 shell / settings，或按任意键打开外壳。
+MSG_LANG_USAGE=用法: lang en|zh|reload\n
+MSG_LANG_NOW=语言: 
+MSG_LANG_SET=语言已切换\n
+MSG_LANG_BAD=语言: 无效（用 en|zh|reload）\n
