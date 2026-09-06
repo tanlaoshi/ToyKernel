@@ -1,9 +1,9 @@
 /*
- * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸（PR-D4 / PR-G13）
+ * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-D4 / PR-G13）
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
- * 壁纸：运行时读 Assets/Images/WALL.BMP（BI_RGB，FAT/rootfs）；缺失则 ThemeDesktopBg 纯色。
- * 资源不链入 Kernel.elf。
+ * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|START.BMP。
+ * 均为 BI_RGB，运行时 FsReadFile + BmpDecode；缺失则回退色块。资源不链入 Kernel.elf。
  */
 #include "Desktop.h"
 #include "Gui.h"
@@ -28,12 +28,15 @@
 #define DESKTOP_DBLCLICK_MAX  2000000ULL
 
 #define TASKBAR_H             32u
-#define START_BTN_PAD_X       12u
+#define START_BTN_PAD_X       8u
 #define START_BTN_MIN_W       56u
-#define MENU_W                148u
+#define START_ICON_SZ         20u
+#define MENU_W                160u
 #define MENU_ITEM_H           28u
 #define MENU_ITEMS            3
+#define MENU_ICON_SZ          18u
 #define WALL_FILE_MAX         (512u * 1024u)
+#define ICON_FILE_MAX         (16u * 1024u)
 
 typedef enum {
     DESKTOP_ACT_SHELL = 0,
@@ -45,6 +48,9 @@ typedef struct {
     const char     *Label;
     DESKTOP_ACTION  Action;
     UINT32          IconColor;
+    const char     *BmpPath;
+    BMP_IMAGE       Bmp;
+    int             BmpReady;
     UINT32          X;
     UINT32          Y;
 } DESKTOP_ICON;
@@ -57,6 +63,8 @@ static UINT32 gSelectY;
 
 static BMP_IMAGE gWall;
 static int gWallReady;
+static BMP_IMAGE gStartBmp;
+static int gStartBmpReady;
 static int gMenuOpen;
 
 /* 已按当前分辨率拉伸的壁纸缓存（加速 DesktopFillRect，避免拖死鼠标） */
@@ -64,6 +72,8 @@ static UINT32 *gWallScreen;
 static UINT32  gWallScreenW;
 static UINT32  gWallScreenH;
 static UINT32  gWallScreenPages;
+
+static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color);
 
 static UINT64 DesktopClock(void) {
     return HalCpuTicks(0);
@@ -110,19 +120,21 @@ static void TaskbarGeom(UINT32 *BarY, UINT32 *Sw, UINT32 *Sh) {
     *BarY = (*Sh > TASKBAR_H) ? (*Sh - TASKBAR_H) : 0;
 }
 
-/* 开始钮宽度随字体/文案变化，避免 “Start” 画出灰底 */
+/* 开始钮：可选 START.BMP + 文案；宽度随字体变化 */
 static void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
     UINT32 Tw;
     UINT32 Bh;
+    UINT32 IconSlot;
     const char *Start;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
     Start = LocStr(MSG_START);
     Tw = FontStringWidth(Start ? Start : "Start");
-    *OutW = Tw + START_BTN_PAD_X * 2;
+    IconSlot = gStartBmpReady ? (START_ICON_SZ + 6u) : 0;
+    *OutW = Tw + START_BTN_PAD_X * 2 + IconSlot;
     if (*OutW < START_BTN_MIN_W) {
         *OutW = START_BTN_MIN_W;
     }
@@ -133,6 +145,160 @@ static void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH)
     *OutX = 4;
     *OutY = BarY + 4;
     *OutH = Bh;
+}
+
+/* 读 FAT 上 BI_RGB BMP 到 Out；成功返回 1 */
+static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
+                       const char *Tag) {
+    UINT8 *Buf;
+    UINT32 Pages;
+    UINTN Size;
+    int Err;
+
+    (void)Tag;
+    if (!Path || !Out || FileMax < 54) {
+        return 0;
+    }
+    BmpFree(Out);
+    Pages = (FileMax + 4095u) / 4096u;
+    Buf = (UINT8 *)PhysicalMemoryAllocatePages(Pages);
+    if (!Buf) {
+        DebugWrite(Tag);
+        DebugWrite(": alloc failed\n");
+        return 0;
+    }
+    Size = 0;
+    Err = FsReadFile(Path, Buf, FileMax, &Size);
+    if (Err != FAT_OK || Size < 54) {
+        PhysicalMemoryFreePages(Buf, Pages);
+        DebugWrite(Tag);
+        DebugWrite(": missing ");
+        DebugWrite(Path);
+        DebugWrite("\n");
+        return 0;
+    }
+    if (BmpDecode(Buf, Size, Out) != 0) {
+        PhysicalMemoryFreePages(Buf, Pages);
+        DebugWrite(Tag);
+        DebugWrite(": decode failed ");
+        DebugWrite(Path);
+        DebugWrite("\n");
+        return 0;
+    }
+    PhysicalMemoryFreePages(Buf, Pages);
+    DebugWrite(Tag);
+    DebugWrite(": loaded ");
+    DebugWrite(Path);
+    DebugWrite("\n");
+    return 1;
+}
+
+static UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
+                              UINT32 Dw, UINT32 Dh) {
+    UINT32 Sx;
+    UINT32 Sy;
+
+    if (!Img || !Img->Pixels || Img->Width == 0 || Img->Height == 0 ||
+        Dw == 0 || Dh == 0) {
+        return 0;
+    }
+    Sx = (Dx * Img->Width) / Dw;
+    Sy = (Dy * Img->Height) / Dh;
+    if (Sx >= Img->Width) {
+        Sx = Img->Width - 1;
+    }
+    if (Sy >= Img->Height) {
+        Sy = Img->Height - 1;
+    }
+    return Img->Pixels[Sy * Img->Width + Sx];
+}
+
+static void BlitBmpScaledRaw(UINT32 X, UINT32 Y, UINT32 Dw, UINT32 Dh,
+                             const BMP_IMAGE *Img) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 Line[64];
+
+    if (!Img || !Img->Pixels || Dw == 0 || Dh == 0) {
+        return;
+    }
+    if (Dw > 64) {
+        Dw = 64;
+    }
+    for (Row = 0; Row < Dh; Row++) {
+        for (Col = 0; Col < Dw; Col++) {
+            Line[Col] = BmpSampleScaled(Img, Col, Row, Dw, Dh);
+        }
+        HalVideoWriteRect(X, Y + Row, Dw, 1, Line);
+    }
+}
+
+/* BlitBmpScaledFree reserved if taskbar occlusion needs per-pixel later */
+
+static void BlitIconFaceRaw(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 Row;
+
+    if (Icon->BmpReady && Icon->Bmp.Pixels) {
+        W = Icon->Bmp.Width;
+        H = Icon->Bmp.Height;
+        if (W > DESKTOP_ICON_SIZE) {
+            W = DESKTOP_ICON_SIZE;
+        }
+        if (H > DESKTOP_ICON_SIZE) {
+            H = DESKTOP_ICON_SIZE;
+        }
+        for (Row = 0; Row < H; Row++) {
+            HalVideoWriteRect(X, Y + Row, W, 1,
+                              &Icon->Bmp.Pixels[Row * Icon->Bmp.Width]);
+        }
+        return;
+    }
+    UiFillRectangle(X, Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE, Icon->IconColor);
+}
+
+static void BlitIconFaceFree(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (Icon->BmpReady && Icon->Bmp.Pixels) {
+        W = Icon->Bmp.Width;
+        H = Icon->Bmp.Height;
+        if (W > DESKTOP_ICON_SIZE) {
+            W = DESKTOP_ICON_SIZE;
+        }
+        if (H > DESKTOP_ICON_SIZE) {
+            H = DESKTOP_ICON_SIZE;
+        }
+        for (Row = 0; Row < H; Row++) {
+            InRun = 0;
+            RunStart = 0;
+            for (Col = 0; Col < W; Col++) {
+                int Free = !GuiPointInAnyWindow(X + Col, Y + Row);
+                if (Free && !InRun) {
+                    RunStart = Col;
+                    InRun = 1;
+                } else if (!Free && InRun) {
+                    HalVideoWriteRect(X + RunStart, Y + Row, Col - RunStart, 1,
+                                      &Icon->Bmp.Pixels[Row * Icon->Bmp.Width +
+                                                        RunStart]);
+                    InRun = 0;
+                }
+            }
+            if (InRun) {
+                HalVideoWriteRect(X + RunStart, Y + Row, W - RunStart, 1,
+                                  &Icon->Bmp.Pixels[Row * Icon->Bmp.Width +
+                                                    RunStart]);
+            }
+        }
+        return;
+    }
+    FillRectFree(X, Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE, Icon->IconColor);
 }
 
 static void MenuGeom(UINT32 *Mx, UINT32 *My, UINT32 *Mw, UINT32 *Mh) {
@@ -204,36 +370,27 @@ static void BuildWallScreen(void) {
 }
 
 static void LoadWallpaper(void) {
-    UINT8 *Buf;
-    UINT32 Pages;
-    UINTN Size;
-    int Err;
-
-    BmpFree(&gWall);
     FreeWallScreen();
-    gWallReady = 0;
-    Pages = (WALL_FILE_MAX + 4095u) / 4096u;
-    Buf = (UINT8 *)PhysicalMemoryAllocatePages(Pages);
-    if (!Buf) {
-        DebugWrite("desktop: wallpaper alloc failed\n");
-        return;
+    gWallReady = LoadBmpPath("Assets/Images/WALL.BMP", &gWall, WALL_FILE_MAX,
+                             "desktop: wallpaper");
+    if (gWallReady) {
+        BuildWallScreen();
     }
-    Size = 0;
-    Err = FsReadFile("Assets/Images/WALL.BMP", Buf, WALL_FILE_MAX, &Size);
-    if (Err != FAT_OK || Size < 54) {
-        PhysicalMemoryFreePages(Buf, Pages);
-        DebugWrite("desktop: Assets/Images/WALL.BMP missing; solid ThemeDesktopBg\n");
-        return;
+}
+
+static void LoadDesktopIcons(void) {
+    int i;
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        gIcons[i].BmpReady = 0;
+        if (!gIcons[i].BmpPath) {
+            continue;
+        }
+        gIcons[i].BmpReady = LoadBmpPath(gIcons[i].BmpPath, &gIcons[i].Bmp,
+                                         ICON_FILE_MAX, "desktop: icon");
     }
-    if (BmpDecode(Buf, Size, &gWall) != 0) {
-        PhysicalMemoryFreePages(Buf, Pages);
-        DebugWrite("desktop: Assets/Images/WALL.BMP decode failed\n");
-        return;
-    }
-    PhysicalMemoryFreePages(Buf, Pages);
-    gWallReady = 1;
-    BuildWallScreen();
-    DebugWrite("desktop: wallpaper Assets/Images/WALL.BMP loaded\n");
+    gStartBmpReady = LoadBmpPath("Assets/Icons/bmp48/START.BMP", &gStartBmp,
+                                 ICON_FILE_MAX, "desktop: start");
 }
 
 UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
@@ -354,8 +511,7 @@ static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelW;
     UINT32 Border;
 
-    UiFillRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
-                    Icon->IconColor);
+    BlitIconFaceRaw(Icon->X, Icon->Y, Icon);
     Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
     UiDrawRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
                     Border);
@@ -364,8 +520,6 @@ static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
                         DESKTOP_ICON_SIZE - 2, DESKTOP_ICON_SIZE - 2,
                         COLOR_YELLOW);
     }
-    UiFillRectangle(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y,
-                    14, 14, COLOR_LIGHT_GRAY);
 
     LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
     LabelX = Icon->X;
@@ -385,8 +539,7 @@ static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelW;
     UINT32 Border;
 
-    FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
-                 Icon->IconColor);
+    BlitIconFaceFree(Icon->X, Icon->Y, Icon);
     Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
     FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, 1, Border);
     FillRectFree(Icon->X, Icon->Y + DESKTOP_ICON_SIZE - 1, DESKTOP_ICON_SIZE, 1,
@@ -399,8 +552,6 @@ static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
         FillRectFree(Icon->X + 1, Icon->Y + DESKTOP_ICON_SIZE - 2,
                      DESKTOP_ICON_SIZE - 2, 1, Border);
     }
-    FillRectFree(Icon->X + DESKTOP_ICON_SIZE - 14, Icon->Y, 14, 14,
-                 COLOR_LIGHT_GRAY);
 
     LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
     LabelX = Icon->X;
@@ -425,6 +576,8 @@ static void DrawTaskbarRaw(void) {
     UINT32 Tx;
     UINT32 Ty;
     UINT32 Tw;
+    UINT32 Ix;
+    UINT32 Iy;
     const char *Start;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
@@ -436,7 +589,15 @@ static void DrawTaskbarRaw(void) {
     UiDrawRectangle(0, BarY, Sw, TASKBAR_H, COLOR_GRAY);
     UiFillRectangle(Bx, By, Bw, Bh, gMenuOpen ? COLOR_BLUE : COLOR_LIGHT_GRAY);
     UiDrawRectangle(Bx, By, Bw, Bh, COLOR_WHITE);
-    Tx = Bx + (Bw > Tw ? (Bw - Tw) / 2 : 0);
+
+    Ix = Bx + START_BTN_PAD_X;
+    Iy = By + (Bh > START_ICON_SZ ? (Bh - START_ICON_SZ) / 2 : 0);
+    if (gStartBmpReady) {
+        BlitBmpScaledRaw(Ix, Iy, START_ICON_SZ, START_ICON_SZ, &gStartBmp);
+        Tx = Ix + START_ICON_SZ + 6u;
+    } else {
+        Tx = Bx + (Bw > Tw ? (Bw - Tw) / 2 : 0);
+    }
     Ty = BarY + (TASKBAR_H > FontCellH() ? (TASKBAR_H - FontCellH()) / 2 : 0);
     HalVideoDrawStringAt(Tx, Ty, Start ? Start : "Start",
                          gMenuOpen ? COLOR_WHITE : COLOR_BLACK);
@@ -461,8 +622,20 @@ static void DrawStartMenuRaw(void) {
     UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
     for (i = 0; i < MENU_ITEMS; i++) {
         UINT32 Iy = My + (UINT32)i * MENU_ITEM_H;
+        UINT32 IconX;
+        UINT32 IconY;
+        UINT32 TextX;
+
         UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, COLOR_GRAY);
-        HalVideoDrawStringAt(Mx + 10, Iy + (MENU_ITEM_H - FontCellH()) / 2,
+        IconX = Mx + 6;
+        IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
+        TextX = Mx + 10;
+        if (gIcons[i].BmpReady) {
+            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                             &gIcons[i].Bmp);
+            TextX = IconX + MENU_ICON_SZ + 6u;
+        }
+        HalVideoDrawStringAt(TextX, Iy + (MENU_ITEM_H - FontCellH()) / 2,
                              Labels[i], COLOR_BLACK);
     }
 }
@@ -602,10 +775,13 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
                 *Out = COLOR_YELLOW;
                 return 1;
             }
-            if (X >= Icon->X + DESKTOP_ICON_SIZE - 14 && Y >= Icon->Y &&
-                X < Icon->X + DESKTOP_ICON_SIZE && Y < Icon->Y + 14) {
-                *Out = COLOR_LIGHT_GRAY;
-                return 1;
+            if (Icon->BmpReady && Icon->Bmp.Pixels) {
+                UINT32 RelX = X - Icon->X;
+                UINT32 RelY = Y - Icon->Y;
+                if (RelX < Icon->Bmp.Width && RelY < Icon->Bmp.Height) {
+                    *Out = Icon->Bmp.Pixels[RelY * Icon->Bmp.Width + RelX];
+                    return 1;
+                }
             }
             *Out = Icon->IconColor;
             return 1;
@@ -772,16 +948,19 @@ void DesktopInit(void) {
 
     gIcons[0].Action = DESKTOP_ACT_SHELL;
     gIcons[0].IconColor = COLOR_BLUE;
+    gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
     gIcons[0].X = DESKTOP_ORIGIN_X;
     gIcons[0].Y = DESKTOP_ORIGIN_Y;
 
     gIcons[1].Action = DESKTOP_ACT_SETTINGS;
     gIcons[1].IconColor = 0x00606080;
+    gIcons[1].BmpPath = "Assets/Icons/bmp48/SET.BMP";
     gIcons[1].X = DESKTOP_ORIGIN_X;
     gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
 
     gIcons[2].Action = DESKTOP_ACT_FILES;
     gIcons[2].IconColor = 0x00208040;
+    gIcons[2].BmpPath = "Assets/Icons/bmp48/FILES.BMP";
     gIcons[2].X = DESKTOP_ORIGIN_X;
     gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
 
@@ -793,7 +972,8 @@ void DesktopInit(void) {
     gSelectY = 0;
     gMenuOpen = 0;
     LoadWallpaper();
-    DebugWrite("desktop: icons+taskbar ready (PR-G13)\n");
+    LoadDesktopIcons();
+    DebugWrite("desktop: icons+taskbar ready (bmp48 Assets/Icons)\n");
 }
 
 void DesktopRefreshLabels(void) {

@@ -1,6 +1,6 @@
 # ToyOS 桌面 / UI 图标
 
-统一风格图标，供下一步替换桌面 Shell / Settings / Files 色块，以及任务栏「开始」等。
+统一风格图标：桌面 Shell / Settings / Files，任务栏「开始」与开始菜单项。
 
 ## 来源与许可
 
@@ -18,22 +18,22 @@ ISC 允许商用/修改；保留 Lucide 版权声明见 [`LICENSE-Lucide.txt`](L
 | `png48/` / `png32/` | 带底板的 PNG（预览 / 将来若支持透明） |
 | `bmp48/` | **运行时首选**：48×48 BI_RGB BMP（对齐 `DESKTOP_ICON_SIZE`） |
 
-### bmp48 文件名（FAT 友好）
+### bmp48 文件名（FAT 友好）与 UI 映射
 
 | 文件 | 用途 |
 |------|------|
-| `SHELL.BMP` | 桌面 Shell |
-| `SET.BMP` | Settings |
-| `FILES.BMP` | Files |
-| `START.BMP` | 开始菜单 / 任务栏 |
+| `SHELL.BMP` | 桌面 Shell + 开始菜单项 |
+| `SET.BMP` | Settings + 开始菜单项 |
+| `FILES.BMP` | Files + 开始菜单项 |
+| `START.BMP` | 任务栏「开始」钮（缩放到 20×20） |
 | `NET.BMP` | 网络（预留） |
 | `POWER.BMP` | 电源（预留） |
 | `HELP.BMP` / `INFO.BMP` / `HOME.BMP` / `CLOSE.BMP` | 预留 |
 
+运行时：`Desktop.c` 经 `FsReadFile("Assets/Icons/bmp48/…")` + `BmpDecode` 绘制；缺失回退色块。
+
 壁纸仍在 [`../Images/WALL.BMP`](../Images/WALL.BMP)。
 
-## 下一步（未改代码）
+## rootfs
 
-在 `Desktop.c` 中用 `FsReadFile("Assets/Icons/bmp48/SHELL.BMP", …)` + `BmpDecode` 绘制图标，替代 `UiFillRectangle` 色块；缺失时回退现有色块即可。
-
-rootfs 打包：确保 `ToyImage` / `prepare-virt-rootfs.sh` 把本目录拷进 Guest 的 `Assets/Icons/`。
+`ToyImage/prepare-rootfs.sh` 与 `ToyKernel/prepare-virt-rootfs.sh` 将本目录同步到 Guest `Assets/Icons/`（与 `Assets/Images/` 同级）。
