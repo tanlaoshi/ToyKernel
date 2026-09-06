@@ -6,6 +6,7 @@
 static const FONT_FACE *gFonts[] = {
     &gFontFaceTerminus16x32,
     &gFontFaceTerminusX2,
+    &gFontFaceTerminus10x18, /* PR-T2：非 Scale×2 的独立尺寸 */
 };
 
 static UINT32 gCurrentId;

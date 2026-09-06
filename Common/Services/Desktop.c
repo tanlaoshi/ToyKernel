@@ -836,19 +836,27 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
                 if (Glyph != 0) {
                     UINT32 Bpr = (Gw + 7) / 8;
                     UINT32 Stretch = FontGlyphStretch(Gh);
+                    UINT32 DrawnH;
+                    UINT32 OffY = 0;
 
                     if (Stretch < 1) {
                         Stretch = 1;
                     }
-                    Gx = RelX / Stretch;
-                    Gy = RelY / Stretch;
-                    if (Gx < Gw && Gy < Gh) {
-                        UINT8 Byte = Glyph[Gy * Bpr + (Gx / 8)];
-                        int Bit = 7 - (int)(Gx % 8);
+                    DrawnH = Gh * Stretch;
+                    if (CellH > DrawnH) {
+                        OffY = (CellH - DrawnH) / 2;
+                    }
+                    if (RelY >= OffY) {
+                        Gx = RelX / Stretch;
+                        Gy = (RelY - OffY) / Stretch;
+                        if (Gx < Gw && Gy < Gh) {
+                            UINT8 Byte = Glyph[Gy * Bpr + (Gx / 8)];
+                            int Bit = 7 - (int)(Gx % 8);
 
-                        if (Byte & (1 << Bit)) {
-                            *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
-                            return 1;
+                            if (Byte & (1 << Bit)) {
+                                *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
+                                return 1;
+                            }
                         }
                     }
                 }

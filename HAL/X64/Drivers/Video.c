@@ -254,6 +254,9 @@ static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
     UINT32 Col;
     UINT32 Sy;
     UINT32 Sx;
+    UINT32 CellH;
+    UINT32 OffY;
+    UINT32 DrawnH;
 
     if (!Glyph || Width == 0 || Height == 0) {
         return;
@@ -265,6 +268,13 @@ static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
     }
     if (ScaleY < 1) {
         ScaleY = 1;
+    }
+    CellH = FontCellH();
+    DrawnH = Height * ScaleY;
+    OffY = 0;
+    /* 整数拉伸凑不满行高时（如 10×18 下 CJK 16）垂直居中 */
+    if (CellH > DrawnH) {
+        OffY = (CellH - DrawnH) / 2;
     }
     Bpr = (Width + 7) / 8;
 
@@ -279,7 +289,7 @@ static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
                 for (Sx = 0; Sx < ScaleX; Sx++) {
                     VideoDrawPixel(
                         X + Col * ScaleX + Sx,
-                        Y + Row * ScaleY + Sy,
+                        Y + OffY + Row * ScaleY + Sy,
                         Color);
                 }
             }
