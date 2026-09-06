@@ -10,11 +10,12 @@ cd "$(dirname "$0")"
 #   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
 #   ./build.sh arm64 BOARD=virt           # PR-B2：选 HAL/Arm64/Board/<board>
 #   ./build.sh riscv BOARD=milk-v-duo-s   # PR-B3：Duo S 命令行板包
-#   ./build.sh LWIP=1
+#   ./build.sh NO_COM1=1     # PR-H3：强制无 COM1，GOP 文本调试（课堂有显示时验）
 ARCH=x86_64
 BOARD=virt
 DEBUG=0
 LWIP=0
+NO_COM1=0
 BRINGUP=
 for Arg in "$@"; do
     case "$Arg" in
@@ -22,6 +23,8 @@ for Arg in "$@"; do
         DEBUG=0|debug=0) DEBUG=0 ;;
         LWIP=1|lwip=1) LWIP=1 ;;
         LWIP=0|lwip=0) LWIP=0 ;;
+        NO_COM1=1|no_com1=1) NO_COM1=1 ;;
+        NO_COM1=0|no_com1=0) NO_COM1=0 ;;
         BRINGUP=1|bringup=1) BRINGUP=1 ;;
         BRINGUP=0|bringup=0) BRINGUP=0 ;;
         BOARD=*) BOARD="${Arg#BOARD=}" ;;
@@ -33,7 +36,7 @@ if [ -z "$BRINGUP" ]; then
     BRINGUP=0
 fi
 
-echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
+echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP NO_COM1=$NO_COM1"
 
 case "$ARCH" in
     x86_64) HAL_ARCH=X64 ;;
@@ -48,7 +51,7 @@ ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
 USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
 
 make clean ARCH="$ARCH" BOARD="$BOARD"
-make ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP"
+make ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" NO_COM1="$NO_COM1"
 
 if [ ! -f "$ELF" ]; then
     echo "Build failed!"

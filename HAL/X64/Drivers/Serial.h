@@ -7,6 +7,7 @@
 #include "BootTypes.h"
 
 void SerialInit(void);
+int SerialPresent(void);
 void SerialWrite(const char *Text);
 int SerialDataReady(void);
 char SerialReadChar(void);

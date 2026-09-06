@@ -7,6 +7,9 @@
 #include "BootTypes.h"
 
 void HalSerialInit(void);
+int HalSerialPresent(void);
+/* PR-H3：video 就绪后调用，把无 COM1 时缓冲的 boot 日志刷到 GOP */
+void HalSerialGopEnable(void);
 void HalSerialWrite(const char *Text);
 int HalSerialDataReady(void);
 char HalSerialReadChar(void);

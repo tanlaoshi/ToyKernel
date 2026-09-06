@@ -66,7 +66,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 |------|------|------|
 | 真机无遗留 IDE：需 AHCI/NVMe | **H1 ✅** AHCI（`Ahci.c` / `TOY_DISK=ahci`） | NVMe / USB MSC 可后 |
 | USB 键盘在部分机箱不响应 | **H2 ✅** 端口普查 + 无 MSI 仍 poll；`ps2-kbd` fallback | 见下 H2 |
-| 无 COM1 → 无串口冒烟 | 预期 | **H3** GOP 控制台 |
+| 无 COM1 → 无串口冒烟 | **H3 ✅** GOP 文本镜像 | 见下 H3 |
 | 网卡非 virtio | 预期 | **H4** 可选 |
 | Secure Boot / 厂商定制菜单 | 机型相关 | 文档级：关 SB 或签名（后置） |
 | 超高分 / 怪异 PixelFormat | ToyBoot 已滤 `PixelBltOnly`、偏小模式 | 记具体机型到本页「机型笔记」 |
@@ -84,6 +84,14 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **PS/2 fallback**：`InputPs2.c`（`ps2-kbd`），仅当 Input 类尚未绑定时 Probe；`lsdev` 可见 `xhci-hid` 或 `ps2-kbd`
 - 串口期望（`TOY_DEBUG=0` 也可见）：`boot: xhci-hid keyboard` 或 `boot: ps2-kbd keyboard`
 - **未做**：USB hub、EHCI/UHCI、方向键全集、真机 IOAPIC
+
+### H3：无 COM1 → GOP 控制台
+
+- `Serial.c`：scratch 探测 COM1；失败则 `SerialPresent()==0`，不再空转等待 THRE
+- `HalSerialWrite`：有 COM1 → 原路径；无 COM1 → 视频前入环，`HalSerialGopEnable`（`InitializeVideo`）后 `HalVideoDrawString` + Present
+- 串口有：`boot: COM1 serial ok`（课堂 QEMU / `smoke-boot` 不回归）
+- 课堂强制验 GOP 路径：`./build.sh NO_COM1=1` 后 `./run-split.sh`（有显示窗）应见黄字 `ToyOS GOP console (no COM1)`
+- **未做**：USB-UART；完整独立 TTY 窗；Arm/RiscV 无此刀
 
 **机型笔记**（贡献者追加一行即可）：
 

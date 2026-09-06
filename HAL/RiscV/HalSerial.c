@@ -22,6 +22,14 @@ void HalSerialInit(void) {
     /* 厂商 U-Boot / QEMU 已配好波特率；bringup 不重配 */
 }
 
+int HalSerialPresent(void) {
+    return 1;
+}
+
+void HalSerialGopEnable(void) {
+    /* x86 PR-H3 only */
+}
+
 void HalSerialWrite(const char *Text) {
     if (Text == 0) {
         return;

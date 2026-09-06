@@ -2,6 +2,7 @@ ARCH ?= x86_64
 # PR-B2：Arm/RiscV 板包选择 → HAL/<Arch>/Board/<board>/；x86 桌面真机走 1.3c，忽略 BOARD
 BOARD ?= virt
 DEBUG ?= 0
+NO_COM1 ?= 0
 LWIP ?= 0
 LWIPINCLUDES :=
 LWIPOBJS :=
@@ -89,6 +90,7 @@ endif
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
               -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
+              -DTOY_NO_COM1=$(NO_COM1) \
               -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
               $(ARCH_CFLAGS)
 

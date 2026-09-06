@@ -1,12 +1,37 @@
 /*
- * Serial.c — COM1 串口驱动（经 HalIo，无直接 asm）
+ * Serial.c — COM1 串口驱动（经 HalIo；PR-H3：探测存在性）
  */
 #include "Serial.h"
 #include "Hal.h"
 
 #define COM1 0x3F8
 
+#ifndef TOY_NO_COM1
+#define TOY_NO_COM1 0
+#endif
+
+static int gSerialOk;
+
+static int ProbeCom1(void) {
+    UINT8 A;
+    UINT8 B;
+
+#if TOY_NO_COM1
+    return 0;
+#endif
+    /* Scratch 寄存器（offset 7）：无 16550 时常读回 0xFF */
+    HalIoWrite8(COM1 + 7, 0x55);
+    A = HalIoRead8(COM1 + 7);
+    HalIoWrite8(COM1 + 7, 0xAA);
+    B = HalIoRead8(COM1 + 7);
+    return (A == 0x55 && B == 0xAA) ? 1 : 0;
+}
+
 void SerialInit(void) {
+    gSerialOk = ProbeCom1();
+    if (!gSerialOk) {
+        return;
+    }
     HalIoWrite8(COM1 + 1, 0x00);
     HalIoWrite8(COM1 + 3, 0x80);
     HalIoWrite8(COM1 + 0, 0x01);
@@ -16,22 +41,40 @@ void SerialInit(void) {
     HalIoWrite8(COM1 + 4, 0x0B);
 }
 
+int SerialPresent(void) {
+    return gSerialOk;
+}
+
 static void SerialPutChar(char C) {
-    int Timeout = 100000;
+    int Timeout;
+
+    if (!gSerialOk) {
+        return;
+    }
+    Timeout = 100000;
     while (Timeout-- && !(HalIoRead8(COM1 + 5) & 0x20)) {
     }
     HalIoWrite8(COM1, (UINT8)C);
 }
 
 int SerialDataReady(void) {
+    if (!gSerialOk) {
+        return 0;
+    }
     return (HalIoRead8(COM1 + 5) & 0x01) != 0;
 }
 
 char SerialReadChar(void) {
+    if (!gSerialOk) {
+        return 0;
+    }
     return (char)HalIoRead8(COM1);
 }
 
 void SerialWrite(const char *Text) {
+    if (!gSerialOk || !Text) {
+        return;
+    }
     while (*Text) {
         if (*Text == '\n') {
             SerialPutChar('\r');

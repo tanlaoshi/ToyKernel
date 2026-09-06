@@ -69,6 +69,8 @@ static int InitializeVideo(void) {
     HalVideoInitBackbuffer();
     HalVideoClearScreen(ThemeDesktopBg());
     HalVideoPresent();
+    /* PR-H3：无 COM1 时把串口缓冲刷到帧缓冲文字 */
+    HalSerialGopEnable();
     return 0;
 }
 

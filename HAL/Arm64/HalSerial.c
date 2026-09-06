@@ -13,6 +13,14 @@ void HalSerialInit(void) {
     /* QEMU virt 已初始化 PL011；bringup 无需再配波特率 */
 }
 
+int HalSerialPresent(void) {
+    return 1;
+}
+
+void HalSerialGopEnable(void) {
+    /* x86 PR-H3 only */
+}
+
 void HalSerialWrite(const char *Text) {
     if (Text == 0) {
         return;
