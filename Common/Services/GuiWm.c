@@ -615,6 +615,7 @@ void GuiOnArrowKey(UINT8 Key) {
         M.X = gCursorX;
         M.Y = gCursorY;
         M.Buttons = 1;
+        M.Wheel = 0;
         GuiOnMouse(&M);
         M.Buttons = 0;
         GuiOnMouse(&M);
@@ -803,6 +804,7 @@ void GuiPollMouse(void) {
         M.X = X;
         M.Y = Y;
         M.Buttons = Raw.Buttons;
+        M.Wheel = Raw.Wheel;
         GuiOnMouse(&M);
     }
 }

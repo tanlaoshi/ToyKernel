@@ -21,10 +21,18 @@ typedef struct {
     UINT8 KeyCode[6];
 } HAL_KEYBOARD_REPORT;
 
+/*
+ * HAL_MOUSE_REPORT — 指针报告（PR-I1）
+ *
+ * Buttons：bit0=左、bit1=右、bit2=中（与 HID boot mouse 一致）。
+ * Wheel：有符号滚轮步进（正=向上/远离用户，按 HID；无滚轮则为 0）。
+ * Gui 消费滚轮见 PR-I2；本结构只负责 HAL→上层贯通。
+ */
 typedef struct {
     UINT32 X;
     UINT32 Y;
     UINT8  Buttons;
+    INT8   Wheel;
 } HAL_MOUSE_REPORT;
 
 int HalBlockInit(void);

@@ -20,6 +20,7 @@
 
 #define ABS_X 0x00
 #define ABS_Y 0x01
+#define REL_WHEEL 0x08
 
 #define VIRTIO_INPUT_CFG_ID_NAME 0x01
 #define VIRTIO_INPUT_CFG_ABS     0x03
@@ -62,6 +63,7 @@ static INT32 gAbsMaxY;
 static INT32 gAbsX;
 static INT32 gAbsY;
 static UINT8 gButtons;
+static INT8 gWheelAcc; /* PR-I1：EV_REL REL_WHEEL 累加，SYN/按钮时随报告送出 */
 static int gHaveAbs;
 
 static VIRTIO_INPUT_EVENT *gKbdEvBuf;
@@ -161,6 +163,8 @@ static void MousePush(void) {
         return;
     }
     R.Buttons = gButtons;
+    R.Wheel = gWheelAcc;
+    gWheelAcc = 0;
     if (gHaveAbs && gAbsMaxX > gAbsMinX && gAbsMaxY > gAbsMinY) {
         R.X = (UINT32)(((INT64)(gAbsX - gAbsMinX) * (INT64)(W - 1)) /
                        (INT64)(gAbsMaxX - gAbsMinX));
@@ -266,6 +270,18 @@ static void DrainDev(VIRTIO_MMIO_DEV *Dev, VIRTIO_INPUT_EVENT *Buf, int IsTab) {
             } else if (Ev.Code == ABS_Y) {
                 gAbsY = Ev.Value;
                 gHaveAbs = 1;
+            }
+        } else if (IsTab && Ev.Type == EV_REL) {
+            /* PR-I1：滚轮；其它相对轴忽略（tablet 主路径仍是 ABS） */
+            if (Ev.Code == REL_WHEEL) {
+                INT32 Acc = (INT32)gWheelAcc + Ev.Value;
+                if (Acc > 127) {
+                    Acc = 127;
+                }
+                if (Acc < -128) {
+                    Acc = -128;
+                }
+                gWheelAcc = (INT8)Acc;
             }
         } else if (IsTab && Ev.Type == EV_SYN) {
             MousePush();

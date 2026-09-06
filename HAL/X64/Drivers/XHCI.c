@@ -1100,20 +1100,30 @@ static void MousePush(void) {
         return;
     }
     USB_MOUSE_REPORT *R = &gMouseQ[gMouseWriteIndex];
+    R->Wheel = 0;
     X0 = (UINT32)(gMouseBuf[1] | (gMouseBuf[2] << 8));
     Y0 = (UINT32)(gMouseBuf[3] | (gMouseBuf[4] << 8));
     X1 = (UINT32)(gMouseBuf[2] | (gMouseBuf[3] << 8));
     Y1 = (UINT32)(gMouseBuf[4] | (gMouseBuf[5] << 8));
 
     if (gMouseReportLen >= 6 && X0 <= 32767 && Y0 <= 32767) {
+        /* 无 Report ID 的绝对/扩展：buttons + 16-bit X/Y；滚轮常在 byte5 */
         R->Buttons = gMouseBuf[0] & 7;
         R->X = X0;
         R->Y = Y0;
+        if (gMouseReportLen >= 6) {
+            R->Wheel = (INT8)gMouseBuf[5];
+        }
     } else if (gMouseReportLen >= 7 && X1 <= 32767 && Y1 <= 32767) {
+        /* 带 Report ID：id + buttons + 16-bit X/Y；滚轮常在 byte6 */
         R->Buttons = gMouseBuf[1] & 7;
         R->X = X1;
         R->Y = Y1;
+        if (gMouseReportLen >= 7) {
+            R->Wheel = (INT8)gMouseBuf[6];
+        }
     } else {
+        /* HID boot 相对鼠标：b0 buttons, b1 X, b2 Y, b3 wheel */
         static int AbsX = 512;
         static int AbsY = 384;
         static int AbsInit;
@@ -1133,6 +1143,9 @@ static void MousePush(void) {
         R->X = (UINT32)AbsX;
         R->Y = (UINT32)AbsY;
         R->Buttons = gMouseBuf[0] & 7;
+        if (gMouseReportLen >= 4) {
+            R->Wheel = (INT8)gMouseBuf[3];
+        }
     }
     gMouseWriteIndex = Next;
 }

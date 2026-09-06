@@ -74,6 +74,7 @@ static int XhciMouseDequeue(HAL_MOUSE_REPORT *Report) {
     Report->X = Raw.X;
     Report->Y = Raw.Y;
     Report->Buttons = Raw.Buttons;
+    Report->Wheel = Raw.Wheel;
     return 1;
 }
 

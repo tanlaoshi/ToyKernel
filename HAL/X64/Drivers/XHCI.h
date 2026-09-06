@@ -43,11 +43,12 @@ typedef struct {
     UINT8  KeyCode[6];
 } __attribute__((packed)) USB_KEYBOARD_REPORT;
 
-/* USB 鼠标/平板报告（绝对坐标或已换算的像素） */
+/* USB 鼠标/平板报告（绝对坐标或已换算的像素）；Buttons/Wheel 同 HAL_MOUSE_REPORT */
 typedef struct {
     UINT32 X;
     UINT32 Y;
     UINT8  Buttons;
+    INT8   Wheel;
 } USB_MOUSE_REPORT;
 
 int XhciInit(UINT64 BaseAddress);

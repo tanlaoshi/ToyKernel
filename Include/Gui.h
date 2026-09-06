@@ -9,7 +9,8 @@
 typedef struct {
     UINT32 X;
     UINT32 Y;
-    UINT8  Buttons;
+    UINT8  Buttons; /* bit0=左 bit1=右 bit2=中（PR-I1） */
+    INT8   Wheel;   /* 有符号滚轮；Gui 消费见 I2 */
 } GUI_MOUSE_STATE;
 
 /* PR-D3：窗口种类（桌面图标 / Settings 依赖） */
