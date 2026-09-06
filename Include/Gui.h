@@ -45,6 +45,8 @@ void GuiFrameBufferEnd(void);
 void GuiCursorHide(void);
 void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);
+/* PR-I3：右键按下占位（日志/空钩子）；不弹菜单 */
+void GuiRightClickPlaceholder(UINT32 X, UINT32 Y);
 void GuiOnArrowKey(UINT8 Key);
 void GuiRedraw(void);
 /* PR-G13：清桌面（壁纸/图标/任务栏）并按备份重贴各窗 */

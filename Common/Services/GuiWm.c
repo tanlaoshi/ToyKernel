@@ -4,6 +4,7 @@
 #include "GuiPriv.h"
 #include "UI.h"
 #include "HalVideo.h"
+#include "HalSerial.h"
 #include "Hal.h"
 #include "Font.h"
 #include "Debug.h"
@@ -628,6 +629,16 @@ void GuiOnArrowKey(UINT8 Key) {
 }
 
 
+/* PR-I3：右键占位 — 串口记一笔；不弹菜单（菜单另刀） */
+void GuiRightClickPlaceholder(UINT32 X, UINT32 Y) {
+    HalSerialWrite("gui: right-click\n");
+    DebugWrite("gui: right-click x=");
+    DebugHex32(X);
+    DebugWrite(" y=");
+    DebugHex32(Y);
+    DebugWrite("\n");
+}
+
 int GuiHandleClick(UINT32 X, UINT32 Y) {
     int i;
     int Hit;
@@ -767,6 +778,10 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     }
     if (!(Mouse->Buttons & 1) && (PrevBtn & 1)) {
         GuiDragEnd();
+    }
+    /* PR-I3：右键按下边沿 → 占位回调（bit1） */
+    if ((Mouse->Buttons & 2) && !(PrevBtn & 2)) {
+        GuiRightClickPlaceholder(gCursorX, gCursorY);
     }
     PrevBtn = Mouse->Buttons;
 }
