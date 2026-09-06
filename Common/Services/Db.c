@@ -149,7 +149,7 @@ int DbLoad(void) {
     UINTN L;
 
     ClearAll();
-    if (FsReadFile(DB_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK || Size == 0) {
+    if (FileSystemReadFile(DB_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK || Size == 0) {
         return DB_NOENT;
     }
     Buf[Size] = 0;
@@ -209,7 +209,7 @@ int DbSave(void) {
         }
         Buf[N++] = '\n';
     }
-    if (FsWriteFile(DB_PATH, Buf, N) != FAT_OK) {
+    if (FileSystemWriteFile(DB_PATH, Buf, N) != FAT_OK) {
         return DB_ERR;
     }
     gDirty = 0;
@@ -388,7 +388,7 @@ static void ImportThemeCfgIfEmpty(void) {
     if (DbCount() > 0) {
         return;
     }
-    if (FsReadFile(THEME_CFG_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK ||
+    if (FileSystemReadFile(THEME_CFG_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK ||
         Size == 0) {
         return;
     }

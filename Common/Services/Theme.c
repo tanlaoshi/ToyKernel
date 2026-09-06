@@ -326,7 +326,7 @@ static int ThemeLoadFromCfg(void) {
     char Line[64];
     UINTN L;
 
-    if (FsReadFile(THEME_CFG_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK || Size == 0) {
+    if (FileSystemReadFile(THEME_CFG_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK || Size == 0) {
         return -1;
     }
     Buf[Size] = 0;
@@ -472,7 +472,7 @@ int ThemeSave(void) {
     }
     Buf[N] = 0;
 
-    if (FsWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
+    if (FileSystemWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
         HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
         return -1;
     }

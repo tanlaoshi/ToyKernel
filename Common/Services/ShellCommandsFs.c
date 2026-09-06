@@ -16,7 +16,7 @@ static void FatReport(const char *Cmd, int Err) {
 
 static void CommandLs(int Argc, char **Argv) {
     const char *Path = (Argc >= 2) ? Argv[1] : 0;
-    int Err = FsListDir(Path);
+    int Err = FileSystemListDirectory(Path);
     if (Err != FAT_OK) {
         FatReport("ls", Err);
     }
@@ -31,7 +31,7 @@ static void CommandCat(int Argc, char **Argv) {
         ConsoleWrite("usage: cat <file>\n");
         return;
     }
-    Err = FsReadFile(Argv[1], Buf, sizeof(Buf) - 1, &Size);
+    Err = FileSystemReadFile(Argv[1], Buf, sizeof(Buf) - 1, &Size);
     if (Err != FAT_OK) {
         FatReport("cat", Err);
         return;
@@ -71,7 +71,7 @@ static void CommandWrite(int Argc, char **Argv) {
         Buf[Len++] = '\n';
     }
     Buf[Len] = 0;
-    Err = FsWriteFile(Argv[1], Buf, Len);
+    Err = FileSystemWriteFile(Argv[1], Buf, Len);
     if (Err != FAT_OK) {
         FatReport("write", Err);
         return;
@@ -124,7 +124,7 @@ static void CommandWrbig(int Argc, char **Argv) {
     for (i = 0; i < Size; i++) {
         Buf[i] = (UINT8)((i * 131u + 17u) & 0xFFu);
     }
-    Err = FsWriteFile(Argv[1], Buf, Size);
+    Err = FileSystemWriteFile(Argv[1], Buf, Size);
     if (Err != FAT_OK) {
         FatReport("wrbig", Err);
         PhysicalMemoryFreePages(Buf, Pages);
@@ -133,7 +133,7 @@ static void CommandWrbig(int Argc, char **Argv) {
     for (i = 0; i < Size; i++) {
         Buf[i] = 0;
     }
-    Err = FsReadFile(Argv[1], Buf, Size, &OutSize);
+    Err = FileSystemReadFile(Argv[1], Buf, Size, &OutSize);
     if (Err != FAT_OK) {
         FatReport("wrbig", Err);
         PhysicalMemoryFreePages(Buf, Pages);
@@ -173,7 +173,7 @@ static void CommandRm(int Argc, char **Argv) {
         ConsoleWrite("usage: rm <file>\n");
         return;
     }
-    Err = FsDeleteFile(Argv[1]);
+    Err = FileSystemDeleteFile(Argv[1]);
     if (Err != FAT_OK) {
         FatReport("rm", Err);
         return;
@@ -188,7 +188,7 @@ static void CommandMkdir(int Argc, char **Argv) {
         ConsoleWrite("usage: mkdir <dir>\n");
         return;
     }
-    Err = FsMkdir(Argv[1]);
+    Err = FileSystemMakeDirectory(Argv[1]);
     if (Err != FAT_OK) {
         FatReport("mkdir", Err);
         return;
@@ -203,7 +203,7 @@ static void CommandRmdir(int Argc, char **Argv) {
         ConsoleWrite("usage: rmdir <dir>\n");
         return;
     }
-    Err = FsRmdir(Argv[1]);
+    Err = FileSystemRemoveDirectory(Argv[1]);
     if (Err != FAT_OK) {
         FatReport("rmdir", Err);
         return;
@@ -218,7 +218,7 @@ static void CommandMv(int Argc, char **Argv) {
         ConsoleWrite("usage: mv <old> <new>\n");
         return;
     }
-    Err = FsRename(Argv[1], Argv[2]);
+    Err = FileSystemRename(Argv[1], Argv[2]);
     if (Err != FAT_OK) {
         FatReport("mv", Err);
         return;
@@ -305,7 +305,7 @@ static void CommandFileStat(int Argc, char **Argv) {
         return;
     }
     Path = Argv[1];
-    Err = FsFileStat(Path, &St);
+    Err = FileSystemFileStat(Path, &St);
     if (Err != FAT_OK) {
         FatReport("filestat", Err);
         return;
@@ -332,7 +332,7 @@ static void CommandFileStat(int Argc, char **Argv) {
 /* PR-F2：落盘同步（全称 filesync） */
 static void CommandFileSync(int Argc, char **Argv) {
     const char *Path = (Argc >= 2) ? Argv[1] : "";
-    int Err = FsFileSync(Path);
+    int Err = FileSystemFileSync(Path);
     if (Err != FAT_OK) {
         FatReport("filesync", Err);
         return;
@@ -377,7 +377,7 @@ static void CommandDirStress(int Argc, char **Argv) {
     if (ForceGrow) {
         MaxFiles = -1;
     }
-    Err = FsDirStress(Dir, MaxFiles, &Created, &Grew);
+    Err = FileSystemDirStress(Dir, MaxFiles, &Created, &Grew);
     if (Err != FAT_OK) {
         FatReport("dirstress", Err);
         ConsoleWrite("dirstress: created=");

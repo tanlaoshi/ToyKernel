@@ -131,7 +131,7 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     return Slot;
 }
 
-/* PR-F4：目录 fd — 打开时 FsListEntries 快照到内核缓冲 */
+/* PR-F4：目录 fd — 打开时 FileSystemListEntries 快照到内核缓冲 */
 int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
     int Slot;
     UINT32 Pages;

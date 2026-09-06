@@ -36,16 +36,16 @@ static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     }
 }
 
-static int InitSerial(void) {
+static int InitializeSerial(void) {
     HalSerialInit();
     return 0;
 }
 
-static int InitMem(void) {
+static int InitializePhysicalMemory(void) {
     return PhysicalMemoryInit();
 }
 
-static int InitVmm(void) {
+static int InitializeVirtualMemory(void) {
     const BOOT_INFO *Info = BootInfoGet();
 
     if (VirtualMemoryInit() != 0) {
@@ -59,7 +59,7 @@ static int InitVmm(void) {
     return 0;
 }
 
-static int InitVideo(void) {
+static int InitializeVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
@@ -72,7 +72,7 @@ static int InitVideo(void) {
     return 0;
 }
 
-static int InitCpu(void) {
+static int InitializeCpu(void) {
     if (HalInit() != 0) {
         return -1;
     }
@@ -83,19 +83,19 @@ static int InitCpu(void) {
     return 0;
 }
 
-static int InitSmp(void) {
+static int InitializeSmp(void) {
     return HalSmpStartAps();
 }
 
-static int InitUsb(void) {
+static int InitializeUsb(void) {
     return HalUsbInit();
 }
 
-static int InitFileSystemModule(void) {
+static int InitializeFileSystem(void) {
     return FileSystemInit();
 }
 
-static int InitGuiModule(void) {
+static int InitializeGui(void) {
     (void)DbInit();
     (void)ThemeLoad();
     LocaleInit();
@@ -103,7 +103,7 @@ static int InitGuiModule(void) {
     return 0;
 }
 
-static int InitNetModule(void) {
+static int InitializeNetwork(void) {
     if (HalNetInit() != 0) {
         return -1;
     }
@@ -112,18 +112,18 @@ static int InitNetModule(void) {
     return 0;
 }
 
-static int InitDrv(void) {
+static int InitializeDrv(void) {
     /* PR-D2：先注册平台驱动；ProbeAll 可早绑 ATA；virtio-blk 待 VMM 后由 HalBlockInit 再 Probe */
     HalDrvRegister();
     return ToyDrvProbeAll();
 }
 
-static int InitSched(void) {
+static int InitializeScheduler(void) {
     SchedulerInit();
     return 0;
 }
 
-static int InitConsole(void) {
+static int InitializeConsole(void) {
     LocaleInit();
     ConsoleRegisterBuiltins();
     if (HalPlatformVirtConsole() && !gVirtDesktop) {
@@ -137,47 +137,47 @@ static int InitConsole(void) {
 
 /* x86 全量桌面路径 */
 static const MODULE gModulesFull[] = {
-    { "serial",  InitSerial },
-    { "mem",     InitMem },
-    { "drv",     InitDrv },
-    { "vmm",     InitVmm },
-    { "video",   InitVideo },
-    { "cpu",     InitCpu },
-    { "smp",     InitSmp },
-    { "fs",      InitFileSystemModule },
-    { "usb",     InitUsb },
-    { "net",     InitNetModule },
-    { "gui",     InitGuiModule },
-    { "sched",   InitSched },
-    { "console", InitConsole },
+    { "serial",  InitializeSerial },
+    { "memory",     InitializePhysicalMemory },
+    { "drv",     InitializeDrv },
+    { "virtual-memory",     InitializeVirtualMemory },
+    { "video",   InitializeVideo },
+    { "cpu",     InitializeCpu },
+    { "smp",     InitializeSmp },
+    { "file-system",      InitializeFileSystem },
+    { "usb",     InitializeUsb },
+    { "network",     InitializeNetwork },
+    { "gui",     InitializeGui },
+    { "scheduler",   InitializeScheduler },
+    { "console", InitializeConsole },
 };
 
 /* PR-A8：virt 串口子集（无 FB / 无盘桌面） */
 static const MODULE gModulesVirt[] = {
-    { "serial",  InitSerial },
-    { "mem",     InitMem },
-    { "drv",     InitDrv },
-    { "vmm",     InitVmm },
-    { "cpu",     InitCpu },
-    { "smp",     InitSmp },
-    { "sched",   InitSched },
-    { "console", InitConsole },
+    { "serial",  InitializeSerial },
+    { "memory",     InitializePhysicalMemory },
+    { "drv",     InitializeDrv },
+    { "virtual-memory",     InitializeVirtualMemory },
+    { "cpu",     InitializeCpu },
+    { "smp",     InitializeSmp },
+    { "scheduler",   InitializeScheduler },
+    { "console", InitializeConsole },
 };
 
-/* PR-V5/N10/A14：virt 桌面（A14 挂 smp；输入在 InitCpu；N10 挂 net） */
+/* PR-V5/N10/A14：virt 桌面（A14 挂 smp；输入在 InitializeCpu；N10 挂 net） */
 static const MODULE gModulesVirtDesktop[] = {
-    { "serial",  InitSerial },
-    { "mem",     InitMem },
-    { "drv",     InitDrv },
-    { "vmm",     InitVmm },
-    { "video",   InitVideo },
-    { "cpu",     InitCpu },
-    { "smp",     InitSmp },
-    { "fs",      InitFileSystemModule },
-    { "net",     InitNetModule },
-    { "gui",     InitGuiModule },
-    { "sched",   InitSched },
-    { "console", InitConsole },
+    { "serial",  InitializeSerial },
+    { "memory",     InitializePhysicalMemory },
+    { "drv",     InitializeDrv },
+    { "virtual-memory",     InitializeVirtualMemory },
+    { "video",   InitializeVideo },
+    { "cpu",     InitializeCpu },
+    { "smp",     InitializeSmp },
+    { "file-system",      InitializeFileSystem },
+    { "network",     InitializeNetwork },
+    { "gui",     InitializeGui },
+    { "scheduler",   InitializeScheduler },
+    { "console", InitializeConsole },
 };
 
 int KernelModulesVirtDesktop(void) {

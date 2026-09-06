@@ -195,7 +195,7 @@ static int ReloadList(void) {
     gSelected = 0;
     gScroll = 0;
     gHoverIdx = -1;
-    Err = FsListEntries(gCwd[0] ? gCwd : "", gEnts, FAT_LIST_MAX, &gCount);
+    Err = FileSystemListEntries(gCwd[0] ? gCwd : "", gEnts, FAT_LIST_MAX, &gCount);
     if (Err != FAT_OK) {
         gCount = 0;
         SetStatus(FatStrError(Err));
@@ -574,7 +574,7 @@ static void OpenSelected(void) {
     }
 
     gViewLen = 0;
-    if (FsReadFile(Path, gView, sizeof(gView) - 1, &gViewLen) != FAT_OK) {
+    if (FileSystemReadFile(Path, gView, sizeof(gView) - 1, &gViewLen) != FAT_OK) {
         SetStatus("read failed");
         Paint();
         return;
@@ -639,7 +639,7 @@ static void DoDelete(void) {
         Paint();
         return;
     }
-    Err = IsDir ? FsRmdir(Path) : FsDeleteFile(Path);
+    Err = IsDir ? FileSystemRemoveDirectory(Path) : FileSystemDeleteFile(Path);
     gMode = FILES_MODE_LIST;
     if (Err != FAT_OK) {
         SetStatus(FatStrError(Err));
@@ -669,11 +669,11 @@ static void DoPromptCommit(void) {
     }
 
     if (gPromptKind == FILES_PROMPT_MKDIR) {
-        Err = FsMkdir(Path);
+        Err = FileSystemMakeDirectory(Path);
         SetStatus(Err == FAT_OK ? "mkdir ok" : FatStrError(Err));
     } else if (gPromptKind == FILES_PROMPT_NEWFILE) {
         /* vvfat：0 字节文件常不落宿主盘，重开即消失；写 1 字节换行可持久化 */
-        Err = FsWriteFile(Path, "\n", 1);
+        Err = FileSystemWriteFile(Path, "\n", 1);
         SetStatus(Err == FAT_OK ? "file ok" : FatStrError(Err));
     } else {
         if (!JoinPath(OldPath, sizeof(OldPath), gCwd, gEnts[gSelected].Name)) {
@@ -681,7 +681,7 @@ static void DoPromptCommit(void) {
             Paint();
             return;
         }
-        Err = FsRename(OldPath, Path);
+        Err = FileSystemRename(OldPath, Path);
         SetStatus(Err == FAT_OK ? "renamed" : FatStrError(Err));
     }
     gMode = FILES_MODE_LIST;

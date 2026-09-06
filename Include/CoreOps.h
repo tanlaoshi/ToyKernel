@@ -2,7 +2,7 @@
  * CoreOps.h — PR-R4：Core 经 ops 表调 Services（不再直 #include Gui/FileSystem）
  *
  * WindowOps：用户窗协议（Syscall）
- * VfsServiceOps：多卷 Fs* 门面（Process / TaskFd）；与 Library VfsOps/FS_OPS 不同层
+ * VfsServiceOps：多卷 FileSystem* 门面（Process / TaskFd）；与 Library VfsOps/FS_OPS 不同层
  */
 #ifndef CORE_OPS_H
 #define CORE_OPS_H

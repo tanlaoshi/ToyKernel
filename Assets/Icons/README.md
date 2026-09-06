@@ -30,7 +30,7 @@ ISC 允许商用/修改；保留 Lucide 版权声明见 [`LICENSE-Lucide.txt`](L
 | `POWER.BMP` | 电源（预留） |
 | `HELP.BMP` / `INFO.BMP` / `HOME.BMP` / `CLOSE.BMP` | 预留 |
 
-运行时：`Desktop.c` 经 `FsReadFile("Assets/Icons/bmp48/…")` + `BmpDecode` 绘制；缺失回退色块。
+运行时：`Desktop.c` 经 `FileSystemReadFile("Assets/Icons/bmp48/…")` + `BmpDecode` 绘制；缺失回退色块。
 
 壁纸仍在 [`../Images/WALL.BMP`](../Images/WALL.BMP)。
 

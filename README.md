@@ -56,7 +56,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 - **HAL 分层**：端口 I/O 为 `HalIoRead/Write*`；设备驱动在 `HAL/<Arch>/Drivers/`
 - **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
-- **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X86_64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
+- **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
 - **HAL 设备门面（PR-4）**：`Block` 后端注册 + `HalDevices.h`（USB 输入 / virtio-net）；Common 不再 `#include` ATA/PCIe/XHCI/Net 驱动头
 - **Drv 类（PR-D1～D4）**：`TOY_DRIVER`；Block / Input / Net 经 `ToyDrv*Attach`；Shell `lsdev`；见 [`Documents/写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md)
 - **HAL 去 x86 命名（PR-6）**：`HalIrqVectorSet`、`HalPagePrivatizeRootSlot`、`TASK.PageRoot` / `VirtualMemory*Root|LoadPageTable`

@@ -20,7 +20,7 @@ OBJCOPY = objcopy
 TOOLS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/tools/extract)
 
 ifeq ($(ARCH),x86_64)
-HAL_ARCH = X86_64
+HAL_ARCH = X64
 # -mgeneral-regs-only：禁止内核生成 SSE/AVX（未开 CR4.OSFXSR 时 pxor %xmm 会 #UD）
 ARCH_CFLAGS = -m64 -mno-red-zone -mgeneral-regs-only
 USER_BLOB_FMT = elf64-x86-64
@@ -206,10 +206,18 @@ USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
 else
 EXTRA_OBJS = $(HALDIR)/Startup_asm.o
-# PR-V2：复用 x86 帧缓冲绘制（scanout 由该 Arch ramfb 填入 BOOT_INFO）
-INCLUDES_HAL += -IHAL/X86_64/Drivers
+# PR-R5：Arm/RiscV 共享 virtio/ramfb/DTB/HalVideo（HAL/Virt）；复用 x86 Video 绘制
+INCLUDES_HAL += -IHAL/X64/Drivers -IHAL/Virt
+VIRT_SRCS := $(wildcard HAL/Virt/*.c)
+VIRT_OBJS := $(patsubst HAL/Virt/%.c,$(HALDIR)/Virt/%.o,$(VIRT_SRCS))
 VIRT_VIDEO_OBJ = $(HALDIR)/Drivers/Video.o
-EXTRA_OBJS += $(VIRT_VIDEO_OBJ)
+EXTRA_OBJS += $(VIRT_OBJS) $(VIRT_VIDEO_OBJ)
+ifeq ($(ARCH),riscv)
+# RiscV virt MMIO 窗与 Arm 不同；Arm 用 VirtioMmio.c 内默认值
+CFLAGS_HAL += -DVIRTIO_MMIO_BASE0=0x10001000ULL \
+              -DVIRTIO_MMIO_STRIDE=0x1000u \
+              -DVIRTIO_MMIO_COUNT=8u
+endif
 # PR-A12：本 arch 静态 HELLO.ELF（用户 VA @ 0x100000000）；放在 Arch 目录以免换架构互相覆盖
 USER_VIRT_DIR = $(HALDIR)/user
 ifeq ($(ARCH),arm64)
@@ -294,7 +302,11 @@ $(HALDIR)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifneq ($(ARCH),x86_64)
-$(VIRT_VIDEO_OBJ): HAL/X86_64/Drivers/Video.c | $(HALDIR)
+$(VIRT_VIDEO_OBJ): HAL/X64/Drivers/Video.c | $(HALDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+$(HALDIR)/Virt/%.o: HAL/Virt/%.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
@@ -323,9 +335,9 @@ $(HALDIR)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(HALDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
-$(HALDIR)/SmpTramp.bin: HAL/X86_64/SmpTrampoline.S HAL/X86_64/SmpTrampoline.ld | $(HALDIR)
-	$(CC) -c HAL/X86_64/SmpTrampoline.S -o $(HALDIR)/SmpTrampoline_low.o
-	$(LD) -T HAL/X86_64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
+$(HALDIR)/SmpTramp.bin: HAL/X64/SmpTrampoline.S HAL/X64/SmpTrampoline.ld | $(HALDIR)
+	$(CC) -c HAL/X64/SmpTrampoline.S -o $(HALDIR)/SmpTrampoline_low.o
+	$(LD) -T HAL/X64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
 		$(HALDIR)/SmpTrampoline_low.o
 	objcopy -O binary $(HALDIR)/SmpTrampoline_low.elf $@
 

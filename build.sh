@@ -32,7 +32,7 @@ fi
 echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
 
 case "$ARCH" in
-    x86_64) HAL_ARCH=X86_64 ;;
+    x86_64) HAL_ARCH=X64 ;;
     arm64)  HAL_ARCH=Arm64 ;;
     riscv)  HAL_ARCH=RiscV ;;
     *)

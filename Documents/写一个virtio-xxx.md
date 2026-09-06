@@ -7,7 +7,7 @@
 | 类 | 范例驱动名 | 位置 |
 |----|------------|------|
 | **Input** | `virtio-input` | `HAL/Arm64|RiscV/VirtioInput.c`（x86 对等范例：`Drivers/InputXhci.c` → `xhci-hid`） |
-| **Net** | `virtio-net` / `virtio-net-pci` | `HAL/Arm64|RiscV/VirtioNet.c`；x86 `HAL/X86_64/Drivers/Net.c` |
+| **Net** | `virtio-net` / `virtio-net-pci` | `HAL/Arm64|RiscV/VirtioNet.c`；x86 `HAL/X64/Drivers/Net.c` |
 | **Block**（D2） | `virtio-blk` / `ata-pio` | 已归档，模式相同 |
 
 Common 业务只调用 `HalInput*` / `HalNet*` / `Block*`，**禁止** `#include` 驱动私有头。

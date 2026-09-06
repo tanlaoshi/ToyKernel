@@ -168,7 +168,7 @@ int FileSystemResolve(const char *Path, int *OutVol, const char **OutRel) {
     return FAT_OK;
 }
 
-static int FsPrepare(const char *Path, const char **RelOut, int NeedWrite) {
+static int FileSystemPreparePath(const char *Path, const char **RelOut, int NeedWrite) {
     int Vol;
     const char *Rel;
     int Err;
@@ -190,9 +190,9 @@ static int FsPrepare(const char *Path, const char **RelOut, int NeedWrite) {
     return FAT_OK;
 }
 
-int FsListDir(const char *Path) {
+int FileSystemListDirectory(const char *Path) {
     const char *Rel;
-    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    int Err = FileSystemPreparePath(Path ? Path : "", &Rel, 0);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -202,9 +202,9 @@ int FsListDir(const char *Path) {
     return VfsListDir(Rel && Rel[0] ? Rel : 0);
 }
 
-int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+int FileSystemListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
     const char *Rel;
-    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    int Err = FileSystemPreparePath(Path ? Path : "", &Rel, 0);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -214,52 +214,52 @@ int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
     return VfsListEntries(Rel && Rel[0] ? Rel : 0, Out, Max, OutCount);
 }
 
-int FsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
+int FileSystemReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
     const char *Rel;
-    int Err = FsPrepare(Path, &Rel, 0);
+    int Err = FileSystemPreparePath(Path, &Rel, 0);
     if (Err != FAT_OK) {
         return Err;
     }
     return VfsReadFile(Rel, Buffer, MaxSize, OutSize);
 }
 
-int FsWriteFile(const char *Path, const void *Buffer, UINTN Size) {
+int FileSystemWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     const char *Rel;
-    int Err = FsPrepare(Path, &Rel, 1);
+    int Err = FileSystemPreparePath(Path, &Rel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
     return VfsWriteFile(Rel, Buffer, Size);
 }
 
-int FsDeleteFile(const char *Path) {
+int FileSystemDeleteFile(const char *Path) {
     const char *Rel;
-    int Err = FsPrepare(Path, &Rel, 1);
+    int Err = FileSystemPreparePath(Path, &Rel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
     return VfsDeleteFile(Rel);
 }
 
-int FsMkdir(const char *Path) {
+int FileSystemMakeDirectory(const char *Path) {
     const char *Rel;
-    int Err = FsPrepare(Path, &Rel, 1);
+    int Err = FileSystemPreparePath(Path, &Rel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
     return VfsMkdir(Rel);
 }
 
-int FsRmdir(const char *Path) {
+int FileSystemRemoveDirectory(const char *Path) {
     const char *Rel;
-    int Err = FsPrepare(Path, &Rel, 1);
+    int Err = FileSystemPreparePath(Path, &Rel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
     return VfsRmdir(Rel);
 }
 
-int FsRename(const char *OldPath, const char *NewPath) {
+int FileSystemRename(const char *OldPath, const char *NewPath) {
     const char *OldRel;
     const char *NewRel;
     int OldVol;
@@ -280,7 +280,7 @@ int FsRename(const char *OldPath, const char *NewPath) {
     if (OldVol != NewVol) {
         return FAT_ERR_INVAL;
     }
-    Err = FsPrepare(OldPath, &OldRel, 1);
+    Err = FileSystemPreparePath(OldPath, &OldRel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -292,9 +292,9 @@ int FsRename(const char *OldPath, const char *NewPath) {
     return VfsRename(OldRel, NewRel);
 }
 
-int FsFileStat(const char *Path, FAT_FILE_STAT *Out) {
+int FileSystemFileStat(const char *Path, FAT_FILE_STAT *Out) {
     const char *Rel;
-    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    int Err = FileSystemPreparePath(Path ? Path : "", &Rel, 0);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -304,9 +304,9 @@ int FsFileStat(const char *Path, FAT_FILE_STAT *Out) {
     return VfsFileStat(Rel && Rel[0] ? Rel : 0, Out);
 }
 
-int FsFileSync(const char *Path) {
+int FileSystemFileSync(const char *Path) {
     const char *Rel;
-    int Err = FsPrepare(Path ? Path : "", &Rel, 0);
+    int Err = FileSystemPreparePath(Path ? Path : "", &Rel, 0);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -314,7 +314,7 @@ int FsFileSync(const char *Path) {
     return VfsFileSync();
 }
 
-int FsDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew) {
+int FileSystemDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew) {
     const char *Rel;
     const FS_OPS *Ops;
     int Err;
@@ -322,7 +322,7 @@ int FsDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew) {
     if (!Path || !Path[0]) {
         return FAT_ERR_INVAL;
     }
-    Err = FsPrepare(Path, &Rel, 1);
+    Err = FileSystemPreparePath(Path, &Rel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -539,10 +539,10 @@ int FileSystemInit(void) {
         DebugWrite("FS: no volumes mounted\n");
         return 0;
     }
-    Svc.ReadFile = FsReadFile;
-    Svc.WriteFile = FsWriteFile;
-    Svc.ListEntries = FsListEntries;
-    Svc.FileStat = FsFileStat;
+    Svc.ReadFile = FileSystemReadFile;
+    Svc.WriteFile = FileSystemWriteFile;
+    Svc.ListEntries = FileSystemListEntries;
+    Svc.FileStat = FileSystemFileStat;
     VfsServiceOpsRegister(&Svc);
     ShellCommandsRegisterFs();
     DebugWrite("FS ready (ls, cat, write, wrbig, dirstress, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");

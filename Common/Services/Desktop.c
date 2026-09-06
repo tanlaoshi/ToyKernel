@@ -3,7 +3,7 @@
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
  * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|START.BMP。
- * 均为 BI_RGB，运行时 FsReadFile + BmpDecode；缺失则回退色块。资源不链入 Kernel.elf。
+ * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。资源不链入 Kernel.elf。
  */
 #include "Desktop.h"
 #include "UI.h"
@@ -182,7 +182,7 @@ static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
         return 0;
     }
     Size = 0;
-    Err = FsReadFile(Path, Buf, FileMax, &Size);
+    Err = FileSystemReadFile(Path, Buf, FileMax, &Size);
     if (Err != FAT_OK || Size < 54) {
         PhysicalMemoryFreePages(Buf, Pages);
         DebugWrite(Tag);

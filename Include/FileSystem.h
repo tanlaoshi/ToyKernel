@@ -2,7 +2,7 @@
  * FileSystem.h — 文件系统模块（PR-FS2 多卷 / 路径前缀）
  *
  * 路径：`TOYOS:HELLO.ELF`、`A:DOCS`、`B:/x`；无前缀用默认卷（优先 TOYOS）。
- * Shell/exec/open/Theme 请走 Fs*；底层 Fat* 仍相对「当前已激活卷」。
+ * Shell/exec/open/Theme 请走 FileSystem*；底层 Fat* 仍相对「当前已激活卷」。
  */
 #ifndef FILE_SYSTEM_H
 #define FILE_SYSTEM_H
@@ -31,19 +31,19 @@ int FileSystemResolve(const char *Path, int *OutVol, const char **OutRel);
 int FileSystemActivate(int VolIdx);
 
 /* 带前缀的路径操作（内部 Resolve+Activate+Vfs*；写操作拒只读卷） */
-int FsListDir(const char *Path);
+int FileSystemListDirectory(const char *Path);
 /* PR-FB1：结构化目录枚举（供文件浏览器） */
-int FsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
-int FsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
-int FsWriteFile(const char *Path, const void *Buffer, UINTN Size);
-int FsDeleteFile(const char *Path);
-int FsMkdir(const char *Path);
-int FsRmdir(const char *Path);
-int FsRename(const char *OldPath, const char *NewPath);
+int FileSystemListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+int FileSystemReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
+int FileSystemWriteFile(const char *Path, const void *Buffer, UINTN Size);
+int FileSystemDeleteFile(const char *Path);
+int FileSystemMakeDirectory(const char *Path);
+int FileSystemRemoveDirectory(const char *Path);
+int FileSystemRename(const char *OldPath, const char *NewPath);
 /* PR-F2：文件状态查询 / 落盘同步（名称写全，勿用孤立 stat/fsync） */
-int FsFileStat(const char *Path, FAT_FILE_STAT *Out);
-int FsFileSync(const char *Path);
+int FileSystemFileStat(const char *Path, FAT_FILE_STAT *Out);
+int FileSystemFileSync(const char *Path);
 /* PR-F3：FAT 子目录簇扩展回归（RES 等合成卷 → ROFS/INVAL） */
-int FsDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew);
+int FileSystemDirStress(const char *Path, int MaxFiles, int *OutCreated, int *OutGrew);
 
 #endif
