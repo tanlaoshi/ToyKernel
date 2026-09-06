@@ -95,7 +95,7 @@ booti ${kernel_addr_r} - ${fdt_addr_r}
 | PR | 本约定如何用 |
 |----|----------------|
 | **B0**（本页） | 清单 + `_template`；概念文互指 |
-| **B1** | Common 消费 `HalHasFrameBuffer` / `HalConsoleOnly`，板包勾选能力 |
+| **B1 ✅** | Common 消费 `HalHasFrameBuffer` / `HalConsoleOnly`，板包勾选能力 |
 | **B2** | `BOARD=` 选中 `HAL/<Arch>/Board/<board>`；可先收 `virt` |
 | **B3** | Duo S：厂商 U-Boot + SoC UART hello |
 

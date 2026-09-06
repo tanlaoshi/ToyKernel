@@ -21,15 +21,8 @@ void KernelMain(void) {
         }
     }
 
-    /* PR-V5：virt 有 FB → 与 x86 一样启 shell/gui（协作调度，无抢占） */
-    if (HalPlatformVirtConsole()) {
-        if (KernelModulesVirtDesktop()) {
-            SchedulerCreate("shell", ShellTask);
-            SchedulerCreate("gui", GuiTask);
-            SchedulerCreate("worker", WorkerTask);
-            SchedulerStart();
-            return;
-        }
+    /* PR-B1：ConsoleOnly → 串口壳；HasFrameBuffer + virt 形状 → 协作桌面 */
+    if (HalConsoleOnly()) {
         /* PR-A14：多核时也走 SchedulerStart，让 AP 进 idle；单核仍直跑串口壳 */
         if (HalCpuCount() > 1) {
             SchedulerCreate("shell", ConsoleSerialRun);
@@ -38,6 +31,14 @@ void KernelMain(void) {
         }
         HalTimerStart();
         ConsoleSerialRun();
+        return;
+    }
+
+    if (HalHasFrameBuffer() && HalPlatformVirtConsole()) {
+        SchedulerCreate("shell", ShellTask);
+        SchedulerCreate("gui", GuiTask);
+        SchedulerCreate("worker", WorkerTask);
+        SchedulerStart();
         return;
     }
 

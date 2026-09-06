@@ -22,7 +22,7 @@
 #include "Locale.h"
 #include "Drv.h"
 
-static int gVirtDesktop; /* PR-V5：有帧缓冲则走桌面模块表 */
+static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
 static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
@@ -126,7 +126,7 @@ static int InitializeScheduler(void) {
 static int InitializeConsole(void) {
     LocaleInit();
     ConsoleRegisterBuiltins();
-    if (HalPlatformVirtConsole() && !gVirtDesktop) {
+    if (HalConsoleOnly()) {
         ShellCommandsRegisterVirtMin();
     } else {
         ShellCommandsRegister();
@@ -152,7 +152,7 @@ static const MODULE gModulesFull[] = {
     { "console", InitializeConsole },
 };
 
-/* PR-A8：virt 串口子集（无 FB / 无盘桌面） */
+/* PR-A8 / B1：HalConsoleOnly — 串口子集（无 FB / 命令行靶） */
 static const MODULE gModulesVirt[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
@@ -185,20 +185,22 @@ int KernelModulesVirtDesktop(void) {
 }
 
 int KernelModulesRun(void) {
-    const BOOT_INFO *Info;
-
-    if (HalPlatformVirtConsole()) {
-        Info = BootInfoGet();
-        gVirtDesktop = (Info && Info->FrameBufferSize != 0) ? 1 : 0;
-        if (gVirtDesktop) {
-            return ModulesRun(gModulesVirtDesktop,
-                              (int)(sizeof(gModulesVirtDesktop) /
-                                    sizeof(gModulesVirtDesktop[0])));
-        }
+    /*
+     * PR-B1：用能力旗标选表，不再「凡非 x86 即 virt 串口」。
+     * ConsoleOnly → 串口子集；HasFrameBuffer + virt 形状 → virt 桌面；否则 x86 全表。
+     */
+    if (HalConsoleOnly()) {
+        gVirtDesktop = 0;
         return ModulesRun(gModulesVirt,
                           (int)(sizeof(gModulesVirt) / sizeof(gModulesVirt[0])));
     }
-    gVirtDesktop = 0;
+    if (HalHasFrameBuffer() && HalPlatformVirtConsole()) {
+        gVirtDesktop = 1;
+        return ModulesRun(gModulesVirtDesktop,
+                          (int)(sizeof(gModulesVirtDesktop) /
+                                sizeof(gModulesVirtDesktop[0])));
+    }
+    gVirtDesktop = HalHasFrameBuffer() ? 1 : 0;
     return ModulesRun(gModulesFull,
                       (int)(sizeof(gModulesFull) / sizeof(gModulesFull[0])));
 }

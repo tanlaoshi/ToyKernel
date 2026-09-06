@@ -2,6 +2,7 @@
  * HAL/riscv/Hal.c — RISC-V HAL（PR-A7 可链接；PR-A13 SBI timer IRQ）
  */
 #include "Hal.h"
+#include "BootInfo.h"
 
 /*
  * OpenSBI 下内核在 S-mode：不可直接读/写 CLINT mtime（M-mode MMIO → 异常复位环）。
@@ -176,7 +177,19 @@ void HalTimerIrq(void) {
     HalTimerAck();
 }
 
+int HalHasFrameBuffer(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+
+    return (Info != 0 && Info->FrameBufferSize != 0) ? 1 : 0;
+}
+
+int HalConsoleOnly(void) {
+    /* 无 FB → 串口命令行靶（virt --headless / 未来 Duo S 等板包） */
+    return HalHasFrameBuffer() ? 0 : 1;
+}
+
 int HalPlatformVirtConsole(void) {
+    /* virt 平台形状（协作调度 / 桌面模块表）；串口见 HalConsoleOnly */
     return 1;
 }
 

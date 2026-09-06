@@ -2,6 +2,7 @@
  * HAL/arm64/Hal.c — ARM64 HAL（PR-A7 可链接；PR-A13 GIC + CNTV IRQ）
  */
 #include "Hal.h"
+#include "BootInfo.h"
 
 static UINT64 gCntLast;
 static UINT64 gCntFreq;
@@ -159,7 +160,19 @@ void HalExceptionIrq(void) {
     HalGicEoi(Id);
 }
 
+int HalHasFrameBuffer(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+
+    return (Info != 0 && Info->FrameBufferSize != 0) ? 1 : 0;
+}
+
+int HalConsoleOnly(void) {
+    /* 无 FB → 串口命令行靶（virt --headless / 未来 Duo S 等板包） */
+    return HalHasFrameBuffer() ? 0 : 1;
+}
+
 int HalPlatformVirtConsole(void) {
+    /* virt 平台形状（协作调度 / 桌面模块表）；串口见 HalConsoleOnly */
     return 1;
 }
 

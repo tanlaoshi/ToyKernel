@@ -2,6 +2,7 @@
  * HAL/x86_64/Hal.c — x86-64 HAL 实现（委托给 Arch / VirtualMemory / Serial）
  */
 #include "Hal.h"
+#include "BootInfo.h"
 #include "Arch.h"
 #include "Debug.h"
 
@@ -292,6 +293,17 @@ void HalDebugHex64(UINT64 Value) {
 
 void HalCpuPark(void) {
     __asm__ volatile ("cli; hlt");
+}
+
+int HalHasFrameBuffer(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+
+    return (Info != 0 && Info->FrameBufferSize != 0) ? 1 : 0;
+}
+
+int HalConsoleOnly(void) {
+    /* x86 课堂 / 真机桌面路径：始终走全量表，不用串口子集 */
+    return 0;
 }
 
 int HalPlatformVirtConsole(void) {

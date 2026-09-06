@@ -402,7 +402,7 @@ int ProcessExec(const char *Path) {
     if (ProcessStartElf(Space, &Info, Path) != 0) {
         return -1;
     }
-    /* virt 无定时抢占：协作跑完刚创建的用户任务（PR-A12） */
+    /* PR-A12 / B1：virt 平台形状无定时抢占 → 协作排空用户任务 */
     if (HalPlatformVirtConsole()) {
         SchedulerCoopDrainUsers();
     }

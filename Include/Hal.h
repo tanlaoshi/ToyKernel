@@ -148,7 +148,18 @@ void HalUserCoopReturn(void);
 const char *HalArchName(void);
 const char *HalCpuInfo(void);
 
-/* PR-A8：QEMU virt 无 GOP/块设备时走模块子集 + 串口空闲循环（A9 再接命令） */
+/*
+ * PR-B1 能力旗标：Common 用能力判断，勿用「非 x86 = virt 串口」。
+ * HalHasFrameBuffer — 当前 BOOT_INFO 有可用帧缓冲（亮屏 / 桌面模块前提）
+ * HalConsoleOnly    — 命令行靶 / 无 FB：串口模块子集（跳过 video/gui）
+ */
+int HalHasFrameBuffer(void);
+int HalConsoleOnly(void);
+
+/*
+ * virt 平台形状（协作调度、virt 桌面模块表 vs x86 全表）。
+ * 串口子集请用 HalConsoleOnly，不要把本函数当「所有非 x86」。
+ */
 int HalPlatformVirtConsole(void);
 void HalVirtIdleLoop(void);
 /* 轮询时钟（virt 无 IRQ 时由 IdleLoop 调用；x86 可为空） */
