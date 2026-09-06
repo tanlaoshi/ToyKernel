@@ -1,17 +1,25 @@
 /*
- * HalSerial.c — QEMU virt riscv64 UART16550（基址见 BoardConfig.h / PR-B2）
+ * HalSerial.c — RISC-V UART16550 / DW-APB（基址与间距见 BoardConfig.h）
+ *
+ * QEMU virt：字节间距（REG_SHIFT=0）@ 0x10000000
+ * Duo S：   reg-shift=2（×4）@ 0x04140000（PR-B3）
  */
 #include "HalSerial.h"
 #include "BoardConfig.h"
 
+#ifndef TOY_BOARD_UART_REG_SHIFT
+#define TOY_BOARD_UART_REG_SHIFT 0
+#endif
+
 #define UART_BASE  ((UINTN)TOY_BOARD_UART_BASE)
-#define UART_THR   (*(volatile UINT8 *)(UART_BASE + 0x00))
-#define UART_LSR   (*(volatile UINT8 *)(UART_BASE + 0x05))
+#define UART_OFF(N) ((UINTN)(N) << (TOY_BOARD_UART_REG_SHIFT))
+#define UART_THR   (*(volatile UINT8 *)(UART_BASE + UART_OFF(0)))
+#define UART_LSR   (*(volatile UINT8 *)(UART_BASE + UART_OFF(5)))
 #define UART_LSR_THRE  (1u << 5)
 #define UART_LSR_DR    (1u << 0)
 
 void HalSerialInit(void) {
-    /* QEMU virt 16550 已就绪 */
+    /* 厂商 U-Boot / QEMU 已配好波特率；bringup 不重配 */
 }
 
 void HalSerialWrite(const char *Text) {

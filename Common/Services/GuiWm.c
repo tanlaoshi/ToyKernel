@@ -5,6 +5,7 @@
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"
+#include "Font.h"
 #include "Debug.h"
 #include "Theme.h"
 #include "Desktop.h"

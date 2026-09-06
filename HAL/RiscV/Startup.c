@@ -1,5 +1,7 @@
 /*
- * Startup.c — QEMU virt riscv64：OpenSBI + DTB → BOOT_INFO（PR-V1）/ ramfb（PR-V2）
+ * Startup.c — RISC-V：DTB / 板级表 → BOOT_INFO（PR-V1）/ ramfb（virt）/ Duo S（PR-B3）
+ *
+ * OpenSBI / 厂商 U-Boot：a0=hartid，a1=DTB。
  */
 #include "HalSerial.h"
 #include "Hal.h"
@@ -19,7 +21,7 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     (void)HartId;
     (void)DtbPhys;
     HalSerialInit();
-    HalSerialWrite("ToyOS RiscV virt: hello\n");
+    HalSerialWrite("ToyOS RiscV: hello\n");
     HalSerialWrite("board: ");
     HalSerialWrite(BoardName());
     HalSerialWrite("\n");
@@ -53,12 +55,11 @@ static void HexU64(UINT64 V) {
 
 void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     BOOT_INFO Info;
-    /* OpenSBI 占 0x80000000；payload 链在 0x80200000（PR-V1） */
-    UINT64 KernelStart = 0x80200000ULL;
+    UINT64 KernelStart = TOY_BOARD_KERNEL_LOAD;
     UINT64 KernelEnd = (UINT64)(UINTN)__kernel_end;
     UINT64 FirmwareEnd = KernelStart;
-    UINT64 RamBase = 0x80000000ULL;
-    UINT64 RamSize = 256ULL * 1024ULL * 1024ULL;
+    UINT64 RamBase = TOY_BOARD_RAM_BASE;
+    UINT64 RamSize = TOY_BOARD_RAM_SIZE;
     UINT64 FreeStart;
     UINT64 FwCfg = 0;
     UINTN i;
@@ -67,7 +68,7 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     (void)HartId;
 
     HalSerialInit();
-    HalSerialWrite("ToyOS RiscV virt: KernelMain\n");
+    HalSerialWrite("ToyOS RiscV: KernelMain\n");
     HalSerialWrite("board: ");
     HalSerialWrite(BoardName());
     HalSerialWrite("\n");
@@ -80,9 +81,9 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
         HexU64(RamSize);
         HalSerialWrite("\n");
     } else {
-        HalSerialWrite("boot: DTB memory missing, fallback 256MiB @0x80000000\n");
-        RamBase = 0x80000000ULL;
-        RamSize = 256ULL * 1024ULL * 1024ULL;
+        HalSerialWrite("boot: DTB memory missing, fallback BoardConfig RAM\n");
+        RamBase = TOY_BOARD_RAM_BASE;
+        RamSize = TOY_BOARD_RAM_SIZE;
     }
 
     for (i = 0; i < sizeof(Info); i++) {
@@ -96,6 +97,7 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
         FreeStart = FirmwareEnd;
     }
 
+#if TOY_BOARD_HAS_FRAMEBUFFER
     if (FromDtb && DtbPhys != 0 && DtbFwCfgBase(DtbPhys, &FwCfg) != 0) {
         FwCfg = 0;
     }
@@ -103,8 +105,11 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
         FwCfg = RISCV_VIRT_FWCFG_FALLBACK;
     }
     (void)RamfbSetup(&Info, FwCfg, &FreeStart, RamBase + RamSize);
+#else
+    (void)FwCfg;
+#endif
 
-    /* [RamBase, FreeStart) = OpenSBI + 内核 + FB（保留）；其后可分配 */
+    /* [RamBase, FreeStart) = 固件 + 内核（+ 可选 FB）；其后可分配 */
     if (FreeStart > RamBase && FreeStart - RamBase <= RamSize) {
         BootInfoAddRegion(&Info, RamBase, FreeStart - RamBase, 0);
         if (FreeStart < RamBase + RamSize) {

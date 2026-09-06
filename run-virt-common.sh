@@ -42,6 +42,8 @@ ToyKernel virt 验收（自有 Boot，非 UEFI / 非 ToyImage/run-split.sh）
   TOY_VIRT_SMP=1|2|N         核数（默认 2；PR-A14；单核路径用 1）
   TOY_RISCV_BIOS_NONE=1      RiscV：-bios none（旧链接对照）
 
+注意：本路径始终 BOARD=virt（忽略环境 BOARD=）；真机板包请用 ./build.sh … BOARD=<name>。
+
 EOF
 }
 
@@ -104,24 +106,41 @@ toy_virt_resolve_qemu() {
 }
 
 toy_virt_ensure_elf() {
-    local Root
+    local Root WantBoard Stamp PrevBoard NeedBuild HelloElf
     Root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cd "$Root"
+    # QEMU virt 验收必须用板包 virt；忽略环境里残留的 BOARD=milk-v-duo-s 等
+    WantBoard=virt
+    BOARD=virt
     if [ -n "$TOY_VIRT_ELF_ARG" ]; then
         TOY_VIRT_ELF="$TOY_VIRT_ELF_ARG"
     fi
+    Stamp="Build/HAL/${TOY_VIRT_HAL_ARCH}/.toy_board"
+    PrevBoard=""
+    if [ -f "$Stamp" ]; then
+        PrevBoard=$(tr -d '\n' <"$Stamp" 2>/dev/null || true)
+    fi
+    NeedBuild=0
     if [ ! -f "$TOY_VIRT_ELF" ]; then
-        echo "building ARCH=$TOY_VIRT_MAKE_ARCH BOARD=${BOARD:-virt} ..."
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=${BOARD:-virt}" BRINGUP=0
+        NeedBuild=1
+    elif [ "$PrevBoard" != "$WantBoard" ]; then
+        # 缺 stamp 或 stamp≠virt：前一次可能是 duo-s 等真机板包，不能直接 -kernel 上 virt
+        NeedBuild=1
+        echo "note: $TOY_VIRT_ELF board='${PrevBoard:-unknown}' → rebuilding BOARD=$WantBoard"
+        make clean "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard"
+    fi
+    if [ "$NeedBuild" = "1" ]; then
+        echo "building ARCH=$TOY_VIRT_MAKE_ARCH BOARD=$WantBoard ..."
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard" BRINGUP=0
     fi
     if [ ! -f "$TOY_VIRT_ELF" ]; then
         echo "error: missing $TOY_VIRT_ELF" >&2
         exit 1
     fi
     # PR-A12：确保本 arch HELLO.ELF 已构建（prepare 会装入盘）
-    local HelloElf="Build/HAL/${TOY_VIRT_HAL_ARCH}/user/hello.elf"
+    HelloElf="Build/HAL/${TOY_VIRT_HAL_ARCH}/user/hello.elf"
     if [ ! -f "$HelloElf" ]; then
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=${BOARD:-virt}" BRINGUP=0 "$HelloElf"
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard" BRINGUP=0 "$HelloElf"
     fi
 }
 toy_virt_build_dev_args() {

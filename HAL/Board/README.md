@@ -16,7 +16,7 @@ HAL/
 │   └── _template/             ← 复制起点（不要在 _template 下交真板）
 ├── <Arch>/                    # Arm64 | RiscV（命令行板）；页表/异常/IRQ 形状在此
 │   └── Board/
-│       └── <board>/           # 例：virt、milk-v-duo-s
+│       └── <board>/           # 例：virt、milk-v-duo-s（Duo S 在 RiscV）
 │           ├── README.md      # 必填：加载约定、UART、验收
 │           ├── BoardConfig.h  # 建议：地址 / 能力勾选
 │           ├── Board.c        # 可选：填 BOOT_INFO 辅助、兼容表
@@ -44,7 +44,7 @@ HAL/
 复制模板：
 
 ```bash
-cp -a HAL/Board/_template HAL/Arm64/Board/milk-v-duo-s   # 例；再 ./build.sh arm64 BOARD=milk-v-duo-s
+cp -a HAL/Board/_template HAL/RiscV/Board/milk-v-duo-s   # Duo S 例（PR-B3）；再 ./build.sh riscv BOARD=milk-v-duo-s
 # 编辑该目录 README.md / BoardConfig.h，删掉 .example 后缀
 ```
 
@@ -98,6 +98,6 @@ booti ${kernel_addr_r} - ${fdt_addr_r}
 | **B0**（约定） | 清单 + `_template`；概念文互指 |
 | **B1 ✅** | Common 消费 `HalHasFrameBuffer` / `HalConsoleOnly`，板包勾选能力 |
 | **B2 ✅** | `BOARD=` 选中 `HAL/<Arch>/Board/<board>`；默认已收 `virt` |
-| **B3** | Duo S：厂商 U-Boot + SoC UART hello |
+| **B3 ✅** | Duo S：`HAL/RiscV/Board/milk-v-duo-s/`；厂商 U-Boot + SoC UART hello |
 
 手机 SoC **明确不做**（不进 B/H）。

@@ -146,6 +146,18 @@ LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 BUILDDIR = Build
 HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
+# PR-B3：同 HALDIR 多板包共用；BOARD 与 .toy_board 不一致（或缺 stamp）时清 HAL，避免链错 UART/Config
+ifneq ($(ARCH),x86_64)
+BOARD_STAMP := $(HALDIR)/.toy_board
+ifneq ($(wildcard $(HALDIR)/Kernel.elf),)
+_STAMP_BOARD := $(shell cat $(BOARD_STAMP) 2>/dev/null)
+ifneq ($(_STAMP_BOARD),$(BOARD))
+$(info BOARD: stale build '$(_STAMP_BOARD)' → '$(BOARD)'; cleaning $(HALDIR))
+$(shell rm -rf '$(HALDIR)')
+endif
+endif
+endif
+
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
@@ -280,13 +292,21 @@ endif
 # 汇编用同一 TOY_BRINGUP（Startup.S 无条件调 StartupMain）
 ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
-.PHONY: all clean boards
+.PHONY: all clean boards kernel-bin
 .DEFAULT_GOAL := all
 
 all: $(TARGET)
 ifneq ($(ARCH),x86_64)
 	@echo "Built BOARD=$(BOARD) ($(BOARD_DIR))"
 endif
+
+# PR-B3：扁平二进制（U-Boot load / go；非 Linux Image 头）
+kernel-bin: $(TARGET)
+ifeq ($(ARCH),x86_64)
+	$(error kernel-bin: x86 uses ELF via ToyBoot; not applicable)
+endif
+	$(OBJCOPY) -O binary $(TARGET) $(HALDIR)/Kernel.bin
+	@echo "Wrote $(HALDIR)/Kernel.bin (BOARD=$(BOARD))"
 ifeq ($(ARCH),x86_64)
 ifneq ($(BRINGUP),1)
 all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
@@ -316,6 +336,9 @@ $(BUILDDIR) $(HALDIR):
 
 $(TARGET): $(OBJS) | $(HALDIR)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBGCC)
+ifneq ($(ARCH),x86_64)
+	@echo "$(BOARD)" > $(HALDIR)/.toy_board
+endif
 
 $(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)

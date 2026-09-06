@@ -600,7 +600,13 @@ void ConsoleOnEnter(void) {
 void ConsoleSerialRun(void) {
     static HAL_KEYBOARD_REPORT Prev;
     HAL_KEYBOARD_REPORT Report;
-    HalConsoleWriteSerial("virt: serial shell (help/mem/ps/halt; kbd via virtio-input)\n");
+    /* PR-B3：真机命令行靶非 virt 形状；文案跟 HalPlatformVirtConsole */
+    if (HalPlatformVirtConsole()) {
+        HalConsoleWriteSerial(
+            "virt: serial shell (help/mem/ps/halt; kbd via virtio-input)\n");
+    } else {
+        HalConsoleWriteSerial("serial shell (help/mem/ps/halt)\n");
+    }
     Prompt();
     for (;;) {
         HalCpuHalt();

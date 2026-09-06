@@ -3,6 +3,7 @@
  */
 #include "Hal.h"
 #include "BootInfo.h"
+#include "BoardConfig.h"
 
 /*
  * OpenSBI 下内核在 S-mode：不可直接读/写 CLINT mtime（M-mode MMIO → 异常复位环）。
@@ -189,8 +190,12 @@ int HalConsoleOnly(void) {
 }
 
 int HalPlatformVirtConsole(void) {
-    /* virt 平台形状（协作调度 / 桌面模块表）；串口见 HalConsoleOnly */
+    /* virt 平台形状（协作调度 / 桌面模块表）；真机板包 IS_VIRT=0（PR-B3） */
+#if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
     return 1;
+#else
+    return 0;
+#endif
 }
 
 void HalVirtIdleLoop(void) {

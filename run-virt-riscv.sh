@@ -3,6 +3,8 @@
 # 自有 Boot：OpenSBI + -kernel；不是 ToyImage/run-split.sh / RiscVVirt EDK2。
 set -e
 cd "$(dirname "$0")"
+# QEMU virt 固定板包 virt（勿用环境残留 BOARD=）
+BOARD=virt
 # shellcheck source=run-virt-common.sh
 source ./run-virt-common.sh
 

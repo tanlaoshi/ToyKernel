@@ -8,7 +8,8 @@ cd "$(dirname "$0")"
 #   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0）
 #   ./build.sh riscv
 #   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
-#   ./build.sh arm64 BOARD=virt  # PR-B2：选 HAL/Arm64/Board/<board>
+#   ./build.sh arm64 BOARD=virt           # PR-B2：选 HAL/Arm64/Board/<board>
+#   ./build.sh riscv BOARD=milk-v-duo-s   # PR-B3：Duo S 命令行板包
 #   ./build.sh LWIP=1
 ARCH=x86_64
 BOARD=virt

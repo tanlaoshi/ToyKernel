@@ -11,7 +11,7 @@
 | **加载方式** | QEMU ELF `-kernel`；DTB 由 OpenSBI / QEMU 交接 |
 | **串口** | UART16550 @ `0x10000000`（`BoardConfig.h` / `HalSerial`） |
 | **能力** | 可有 ramfb FB → 桌面子集；`--serial` / 无 FB → 串口壳 |
-| **课堂关系** | GUI 课堂靶；真机命令行板另交新包 |
+| **课堂关系** | GUI 课堂靶；真机命令行板见 `BOARD=milk-v-duo-s`（**PR-B3**） |
 
 ---
 

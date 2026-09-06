@@ -1,28 +1,50 @@
 /*
- * HalDevices.c — RiscV：Block / Input / Net 经 Driver 类门面（PR-D3）
+ * HalDevices.c — RiscV：Block / Input / Net 经 Driver 类门面（PR-D3 / B3）
  *
  * Common 只见 HalInput* / HalNet*；驱动私有头不进本文件。
+ * 板包用 TOY_BOARD_HAS_* 勾选；Duo S 等命令行靶不探 virtio（避免误扫 MMIO）。
  */
 #include "Hal.h"
+#include "BoardConfig.h"
 #include "Driver.h"
 #include "DriverInput.h"
 #include "DriverNet.h"
+#if TOY_BOARD_HAS_BLOCK
 #include "VirtioBlk.h"
+#endif
+#if TOY_BOARD_HAS_FRAMEBUFFER
 #include "VirtioInput.h"
+#endif
+#if TOY_BOARD_HAS_NET
 #include "VirtioNet.h"
+#endif
 
 void HalDriverRegister(void) {
+#if TOY_BOARD_HAS_BLOCK
     VirtioBlkRegister();
+#endif
+#if TOY_BOARD_HAS_FRAMEBUFFER
     VirtioInputRegister();
+#endif
+#if TOY_BOARD_HAS_NET
     VirtioNetRegister();
+#endif
 }
 
 int HalBlockInit(void) {
+#if TOY_BOARD_HAS_BLOCK
     return VirtioBlkInit();
+#else
+    return 0;
+#endif
 }
 
 int HalUsbInit(void) {
+#if TOY_BOARD_HAS_FRAMEBUFFER
     return VirtioInputInit();
+#else
+    return 0;
+#endif
 }
 
 void HalInputPoll(void) {
@@ -46,7 +68,11 @@ int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
 }
 
 int HalNetInit(void) {
+#if TOY_BOARD_HAS_NET
     return VirtioNetInit();
+#else
+    return 0;
+#endif
 }
 
 int HalNetReady(void) {

@@ -16,17 +16,21 @@
 
 /* --- 串口（SoC UART；命令行靶必填） --- */
 #define TOY_BOARD_UART_BASE      0x00000000ULL /* 板级物理基址 */
+#define TOY_BOARD_UART_REG_SHIFT 0             /* 0=字节；Duo S DW-APB=2（×4） */
 #define TOY_BOARD_UART_BAUD      115200
 
 /* --- 加载 / 链接提示（文档与 Startup 共用；以厂商 U-Boot 为准） --- */
-#define TOY_BOARD_KERNEL_LOAD    0x00000000ULL /* booti 内核加载建议地址 */
+#define TOY_BOARD_KERNEL_LOAD    0x00000000ULL /* booti/bootelf 内核加载建议地址 */
 #define TOY_BOARD_DTB_LOAD       0x00000000ULL /* DTB 加载建议地址 */
+#define TOY_BOARD_RAM_BASE       0x00000000ULL /* DTB 缺失时 DRAM fallback */
+#define TOY_BOARD_RAM_SIZE       0ULL
 
 /* --- 能力勾选（1=有，0=无）。命令行靶：FB=0 → 串口壳 --- */
 #define TOY_BOARD_HAS_FRAMEBUFFER 0
 #define TOY_BOARD_HAS_BLOCK       0 /* SD/eMMC；本柱 B3 不要求 */
 #define TOY_BOARD_HAS_NET         0 /* 本柱不要求 */
 #define TOY_BOARD_CONSOLE_ONLY    1 /* 与 !HAS_FRAMEBUFFER 对齐时可同为 1 */
+#define TOY_BOARD_IS_VIRT         0 /* 1=QEMU virt 形状；真机板=0 */
 
 /* --- 模块子集意图（Makefile BOARD= 已接线；此处仅文档化） --- */
 /* console-only：serial → mem → … → console（跳过 video/gui） */
