@@ -2,7 +2,8 @@
  * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸（PR-D4 / PR-G13）
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
- * 壁纸：根目录 WALL.BMP（BI_RGB）；缺失则 ThemeDesktopBg 纯色。
+ * 壁纸：运行时读 Assets/Images/WALL.BMP（BI_RGB，FAT/rootfs）；缺失则 ThemeDesktopBg 纯色。
+ * 资源不链入 Kernel.elf。
  */
 #include "Desktop.h"
 #include "Gui.h"
@@ -218,21 +219,21 @@ static void LoadWallpaper(void) {
         return;
     }
     Size = 0;
-    Err = FsReadFile("WALL.BMP", Buf, WALL_FILE_MAX, &Size);
+    Err = FsReadFile("Assets/Images/WALL.BMP", Buf, WALL_FILE_MAX, &Size);
     if (Err != FAT_OK || Size < 54) {
         PhysicalMemoryFreePages(Buf, Pages);
-        DebugWrite("desktop: WALL.BMP missing; solid ThemeDesktopBg\n");
+        DebugWrite("desktop: Assets/Images/WALL.BMP missing; solid ThemeDesktopBg\n");
         return;
     }
     if (BmpDecode(Buf, Size, &gWall) != 0) {
         PhysicalMemoryFreePages(Buf, Pages);
-        DebugWrite("desktop: WALL.BMP decode failed\n");
+        DebugWrite("desktop: Assets/Images/WALL.BMP decode failed\n");
         return;
     }
     PhysicalMemoryFreePages(Buf, Pages);
     gWallReady = 1;
     BuildWallScreen();
-    DebugWrite("desktop: wallpaper WALL.BMP loaded\n");
+    DebugWrite("desktop: wallpaper Assets/Images/WALL.BMP loaded\n");
 }
 
 UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
