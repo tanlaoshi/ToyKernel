@@ -51,7 +51,11 @@ void AtaDrvRegister(void) {
 }
 
 int HalBlockInit(void) {
-    /* VMM 之后再 Probe Block 类（ATA 多在 InitDrv 已绑；此处补漏） */
+    /*
+     * VMM 之后再 Probe Block 类：
+     * - ATA 多在 InitDrv 已绑（PIO，无需 MMIO）
+     * - AHCI（PR-H1）需 MMIO，早 Probe 跳过，此处绑上并覆盖后端
+     */
     (void)ToyDrvProbeClass(TOY_DRV_CLASS_BLOCK);
     if (!BlockBackendReady()) {
         return 0;

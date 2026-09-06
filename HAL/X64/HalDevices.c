@@ -10,10 +10,13 @@
 #include "InputXhci.h"
 #include "Net.h"
 
-/* BlockAta.c */
+/* BlockAta.c / BlockAhci.c（PR-H1：AHCI 为第二 Block 后端） */
 void AtaDrvRegister(void);
+void AhciDrvRegister(void);
 
 void HalDrvRegister(void) {
+    /* AHCI 先注册；VMM 后 HalBlockInit 再 Probe 时可覆盖 ATA 后端 */
+    AhciDrvRegister();
     AtaDrvRegister();
     InputXhciRegister();
     NetDrvRegister();

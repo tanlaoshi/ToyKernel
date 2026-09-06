@@ -64,18 +64,25 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 缺口 | 状态 | 后续 |
 |------|------|------|
-| 真机无遗留 IDE：`ls`/`exec` 可能失败 | ATA PIO `0x1F0` 课堂盘 | **H1** AHCI/NVMe |
+| 真机无遗留 IDE：需 AHCI/NVMe | **H1 ✅** AHCI（`Ahci.c` / `TOY_DISK=ahci`） | NVMe / USB MSC 可后 |
 | USB 键盘在部分机箱不响应 | xHCI 型号杂 | **H2** |
 | 无 COM1 → 无串口冒烟 | 预期 | **H3** GOP 控制台 |
 | 网卡非 virtio | 预期 | **H4** 可选 |
 | Secure Boot / 厂商定制菜单 | 机型相关 | 文档级：关 SB 或签名（后置） |
 | 超高分 / 怪异 PixelFormat | ToyBoot 已滤 `PixelBltOnly`、偏小模式 | 记具体机型到本页「机型笔记」 |
 
+### H1：AHCI 第二 Block
+
+- 驱动：`HAL/X64/Drivers/Ahci.c` + `BlockAhci.c`（Drv Block / **D2**）
+- 课堂：默认仍 IDE+ATA；验收 `TOY_DISK=ahci ./smoke-boot.sh`（串口 `boot: ahci drives=`）
+- 真机：SATA/AHCI 控制器上的 FAT（含 `TOYOS.ID`）可 `ls` / `exec`；**纯 USB 大容量（MSC）本刀不做**
+- Common FAT/VFS 无改动
+
 **机型笔记**（贡献者追加一行即可）：
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
-| （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | U 盘 FAT | … |
+| （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 
 ---
 
