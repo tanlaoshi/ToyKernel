@@ -10,6 +10,7 @@
 #include "Kernel.h"
 #include "Dtb.h"
 #include "Ramfb.h"
+#include "Board.h"
 
 extern char __kernel_end[];
 
@@ -23,6 +24,9 @@ void StartupMain(UINT64 DtbPhys) {
     (void)DtbPhys;
     HalSerialInit();
     HalSerialWrite("ToyOS Arm64 virt: hello\n");
+    HalSerialWrite("board: ");
+    HalSerialWrite(BoardName());
+    HalSerialWrite("\n");
     HalCpuHalt();
 }
 
@@ -73,6 +77,9 @@ void StartupMain(UINT64 DtbPhys) {
 
     HalSerialInit();
     HalSerialWrite("ToyOS Arm64 virt: KernelMain\n");
+    HalSerialWrite("board: ");
+    HalSerialWrite(BoardName());
+    HalSerialWrite("\n");
 
     FromDtb = (TryDtb(DtbPhys, &RamBase, &RamSize) == 0);
     if (FromDtb) {

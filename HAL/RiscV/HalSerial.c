@@ -1,9 +1,10 @@
 /*
- * HalSerial.c — QEMU virt riscv64 UART16550（MMIO 0x10000000）
+ * HalSerial.c — QEMU virt riscv64 UART16550（基址见 BoardConfig.h / PR-B2）
  */
 #include "HalSerial.h"
+#include "BoardConfig.h"
 
-#define UART_BASE  0x10000000u
+#define UART_BASE  ((UINTN)TOY_BOARD_UART_BASE)
 #define UART_THR   (*(volatile UINT8 *)(UART_BASE + 0x00))
 #define UART_LSR   (*(volatile UINT8 *)(UART_BASE + 0x05))
 #define UART_LSR_THRE  (1u << 5)

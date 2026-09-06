@@ -8,8 +8,10 @@ cd "$(dirname "$0")"
 #   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0）
 #   ./build.sh riscv
 #   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
+#   ./build.sh arm64 BOARD=virt  # PR-B2：选 HAL/Arm64/Board/<board>
 #   ./build.sh LWIP=1
 ARCH=x86_64
+BOARD=virt
 DEBUG=0
 LWIP=0
 BRINGUP=
@@ -21,6 +23,7 @@ for Arg in "$@"; do
         LWIP=0|lwip=0) LWIP=0 ;;
         BRINGUP=1|bringup=1) BRINGUP=1 ;;
         BRINGUP=0|bringup=0) BRINGUP=0 ;;
+        BOARD=*) BOARD="${Arg#BOARD=}" ;;
         *) ARCH="$Arg" ;;
     esac
 done
@@ -29,7 +32,7 @@ if [ -z "$BRINGUP" ]; then
     BRINGUP=0
 fi
 
-echo "Building ToyKernel for ARCH=$ARCH TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
+echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP"
 
 case "$ARCH" in
     x86_64) HAL_ARCH=X64 ;;
@@ -43,15 +46,15 @@ esac
 ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
 USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
 
-make clean ARCH="$ARCH"
-make ARCH="$ARCH" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP"
+make clean ARCH="$ARCH" BOARD="$BOARD"
+make ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP"
 
 if [ ! -f "$ELF" ]; then
     echo "Build failed!"
     exit 1
 fi
 
-echo "Build successful: $ELF (DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
+echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
 if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     cp "$ELF" ../ToyImage/

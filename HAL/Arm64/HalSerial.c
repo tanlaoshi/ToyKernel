@@ -1,9 +1,10 @@
 /*
- * HalSerial.c — QEMU virt aarch64 PL011 UART（MMIO 0x09000000）
+ * HalSerial.c — QEMU virt aarch64 PL011 UART（基址见 BoardConfig.h / PR-B2）
  */
 #include "HalSerial.h"
+#include "BoardConfig.h"
 
-#define PL011_BASE  0x09000000u
+#define PL011_BASE  ((UINTN)TOY_BOARD_UART_BASE)
 #define PL011_DR    (*(volatile UINT32 *)(PL011_BASE + 0x00))
 #define PL011_FR    (*(volatile UINT32 *)(PL011_BASE + 0x18))
 #define PL011_FR_TXFF  (1u << 5)

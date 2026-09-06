@@ -1,9 +1,12 @@
 ARCH ?= x86_64
+# PR-B2：Arm/RiscV 板包选择 → HAL/<Arch>/Board/<board>/；x86 桌面真机走 1.3c，忽略 BOARD
+BOARD ?= virt
 DEBUG ?= 0
 LWIP ?= 0
 LWIPINCLUDES :=
 LWIPOBJS :=
 LWIP_PORT_OBJS :=
+BOARD_OBJS :=
 
 # PR-A6/A7：非 x86 默认可链接完整 Common（BRINGUP=1 仍为串口 hello）
 ifeq ($(ARCH),x86_64)
@@ -72,6 +75,17 @@ INCLUDES_COMMON = -IInclude \
 INCLUDES_HAL    = $(INCLUDES_COMMON) \
                   -IHAL/$(HAL_ARCH)/Drivers
 
+# PR-B2：非 x86 必须选中 Board 包（默认 virt）；Common 不 -I 板目录
+ifeq ($(ARCH),x86_64)
+BOARD_DIR :=
+else
+BOARD_DIR := HAL/$(HAL_ARCH)/Board/$(BOARD)
+ifeq ($(wildcard $(BOARD_DIR)/README.md),)
+$(error BOARD=$(BOARD): missing $(BOARD_DIR)/ (see HAL/Board/README.md); default BOARD=virt)
+endif
+INCLUDES_HAL += -I$(BOARD_DIR)
+endif
+
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
               -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
@@ -118,6 +132,9 @@ endif
 
 CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON) $(LWIPINCLUDES)
 CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -IHAL/$(HAL_ARCH)/LwIp
+ifneq ($(BOARD_DIR),)
+CFLAGS_HAL += -DTOY_BOARD=\"$(BOARD)\"
+endif
 
 LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
@@ -206,6 +223,10 @@ USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
 else
 EXTRA_OBJS = $(HALDIR)/Startup_asm.o
+# PR-B2：Board 包 .c（BoardConfig.h 仅 HAL -I；不进 Common）
+BOARD_SRCS := $(wildcard $(BOARD_DIR)/*.c)
+BOARD_OBJS := $(patsubst $(BOARD_DIR)/%.c,$(HALDIR)/Board/%.o,$(BOARD_SRCS))
+EXTRA_OBJS += $(BOARD_OBJS)
 # PR-R5：Arm/RiscV 共享 virtio/ramfb/DTB/HalVideo（HAL/Virt）；复用 x86 Video 绘制
 INCLUDES_HAL += -IHAL/X64/Drivers -IHAL/Virt
 VIRT_SRCS := $(wildcard HAL/Virt/*.c)
@@ -247,19 +268,25 @@ TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
 # PR-A6：Startup.S + Startup.c + HalSerial + Hal（Halt），不链 Common
+# PR-B2：仍链 Board.o（Startup 横幅 BoardName；HalSerial 用 BoardConfig）
 OBJS = $(HALDIR)/Startup_asm.o \
        $(HALDIR)/Startup.o \
        $(HALDIR)/HalSerial.o \
-       $(HALDIR)/Hal.o
+       $(HALDIR)/Hal.o \
+       $(BOARD_OBJS)
 EXTRA_OBJS =
 endif
 
 # 汇编用同一 TOY_BRINGUP（Startup.S 无条件调 StartupMain）
 ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
-.PHONY: all clean
+.PHONY: all clean boards
+.DEFAULT_GOAL := all
 
 all: $(TARGET)
+ifneq ($(ARCH),x86_64)
+	@echo "Built BOARD=$(BOARD) ($(BOARD_DIR))"
+endif
 ifeq ($(ARCH),x86_64)
 ifneq ($(BRINGUP),1)
 all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
@@ -273,6 +300,15 @@ else
 ifneq ($(BRINGUP),1)
 all: $(USER_HELLO_ELF)
 endif
+endif
+
+# PR-B2：列出当前 Arch 可用板包
+boards:
+ifeq ($(ARCH),x86_64)
+	@echo "BOARD: (unused on x86_64; desktop PC is 1.3c / HAL/X64)"
+else
+	@echo "ARCH=$(ARCH) HAL_ARCH=$(HAL_ARCH) BOARD=$(BOARD) → $(BOARD_DIR)"
+	@ls -1 HAL/$(HAL_ARCH)/Board 2>/dev/null | sed 's/^/  /' || echo "  (none)"
 endif
 
 $(BUILDDIR) $(HALDIR):
@@ -307,6 +343,11 @@ $(VIRT_VIDEO_OBJ): HAL/X64/Drivers/Video.c | $(HALDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 $(HALDIR)/Virt/%.o: HAL/Virt/%.c | $(HALDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+# PR-B2：HAL/<Arch>/Board/<board>/*.c
+$(HALDIR)/Board/%.o: $(BOARD_DIR)/%.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
