@@ -719,7 +719,6 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     UINT32 Cx;
     UINT32 CellH;
     const FONT_FACE *Face;
-    UINT32 Scale;
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -733,7 +732,6 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     }
     CellH = FontCellH();
     Face = FontGetCurrent();
-    Scale = (Face && Face->Scale) ? Face->Scale : 1u;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
     if (gMenuOpen) {
@@ -836,23 +834,21 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
                 RelX = X - Cx;
                 RelY = Y - LabelY;
                 if (Glyph != 0) {
-                    UINT32 OffY = 0;
                     UINT32 Bpr = (Gw + 7) / 8;
+                    UINT32 Stretch = FontGlyphStretch(Gh);
 
-                    if (CellH > Gh * Scale) {
-                        OffY = (CellH - Gh * Scale) / 2;
+                    if (Stretch < 1) {
+                        Stretch = 1;
                     }
-                    if (RelY >= OffY) {
-                        Gx = RelX / Scale;
-                        Gy = (RelY - OffY) / Scale;
-                        if (Gx < Gw && Gy < Gh) {
-                            UINT8 Byte = Glyph[Gy * Bpr + (Gx / 8)];
-                            int Bit = 7 - (int)(Gx % 8);
+                    Gx = RelX / Stretch;
+                    Gy = RelY / Stretch;
+                    if (Gx < Gw && Gy < Gh) {
+                        UINT8 Byte = Glyph[Gy * Bpr + (Gx / 8)];
+                        int Bit = 7 - (int)(Gx % 8);
 
-                            if (Byte & (1 << Bit)) {
-                                *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
-                                return 1;
-                            }
+                        if (Byte & (1 << Bit)) {
+                            *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
+                            return 1;
                         }
                     }
                 }

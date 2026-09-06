@@ -244,30 +244,29 @@ void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
     }
 }
 
-/* 任意点阵：BytesPerRow = (Width+7)/8；Scale 取当前字体 */
+/* 任意点阵：BytesPerRow = (Width+7)/8；CJK 短于行高时 PR-T1 拉伸至 FontCellH */
 static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
                               UINT32 Width, UINT32 Height, UINT32 Color) {
-    const FONT_FACE *F;
-    UINT32 Scale;
+    UINT32 ScaleX;
+    UINT32 ScaleY;
     UINT32 Bpr;
     UINT32 Row;
     UINT32 Col;
     UINT32 Sy;
     UINT32 Sx;
-    UINT32 CellH;
-    UINT32 OffY;
 
     if (!Glyph || Width == 0 || Height == 0) {
         return;
     }
-    F = FontGetCurrent();
-    Scale = (F && F->Scale) ? F->Scale : 1u;
-    Bpr = (Width + 7) / 8;
-    CellH = FontCellH();
-    OffY = 0;
-    if (CellH > Height * Scale) {
-        OffY = (CellH - Height * Scale) / 2;
+    ScaleY = FontGlyphStretch(Height);
+    ScaleX = ScaleY; /* 方形拉伸；与英文同高 */
+    if (ScaleX < 1) {
+        ScaleX = 1;
     }
+    if (ScaleY < 1) {
+        ScaleY = 1;
+    }
+    Bpr = (Width + 7) / 8;
 
     for (Row = 0; Row < Height; Row++) {
         for (Col = 0; Col < Width; Col++) {
@@ -276,11 +275,11 @@ static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
             if ((Byte & (1 << Bit)) == 0) {
                 continue;
             }
-            for (Sy = 0; Sy < Scale; Sy++) {
-                for (Sx = 0; Sx < Scale; Sx++) {
+            for (Sy = 0; Sy < ScaleY; Sy++) {
+                for (Sx = 0; Sx < ScaleX; Sx++) {
                     VideoDrawPixel(
-                        X + Col * Scale + Sx,
-                        Y + OffY + Row * Scale + Sy,
+                        X + Col * ScaleX + Sx,
+                        Y + Row * ScaleY + Sy,
                         Color);
                 }
             }

@@ -52,6 +52,11 @@ UINTN Utf8Decode(const char *S, UINT32 *OutCp);
 /* ASCII→Terminus；基本汉字→CJK16；OutW/OutH 为点阵像素（未乘 Scale） */
 const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
 const UINT8 *FontCjk16Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
+/*
+ * PR-T1：短于当前行高的字形（CJK 16）拉伸倍数，使绘制高度 = FontCellH()。
+ * ASCII 等本已同高时返回当前 Face->Scale。
+ */
+UINT32 FontGlyphStretch(UINT32 GlyphH);
 /* UTF-8 字符串像素宽（含汉字前进） */
 UINT32 FontCodepointAdvance(UINT32 Cp);
 UINT32 FontStringWidth(const char *S);

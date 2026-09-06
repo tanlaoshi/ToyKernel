@@ -145,11 +145,26 @@ const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH) {
     return FontCjk16Lookup(Cp, OutW, OutH);
 }
 
+UINT32 FontGlyphStretch(UINT32 GlyphH) {
+    const FONT_FACE *F = FontGetCurrent();
+    UINT32 FaceScale = (F && F->Scale) ? F->Scale : 1u;
+    UINT32 CellH = FontCellH();
+
+    if (GlyphH == 0) {
+        return FaceScale;
+    }
+    /* 已与行高齐（乘 Face Scale 后）→ 不额外拉 */
+    if (GlyphH * FaceScale >= CellH) {
+        return FaceScale;
+    }
+    /* PR-T1：CJK 16 → Terminus 行高 32（或 ×2 时 64） */
+    return CellH / GlyphH;
+}
+
 UINT32 FontCodepointAdvance(UINT32 Cp) {
     UINT32 W;
     UINT32 H;
     UINT32 Scale;
-    const FONT_FACE *F;
 
     if (Cp < 128) {
         return FontAdvanceX();
@@ -157,8 +172,7 @@ UINT32 FontCodepointAdvance(UINT32 Cp) {
     if (!FontGlyphCp(Cp, &W, &H)) {
         return FontAdvanceX();
     }
-    F = FontGetCurrent();
-    Scale = (F && F->Scale) ? F->Scale : 1u;
+    Scale = FontGlyphStretch(H);
     W = W * Scale;
     if (W < FontAdvanceX()) {
         W = FontAdvanceX();
