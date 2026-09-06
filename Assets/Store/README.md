@@ -9,7 +9,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` 同级�
 | `Store/`（卷根） | **本地缓存**（下载/优盘拷入暂存）；S0 仅占位 |
 | `Apps/`（卷根） | **已安装**用户 ELF；S0 仅占位，S1 写入 |
 
-本刀（S0）**不写安装逻辑**。实现见路线图 **1.3s**；总规划 [`Documents/应用商店规划.md`](../../Documents/应用商店规划.md)。
+本刀起 **S1** 提供 Shell `store install`。总规划 [`Documents/应用商店规划.md`](../../Documents/应用商店规划.md)。
 
 ## catalog.txt
 

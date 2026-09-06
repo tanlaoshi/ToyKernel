@@ -18,6 +18,8 @@
 #include "Gui.h"
 #include "Locale.h"
 #include "Font.h"
+#include "Store.h"
+#include "Fat.h"
 
 static void CommandInfo(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -678,6 +680,58 @@ static void CommandZh(int Argc, char **Argv) {
     ConsoleWrite("你好，世界！中文测试\n");
 }
 
+static void CommandStore(int Argc, char **Argv) {
+    STORE_ENTRY Tab[STORE_ENTRIES_MAX];
+    int Count = 0;
+    int i;
+    int Err;
+
+    if (Argc >= 2 && Argv[1][0] == 'i' && Argv[1][1] == 'n' &&
+        Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 'a' &&
+        Argv[1][5] == 'l' && Argv[1][6] == 'l' && Argv[1][7] == 0) {
+        if (Argc < 3) {
+            ConsoleWrite("usage: store install <id>\n");
+            return;
+        }
+        Err = StoreInstall(Argv[2]);
+        if (Err != FAT_OK) {
+            ConsoleWrite("store install: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store: installed to Apps/\n");
+        ConsoleWrite("hint: exec Apps/<ELF> — HELLO prints one line then exits (正常)\n");
+        return;
+    }
+
+    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+    if (Err < 0) {
+        ConsoleWrite("store: catalog ");
+        ConsoleWrite(FatStrError(Err));
+        ConsoleWrite("\n");
+        return;
+    }
+    ConsoleWrite("store catalog (");
+    ConsoleWrite(StoreHostArch());
+    ConsoleWrite("):\n");
+    for (i = 0; i < Count; i++) {
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].Id);
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].Type);
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].File);
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].Title);
+        ConsoleWrite("\n");
+    }
+    if (Argc < 2 || (Argv[1][0] == 'l' && Argv[1][1] == 'i' &&
+                     Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 0)) {
+        ConsoleWrite("usage: store [list] | store install <id>\n");
+    }
+}
+
 static void CommandFont(int Argc, char **Argv) {
     UINT32 i;
     const FONT_FACE *F;
@@ -736,6 +790,12 @@ static void CommandHalt(int Argc, char **Argv) {
     HalCpuPark();
 }
 
+/* exit/quit：教学上常当「退出」；停 CPU（关 QEMU 窗仍须点窗口 ×） */
+static void CommandExit(int Argc, char **Argv) {
+    ConsoleWrite("exit → halt (close QEMU window to leave)\n");
+    CommandHalt(Argc, Argv);
+}
+
 /* PR-D4：列出已绑定驱动（TOY_DRIVER.Name + 类） */
 static const char *DriverClassName(TOY_DRIVER_CLASS Class) {
     switch (Class) {
@@ -792,6 +852,8 @@ void ShellCommandsRegisterVirtMin(void) {
     ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
     ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
+    ConsoleRegister("exit", "alias of halt", CommandExit);
+    ConsoleRegister("quit", "alias of halt", CommandExit);
 }
 
 void ShellCommandsRegister(void) {
@@ -808,8 +870,11 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
     ConsoleRegister("font", "font [reload] (Assets/Fonts TOYF)", CommandFont);
+    ConsoleRegister("store", "store [list]|install <id> (Apps/)", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
+    ConsoleRegister("exit", "alias of halt", CommandExit);
+    ConsoleRegister("quit", "alias of halt", CommandExit);
     ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
