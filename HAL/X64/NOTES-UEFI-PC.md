@@ -73,7 +73,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H1：AHCI 第二 Block
 
-- 驱动：`HAL/X64/Drivers/Ahci.c` + `BlockAhci.c`（Drv Block / **D2**）
+- 驱动：`HAL/X64/Drivers/Ahci.c` + `BlockAhci.c`（Driver Block / **D2**）
 - 课堂：默认仍 IDE+ATA；验收 `TOY_DISK=ahci ./smoke-boot.sh`（串口 `boot: ahci drives=`）
 - 真机：SATA/AHCI 控制器上的 FAT（含 `TOYOS.ID`）可 `ls` / `exec`；**纯 USB 大容量（MSC）本刀不做**
 - Common FAT/VFS 无改动

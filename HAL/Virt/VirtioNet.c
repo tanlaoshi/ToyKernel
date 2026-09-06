@@ -3,7 +3,7 @@
  *
  * QEMU：-device virtio-net-device,netdev=n0 -netdev user,id=n0
  * 默认 IP 10.0.2.15；网关 10.0.2.2。ARP/ICMP 留在本 Arch HAL。
- * PR-D3：经 Drv Net 类注册，HalDevices 只见 HalNet*。
+ * PR-D3：经 Driver Net 类注册，HalDevices 只见 HalNet*。
  */
 #include "VirtioNet.h"
 #include "VirtioMmio.h"
@@ -12,8 +12,8 @@
 #include "Hal.h"
 #include "Udp.h"
 #include "Tcp.h"
-#include "Drv.h"
-#include "DrvNet.h"
+#include "Driver.h"
+#include "DriverNet.h"
 #ifdef TOY_LWIP
 #include "toy_netif.h"
 #endif
@@ -434,7 +434,7 @@ static int NetResolve(UINT32 TargetIp, UINT8 Mac[6], int TimeoutMs) {
     return -1;
 }
 
-static int VirtioNetDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     UINT64 Base = 0;
     UINT32 Ver;
     volatile VIRTIO_NET_CFG *Cfg;
@@ -501,7 +501,7 @@ static int VirtioNetDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPri
     return 0;
 }
 
-static void VirtioNetDrvRemove(TOY_DRV_INSTANCE *Inst);
+static void VirtioNetDriverRemove(TOY_DRIVER_INSTANCE *Inst);
 
 static const NET_BACKEND gNetBackend = {
     .Ready = VirtioNetReady,
@@ -517,31 +517,31 @@ static const NET_BACKEND gNetBackend = {
     .SetLwIpRx = VirtioNetSetLwIpRx,
 };
 
-static int VirtioNetDrvBind(TOY_DRV_INSTANCE *Inst) {
+static int VirtioNetDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return ToyDrvNetAttach(&gNetBackend);
+    return ToyDriverNetAttach(&gNetBackend);
 }
 
-static void VirtioNetDrvRemove(TOY_DRV_INSTANCE *Inst) {
+static void VirtioNetDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
     gNetOk = 0;
 }
 
 static const TOY_DRIVER gVirtioNetDriver = {
     .Name = "virtio-net",
-    .Class = TOY_DRV_CLASS_NET,
+    .Class = TOY_DRIVER_CLASS_NET,
     .Match = 0,
-    .Probe = VirtioNetDrvProbe,
-    .Bind = VirtioNetDrvBind,
-    .Remove = VirtioNetDrvRemove,
+    .Probe = VirtioNetDriverProbe,
+    .Bind = VirtioNetDriverBind,
+    .Remove = VirtioNetDriverRemove,
 };
 
 void VirtioNetRegister(void) {
-    (void)ToyDrvRegister(&gVirtioNetDriver);
+    (void)ToyDriverRegister(&gVirtioNetDriver);
 }
 
 int VirtioNetInit(void) {
-    (void)ToyDrvProbeClass(TOY_DRV_CLASS_NET);
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_NET);
     return 0;
 }
 

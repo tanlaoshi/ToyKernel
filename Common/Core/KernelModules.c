@@ -20,7 +20,7 @@
 #include "Theme.h"
 #include "Db.h"
 #include "Locale.h"
-#include "Drv.h"
+#include "Driver.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
@@ -112,10 +112,10 @@ static int InitializeNetwork(void) {
     return 0;
 }
 
-static int InitializeDrv(void) {
+static int InitializeDriver(void) {
     /* PR-D2：先注册平台驱动；ProbeAll 可早绑 ATA；virtio-blk 待 VMM 后由 HalBlockInit 再 Probe */
-    HalDrvRegister();
-    return ToyDrvProbeAll();
+    HalDriverRegister();
+    return ToyDriverProbeAll();
 }
 
 static int InitializeScheduler(void) {
@@ -139,7 +139,7 @@ static int InitializeConsole(void) {
 static const MODULE gModulesFull[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
-    { "drv",     InitializeDrv },
+    { "driver",     InitializeDriver },
     { "virtual-memory",     InitializeVirtualMemory },
     { "video",   InitializeVideo },
     { "cpu",     InitializeCpu },
@@ -156,7 +156,7 @@ static const MODULE gModulesFull[] = {
 static const MODULE gModulesVirt[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
-    { "drv",     InitializeDrv },
+    { "driver",     InitializeDriver },
     { "virtual-memory",     InitializeVirtualMemory },
     { "cpu",     InitializeCpu },
     { "smp",     InitializeSmp },
@@ -168,7 +168,7 @@ static const MODULE gModulesVirt[] = {
 static const MODULE gModulesVirtDesktop[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
-    { "drv",     InitializeDrv },
+    { "driver",     InitializeDriver },
     { "virtual-memory",     InitializeVirtualMemory },
     { "video",   InitializeVideo },
     { "cpu",     InitializeCpu },

@@ -6,7 +6,7 @@
 
 #include "Block.h"
 
-/* PR-D2：向 Drv 注册描述符（不 Probe） */
+/* PR-D2：向 Driver 注册描述符（不 Probe） */
 void VirtioBlkRegister(void);
 /* Probe Block 类 + BlockInit；成功返回可用盘数 */
 int VirtioBlkInit(void);

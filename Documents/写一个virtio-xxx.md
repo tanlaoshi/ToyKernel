@@ -1,6 +1,6 @@
 # 写一个 virtio-xxx（PR-D3）
 
-> 目标：按 Drv 类适配加一块 virtio 设备，**不改 Gui / FAT**。框架见 [`驱动框架.md`](驱动框架.md)；排期见路线图 **1.3d**。
+> 目标：按 Driver 类适配加一块 virtio 设备，**不改 Gui / FAT**。框架见 [`驱动框架.md`](驱动框架.md)；排期见路线图 **1.3d**。
 
 本文以现有范例为准：
 
@@ -35,7 +35,7 @@ Input 范例还会读 virtio-input config name（含 `Key` / `Tab`）区分键�
 ```c
 static const TOY_DRIVER gMyDriver = {
     .Name  = "virtio-xxx",
-    .Class = TOY_DRV_CLASS_INPUT, /* 或 NET / BLOCK */
+    .Class = TOY_DRIVER_CLASS_INPUT, /* 或 NET / BLOCK */
     .Match = 0,
     .Probe = MyProbe,   /* 有设备 → 0，并可选 *OutPriv；无 → 非 0 */
     .Bind  = MyBind,    /* 挂上类后端 */
@@ -47,9 +47,9 @@ static const TOY_DRIVER gMyDriver = {
 - **Bind**：只做类适配挂接（见下），勿再扫总线。
 - 调用约定：**同步**；无电源管理 / 完整 DMA API。
 
-### Input 类 → `ToyDrvInputAttach`
+### Input 类 → `ToyDriverInputAttach`
 
-`INPUT_BACKEND`（`Include/DrvInput.h`）：
+`INPUT_BACKEND`（`Include/DriverInput.h`）：
 
 | 字段 | 含义 |
 |------|------|
@@ -58,31 +58,31 @@ static const TOY_DRIVER gMyDriver = {
 | `KeyboardSetLeds` | 可选；`NULL` → `HalKeyboardSetLeds` 返回 -1 |
 | `MousePresent` / `MouseDequeue` | 鼠标/tablet |
 
-### Net 类 → `ToyDrvNetAttach`
+### Net 类 → `ToyDriverNetAttach`
 
-`NET_BACKEND`（`Include/DrvNet.h`）：`Ready` / `Poll` / `GetMac` / `GetIp` / `FormatIp` / `ParseIp` / `Ping` / `GetStats` / `SendIp` / `Checksum` / `SetLwIpRx`。
+`NET_BACKEND`（`Include/DriverNet.h`）：`Ready` / `Poll` / `GetMac` / `GetIp` / `FormatIp` / `ParseIp` / `Ping` / `GetStats` / `SendIp` / `Checksum` / `SetLwIpRx`。
 
 无卡时 Probe 应失败；`HalNetInit` 仍返回 0，避免拖垮 `net` 模块。
 
-### Block 类（对照）→ `ToyDrvBlockAttach`
+### Block 类（对照）→ `ToyDriverBlockAttach`
 
 见 D2：`BLOCK_BACKEND` 的 `Probe` / `ReadSectors` / `WriteSectors`。
 
 ---
 
-## 3. 如何 `ToyDrvRegister`
+## 3. 如何 `ToyDriverRegister`
 
 1. 在驱动 `.c` 里提供：
 
    ```c
    void VirtioXxxRegister(void) {
-       (void)ToyDrvRegister(&gMyDriver);
+       (void)ToyDriverRegister(&gMyDriver);
    }
    ```
 
-2. 在本 Arch 的 `HalDrvRegister()` 中调用（与 `VirtioBlkRegister` / `InputXhciRegister` / `NetDrvRegister` 并列）。
-3. `KernelModules` 的 `drv` 模块会 `HalDrvRegister()` + `ToyDrvProbeAll()`。
-4. 需要 MMIO 映射后再试的类（Block / Input / Net）：在 `HalBlockInit` / `HalUsbInit` / `HalNetInit` 里再 `ToyDrvProbeClass(...)`（已绑定则跳过）。
+2. 在本 Arch 的 `HalDriverRegister()` 中调用（与 `VirtioBlkRegister` / `InputXhciRegister` / `NetDriverRegister` 并列）。
+3. `KernelModules` 的 `driver` 模块会 `HalDriverRegister()` + `ToyDriverProbeAll()`。
+4. 需要 MMIO 映射后再试的类（Block / Input / Net）：在 `HalBlockInit` / `HalUsbInit` / `HalNetInit` 里再 `ToyDriverProbeClass(...)`（已绑定则跳过）。
 
 目录建议：实现放在 `HAL/<Arch>/` 或 `HAL/<Arch>/Drivers/`；**不要**把私有头放进 `Include/`。
 
@@ -95,7 +95,7 @@ static const TOY_DRIVER gMyDriver = {
 启动日志应出现类似：
 
 ```text
-drv: registered=3 bound=… (+…)
+driver: registered=3 bound=… (+…)
 ```
 
 x86 典型绑定：`ata-pio` + `xhci-hid` + `virtio-net-pci` → `registered=3 bound=3`。  
@@ -136,9 +136,9 @@ virt Arm/RiscV 典型名：`virtio-blk` / `virtio-input` / `virtio-net`。
 
 ## 5. 检查清单（贡献者）
 
-- [ ] `TOY_DRIVER` + `ToyDrvRegister`；类标签正确  
-- [ ] Bind 只调 `ToyDrvInputAttach` / `ToyDrvNetAttach` / `ToyDrvBlockAttach`  
-- [ ] `HalDrvRegister` 已挂上 Register  
+- [ ] `TOY_DRIVER` + `ToyDriverRegister`；类标签正确  
+- [ ] Bind 只调 `ToyDriverInputAttach` / `ToyDriverNetAttach` / `ToyDriverBlockAttach`  
+- [ ] `HalDriverRegister` 已挂上 Register  
 - [ ] Common / Services **未** include 本驱动私有头  
 - [ ] 同步 Probe/Bind；无卡不拖垮必需模块（Net）  
-- [ ] 串口 `drv:` 计数增加；Input/Net 行为与迁前一致  
+- [ ] 串口 `driver:` 计数增加；Input/Net 行为与迁前一致  

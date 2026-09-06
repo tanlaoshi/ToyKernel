@@ -243,7 +243,7 @@ static int PciFindAhci(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut) {
     return 0;
 }
 
-static int PortInit(volatile AHCI_PORT *Port, AHCI_DRIVE *Drv) {
+static int PortInit(volatile AHCI_PORT *Port, AHCI_DRIVE *Drive) {
     UINT8 *Mem;
     UINT64 Phys;
 
@@ -259,11 +259,11 @@ static int PortInit(volatile AHCI_PORT *Port, AHCI_DRIVE *Drv) {
     MemZero(Mem, 3u * PAGE_SIZE);
     Phys = (UINT64)(UINTN)Mem;
 
-    Drv->Cl = (AHCI_CMD_HDR *)(UINTN)Mem;
-    Drv->Fis = Mem + 1024;
-    Drv->Ct = (AHCI_CMD_TABLE *)(UINTN)(Mem + PAGE_SIZE);
-    Drv->Bounce = Mem + 2u * PAGE_SIZE;
-    Drv->Port = Port;
+    Drive->Cl = (AHCI_CMD_HDR *)(UINTN)Mem;
+    Drive->Fis = Mem + 1024;
+    Drive->Ct = (AHCI_CMD_TABLE *)(UINTN)(Mem + PAGE_SIZE);
+    Drive->Bounce = Mem + 2u * PAGE_SIZE;
+    Drive->Port = Port;
 
     MmioWrite32(&Port->Clb, (UINT32)Phys);
     MmioWrite32(&Port->Clbu, (UINT32)(Phys >> 32));
@@ -275,21 +275,21 @@ static int PortInit(volatile AHCI_PORT *Port, AHCI_DRIVE *Drv) {
 
     {
         UINT64 CtPhys = Phys + PAGE_SIZE;
-        Drv->Cl[0].Flags = 5; /* CFL = 5 DWORDs of H2D FIS */
-        Drv->Cl[0].Prdtl = 1;
-        Drv->Cl[0].Prdbc = 0;
-        Drv->Cl[0].Ctba = (UINT32)CtPhys;
-        Drv->Cl[0].Ctbau = (UINT32)(CtPhys >> 32);
+        Drive->Cl[0].Flags = 5; /* CFL = 5 DWORDs of H2D FIS */
+        Drive->Cl[0].Prdtl = 1;
+        Drive->Cl[0].Prdbc = 0;
+        Drive->Cl[0].Ctba = (UINT32)CtPhys;
+        Drive->Cl[0].Ctbau = (UINT32)(CtPhys >> 32);
     }
 
     if (!PortStart(Port)) {
         return 0;
     }
-    Drv->Ready = 1;
+    Drive->Ready = 1;
     return 1;
 }
 
-static int PortXfer(AHCI_DRIVE *Drv, UINT32 Lba, UINT32 Count, void *Buffer, int Write) {
+static int PortXfer(AHCI_DRIVE *Drive, UINT32 Lba, UINT32 Count, void *Buffer, int Write) {
     volatile AHCI_PORT *Port;
     AHCI_CMD_TABLE *Ct;
     UINT8 *Fis;
@@ -297,14 +297,14 @@ static int PortXfer(AHCI_DRIVE *Drv, UINT32 Lba, UINT32 Count, void *Buffer, int
     UINT32 Done = 0;
     UINT64 BouncePhys;
 
-    if (!Drv || !Drv->Ready || !Buffer || Count == 0) {
+    if (!Drive || !Drive->Ready || !Buffer || Count == 0) {
         return 0;
     }
 
-    Port = Drv->Port;
-    Ct = Drv->Ct;
+    Port = Drive->Port;
+    Ct = Drive->Ct;
     Fis = Ct->Fis;
-    BouncePhys = (UINT64)(UINTN)Drv->Bounce;
+    BouncePhys = (UINT64)(UINTN)Drive->Bounce;
 
     while (Done < Count) {
         UINT32 Chunk = Count - Done;
@@ -320,7 +320,7 @@ static int PortXfer(AHCI_DRIVE *Drv, UINT32 Lba, UINT32 Count, void *Buffer, int
         Bytes = Chunk * 512u;
 
         if (Write) {
-            MemCopy(Drv->Bounce, Data + (UINTN)Done * 512u, Bytes);
+            MemCopy(Drive->Bounce, Data + (UINTN)Done * 512u, Bytes);
         }
 
         if (!WaitClear(&Port->Tfd, AHCI_PxTFD_BSY | AHCI_PxTFD_DRQ, 1000000)) {
@@ -348,9 +348,9 @@ static int PortXfer(AHCI_DRIVE *Drv, UINT32 Lba, UINT32 Count, void *Buffer, int
         Ct->Prdt[0].Dbau = (UINT32)(BouncePhys >> 32);
         Ct->Prdt[0].Dbc = (Bytes - 1u) | (1u << 31);
 
-        Drv->Cl[0].Flags = (UINT16)(5u | (Write ? (1u << 6) : 0));
-        Drv->Cl[0].Prdtl = 1;
-        Drv->Cl[0].Prdbc = 0;
+        Drive->Cl[0].Flags = (UINT16)(5u | (Write ? (1u << 6) : 0));
+        Drive->Cl[0].Prdtl = 1;
+        Drive->Cl[0].Prdbc = 0;
 
         MmioWrite32(&Port->Is, 0xFFFFFFFFu);
         Fence();
@@ -380,7 +380,7 @@ static int PortXfer(AHCI_DRIVE *Drv, UINT32 Lba, UINT32 Count, void *Buffer, int
         MmioWrite32(&Port->Is, 0xFFFFFFFFu);
 
         if (!Write) {
-            MemCopy(Data + (UINTN)Done * 512u, Drv->Bounce, Bytes);
+            MemCopy(Data + (UINTN)Done * 512u, Drive->Bounce, Bytes);
         }
         Done += Chunk;
     }

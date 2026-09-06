@@ -4,7 +4,7 @@
 #include "ShellCommands.h"
 #include "BootInfo.h"
 #include "Console.h"
-#include "Drv.h"
+#include "Driver.h"
 #include "PhysicalMemory.h"
 #include "Process.h"
 #include "Scheduler.h"
@@ -705,15 +705,15 @@ static void CommandHalt(int Argc, char **Argv) {
 }
 
 /* PR-D4：列出已绑定驱动（TOY_DRIVER.Name + 类） */
-static const char *DrvClassName(TOY_DRV_CLASS Class) {
+static const char *DriverClassName(TOY_DRIVER_CLASS Class) {
     switch (Class) {
-    case TOY_DRV_CLASS_BLOCK:
+    case TOY_DRIVER_CLASS_BLOCK:
         return "block";
-    case TOY_DRV_CLASS_INPUT:
+    case TOY_DRIVER_CLASS_INPUT:
         return "input";
-    case TOY_DRV_CLASS_NET:
+    case TOY_DRIVER_CLASS_NET:
         return "net";
-    case TOY_DRV_CLASS_DISPLAY:
+    case TOY_DRIVER_CLASS_DISPLAY:
         return "display";
     default:
         return "?";
@@ -726,9 +726,9 @@ static void CommandLsdev(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
 
-    for (i = 0; i < ToyDrvInstanceCount(); i++) {
-        const TOY_DRV_INSTANCE *Inst = ToyDrvInstanceGet(i);
-        if (!Inst || !Inst->Bound || !Inst->Drv || !Inst->Drv->Name) {
+    for (i = 0; i < ToyDriverInstanceCount(); i++) {
+        const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(i);
+        if (!Inst || !Inst->Bound || !Inst->Driver || !Inst->Driver->Name) {
             continue;
         }
         Bound++;
@@ -740,15 +740,15 @@ static void CommandLsdev(int Argc, char **Argv) {
     ConsoleWrite("lsdev: bound=");
     ConsoleHex32((UINT32)Bound);
     ConsoleWrite("\n");
-    for (i = 0; i < ToyDrvInstanceCount(); i++) {
-        const TOY_DRV_INSTANCE *Inst = ToyDrvInstanceGet(i);
-        if (!Inst || !Inst->Bound || !Inst->Drv || !Inst->Drv->Name) {
+    for (i = 0; i < ToyDriverInstanceCount(); i++) {
+        const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(i);
+        if (!Inst || !Inst->Bound || !Inst->Driver || !Inst->Driver->Name) {
             continue;
         }
         ConsoleWrite("  ");
-        ConsoleWrite(Inst->Drv->Name);
+        ConsoleWrite(Inst->Driver->Name);
         ConsoleWrite("  ");
-        ConsoleWrite(DrvClassName(Inst->Drv->Class));
+        ConsoleWrite(DriverClassName(Inst->Driver->Class));
         ConsoleWrite("\n");
     }
 }

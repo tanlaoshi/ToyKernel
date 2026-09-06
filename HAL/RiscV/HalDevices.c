@@ -1,17 +1,17 @@
 /*
- * HalDevices.c — RiscV：Block / Input / Net 经 Drv 类门面（PR-D3）
+ * HalDevices.c — RiscV：Block / Input / Net 经 Driver 类门面（PR-D3）
  *
  * Common 只见 HalInput* / HalNet*；驱动私有头不进本文件。
  */
 #include "Hal.h"
-#include "Drv.h"
-#include "DrvInput.h"
-#include "DrvNet.h"
+#include "Driver.h"
+#include "DriverInput.h"
+#include "DriverNet.h"
 #include "VirtioBlk.h"
 #include "VirtioInput.h"
 #include "VirtioNet.h"
 
-void HalDrvRegister(void) {
+void HalDriverRegister(void) {
     VirtioBlkRegister();
     VirtioInputRegister();
     VirtioNetRegister();
@@ -26,23 +26,23 @@ int HalUsbInit(void) {
 }
 
 void HalInputPoll(void) {
-    ToyDrvInputPoll();
+    ToyDriverInputPoll();
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
-    return ToyDrvInputKeyboardDequeue(Report);
+    return ToyDriverInputKeyboardDequeue(Report);
 }
 
 int HalKeyboardSetLeds(UINT8 Leds) {
-    return ToyDrvInputKeyboardSetLeds(Leds);
+    return ToyDriverInputKeyboardSetLeds(Leds);
 }
 
 int HalMousePresent(void) {
-    return ToyDrvInputMousePresent();
+    return ToyDriverInputMousePresent();
 }
 
 int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
-    return ToyDrvInputMouseDequeue(Report);
+    return ToyDriverInputMouseDequeue(Report);
 }
 
 int HalNetInit(void) {
@@ -50,45 +50,45 @@ int HalNetInit(void) {
 }
 
 int HalNetReady(void) {
-    return ToyDrvNetReady();
+    return ToyDriverNetReady();
 }
 
 void HalNetPoll(void) {
-    ToyDrvNetPoll();
+    ToyDriverNetPoll();
 }
 
 void HalNetGetMac(UINT8 Mac[6]) {
-    ToyDrvNetGetMac(Mac);
+    ToyDriverNetGetMac(Mac);
 }
 
 UINT32 HalNetGetIp(void) {
-    return ToyDrvNetGetIp();
+    return ToyDriverNetGetIp();
 }
 
 void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
-    ToyDrvNetFormatIp(Ip, Buf, BufLen);
+    ToyDriverNetFormatIp(Ip, Buf, BufLen);
 }
 
 int HalNetParseIp(const char *Text, UINT32 *Ip) {
-    return ToyDrvNetParseIp(Text, Ip);
+    return ToyDriverNetParseIp(Text, Ip);
 }
 
 int HalNetPing(const char *Host, int TimeoutMs) {
-    return ToyDrvNetPing(Host, TimeoutMs);
+    return ToyDriverNetPing(Host, TimeoutMs);
 }
 
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
-    ToyDrvNetGetStats(TxDone, RxFrames);
+    ToyDriverNetGetStats(TxDone, RxFrames);
 }
 
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
-    return ToyDrvNetSendIp(DstIp, Proto, Payload, PayloadLen);
+    return ToyDriverNetSendIp(DstIp, Proto, Payload, PayloadLen);
 }
 
 UINT16 HalNetChecksum(const void *Data, UINTN Len) {
-    return ToyDrvNetChecksum(Data, Len);
+    return ToyDriverNetChecksum(Data, Len);
 }
 
 void HalNetSetLwIpRx(int Enable) {
-    ToyDrvNetSetLwIpRx(Enable);
+    ToyDriverNetSetLwIpRx(Enable);
 }

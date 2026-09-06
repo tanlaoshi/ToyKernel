@@ -2,15 +2,15 @@
  * VirtioInput.c — virtio-input MMIO：键盘 + tablet（PR-V3 / PR-D3）
  *
  * 事件为 Linux evdev；键码转 HID Usage 供 Common Tasks/Gui。
- * PR-D3：经 Drv Input 类注册，HalDevices 只见 HalInput*。
+ * PR-D3：经 Driver Input 类注册，HalDevices 只见 HalInput*。
  */
 #include "VirtioInput.h"
 #include "VirtioMmio.h"
 #include "HalSerial.h"
 #include "PhysicalMemory.h"
 #include "BootInfo.h"
-#include "Drv.h"
-#include "DrvInput.h"
+#include "Driver.h"
+#include "DriverInput.h"
 #include "HalDevices.h"
 
 #define EV_SYN 0x00
@@ -389,7 +389,7 @@ static const INPUT_BACKEND gInputBackend = {
     .MouseDequeue = VirtioInputMouseDequeue,
 };
 
-static int VirtioInputDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     IN_SCAN S;
     UINT8 *Page;
 
@@ -438,12 +438,12 @@ static int VirtioInputDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutP
     return 0;
 }
 
-static int VirtioInputDrvBind(TOY_DRV_INSTANCE *Inst) {
+static int VirtioInputDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return ToyDrvInputAttach(&gInputBackend);
+    return ToyDriverInputAttach(&gInputBackend);
 }
 
-static void VirtioInputDrvRemove(TOY_DRV_INSTANCE *Inst) {
+static void VirtioInputDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
     gKbdOn = 0;
     gTabOn = 0;
@@ -451,18 +451,18 @@ static void VirtioInputDrvRemove(TOY_DRV_INSTANCE *Inst) {
 
 static const TOY_DRIVER gVirtioInputDriver = {
     .Name = "virtio-input",
-    .Class = TOY_DRV_CLASS_INPUT,
+    .Class = TOY_DRIVER_CLASS_INPUT,
     .Match = 0,
-    .Probe = VirtioInputDrvProbe,
-    .Bind = VirtioInputDrvBind,
-    .Remove = VirtioInputDrvRemove,
+    .Probe = VirtioInputDriverProbe,
+    .Bind = VirtioInputDriverBind,
+    .Remove = VirtioInputDriverRemove,
 };
 
 void VirtioInputRegister(void) {
-    (void)ToyDrvRegister(&gVirtioInputDriver);
+    (void)ToyDriverRegister(&gVirtioInputDriver);
 }
 
 int VirtioInputInit(void) {
-    (void)ToyDrvProbeClass(TOY_DRV_CLASS_INPUT);
-    return ToyDrvInputReady() ? 0 : -1;
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_INPUT);
+    return ToyDriverInputReady() ? 0 : -1;
 }

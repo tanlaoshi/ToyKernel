@@ -1,5 +1,5 @@
 /*
- * InputXhci.h — x86 xHCI HID 经 Drv Input 类（PR-D3）
+ * InputXhci.h — x86 xHCI HID 经 Driver Input 类（PR-D3）
  */
 #ifndef INPUT_XHCI_H
 #define INPUT_XHCI_H

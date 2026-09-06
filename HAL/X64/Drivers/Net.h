@@ -11,8 +11,8 @@
 #define NET_IP_PROTO_TCP  6
 #define NET_IP_PROTO_UDP  17
 
-/* PR-D3：向 Drv 注册描述符（不 Probe） */
-void NetDrvRegister(void);
+/* PR-D3：向 Driver 注册描述符（不 Probe） */
+void NetDriverRegister(void);
 int  NetInit(void);
 int  NetReady(void);
 void NetPoll(void);

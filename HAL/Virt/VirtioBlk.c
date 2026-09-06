@@ -1,12 +1,12 @@
 /*
- * VirtioBlk.c — virtio-blk MMIO（PR-V4；PR-D2 经 Drv Block 类）
+ * VirtioBlk.c — virtio-blk MMIO（PR-V4；PR-D2 经 Driver Block 类）
  */
 #include "VirtioBlk.h"
 #include "VirtioMmio.h"
 #include "HalSerial.h"
 #include "PhysicalMemory.h"
-#include "Drv.h"
-#include "DrvBlock.h"
+#include "Driver.h"
+#include "DriverBlock.h"
 
 #define VIRTIO_BLK_T_IN  0u
 #define VIRTIO_BLK_T_OUT 1u
@@ -150,7 +150,7 @@ static void BlkScanCb(UINT64 Base, UINT32 DeviceId, void *Ctx) {
     }
 }
 
-static int VirtioBlkDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int VirtioBlkDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     BLK_SCAN_CTX Ctx;
     UINT8 *Meta;
 
@@ -193,31 +193,31 @@ static int VirtioBlkDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPri
     return 0;
 }
 
-static int VirtioBlkDrvBind(TOY_DRV_INSTANCE *Inst) {
+static int VirtioBlkDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return ToyDrvBlockAttach(&gBlkBackend);
+    return ToyDriverBlockAttach(&gBlkBackend);
 }
 
-static void VirtioBlkDrvRemove(TOY_DRV_INSTANCE *Inst) {
+static void VirtioBlkDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
     gBlkReady = 0;
 }
 
 static const TOY_DRIVER gVirtioBlkDriver = {
     .Name = "virtio-blk",
-    .Class = TOY_DRV_CLASS_BLOCK,
+    .Class = TOY_DRIVER_CLASS_BLOCK,
     .Match = 0,
-    .Probe = VirtioBlkDrvProbe,
-    .Bind = VirtioBlkDrvBind,
-    .Remove = VirtioBlkDrvRemove,
+    .Probe = VirtioBlkDriverProbe,
+    .Bind = VirtioBlkDriverBind,
+    .Remove = VirtioBlkDriverRemove,
 };
 
 void VirtioBlkRegister(void) {
-    (void)ToyDrvRegister(&gVirtioBlkDriver);
+    (void)ToyDriverRegister(&gVirtioBlkDriver);
 }
 
 int VirtioBlkInit(void) {
-    (void)ToyDrvProbeClass(TOY_DRV_CLASS_BLOCK);
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_BLOCK);
     if (!BlockBackendReady()) {
         return 0;
     }

@@ -1,8 +1,8 @@
 /*
- * InputXhci.c — x86 xHCI HID 输入（PR-D3：经 Drv Input 类注册）
+ * InputXhci.c — x86 xHCI HID 输入（PR-D3：经 Driver Input 类注册）
  */
-#include "Drv.h"
-#include "DrvInput.h"
+#include "Driver.h"
+#include "DriverInput.h"
 #include "Hal.h"
 #include "PCIe.h"
 #include "XHCI.h"
@@ -69,7 +69,7 @@ static const INPUT_BACKEND gXhciInputBackend = {
     .MouseDequeue = XhciMouseDequeue,
 };
 
-static int XhciDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     USB_CONTROLLER Controllers[8];
     int Count;
     int Found = 0;
@@ -118,30 +118,30 @@ static int XhciDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     return 0;
 }
 
-static int XhciDrvBind(TOY_DRV_INSTANCE *Inst) {
+static int XhciDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return ToyDrvInputAttach(&gXhciInputBackend);
+    return ToyDriverInputAttach(&gXhciInputBackend);
 }
 
-static void XhciDrvRemove(TOY_DRV_INSTANCE *Inst) {
+static void XhciDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
     gXhciReady = 0;
 }
 
 static const TOY_DRIVER gXhciInputDriver = {
     .Name = "xhci-hid",
-    .Class = TOY_DRV_CLASS_INPUT,
+    .Class = TOY_DRIVER_CLASS_INPUT,
     .Match = 0,
-    .Probe = XhciDrvProbe,
-    .Bind = XhciDrvBind,
-    .Remove = XhciDrvRemove,
+    .Probe = XhciDriverProbe,
+    .Bind = XhciDriverBind,
+    .Remove = XhciDriverRemove,
 };
 
 void InputXhciRegister(void) {
-    (void)ToyDrvRegister(&gXhciInputDriver);
+    (void)ToyDriverRegister(&gXhciInputDriver);
 }
 
 int InputXhciInit(void) {
-    (void)ToyDrvProbeClass(TOY_DRV_CLASS_INPUT);
-    return ToyDrvInputReady() ? 0 : -1;
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_INPUT);
+    return ToyDriverInputReady() ? 0 : -1;
 }

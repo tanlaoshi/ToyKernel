@@ -26,7 +26,7 @@ HAL/
 ```
 
 - **Arch vs Board**：MMU / 异常 / IRQ 控制器形状留在 `HAL/<Arch>/`；内存图、串口基址、模块子集、DTB 兼容串在 Board。  
-- **设备 vs 板**：声卡等走 Drv（[`驱动框架.md`](../../Documents/驱动框架.md)）；板只声明「有这颗设备」并注册，不改 Services。  
+- **设备 vs 板**：声卡等走 Driver（[`驱动框架.md`](../../Documents/驱动框架.md)）；板只声明「有这颗设备」并注册，不改 Services。  
 - **Makefile `BOARD=`**：**B2 ✅** — `BOARD=virt`（默认）→ `HAL/<Arch>/Board/<board>/`；`make boards`；缺包报错。
 
 ---

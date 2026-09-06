@@ -1,5 +1,5 @@
 /*
- * Net.c — virtio-net-pci 轮询驱动 + ARP + ICMP ping（PR-D3：Drv Net 类）
+ * Net.c — virtio-net-pci 轮询驱动 + ARP + ICMP ping（PR-D3：Driver Net 类）
  *
  * QEMU: -device virtio-net-pci,netdev=n0 -netdev user,id=n0
  * 默认 IP 10.0.2.15/24，网关 10.0.2.2
@@ -16,8 +16,8 @@
 #include "Serial.h"
 #include "Debug.h"
 #include "Hal.h"
-#include "Drv.h"
-#include "DrvNet.h"
+#include "Driver.h"
+#include "DriverNet.h"
 #include "VirtualMemory.h"
 
 #define VIRTIO_VENDOR_ID      0x1AF4
@@ -876,11 +876,11 @@ UINT16 NetChecksum(const void *Data, UINTN Len) {
 }
 
 int NetInit(void) {
-    (void)ToyDrvProbeClass(TOY_DRV_CLASS_NET);
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_NET);
     return 0;
 }
 
-static int NetDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     UINT8 Bus;
     UINT8 Dev;
     UINT8 Fn;
@@ -894,7 +894,7 @@ static int NetDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
         }
         return 0;
     }
-    /* BAR Map 必须在 VMM Enable 之后（InitDrv 的 ProbeAll 会跳过） */
+    /* BAR Map 必须在 VMM Enable 之后（InitDriver 的 ProbeAll 会跳过） */
     if (!VirtualMemoryEnabled()) {
         return -1;
     }
@@ -915,8 +915,8 @@ static int NetDrvProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     return 0;
 }
 
-static int NetDrvBind(TOY_DRV_INSTANCE *Inst);
-static void NetDrvRemove(TOY_DRV_INSTANCE *Inst);
+static int NetDriverBind(TOY_DRIVER_INSTANCE *Inst);
+static void NetDriverRemove(TOY_DRIVER_INSTANCE *Inst);
 
 /* Net.h 导出的 ops；此处仅作后端表前向声明 */
 int NetReady(void);
@@ -945,27 +945,27 @@ static const NET_BACKEND gNetBackend = {
     .SetLwIpRx = NetSetLwIpRx,
 };
 
-static int NetDrvBind(TOY_DRV_INSTANCE *Inst) {
+static int NetDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return ToyDrvNetAttach(&gNetBackend);
+    return ToyDriverNetAttach(&gNetBackend);
 }
 
-static void NetDrvRemove(TOY_DRV_INSTANCE *Inst) {
+static void NetDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
     gNetOk = 0;
 }
 
 static const TOY_DRIVER gVirtioNetPciDriver = {
     .Name = "virtio-net-pci",
-    .Class = TOY_DRV_CLASS_NET,
+    .Class = TOY_DRIVER_CLASS_NET,
     .Match = 0,
-    .Probe = NetDrvProbe,
-    .Bind = NetDrvBind,
-    .Remove = NetDrvRemove,
+    .Probe = NetDriverProbe,
+    .Bind = NetDriverBind,
+    .Remove = NetDriverRemove,
 };
 
-void NetDrvRegister(void) {
-    (void)ToyDrvRegister(&gVirtioNetPciDriver);
+void NetDriverRegister(void) {
+    (void)ToyDriverRegister(&gVirtioNetPciDriver);
 }
 
 int NetReady(void) {
