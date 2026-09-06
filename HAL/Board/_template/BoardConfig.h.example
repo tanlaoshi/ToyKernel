@@ -1,0 +1,34 @@
+/*
+ * BoardConfig.h.example — 板级常量模板（PR-B0）
+ *
+ * 复制到 HAL/<Arch>/Board/<board>/BoardConfig.h 后按板填写。
+ * 仅 HAL / Board 包含；禁止 Common / Services 直接 include 本头。
+ *
+ * B1 起能力旗标由 HAL 门面暴露（HalHasFrameBuffer / HalConsoleOnly）；
+ * 此处先用板内宏勾选意图，供 Startup / Board.c 消费。
+ */
+#ifndef TOY_BOARD_CONFIG_H
+#define TOY_BOARD_CONFIG_H
+
+/* --- 标识 --- */
+#define TOY_BOARD_NAME           "example-board"
+#define TOY_BOARD_ARCH           "Arm64" /* 或 "RiscV" */
+
+/* --- 串口（SoC UART；命令行靶必填） --- */
+#define TOY_BOARD_UART_BASE      0x00000000ULL /* 板级物理基址 */
+#define TOY_BOARD_UART_BAUD      115200
+
+/* --- 加载 / 链接提示（文档与 Startup 共用；以厂商 U-Boot 为准） --- */
+#define TOY_BOARD_KERNEL_LOAD    0x00000000ULL /* booti 内核加载建议地址 */
+#define TOY_BOARD_DTB_LOAD       0x00000000ULL /* DTB 加载建议地址 */
+
+/* --- 能力勾选（1=有，0=无）。命令行靶：FB=0 → 串口壳 --- */
+#define TOY_BOARD_HAS_FRAMEBUFFER 0
+#define TOY_BOARD_HAS_BLOCK       0 /* SD/eMMC；本柱 B3 不要求 */
+#define TOY_BOARD_HAS_NET         0 /* 本柱不要求 */
+#define TOY_BOARD_CONSOLE_ONLY    1 /* 与 !HAS_FRAMEBUFFER 对齐时可同为 1 */
+
+/* --- 模块子集意图（B2 起由 Makefile/BOARD 接线；此处仅文档化） --- */
+/* console-only：serial → mem → … → console（跳过 video/gui） */
+
+#endif /* TOY_BOARD_CONFIG_H */

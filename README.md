@@ -228,9 +228,10 @@ echo hello | nc -u 127.0.0.1 5555
   - [`结构说明.md`](Documents/结构说明.md) — 启动流程、源文件职责、阅读顺序
   - [`路线图.md`](Documents/路线图.md) — 阶段规划与待办
   - [`启动与板级支持.md`](Documents/启动与板级支持.md) — UEFI/U-Boot/DTB、Startup、Board 包
+  - [`HAL/Board/README.md`](HAL/Board/README.md) — 板包约定 + `_template`（**PR-B0**）
   - [`驱动框架.md`](Documents/驱动框架.md) — Drv 模型
   - [`写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md) — 加 virtio 驱动步骤（PR-D3）；`lsdev` 验收（PR-D4）
-- 计划中的后续：见路线图 **1.3b/c**（板包、x86 真机）与 **1.3r R2**（Gui 断环）
+- 计划中的后续：见路线图 **1.3b**（**B0 ✅**；B1～B3）∥ **1.3c**（H0～H4）
 
 ---
 
