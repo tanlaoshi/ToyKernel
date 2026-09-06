@@ -6,8 +6,6 @@
  * 均为 BI_RGB，运行时 FsReadFile + BmpDecode；缺失则回退色块。资源不链入 Kernel.elf。
  */
 #include "Desktop.h"
-#include "Gui.h"
-#include "Console.h"
 #include "UI.h"
 #include "Hal.h"
 #include "Font.h"
@@ -38,12 +36,6 @@
 #define WALL_FILE_MAX         (512u * 1024u)
 #define ICON_FILE_MAX         (16u * 1024u)
 
-typedef enum {
-    DESKTOP_ACT_SHELL = 0,
-    DESKTOP_ACT_SETTINGS,
-    DESKTOP_ACT_FILES
-} DESKTOP_ACTION;
-
 typedef struct {
     const char     *Label;
     DESKTOP_ACTION  Action;
@@ -73,7 +65,29 @@ static UINT32  gWallScreenW;
 static UINT32  gWallScreenH;
 static UINT32  gWallScreenPages;
 
+/* PR-R2：由 Gui 注册，Desktop 不 include Gui.h */
+static int (*gPointOccupied)(UINT32 X, UINT32 Y);
+static void (*gRequestRefresh)(void);
+
 static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color);
+
+static int PointOccupied(UINT32 X, UINT32 Y) {
+    return gPointOccupied ? gPointOccupied(X, Y) : 0;
+}
+
+static void RequestRefresh(void) {
+    if (gRequestRefresh) {
+        gRequestRefresh();
+    }
+}
+
+void DesktopSetPointOccupied(int (*Fn)(UINT32 X, UINT32 Y)) {
+    gPointOccupied = Fn;
+}
+
+void DesktopSetRequestRefresh(void (*Fn)(void)) {
+    gRequestRefresh = Fn;
+}
 
 static UINT64 DesktopClock(void) {
     return HalCpuTicks(0);
@@ -279,7 +293,7 @@ static void BlitIconFaceFree(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
             InRun = 0;
             RunStart = 0;
             for (Col = 0; Col < W; Col++) {
-                int Free = !GuiPointInAnyWindow(X + Col, Y + Row);
+                int Free = !PointOccupied(X + Col, Y + Row);
                 if (Free && !InRun) {
                     RunStart = Col;
                     InRun = 1;
@@ -459,7 +473,7 @@ static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
         InRun = 0;
         RunStart = 0;
         for (Col = 0; Col < W; Col++) {
-            int Free = !GuiPointInAnyWindow(X + Col, Y + Row);
+            int Free = !PointOccupied(X + Col, Y + Row);
             if (Free && !InRun) {
                 RunStart = Col;
                 InRun = 1;
@@ -497,7 +511,7 @@ static void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
             One[k] = Text[k];
         }
         One[k] = 0;
-        if (!GuiPointInAnyWindow(Cx, Y)) {
+        if (!PointOccupied(Cx, Y)) {
             HalVideoDrawStringAt(Cx, Y, One, Color);
         }
         Cx += Adv;
@@ -858,26 +872,6 @@ static void RedrawIconIndex(int Idx) {
     DrawOneIconOccluded(&gIcons[Idx], Idx == gSelected);
 }
 
-static void OpenAction(DESKTOP_ACTION Action) {
-    int Idx;
-
-    gMenuOpen = 0;
-    if (Action == DESKTOP_ACT_SHELL) {
-        Idx = GuiOpenShell();
-        if (Idx >= 0) {
-            ConsoleOnShellOpened();
-        }
-        return;
-    }
-    if (Action == DESKTOP_ACT_SETTINGS) {
-        (void)GuiOpenSettings();
-        return;
-    }
-    if (Action == DESKTOP_ACT_FILES) {
-        (void)GuiOpenFiles();
-    }
-}
-
 static void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now) {
     int Prev = gSelected;
 
@@ -891,7 +885,7 @@ static void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now) {
     RedrawIconIndex(Hit);
 }
 
-static int HandleTaskbarClick(UINT32 X, UINT32 Y) {
+static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -907,16 +901,18 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y) {
         if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
             Item = (int)((Y - My) / MENU_ITEM_H);
             if (Item >= 0 && Item < MENU_ITEMS) {
-                /* 先关菜单并刷新桌面，再开窗——禁止在 Open 后再全屏 Fill（会抹掉 Shell） */
+                /* 先关菜单并刷新桌面，再由 Gui 开窗——禁止在 Open 后再全屏 Fill */
                 gMenuOpen = 0;
-                GuiRefreshDesktop();
-                OpenAction((DESKTOP_ACTION)Item);
+                RequestRefresh();
+                if (OutAction) {
+                    *OutAction = (DESKTOP_ACTION)Item;
+                }
                 return 1;
             }
         }
         /* 点在菜单外：关菜单并刷新 */
         gMenuOpen = 0;
-        GuiRefreshDesktop();
+        RequestRefresh();
         /* 若点在开始钮则下面再处理为打开 */
     }
 
@@ -929,13 +925,13 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y) {
         StartBtnGeom(&Bx, &By, &Bw, &Bh);
         if (X >= Bx && X < Bx + Bw && Y >= By && Y < By + Bh) {
             gMenuOpen = !gMenuOpen;
-            GuiRefreshDesktop();
+            RequestRefresh();
             return 1;
         }
         /* 任务栏其它区域：吞掉点击 */
         if (gMenuOpen) {
             gMenuOpen = 0;
-            GuiRefreshDesktop();
+            RequestRefresh();
         }
         return 1;
     }
@@ -946,19 +942,19 @@ void DesktopInit(void) {
     UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
                   DESKTOP_ICON_GAP;
 
-    gIcons[0].Action = DESKTOP_ACT_SHELL;
+    gIcons[0].Action = DESKTOP_ACTION_SHELL;
     gIcons[0].IconColor = COLOR_BLUE;
     gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
     gIcons[0].X = DESKTOP_ORIGIN_X;
     gIcons[0].Y = DESKTOP_ORIGIN_Y;
 
-    gIcons[1].Action = DESKTOP_ACT_SETTINGS;
+    gIcons[1].Action = DESKTOP_ACTION_SETTINGS;
     gIcons[1].IconColor = 0x00606080;
     gIcons[1].BmpPath = "Assets/Icons/bmp48/SET.BMP";
     gIcons[1].X = DESKTOP_ORIGIN_X;
     gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
 
-    gIcons[2].Action = DESKTOP_ACT_FILES;
+    gIcons[2].Action = DESKTOP_ACTION_FILES;
     gIcons[2].IconColor = 0x00208040;
     gIcons[2].BmpPath = "Assets/Icons/bmp48/FILES.BMP";
     gIcons[2].X = DESKTOP_ORIGIN_X;
@@ -982,7 +978,7 @@ void DesktopRefreshLabels(void) {
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
 }
 
-int DesktopHandleClick(UINT32 X, UINT32 Y) {
+int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     int i;
     int Hit;
     int Prev;
@@ -991,7 +987,11 @@ int DesktopHandleClick(UINT32 X, UINT32 Y) {
     UINT32 Dx;
     UINT32 Dy;
 
-    if (HandleTaskbarClick(X, Y)) {
+    if (OutAction) {
+        *OutAction = DESKTOP_ACTION_NONE;
+    }
+
+    if (HandleTaskbarClick(X, Y, OutAction)) {
         return 1;
     }
 
@@ -1021,7 +1021,10 @@ int DesktopHandleClick(UINT32 X, UINT32 Y) {
         Dt <= DESKTOP_DBLCLICK_MAX &&
         Dx <= DESKTOP_DBLCLICK_SLOP &&
         Dy <= DESKTOP_DBLCLICK_SLOP) {
-        OpenAction(gIcons[Hit].Action);
+        gMenuOpen = 0;
+        if (OutAction) {
+            *OutAction = gIcons[Hit].Action;
+        }
         gSelected = -1;
         return 1;
     }

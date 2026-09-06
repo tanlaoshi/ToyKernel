@@ -400,6 +400,14 @@ void ConsoleBindFocus(void) {
 
 /* 初始化：无 Shell 时仅串口提示；开窗后由 ConsoleOnShellOpened 画欢迎语 */
 void ConsoleInit(void) {
+    GUI_CONSOLE_OPS Ops;
+
+    Ops.FocusSave = ConsoleFocusSave;
+    Ops.FocusLoad = ConsoleFocusLoad;
+    Ops.OnShellOpened = ConsoleOnShellOpened;
+    Ops.PaintShellWindow = ConsolePaintShellWindow;
+    GuiRegisterConsoleOps(&Ops);
+
     gLen = 0;
     gWaitPrompt = 0;
     gAtLineStart = 1;

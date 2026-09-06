@@ -26,6 +26,16 @@ typedef enum {
 #define GUI_CLIENT_PAD 8
 #define GUI_INPUT_LINE_MAX  128
 
+/* PR-R2：Console→Gui 单向；Gui 经回调调 Shell 绘制/焦点，避免互 #include */
+typedef struct {
+    void (*FocusSave)(void);
+    void (*FocusLoad)(void);
+    void (*OnShellOpened)(void);
+    void (*PaintShellWindow)(int Idx);
+} GUI_CONSOLE_OPS;
+
+void GuiRegisterConsoleOps(const GUI_CONSOLE_OPS *Ops);
+
 void GuiInit(void);
 void GuiPointerMove(UINT32 X, UINT32 Y);
 void GuiCursorPaint(void);
