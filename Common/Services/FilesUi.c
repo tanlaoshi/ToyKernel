@@ -977,6 +977,41 @@ void FilesUiOnDeleteKey(void) {
     BeginConfirmDelete();
 }
 
+void FilesUiOnWheel(INT8 Wheel) {
+    int MaxScroll;
+    int Next;
+
+    if (Wheel == 0 || !FilesUiIsFocused() || gMode != FILES_MODE_LIST) {
+        return;
+    }
+    if (gListVisible <= 0 || gCount <= gListVisible) {
+        return;
+    }
+    /* 正滚轮 = 看列表上方 → gScroll 减小 */
+    Next = gScroll - (int)Wheel;
+    MaxScroll = gCount - gListVisible;
+    if (MaxScroll < 0) {
+        MaxScroll = 0;
+    }
+    if (Next < 0) {
+        Next = 0;
+    }
+    if (Next > MaxScroll) {
+        Next = MaxScroll;
+    }
+    if (Next == gScroll) {
+        return;
+    }
+    gScroll = Next;
+    if (gSelected < gScroll) {
+        gSelected = gScroll;
+    }
+    if (gSelected >= gScroll + gListVisible) {
+        gSelected = gScroll + gListVisible - 1;
+    }
+    PaintList();
+}
+
 int FilesUiIsFocused(void) {
     return GuiFocusKind() == GUI_WIN_FILES;
 }

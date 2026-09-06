@@ -11,6 +11,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "Console.h"
 #include "Locale.h"
 #include "PhysicalMemory.h"
 #include "CoreOps.h"
@@ -748,6 +749,15 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
 
     gCursorBtn = Mouse->Buttons;
     GuiPointerMove(Mouse->X, Mouse->Y);
+
+    /* PR-I2：滚轮 — Files 列表 / Shell 客户区；其它忽略 */
+    if (Mouse->Wheel != 0) {
+        if (GuiFocusKind() == GUI_WIN_FILES) {
+            FilesUiOnWheel(Mouse->Wheel);
+        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+            ConsoleOnWheel(Mouse->Wheel);
+        }
+    }
 
     if ((Mouse->Buttons & 1) && !(PrevBtn & 1)) {
         GuiHandleClick(gCursorX, gCursorY);

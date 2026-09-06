@@ -15,6 +15,8 @@ void FilesUiRefresh(void);
 void FilesUiOnClick(UINT32 X, UINT32 Y);
 /* PR-G11：指针在列表区移动时更新悬停行（可选对比，非新控件） */
 void FilesUiOnHover(UINT32 X, UINT32 Y);
+/* PR-I2：列表滚轮；非列表模式忽略 */
+void FilesUiOnWheel(INT8 Wheel);
 void FilesUiOnEscape(void);
 void FilesUiOnEnter(void);
 void FilesUiOnArrow(int Down);

@@ -613,6 +613,55 @@ static void ScrollClip(void) {
     DirtyUnion(gClipX, gClipY, gClipW, gClipH);
 }
 
+/* 内容下移一行（顶部空出），与 ScrollClip 相反 */
+static void ScrollClipDown(void) {
+    UINT32 *Fb = DrawBase();
+    UINT32 Pitch = DrawPitch();
+    UINT32 LineHeight = FontAdvanceY();
+    UINT32 Y;
+    UINT32 X;
+    UINT32 XEnd;
+    UINT32 YEnd;
+
+    if (!Fb || Pitch == 0 || !gClipOn || gClipW == 0 || gClipH <= LineHeight) {
+        return;
+    }
+    XEnd = gClipX + gClipW;
+    YEnd = gClipY + gClipH;
+    for (Y = YEnd; Y > gClipY + LineHeight; ) {
+        Y--;
+        for (X = gClipX; X < XEnd; X++) {
+            Fb[Y * Pitch + X] = Fb[(Y - LineHeight) * Pitch + X];
+        }
+    }
+    for (Y = gClipY; Y < gClipY + LineHeight; Y++) {
+        for (X = gClipX; X < XEnd; X++) {
+            Fb[Y * Pitch + X] = gClipBg;
+        }
+    }
+    DirtyUnion(gClipX, gClipY, gClipW, gClipH);
+}
+
+void VideoScrollClipLines(int Delta) {
+    int n;
+    int i;
+
+    if (!gClipOn || Delta == 0) {
+        return;
+    }
+    n = Delta > 0 ? Delta : -Delta;
+    if (n > 32) {
+        n = 32;
+    }
+    for (i = 0; i < n; i++) {
+        if (Delta > 0) {
+            ScrollClipDown();
+        } else {
+            ScrollClip();
+        }
+    }
+}
+
 static void ScrollScreen(void) {
     UINT32 *Fb = DrawBase();
     UINT32 Pitch = DrawPitch();

@@ -131,3 +131,7 @@ void HalVideoSetTextCursor(UINT32 X, UINT32 Y) {
 void HalVideoClearClip(void) {
     VideoClearClip();
 }
+
+void HalVideoScrollClipLines(int Delta) {
+    VideoScrollClipLines(Delta);
+}

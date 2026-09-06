@@ -48,5 +48,7 @@ void VideoSetClipOrigin(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 
 void VideoGetTextCursor(UINT32 *X, UINT32 *Y);
 void VideoSetTextCursor(UINT32 X, UINT32 Y);
 void VideoClearClip(void);
+/* PR-I2：客户区滚轮。Delta>0 内容下移（看上方）；Delta<0 内容上移 */
+void VideoScrollClipLines(int Delta);
 
 #endif

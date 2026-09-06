@@ -37,4 +37,7 @@ void HalVideoGetTextCursor(UINT32 *X, UINT32 *Y);
 void HalVideoSetTextCursor(UINT32 X, UINT32 Y);
 void HalVideoClearClip(void);
 
+/* PR-I2：焦点客户区按行滚动（Shell 滚轮） */
+void HalVideoScrollClipLines(int Delta);
+
 #endif

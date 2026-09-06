@@ -423,6 +423,28 @@ void ConsoleOnShellOpened(void) {
     ConsolePaintShellWindow(GuiFocusIndex());
 }
 
+void ConsoleOnWheel(INT8 Wheel) {
+    UINT32 Cx;
+    UINT32 Cy;
+    UINT32 Cw;
+    UINT32 Ch;
+    UINT32 Bg;
+
+    if (Wheel == 0 || !GuiShellAcceptsInput()) {
+        return;
+    }
+    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Cw == 0 || Ch == 0) {
+        return;
+    }
+    GuiFrameBufferBegin();
+    GuiFocusApplyClip();
+    HalVideoScrollClipLines((int)Wheel);
+    GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+    HalVideoClearClip();
+    GuiFrameBufferEnd();
+    HalVideoPresent();
+}
+
 /* PR-G8：主题合成时按窗下标画 Shell，不要求当前可输入/未遮挡 */
 void ConsolePaintShellWindow(int Idx) {
     int Saved;

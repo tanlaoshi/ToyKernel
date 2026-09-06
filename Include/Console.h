@@ -28,6 +28,8 @@ void ConsoleOnShellOpened(void);
 void ConsolePaintShellWindow(int Idx);
 /* PR-D5：ThemeApply/GuiRedraw 后立刻重画所有 Shell，避免等再点标题栏 */
 void ConsoleRepaintShellWindows(void);
+/* PR-I2：Shell 客户区滚轮（像素滚动；无完整行缓冲） */
+void ConsoleOnWheel(INT8 Wheel);
 
 /* PR-G2：焦点切换时保存/恢复当前窗输入行（由 GuiFocusSave/Apply 调用） */
 void ConsoleFocusSave(void);
