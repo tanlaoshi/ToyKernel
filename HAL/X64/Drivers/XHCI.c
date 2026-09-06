@@ -57,6 +57,7 @@
 #define TRB_STATUS          4
 #define TRB_LINK            6
 #define TRB_ENABLE_SLOT     9
+#define TRB_DISABLE_SLOT   10
 #define TRB_ADDRESS_DEV    11
 #define TRB_CONFIG_EP       12
 #define TRB_TRANSFER_EVENT 32
@@ -508,6 +509,20 @@ static int AddressDevice(UINT32 Port1, UINT8 Speed) {
     return AddressDeviceOnPort(Port1, Speed, &gSlotId, gDevCtx);
 }
 
+static void DisableSlot(UINT32 SlotId) {
+    if (SlotId == 0 || SlotId > DCBAA_SLOTS) {
+        return;
+    }
+    (void)Command(0, TRB_TYPE(TRB_DISABLE_SLOT) | TRB_SLOT(SlotId), 0);
+    gDcbaa[SlotId] = 0;
+    if (gSlotId == SlotId) {
+        gSlotId = 0;
+    }
+    if (gXferSlot == SlotId) {
+        gXferSlot = 0;
+    }
+}
+
 /* EP0 控制传输（SETUP-DATA-STATUS） */
 static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
     UINT64 SetupParam = 0;
@@ -920,29 +935,122 @@ int XhciInit(UINT64 BaseAddress) {
     }
     DebugWrite("XHCI: controller running\n");
 
-    UINT32 Port1 = 0;
-    UINT8 Speed = 0;
-    for (int Wait = 0; Wait < 50 && Port1 == 0; Wait++) {
+    /* PR-H2：普查各口 CCS；优先 boot keyboard（3/1/1），勿假定第一口就是键盘 */
+    {
+        UINT32 Surveyed = 0;
         for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
             UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(p));
             if (Ps & PORTSC_CCS) {
-                DebugWrite("XHCI: device on port ");
+                Surveyed++;
+                DebugWrite("XHCI: survey port ");
                 DebugHex32(p);
                 DebugWrite(" portsc=");
                 DebugHex32(Ps);
                 DebugWrite("\n");
-                if (ResetPort(p)) {
-                    UINT32 After = ReadMmio32(gOperationalBase + PortReg(p));
-                    Speed = PortSpeed(After);
-                    Port1 = p;
-                    gPort1 = p;
-                    gSpeed = Speed;
-                    DebugWrite("XHCI: speed=");
-                    DebugHex32(Speed);
-                    DebugWrite("\n");
-                    break;
-                }
             }
+        }
+        DebugWrite("XHCI: CCS ports=");
+        DebugHex32(Surveyed);
+        DebugWrite("\n");
+    }
+
+    UINT32 Port1 = 0;
+    UINT8 Speed = 0;
+    UINT8 EpAddr = 0, Interval = 10;
+    UINT16 Mps = 8;
+    UINT8 ConfigVal = 1;
+    int HaveIntr = 0;
+
+    for (int Wait = 0; Wait < 50 && Port1 == 0; Wait++) {
+        for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
+            UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(p));
+            if (!(Ps & PORTSC_CCS)) {
+                continue;
+            }
+            if (!ResetPort(p)) {
+                continue;
+            }
+            UINT32 After = ReadMmio32(gOperationalBase + PortReg(p));
+            Speed = PortSpeed(After);
+            gPort1 = p;
+            gSpeed = Speed;
+            DebugWrite("XHCI: try keyboard port ");
+            DebugHex32(p);
+            DebugWrite(" speed=");
+            DebugHex32(Speed);
+            DebugWrite("\n");
+
+            if (!AddressDevice(p, Speed)) {
+                DisableSlot(gSlotId);
+                continue;
+            }
+
+            if (GetDesc(0x0100, 0, 18, gCtrlBuf) < 0) {
+                DebugWrite("XHCI: GET_DESCRIPTOR device failed\n");
+                DisableSlot(gSlotId);
+                continue;
+            }
+            {
+                USB_DEVICE_DESCRIPTOR *Dev = (USB_DEVICE_DESCRIPTOR *)(void *)gCtrlBuf;
+                DebugWrite("XHCI: VID=");
+                DebugHex32(Dev->idVendor);
+                DebugWrite(" PID=");
+                DebugHex32(Dev->idProduct);
+                DebugWrite("\n");
+                (void)Dev;
+            }
+
+            if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+                DebugWrite("XHCI: GET_DESCRIPTOR config(9) failed\n");
+                DisableSlot(gSlotId);
+                continue;
+            }
+            UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+            if (Total < 9) {
+                Total = 9;
+            }
+            if (Total > sizeof(gCtrlBuf)) {
+                Total = (UINT16)sizeof(gCtrlBuf);
+            }
+            if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+                DebugWrite("XHCI: GET_DESCRIPTOR config failed\n");
+                DisableSlot(gSlotId);
+                continue;
+            }
+            ConfigVal = gCtrlBuf[5];
+            if (ConfigVal == 0) {
+                ConfigVal = 1;
+            }
+
+            HaveIntr = ParseConfig(gCtrlBuf, Total, Speed, &gKbdIface, &EpAddr, &Mps, &Interval);
+            if (!HaveIntr) {
+                DebugWrite("XHCI: no boot keyboard iface on port ");
+                DebugHex32(p);
+                DebugWrite("\n");
+                DisableSlot(gSlotId);
+                continue;
+            }
+
+            if (SetConfig(ConfigVal) < 0) {
+                DebugWrite("XHCI: SET_CONFIGURATION failed\n");
+                DisableSlot(gSlotId);
+                continue;
+            }
+            if (SetProtocolBoot(gKbdIface) < 0) {
+                DebugWrite("XHCI: SET_PROTOCOL failed (continuing)\n");
+            }
+            SetIdle(gKbdIface);
+
+            if (!ConfigureIntr(EpAddr, Mps, Interval, Speed)) {
+                DebugWrite("XHCI: ConfigureIntr failed\n");
+                DisableSlot(gSlotId);
+                continue;
+            }
+            ZeroMemory(gReportBuf, 8);
+            QueueIntr();
+            gUseGetReport = 0;
+            Port1 = p;
+            break;
         }
         if (Port1 == 0) {
             for (volatile int d = 0; d < 200000; d++) {
@@ -950,66 +1058,8 @@ int XhciInit(UINT64 BaseAddress) {
         }
     }
     if (Port1 == 0) {
-        DebugWrite("XHCI: no device\n");
+        DebugWrite("XHCI: no keyboard\n");
         return 0;
-    }
-
-    if (!AddressDevice(Port1, Speed)) {
-        return 0;
-    }
-
-    if (GetDesc(0x0100, 0, 18, gCtrlBuf) < 0) {
-        DebugWrite("XHCI: GET_DESCRIPTOR device failed\n");
-        return 0;
-    }
-    USB_DEVICE_DESCRIPTOR *Dev = (USB_DEVICE_DESCRIPTOR *)(void *)gCtrlBuf;
-    DebugWrite("XHCI: VID=");
-    DebugHex32(Dev->idVendor);
-    DebugWrite(" PID=");
-    DebugHex32(Dev->idProduct);
-    DebugWrite("\n");
-    (void)Dev;
-
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
-        DebugWrite("XHCI: GET_DESCRIPTOR config(9) failed\n");
-        return 0;
-    }
-    UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
-    if (Total < 9) {
-        Total = 9;
-    }
-    if (Total > sizeof(gCtrlBuf)) {
-        Total = (UINT16)sizeof(gCtrlBuf);
-    }
-    if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
-        DebugWrite("XHCI: GET_DESCRIPTOR config failed\n");
-        return 0;
-    }
-    UINT8 ConfigVal = gCtrlBuf[5];
-    if (ConfigVal == 0) {
-        ConfigVal = 1;
-    }
-
-    UINT8 EpAddr = 0, Interval = 10;
-    UINT16 Mps = 8;
-    int HaveIntr = ParseConfig(gCtrlBuf, Total, Speed, &gKbdIface, &EpAddr, &Mps, &Interval);
-
-    if (SetConfig(ConfigVal) < 0) {
-        DebugWrite("XHCI: SET_CONFIGURATION failed\n");
-        return 0;
-    }
-    if (SetProtocolBoot(gKbdIface) < 0) {
-        DebugWrite("XHCI: SET_PROTOCOL failed (continuing)\n");
-    }
-    SetIdle(gKbdIface);
-
-    gUseGetReport = 1;
-    if (HaveIntr && ConfigureIntr(EpAddr, Mps, Interval, Speed)) {
-        ZeroMemory(gReportBuf, 8);
-        QueueIntr();
-        gUseGetReport = 0;
-    } else {
-        DebugWrite("XHCI: using GET_REPORT fallback\n");
     }
 
     DebugWrite("XHCI: keyboard ready\n");
@@ -1119,15 +1169,17 @@ void XhciDrainEvents(void) {
     }
 }
 
-/* 通过 PciEnableMsi 绑定中断向量并启用 IRQ 模式 */
+/* 通过 PciEnableMsi 绑定中断向量；失败仍可 Poll 排空事件环（PR-H2） */
 int XhciEnableIrq(USB_CONTROLLER *Device) {
-    if (gUseGetReport) {
-        DebugWrite("XHCI: GET_REPORT mode, IRQ unused\n");
+    if (gUseGetReport || gSlotId == 0) {
+        DebugWrite("XHCI: no interrupt EP, IRQ unused\n");
         gUseIrq = 0;
         return 0;
     }
     if (!PciEnableMsi(Device, VEC_XHCI)) {
+        DebugWrite("XHCI: MSI failed; poll drain\n");
         gUseIrq = 0;
+        XhciDrainEvents();
         return 0;
     }
     gUseIrq = 1;

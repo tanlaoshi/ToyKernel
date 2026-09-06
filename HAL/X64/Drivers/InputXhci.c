@@ -1,5 +1,5 @@
 /*
- * InputXhci.c — x86 xHCI HID 输入（PR-D3：经 Driver Input 类注册）
+ * InputXhci.c — x86 xHCI HID 输入（PR-D3：经 Driver Input 类注册；PR-H2：普查/软 IRQ）
  */
 #include "Driver.h"
 #include "DriverInput.h"
@@ -12,8 +12,24 @@
 static USB_CONTROLLER gXhciDev;
 static int gXhciReady;
 
+static void MapXhciBar(UINT64 Base) {
+    UINT64 Start;
+    UINT64 End;
+
+    if (Base == 0) {
+        return;
+    }
+    Start = Base & ~(UINT64)(4096 - 1);
+    End = Start + 0x1000000ULL;
+    while (Start < End) {
+        VirtualMemoryMapPage(Start, Start, PTE_PRESENT | PTE_WRITABLE);
+        Start += 4096;
+    }
+}
+
 static void XhciInputPoll(void) {
-    if (gXhciReady && XhciUsesIrq()) {
+    if (gXhciReady) {
+        /* MSI 与否都排空；无 IRQ 时靠此收报告（PR-H2） */
         XhciDrainEvents();
     }
 }
@@ -69,10 +85,30 @@ static const INPUT_BACKEND gXhciInputBackend = {
     .MouseDequeue = XhciMouseDequeue,
 };
 
+static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
+    if (Base == 0) {
+        return 0;
+    }
+    MapXhciBar(Base);
+    DebugWrite("XHCI: try BAR ");
+    DebugHex64(Base);
+    DebugWrite("\n");
+    if (!XhciInit(Base)) {
+        return 0;
+    }
+    if (Dev) {
+        (void)XhciEnableIrq(Dev);
+        if (!XhciUsesIrq()) {
+            DebugWrite("XHCI: bound without MSI (poll)\n");
+        }
+    }
+    return 1;
+}
+
 static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     USB_CONTROLLER Controllers[8];
     int Count;
-    int Found = 0;
+    int i;
 
     (void)Self;
     (void)BusCtx;
@@ -88,34 +124,51 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     }
 
     Count = PciScanUSBControllers(Controllers, 8);
-    for (int i = 0; i < Count; i++) {
-        if (Controllers[i].Type == 0x30) {
-            gXhciDev = Controllers[i];
-            Found = 1;
-            break;
+    DebugWrite("XHCI: controllers=");
+    DebugHex32((UINT32)Count);
+    DebugWrite("\n");
+    for (i = 0; i < Count; i++) {
+        if (Controllers[i].Type != 0x30) {
+            continue;
+        }
+        DebugWrite("XHCI: pci ");
+        DebugHex32(Controllers[i].Bus);
+        DebugWrite(":");
+        DebugHex32(Controllers[i].Device);
+        DebugWrite(".");
+        DebugHex32(Controllers[i].Function);
+        DebugWrite("\n");
+        gXhciDev = Controllers[i];
+        if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
+            gXhciReady = 1;
+            HalSerialWrite("boot: xhci-hid keyboard\n");
+            if (OutPriv) {
+                *OutPriv = 0;
+            }
+            return 0;
         }
     }
-    if (!Found) {
+
+    {
         UINT64 Fallback = HalPlatformXhciFallback();
-        if (Fallback == 0) {
-            return -1;
+        if (Fallback != 0) {
+            gXhciDev.Bus = 0;
+            gXhciDev.Device = 0;
+            gXhciDev.Function = 0;
+            gXhciDev.BaseAddress = Fallback;
+            gXhciDev.Bar[0] = Fallback;
+            gXhciDev.Type = 0x30;
+            if (TryXhciAt(Fallback, 0)) {
+                gXhciReady = 1;
+                HalSerialWrite("boot: xhci-hid keyboard\n");
+                if (OutPriv) {
+                    *OutPriv = 0;
+                }
+                return 0;
+            }
         }
-        gXhciDev.BaseAddress = Fallback;
-        gXhciDev.Bar[0] = Fallback;
-        gXhciDev.Type = 0x30;
     }
-    if (!XhciInit(gXhciDev.BaseAddress)) {
-        return -1;
-    }
-    if (!XhciEnableIrq(&gXhciDev)) {
-        DebugWrite("XHCI: IRQ not enabled\n");
-        return -1;
-    }
-    gXhciReady = 1;
-    if (OutPriv) {
-        *OutPriv = 0;
-    }
-    return 0;
+    return -1;
 }
 
 static int XhciDriverBind(TOY_DRIVER_INSTANCE *Inst) {

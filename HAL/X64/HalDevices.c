@@ -8,6 +8,7 @@
 #include "DriverInput.h"
 #include "DriverNet.h"
 #include "InputXhci.h"
+#include "InputPs2.h"
 #include "Net.h"
 
 /* BlockAta.c / BlockAhci.c（PR-H1：AHCI 为第二 Block 后端） */
@@ -19,6 +20,7 @@ void HalDriverRegister(void) {
     AhciDriverRegister();
     AtaDriverRegister();
     InputXhciRegister();
+    InputPs2Register(); /* PR-H2：仅当 xhci-hid 未绑定时生效 */
     NetDriverRegister();
 }
 
