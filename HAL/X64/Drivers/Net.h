@@ -37,4 +37,8 @@ int  NetSendEthernet(const UINT8 *Frame, UINTN Len);
 void NetSetLwIpRx(int Enable);
 int  NetLwIpRx(void);
 
+/* PR-H4：e1000 L2 回调 / Bind 挂栈 */
+void NetInputFrame(const UINT8 *Pkt, UINTN Len);
+int  NetBindE1000(void);
+
 #endif

@@ -15,6 +15,7 @@
 void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
+void E1000DriverRegister(void);
 
 void HalDriverRegister(void) {
     /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
@@ -24,6 +25,7 @@ void HalDriverRegister(void) {
     InputXhciRegister();
     InputPs2Register(); /* PR-H2：仅当 xhci-hid 未绑定时生效 */
     NetDriverRegister();
+    E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
 }
 
 int HalUsbInit(void) {

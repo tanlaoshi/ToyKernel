@@ -19,6 +19,7 @@
 #include "Driver.h"
 #include "DriverNet.h"
 #include "VirtualMemory.h"
+#include "E1000.h"
 
 #define VIRTIO_VENDOR_ID      0x1AF4
 #define VIRTIO_DEV_NET        0x1000
@@ -195,6 +196,7 @@ static volatile VIRTIO_NET_CFG *gDevCfg;
 static VIRTQ gRxQ;
 static VIRTQ gTxQ;
 static int gNetOk;
+static int gNicE1000; /* PR-H4：1=e1000 L2，0=virtio-net-pci */
 static UINT8 gMac[6];
 static UINT32 gIp = NET_IP_DEFAULT;
 static ARP_ENTRY gArpCache[ARP_CACHE_SIZE];
@@ -438,7 +440,17 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     UINTN WireLen;
     UINT64 IrqFlags;
 
-    if (!gNetOk || FrameLen + VIRTIO_NET_HDR_LEN > RX_BUF_SIZE) {
+    if (!gNetOk) {
+        return -1;
+    }
+    if (gNicE1000) {
+        int R = E1000SendFrame(Frame, FrameLen);
+        if (R == 0) {
+            gTxDone++;
+        }
+        return R;
+    }
+    if (FrameLen + VIRTIO_NET_HDR_LEN > RX_BUF_SIZE) {
         return -1;
     }
 
@@ -968,6 +980,31 @@ void NetDriverRegister(void) {
     (void)ToyDriverRegister(&gVirtioNetPciDriver);
 }
 
+void NetInputFrame(const UINT8 *Pkt, UINTN Len) {
+    if (!Pkt || Len < ETH_HDR_LEN) {
+        return;
+    }
+#ifdef TOY_LWIP
+    if (gLwIpRx) {
+        ToyNetifInput(Pkt, Len);
+        return;
+    }
+#endif
+    HandleIpPacket(Pkt, Len);
+}
+
+int NetBindE1000(void) {
+    if (!E1000Ready()) {
+        return -1;
+    }
+    E1000GetMac(gMac);
+    gNicE1000 = 1;
+    gLwIpRx = 0;
+    gNetOk = 1;
+    DebugWrite("net: e1000 up\n");
+    return ToyDriverNetAttach(&gNetBackend);
+}
+
 int NetReady(void) {
     return gNetOk;
 }
@@ -987,6 +1024,10 @@ void NetPoll(void) {
     UINT64 IrqFlags;
 
     if (!gNetOk) {
+        return;
+    }
+    if (gNicE1000) {
+        E1000Poll();
         return;
     }
     IrqFlags = HalIrqSave();
