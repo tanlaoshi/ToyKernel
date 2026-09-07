@@ -1,8 +1,9 @@
 /*
- * FilesUi.c — 文件浏览器（PR-FB1 只读 + PR-FB2 写操作）
+ * FilesUi.c — 文件浏览器（PR-FB1/FB2 + PR-U1 双区布局）
  *
  * 列表：进目录 / 开 ELF / 预览文本
  * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
+ * U1：左栏固定宽骨架 + 右栏列表（书签导航见 U2）
  */
 #include "FilesUi.h"
 #include "Gui.h"
@@ -57,6 +58,8 @@ static int gHoverIdx = -1;
 
 /* PR-G12：列表滚动条几何（PaintList 写入，OnClick/OnHover 读取） */
 #define FILES_SB_W 12u
+/* PR-U1：左侧栏固定宽（书签入口 U2） */
+#define FILES_SIDE_W 128u
 static UINT32 gSbX;
 static UINT32 gSbY;
 static UINT32 gSbW;
@@ -66,6 +69,8 @@ static int gListVisible;
 static UINT32 gListTop;
 static UINT32 gListRowW;
 static UINT32 gListLineH;
+static UINT32 gContentX;
+static UINT32 gContentW;
 
 static UINT64 FilesClock(void) {
     return HalCpuTicks(0);
@@ -267,6 +272,9 @@ static void PaintList(void) {
     UINT32 Bg;
     UINT32 LineH;
     UINT32 RowY;
+    UINT32 SideW;
+    UINT32 Cx;
+    UINT32 Cw;
     int Visible;
     int i;
     char Line[96];
@@ -284,6 +292,26 @@ static void PaintList(void) {
         LineH = 16;
     }
 
+    /* PR-U1：左栏骨架（固定宽）；窄窗则退回单栏 */
+    SideW = 0;
+    if (W > FILES_SIDE_W + 160u) {
+        SideW = FILES_SIDE_W;
+    }
+    gContentX = X + SideW;
+    gContentW = W - SideW;
+    Cx = gContentX;
+    Cw = gContentW;
+
+    if (SideW > 0) {
+        HalVideoFillRect(X, Y, SideW, H, COLOR_LIGHT_GRAY);
+        UiDrawRectangle(X, Y, SideW, H, COLOR_DARK_GRAY);
+        if (SideW > 2) {
+            HalVideoFillRect(X + SideW - 1, Y, 1, H, COLOR_DARK_GRAY);
+        }
+        DrawLine(X + 8, Y + 8, "Places", COLOR_BLACK);
+        DrawLine(X + 8, Y + 8 + LineH, "(bookmarks U2)", COLOR_DARK_GRAY);
+    }
+
     PathShow[0] = 0;
     CopyStr(PathShow, sizeof(PathShow), "Path: ");
     {
@@ -297,11 +325,11 @@ static void PaintList(void) {
             CopyStr(PathShow + n, (int)sizeof(PathShow) - n, "/");
         }
     }
-    DrawLine(X + 8, Y + 8, PathShow, COLOR_BLACK);
-    DrawLine(X + 8, Y + 8 + LineH,
+    DrawLine(Cx + 8, Y + 8, PathShow, COLOR_BLACK);
+    DrawLine(Cx + 8, Y + 8 + LineH,
              "Enter open  d/Del rm  n mkdir  f file  r rename", COLOR_DARK_GRAY);
     if (gStatus[0]) {
-        DrawLine(X + 8, Y + 8 + LineH * 2, gStatus, COLOR_BLUE);
+        DrawLine(Cx + 8, Y + 8 + LineH * 2, gStatus, COLOR_BLUE);
     }
 
     Visible = 0;
@@ -330,9 +358,9 @@ static void PaintList(void) {
     if (gSbH + gListTop > Y + H) {
         gSbH = (Y + H > gListTop) ? (Y + H - gListTop) : 0;
     }
-    gSbX = (W > FILES_SB_W + 8) ? (X + W - FILES_SB_W - 4) : (X + 4);
+    gSbX = (Cw > FILES_SB_W + 8) ? (Cx + Cw - FILES_SB_W - 4) : (Cx + 4);
     gSbY = gListTop;
-    gListRowW = W > 8 ? W - 8 : W;
+    gListRowW = Cw > 8 ? Cw - 8 : Cw;
     if (gSbVisible && gListRowW > FILES_SB_W + 8) {
         gListRowW -= (FILES_SB_W + 4);
     }
@@ -359,7 +387,7 @@ static void PaintList(void) {
             Line[k++] = E->Name[j];
         }
         Line[k] = 0;
-        UiDrawListRow(X + 4, RowY, gListRowW, LineH, Line,
+        UiDrawListRow(Cx + 4, RowY, gListRowW, LineH, Line,
                       Idx == gSelected, Idx == gHoverIdx);
         RowY += LineH;
     }
@@ -368,9 +396,9 @@ static void PaintList(void) {
     }
     if (gCount == 0) {
         /* PR-G11：空目录可见空状态区（不只一行灰 (empty)） */
-        UINT32 BoxX = X + 12;
+        UINT32 BoxX = Cx + 12;
         UINT32 BoxY = RowY;
-        UINT32 BoxW = W > 24 ? W - 24 : W;
+        UINT32 BoxW = Cw > 24 ? Cw - 24 : Cw;
         UINT32 BoxH = LineH * 4 + 20;
         UINT32 Remain;
 
@@ -762,6 +790,11 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
         return;
     }
 
+    /* PR-U1：点在侧栏上忽略（书签点击见 U2） */
+    if (X < gContentX) {
+        return;
+    }
+
     /* PR-G12：滚动条点选 */
     if (gSbVisible &&
         UiScrollBarHit(gSbX, gSbY, gSbW, gSbH, gScroll, gListVisible, gCount,
@@ -838,6 +871,15 @@ void FilesUiOnHover(UINT32 X, UINT32 Y) {
         return;
     }
     if (X < Cx || Y < Cy || X >= Cx + Cw || Y >= Cy + Ch) {
+        if (gHoverIdx >= 0) {
+            gHoverIdx = -1;
+            PaintList();
+        }
+        return;
+    }
+
+    /* PR-U1：悬停只算右栏 */
+    if (X < gContentX) {
         if (gHoverIdx >= 0) {
             gHoverIdx = -1;
             PaintList();
