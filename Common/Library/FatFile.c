@@ -113,8 +113,87 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     NeedClusters = (UINT32)((Size + Cb - 1) / Cb);
 
     /*
-     * 先写全新簇链，目录项仍指向旧文件；失败只回滚新链，旧项保留（PR-FS3）。
+     * 已有文件：优先在旧簇链上就地覆写（可追加簇）。
+     * QEMU vvfat：换新链再 FatFreeChain(旧簇) 会把宿主同名文件删掉，
+     * 表现为 THEME.CFG「saved」后宿主文件消失、verify mode missing。
      */
+    if (Existing && OldCluster >= 2) {
+        UINT32 Cl = OldCluster;
+        UINT8 E[32];
+
+        Written = 0;
+        PrevCluster = 0;
+        for (i = 0; i < NeedClusters; i++) {
+            UINT32 Chunk;
+            UINT32 Next;
+
+            if (i == 0) {
+                Cl = OldCluster;
+            } else {
+                Next = FatNext(PrevCluster);
+                if (Next == 0xFFFFFFFFu) {
+                    return FAT_ERR_IO;
+                }
+                if (ClusterEnd(Next) || Next < 2) {
+                    UINT32 Neu = FatAllocCluster();
+                    if (Neu < 2) {
+                        return FAT_ERR_NOSPC;
+                    }
+                    if (!FatSet(PrevCluster, Neu)) {
+                        FatFreeChain(Neu);
+                        return FAT_ERR_IO;
+                    }
+                    Cl = Neu;
+                } else {
+                    Cl = Next;
+                }
+            }
+            if (i == 0) {
+                FirstCluster = Cl;
+            }
+            PrevCluster = Cl;
+
+            Chunk = Cb;
+            if (Written + Chunk > Size) {
+                Chunk = (UINT32)(Size - Written);
+            }
+            for (UINT32 z = 0; z < Cb; z++) {
+                gCluster[z] = 0;
+            }
+            for (UINT32 z = 0; z < Chunk; z++) {
+                gCluster[z] = Src[Written + z];
+            }
+            if (!StoreCluster(Cl)) {
+                return FAT_ERR_IO;
+            }
+            Written += Chunk;
+        }
+        /* 缩短：目录项改 Size，尾簇不释放（vvfat 安全） */
+        if (!FatSet(PrevCluster, EocValue())) {
+            return FAT_ERR_IO;
+        }
+
+        if (!DirReadEntry(Parent, (UINT32)Index, E)) {
+            return FAT_ERR_IO;
+        }
+        E[11] = FAT_ATTR_ARCH;
+        if (gFatType == 32) {
+            Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
+        }
+        Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
+        Write32(E + 28, (UINT32)Size);
+        if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
+            return FAT_ERR_IO;
+        }
+        return FAT_OK;
+    }
+
+    /*
+     * 新建，或已有但无簇（空项）：写新链。已有空项则改目录项，勿 Create（会重名失败）。
+     */
+    FirstCluster = 0;
+    PrevCluster = 0;
+    Written = 0;
     for (i = 0; i < NeedClusters; i++) {
         UINT32 Cl = FatAllocCluster();
         UINT32 Chunk;
@@ -152,7 +231,6 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     if (Existing) {
         UINT8 E[32];
 
-        /* 同名覆盖：就地改 SFN 的簇/大小，再释放旧链 */
         if (!DirReadEntry(Parent, (UINT32)Index, E)) {
             FatFreeChain(FirstCluster);
             return FAT_ERR_IO;
@@ -166,9 +244,6 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
             FatFreeChain(FirstCluster);
             return FAT_ERR_IO;
-        }
-        if (OldCluster >= 2 && OldCluster != FirstCluster) {
-            FatFreeChain(OldCluster);
         }
         return FAT_OK;
     }

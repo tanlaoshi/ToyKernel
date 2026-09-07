@@ -79,8 +79,10 @@ if [ ! -f "$ROOT/TOYOS.ID" ]; then
 fi
 if [ ! -f "$ROOT/THEME.CFG" ]; then
     cat > "$ROOT/THEME.CFG" <<'EOF'
-mode=800x600
-desktop_bg=0x203040
+desktop=404040
+shell=c0c0c0
+font=0
+mode=1280x720
 EOF
 fi
 
