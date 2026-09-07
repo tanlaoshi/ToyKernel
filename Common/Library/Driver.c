@@ -88,11 +88,11 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
         Bound++;
     }
     HalDebugWrite("driver: registered=");
-    HalDebugHex32((UINT32)gDriverCount);
+    HalDebugWriteHex32((UINT32)gDriverCount);
     HalDebugWrite(" bound=");
-    HalDebugHex32((UINT32)gInstanceCount);
+    HalDebugWriteHex32((UINT32)gInstanceCount);
     HalDebugWrite(" (+");
-    HalDebugHex32((UINT32)Bound);
+    HalDebugWriteHex32((UINT32)Bound);
     HalDebugWrite(")\n");
     return 0;
 }

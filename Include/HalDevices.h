@@ -49,14 +49,14 @@ int HalMouseDequeue(HAL_MOUSE_REPORT *Report);
 int HalNetInit(void);
 int HalNetReady(void);
 void HalNetPoll(void);
-void HalNetGetMac(UINT8 Mac[6]);
-UINT32 HalNetGetIp(void);
+void HalNetGetMacAddress(UINT8 Mac[6]);
+UINT32 HalNetGetIpAddress(void);
 void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen);
 int HalNetParseIp(const char *Text, UINT32 *Ip);
 int HalNetPing(const char *Host, int TimeoutMs);
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames);
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen);
 UINT16 HalNetChecksum(const void *Data, UINTN Len);
-void HalNetSetLwIpRx(int Enable);
+void HalNetSetLwipReceive(int Enable);
 
 #endif

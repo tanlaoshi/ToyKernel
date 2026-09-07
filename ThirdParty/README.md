@@ -34,7 +34,7 @@ ToyOS 同时保留两套 IP/传输实现，但**运行时不同时处理同一�
 
 ### 规则（必须遵守）
 
-1. **一帧一栈**：`lwip on` 置 `HalNetSetLwIpRx(1)` 后，入站帧不再进 builtin `HandleIpPacket`。
+1. **一帧一栈**：`lwip on` 置 `HalNetSetLwipReceive(1)` 后，入站帧不再进 builtin `HandleIpPacket`。
 2. **`lwip on` 不可逆（当前会话）**：会 `TcpInit`/`UdpInit` 清空自研连接；builtin `TcpPoll` 停转；`NetSendIp` / `NetPing` 在 lwIP 活跃时失败。要回 builtin：重启 QEMU（无 `lwip off` 热切回）。
 3. **命令名共用**：Shell 不区分两套 API；`LwIpActive()` 决定路由。看当前栈：`net` / `lwip status` / `tcpstatus`。
 4. **主栈方向**：新功能（多连接、用户态 socket）落在 **lwIP**。自研 `Tcp.c` / `Udp.c` 为 **legacy 教学栈**，仅维持现有单连接联调能力，不再做多连接槽 / 拥塞控制等深化（见 PR-N7 冻结）。

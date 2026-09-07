@@ -220,8 +220,8 @@ static void CommandNet(int Argc, char **Argv) {
         ConsoleWrite("net: not available (no virtio-net)\n");
         return;
     }
-    HalNetGetMac(Mac);
-    HalNetFormatIp(HalNetGetIp(), IpBuf, sizeof(IpBuf));
+    HalNetGetMacAddress(Mac);
+    HalNetFormatIp(HalNetGetIpAddress(), IpBuf, sizeof(IpBuf));
     ConsoleWrite("mac ");
     for (i = 0; i < 6; i++) {
         Hex[0] = Digits[(Mac[i] >> 4) & 0xF];

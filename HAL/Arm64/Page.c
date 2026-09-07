@@ -21,7 +21,7 @@
 #define PXN_BIT          (1ULL << 53)
 #define SOFT_COW         (1ULL << 56) /* 软件位：fork COW */
 
-#define HAL_VIEW_COW     (1ULL << 9)
+#define HAL_PAGE_COPY_ON_WRITE     (1ULL << 9)
 
 static UINT64 gKernelRoot;
 static UINT64 gCurrentRoot;
@@ -68,7 +68,7 @@ static UINT64 NativeFlagsFromHal(UINT64 HalFlags, int Device) {
         }
         N |= UXN_BIT;
     }
-    if (HalFlags & HAL_VIEW_COW) {
+    if (HalFlags & HAL_PAGE_COPY_ON_WRITE) {
         N |= SOFT_COW;
     }
     return N;
@@ -90,7 +90,7 @@ static UINT64 HalViewFromNative(UINT64 Native) {
         Out |= HAL_PAGE_USER;
     }
     if (Native & SOFT_COW) {
-        Out |= HAL_VIEW_COW;
+        Out |= HAL_PAGE_COPY_ON_WRITE;
     }
     return Out;
 }
@@ -196,7 +196,7 @@ void HalLoadPageTable(UINT64 Root) {
         :: "r"(Root) : "memory");
 }
 
-UINT64 HalGetPageTable(void) {
+UINT64 HalGetCurrentPageTable(void) {
     if (gMmuOn) {
         UINT64 T;
         __asm__ volatile("mrs %0, ttbr0_el1" : "=r"(T));
@@ -377,12 +377,12 @@ int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx
     return HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx);
 }
 
-int HalPageIsCow(UINT64 Pte) {
-    return (Pte & HAL_VIEW_COW) != 0;
+int HalPageIsCopyOnWrite(UINT64 Pte) {
+    return (Pte & HAL_PAGE_COPY_ON_WRITE) != 0;
 }
 
-UINT64 HalPageMarkCow(UINT64 Flags) {
-    return (Flags | HAL_VIEW_COW) & ~HAL_PAGE_WRITABLE;
+UINT64 HalPageMarkCopyOnWrite(UINT64 Flags) {
+    return (Flags | HAL_PAGE_COPY_ON_WRITE) & ~HAL_PAGE_WRITABLE;
 }
 
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
@@ -395,7 +395,7 @@ int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT6
         return -1;
     }
     Native = (PhysicalAddress & 0x0000FFFFFFFFF000ULL) | NativeFlagsFromHal(Flags, 0);
-    if (Flags & HAL_VIEW_COW) {
+    if (Flags & HAL_PAGE_COPY_ON_WRITE) {
         Native |= SOFT_COW;
     }
     *Pte = Native;
@@ -429,5 +429,5 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 }
 
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) {
-    return HalPageGetEntry(HalGetPageTable(), Virt);
+    return HalPageGetEntry(HalGetCurrentPageTable(), Virt);
 }

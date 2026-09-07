@@ -306,9 +306,9 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
     }
     if (S->Phase != 1) {
         HalDebugWrite("sock: connect fail phase=");
-        HalDebugHex32((UINT32)S->Phase);
+        HalDebugWriteHex32((UINT32)S->Phase);
         HalDebugWrite(" err=");
-        HalDebugHex32((UINT32)(INT32)S->Err);
+        HalDebugWriteHex32((UINT32)(INT32)S->Err);
         if ((INT32)S->Err == -14) {
             HalDebugWrite(" (RST: host nc -l -p PORT first?)\n");
         } else {

@@ -36,11 +36,11 @@ int LwIpInit(void) {
     TcpInit();
     UdpInit();
     lwip_init();
-    if (ToyNetifAdd(HalNetGetIp(), TOY_LWIP_MASK, TOY_LWIP_GW) != 0) {
+    if (ToyNetifAdd(HalNetGetIpAddress(), TOY_LWIP_MASK, TOY_LWIP_GW) != 0) {
         HalIrqRestore(IrqFlags);
         return -1;
     }
-    HalNetSetLwIpRx(1);
+    HalNetSetLwipReceive(1);
     gLwIpReady = 1;
     HalIrqRestore(IrqFlags);
     DebugWrite("lwip: up\n");

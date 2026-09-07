@@ -45,7 +45,7 @@ void HalTimerSetInterval(UINT32 Milliseconds);
 void HalTimerAck(void);
 void HalTimerStart(void);
 
-void HalUserInstall(void);
+void HalInstallUserMode(void);
 void HalSyscallInit(void);
 /* 用户任务内核栈顶 → TSS.RSP0 / 等价结构（PR-A1；取代 Common 调 ArchSetRsp0） */
 void HalSetKernelStack(UINT64 StackTop);
@@ -95,7 +95,7 @@ void   HalIoWrite32(UINT16 Port, UINT32 Value);
 /* 分页：CPU 当前页表根（x86 为 CR3；其它架构为等价寄存器） */
 void HalFlushTlb(UINT64 VirtualAddress);
 void HalLoadPageTable(UINT64 Root);
-UINT64 HalGetPageTable(void);
+UINT64 HalGetCurrentPageTable(void);
 void HalPagingEnable(UINT64 RootPhys);
 /* PR-A10：故意触未映射 VA，验收缺页路径（x86 可为空） */
 void HalPagingSelfTest(void);
@@ -113,8 +113,8 @@ int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction 
  */
 int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx);
 /* PR-A3：COW 软件语义（x86 用 PTE 可用位 bit9；其它 arch 自选布局） */
-int HalPageIsCow(UINT64 Pte);
-UINT64 HalPageMarkCow(UINT64 Flags); /* 置 COW、清 WRITABLE */
+int HalPageIsCopyOnWrite(UINT64 Pte);
+UINT64 HalPageMarkCopyOnWrite(UINT64 Flags); /* 置 COW、清 WRITABLE */
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx);
 int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End);
@@ -169,16 +169,16 @@ void HalTimerPoll(void);
 #define HAL_MAX_CPUS 8
 
 int HalCpuCount(void);
-UINT32 HalCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
+UINT32 HalGetCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
 int HalCpuIsBsp(void);
 UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 timer 计数 */
-void HalCpuTickInc(void);
-int HalSmpStartAps(void);
+void HalCpuIncrementTicks(void);
+int HalSmpStartApplicationProcessors(void);
 /* Startup 记下 DTB，供 DtbCpuCount（RiscV 地址可变；Arm 可回退固定 loader 址） */
 void HalSmpNoteDtb(UINT64 DtbPhys);
 
 void HalDebugWrite(const char *Text);
-void HalDebugHex32(UINT32 Value);
+void HalDebugWriteHex32(UINT32 Value);
 void HalDebugHex64(UINT64 Value);
 
 #endif

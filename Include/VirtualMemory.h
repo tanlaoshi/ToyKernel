@@ -10,7 +10,7 @@
 #define PTE_PRESENT  HAL_PAGE_PRESENT
 #define PTE_WRITABLE HAL_PAGE_WRITABLE
 #define PTE_USER     HAL_PAGE_USER
-/* COW 位布局见 HalPageIsCow / HalPageMarkCow（PR-A3） */
+/* COW 位布局见 HalPageIsCopyOnWrite / HalPageMarkCopyOnWrite（PR-A3） */
 
 /* 布局见 HalUser*（PR-A11）；宏便于既有调用点 */
 #define USER_CODE_VIRT  HalUserCodeVirt()

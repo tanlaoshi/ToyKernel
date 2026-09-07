@@ -31,7 +31,7 @@ typedef struct {
 static CPU_RUNQ gRunq[HAL_MAX_CPUS];
 
 static TASK *CurrentTask(void) {
-    UINT32 Id = HalCpuId();
+    UINT32 Id = HalGetCpuId();
     if (Id >= HAL_MAX_CPUS) {
         return 0;
     }
@@ -39,7 +39,7 @@ static TASK *CurrentTask(void) {
 }
 
 static void SetCurrentTask(TASK *T) {
-    UINT32 Id = HalCpuId();
+    UINT32 Id = HalGetCpuId();
     if (Id < HAL_MAX_CPUS) {
         gCurrentCpu[Id] = T;
     }
@@ -402,7 +402,7 @@ static UINT64 SchedResumeFrame(TASK *T) {
 
 /* Ring3 中断/系统调用走 TSS.RSP0；每用户任务必须用自己的内核栈 */
 static void ActivateTask(TASK *T) {
-    UINT32 Cpu = HalCpuId();
+    UINT32 Cpu = HalGetCpuId();
     TASK *Prev = CurrentTask();
 
     if (Prev && Prev != T && Prev->State == TASK_RUNNING) {
@@ -565,7 +565,7 @@ static int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt) {
     }
 
     Code = 128 + Sig;
-    CurCpu = HalCpuId();
+    CurCpu = HalGetCpuId();
 
     /* 他核 RUNNING：挂起，待该核 timer/syscall 入口完成终止（避免拆用户页表竞态） */
     if (T->State == TASK_RUNNING && T->OnCpu >= 0 &&
@@ -587,7 +587,7 @@ UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
     if (!gSchedulerOnline) {
         return 0;
     }
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     SpinLockAcquire(&gSchedulerLock);
     Cur = CurrentTask();
     if (Cur == 0) {
@@ -647,7 +647,7 @@ void SchedulerCoopDrainUsers(void) {
     }
 
     gCoopDrain = 1;
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
 
     for (;;) {
         TASK *U = 0;
@@ -721,7 +721,7 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
         return 0;
     }
 
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -885,7 +885,7 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     Self->State = TASK_BLOCKED;
     Self->OnCpu = -1;
 
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -939,7 +939,7 @@ UINT64 SchedulerKill(HAL_FRAME *Frame) {
     }
 
     /* 杀自身：切到其他可运行任务 */
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -991,7 +991,7 @@ int SchedulerKillPid(INT32 Pid, INT32 Sig) {
         return 0;
     }
 
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -1020,7 +1020,7 @@ UINT64 SchedulerYield(HAL_FRAME *Frame) {
         return 0;
     }
     Cur->Frame = Frame;
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     Next = PickNext(Cpu);
     if (Next == Cur || Next == 0) {
         SpinLockRelease(&gSchedulerLock);
@@ -1063,7 +1063,7 @@ void SchedulerApStart(void) {
     TASK *Idle;
     UINT64 Ret;
 
-    Cpu = HalCpuId();
+    Cpu = HalGetCpuId();
     while (!gSchedulerOnline) {
         HalCpuRelax();
     }
@@ -1081,7 +1081,7 @@ void SchedulerApStart(void) {
     Ret = (UINT64)(UINTN)Idle->Frame;
     SpinLockRelease(&gSchedulerLock);
     HalDebugWrite("sched: AP entered idle cpu=");
-    HalDebugHex32(Cpu);
+    HalDebugWriteHex32(Cpu);
     HalDebugWrite("\n");
     HalSchedulerEnter(Idle->Frame);
     (void)Ret;

@@ -150,7 +150,7 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
         UINT64 End = UserDst + Len - 1;
         for (UINT64 Va = Start; Va <= End; Va += PAGE_SIZE) {
             UINT64 Pte = HalPageGetEntryCurrent(Va);
-            if (HalPageIsCow(Pte) && !(Pte & HAL_PAGE_WRITABLE)) {
+            if (HalPageIsCopyOnWrite(Pte) && !(Pte & HAL_PAGE_WRITABLE)) {
                 if (VirtualMemoryHandlePageFault(Va, 0x7) != 0) {
                     return -1;
                 }
@@ -201,7 +201,7 @@ int VirtualMemoryCopyToSpace(VM_ADDR_SPACE *Space, UINT64 UserDst, const void *S
 }
 
 /*
- * COW fork：共享用户物理页；原可写页双方去掉 W、打上 COW（HalPageMarkCow）。
+ * COW fork：共享用户物理页；原可写页双方去掉 W、打上 COW（HalPageMarkCopyOnWrite）。
  * 页表仍私有（SpaceCreate 已 HalPagePrepareUserRoot）。
  */
 VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
@@ -227,13 +227,13 @@ VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
         Phys = Pte & ~0xFFFULL;
         SharedFlags = PTE_PRESENT | PTE_USER;
         if (Pte & HAL_PAGE_WRITABLE) {
-            SharedFlags = HalPageMarkCow(SharedFlags);
+            SharedFlags = HalPageMarkCopyOnWrite(SharedFlags);
             if (HalPageMap(Src->Root, Va, Phys, SharedFlags, 0, 0) != 0) {
                 VirtualMemorySpaceDestroy(Dst);
                 return 0;
             }
-        } else if (HalPageIsCow(Pte)) {
-            SharedFlags = HalPageMarkCow(SharedFlags);
+        } else if (HalPageIsCopyOnWrite(Pte)) {
+            SharedFlags = HalPageMarkCopyOnWrite(SharedFlags);
         }
 
         if (PhysicalMemoryRetainPage((void *)(UINTN)Phys) != 0) {
@@ -267,9 +267,9 @@ int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode) {
     if (Va < USER_CODE_VIRT || Va >= USER_VIRT_END) {
         return -1;
     }
-    Root = HalGetPageTable();
+    Root = HalGetCurrentPageTable();
     Pte = HalPageGetEntry(Root, Va);
-    if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER) || !HalPageIsCow(Pte)) {
+    if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER) || !HalPageIsCopyOnWrite(Pte)) {
         return -1;
     }
     if (Pte & HAL_PAGE_WRITABLE) {

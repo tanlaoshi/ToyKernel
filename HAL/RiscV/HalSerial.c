@@ -51,7 +51,7 @@ char HalSerialReadChar(void) {
     return (char)UART_THR;
 }
 
-void HalSerialHexFormat(char *Buf, UINT64 Value, int Digits) {
+void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits) {
     static const char Hex[] = "0123456789abcdef";
     int i;
 

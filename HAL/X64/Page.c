@@ -110,7 +110,7 @@ void HalLoadPageTable(UINT64 Root) {
     __asm__ volatile ("mov %0, %%cr3" :: "r"(Root) : "memory");
 }
 
-UINT64 HalGetPageTable(void) {
+UINT64 HalGetCurrentPageTable(void) {
     UINT64 Cr3;
     __asm__ volatile ("mov %%cr3, %0" : "=r"(Cr3));
     return Cr3;
@@ -217,14 +217,14 @@ int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx
 }
 
 /* x86 PTE 软件可用位 bit9：fork COW */
-#define HAL_X86_PTE_COW (1ULL << 9)
+#define HAL_X64_PAGE_COPY_ON_WRITE (1ULL << 9)
 
-int HalPageIsCow(UINT64 Pte) {
-    return (Pte & HAL_X86_PTE_COW) != 0;
+int HalPageIsCopyOnWrite(UINT64 Pte) {
+    return (Pte & HAL_X64_PAGE_COPY_ON_WRITE) != 0;
 }
 
-UINT64 HalPageMarkCow(UINT64 Flags) {
-    return (Flags | HAL_X86_PTE_COW) & ~HAL_PAGE_WRITABLE;
+UINT64 HalPageMarkCopyOnWrite(UINT64 Flags) {
+    return (Flags | HAL_X64_PAGE_COPY_ON_WRITE) & ~HAL_PAGE_WRITABLE;
 }
 
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
@@ -261,5 +261,5 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 }
 
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) {
-    return HalPageGetEntry(HalGetPageTable(), Virt);
+    return HalPageGetEntry(HalGetCurrentPageTable(), Virt);
 }

@@ -164,7 +164,7 @@ static int TcpSendSegment(UINT8 Flags, const void *Data, UINTN Len, UINT32 Seq, 
     for (i = 0; i < Len; i++) {
         Buf[TCP_HDR_LEN + i] = ((const UINT8 *)Data)[i];
     }
-    Hdr->Checksum = TcpChecksum(HalNetGetIp(), gPeerIp, Buf, TCP_HDR_LEN + Len);
+    Hdr->Checksum = TcpChecksum(HalNetGetIpAddress(), gPeerIp, Buf, TCP_HDR_LEN + Len);
     return HalNetSendIp(gPeerIp, HAL_IP_PROTO_TCP, Buf, TCP_HDR_LEN + Len);
 }
 

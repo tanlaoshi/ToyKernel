@@ -9,7 +9,7 @@
 #include "Scheduler.h"
 
 #define SmpLog(Text)   HalDebugWrite(Text)
-#define SmpLogHex32(V) HalDebugHex32(V)
+#define SmpLogHex32(V) HalDebugWriteHex32(V)
 #define SmpLogHex64(V) HalDebugHex64(V)
 
 #define SBI_EXT_HSM            0x48534DULL
@@ -94,18 +94,18 @@ int HalCpuCount(void) {
     return gCpuCount > 0 ? gCpuCount : 1;
 }
 
-UINT32 HalCpuId(void) {
+UINT32 HalGetCpuId(void) {
     UINT64 V;
     __asm__ volatile("mv %0, tp" : "=r"(V));
     return (UINT32)V;
 }
 
 int HalCpuIsBsp(void) {
-    return HalCpuId() == 0;
+    return HalGetCpuId() == 0;
 }
 
-void HalCpuTickInc(void) {
-    UINT32 Id = HalCpuId();
+void HalCpuIncrementTicks(void) {
+    UINT32 Id = HalGetCpuId();
     if (Id < HAL_MAX_CPUS) {
         gCpuTicks[Id]++;
     }
@@ -118,7 +118,7 @@ UINT64 HalCpuTicks(UINT32 Cpu) {
     return gCpuTicks[Cpu];
 }
 
-int HalSmpStartAps(void) {
+int HalSmpStartApplicationProcessors(void) {
     int Want;
     int Hart;
     int Logical;

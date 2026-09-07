@@ -397,7 +397,7 @@ int ProcessExec(const char *Path) {
     }
     VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
     Info.StackTop = NewRsp;
-    HalUserInstall();
+    HalInstallUserMode();
     SchedulerReapOrphanZombies();
     if (ProcessStartElf(Space, &Info, Path) != 0) {
         return -1;
@@ -486,7 +486,7 @@ int ProcessExecve(HAL_FRAME *Frame, const char *Path, UINT64 UserArgv,
     VirtualMemoryLoadPageTable(T->PageRoot);
     VirtualMemorySpaceDestroy(OldSpace);
 
-    HalUserInstall();
+    HalInstallUserMode();
     DebugWrite("execve: ");
     DebugWrite(Path);
     DebugWrite(" entry=");
@@ -514,6 +514,6 @@ int ProcessRunDemo(void) {
         return -1;
     }
 
-    HalUserInstall();
+    HalInstallUserMode();
     return ProcessStartElf(Space, &Info, "hello");
 }

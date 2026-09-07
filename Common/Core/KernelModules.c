@@ -86,7 +86,7 @@ static int InitializeCpu(void) {
 }
 
 static int InitializeSmp(void) {
-    return HalSmpStartAps();
+    return HalSmpStartApplicationProcessors();
 }
 
 static int InitializeUsb(void) {

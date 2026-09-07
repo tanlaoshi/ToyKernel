@@ -18,7 +18,7 @@
 #define PTE_PPN_SHIFT 10
 #define SATP_MODE_SV39 (8ULL << 60)
 
-#define HAL_VIEW_COW (1ULL << 9)
+#define HAL_PAGE_COPY_ON_WRITE (1ULL << 9)
 
 static UINT64 gKernelRoot;
 static UINT64 gCurrentRoot;
@@ -58,7 +58,7 @@ static UINT64 NativeFromHal(UINT64 Phys, UINT64 HalFlags) {
             /* RO 用户：仍可读 */
         }
     }
-    if (HalFlags & HAL_VIEW_COW) {
+    if (HalFlags & HAL_PAGE_COPY_ON_WRITE) {
         N |= PTE_RSW_COW;
         N &= ~PTE_W;
     }
@@ -82,7 +82,7 @@ static UINT64 HalViewFromNative(UINT64 Native) {
         Out |= HAL_PAGE_USER;
     }
     if (Native & PTE_RSW_COW) {
-        Out |= HAL_VIEW_COW;
+        Out |= HAL_PAGE_COPY_ON_WRITE;
     }
     return Out;
 }
@@ -159,7 +159,7 @@ void HalLoadPageTable(UINT64 Root) {
         :: "r"(SATP_MODE_SV39 | (Root >> 12)) : "memory");
 }
 
-UINT64 HalGetPageTable(void) {
+UINT64 HalGetCurrentPageTable(void) {
     if (gMmuOn) {
         UINT64 Satp;
         __asm__ volatile("csrr %0, satp" : "=r"(Satp));
@@ -293,12 +293,12 @@ int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx
     return 0;
 }
 
-int HalPageIsCow(UINT64 Pte) {
-    return (Pte & HAL_VIEW_COW) != 0;
+int HalPageIsCopyOnWrite(UINT64 Pte) {
+    return (Pte & HAL_PAGE_COPY_ON_WRITE) != 0;
 }
 
-UINT64 HalPageMarkCow(UINT64 Flags) {
-    return (Flags | HAL_VIEW_COW) & ~HAL_PAGE_WRITABLE;
+UINT64 HalPageMarkCopyOnWrite(UINT64 Flags) {
+    return (Flags | HAL_PAGE_COPY_ON_WRITE) & ~HAL_PAGE_WRITABLE;
 }
 
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
@@ -351,5 +351,5 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 }
 
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) {
-    return HalPageGetEntry(HalGetPageTable(), Virt);
+    return HalPageGetEntry(HalGetCurrentPageTable(), Virt);
 }

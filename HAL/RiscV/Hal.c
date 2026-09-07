@@ -166,7 +166,7 @@ void HalTimerPoll(void) {
     Now = ReadTime();
     Delta = Now - gTimeLast;
     while (Delta >= gTimePeriod) {
-        HalCpuTickInc();
+        HalCpuIncrementTicks();
         gTimeLast += gTimePeriod;
         Delta -= gTimePeriod;
     }
@@ -174,7 +174,7 @@ void HalTimerPoll(void) {
 
 /* PR-A13：S-mode / U-mode 定时中断 */
 void HalTimerIrq(void) {
-    HalCpuTickInc();
+    HalCpuIncrementTicks();
     HalTimerAck();
 }
 
@@ -205,7 +205,7 @@ void HalVirtIdleLoop(void) {
     }
 }
 
-void HalUserInstall(void) {
+void HalInstallUserMode(void) {
     UINT64 Status;
 
     extern void HalTrapVectorInstall(void);
@@ -216,7 +216,7 @@ void HalUserInstall(void) {
 }
 
 void HalSyscallInit(void) {
-    HalUserInstall();
+    HalInstallUserMode();
     HalSerialWrite("syscall: RiscV ecall (U-mode) ready\n");
     HalUserSelfTest();
 }
@@ -382,15 +382,15 @@ void HalSyncICache(void *Addr, UINTN Size) {
 void HalDebugWrite(const char *Text) {
     HalSerialWrite(Text);
 }
-void HalDebugHex32(UINT32 Value) {
+void HalDebugWriteHex32(UINT32 Value) {
     char Buf[9];
-    HalSerialHexFormat(Buf, Value, 8);
+    HalSerialFormatHex(Buf, Value, 8);
     HalSerialWrite(Buf);
 }
 void HalDebugHex64(UINT64 Value) {
     char Buf[17];
-    HalSerialHexFormat(Buf, Value, 16);
+    HalSerialFormatHex(Buf, Value, 16);
     HalSerialWrite(Buf);
 }
 
-/* HalCpuCount / Id / ticks / HalSmpStartAps → Smp.c（PR-A14） */
+/* HalCpuCount / Id / ticks / HalSmpStartApplicationProcessors → Smp.c（PR-A14） */

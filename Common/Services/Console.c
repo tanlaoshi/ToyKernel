@@ -397,14 +397,14 @@ void ConsoleWriteLen(const char *Data, UINTN Len) {
 /* 输出 32 位十六进制 */
 void ConsoleHex32(UINT32 Value) {
     char Buf[12];
-    HalSerialHexFormat(Buf, Value, 8);
+    HalSerialFormatHex(Buf, Value, 8);
     ConsoleWrite(Buf);
 }
 
 /* 输出 64 位十六进制 */
 void ConsoleHex64(UINT64 Value) {
     char Buf[20];
-    HalSerialHexFormat(Buf, Value, 16);
+    HalSerialFormatHex(Buf, Value, 16);
     ConsoleWrite(Buf);
 }
 
