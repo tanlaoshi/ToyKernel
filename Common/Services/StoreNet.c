@@ -14,7 +14,8 @@
 #include "Db.h"
 
 #define STORE_HTTP_MAX     (48u * 1024u) /* 连续页易碎，教学包够用 */
-#define STORE_HTTP_TRIES   20000
+#define STORE_HTTP_TRIES   2000000       /* 紧循环；需覆盖对端 RTO 重传 */
+#define STORE_HTTP_IDLE_ACK 4000         /* 无新数据时周期性 dup ACK */
 #define STORE_ERR_NET      (-40)
 #define STORE_ERR_HTTP     (-41)
 #define STORE_ERR_HASH     (-42)
@@ -135,10 +136,14 @@ static int FindBody(const UINT8 *Resp, UINTN Len, UINTN *BodyOff, UINTN *BodyLen
     if (Status != 200) {
         return -2;
     }
-    for (i = 0; i + 3 < Len; i++) {
+    for (i = 0; i + 1 < Len; i++) {
         if (Resp[i] == '\r' && Resp[i + 1] == '\n' &&
-            Resp[i + 2] == '\r' && Resp[i + 3] == '\n') {
+            i + 3 < Len && Resp[i + 2] == '\r' && Resp[i + 3] == '\n') {
             HdrEnd = i + 4;
+            break;
+        }
+        if (Resp[i] == '\n' && Resp[i + 1] == '\n') {
+            HdrEnd = i + 2;
             break;
         }
     }
@@ -262,40 +267,146 @@ static int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
         HalConsoleWriteSerial("store: tcp send fail\n");
         return STORE_ERR_NET;
     }
+    /* 发送后立刻排空 RX，避免首段在进入循环前堆积/丢失 */
+    {
+        int Warm = 2000;
+        while (Warm-- > 0) {
+            PollNet();
+        }
+    }
 
     Tries = STORE_HTTP_TRIES;
-    while (Tries-- > 0 && Got < STORE_HTTP_MAX) {
-        PollNet();
-        Chunk = 0;
-        (void)TcpRecv(Resp + Got, STORE_HTTP_MAX - Got, &Chunk);
-        Got += Chunk;
-        if (Got >= 16) {
-            Rc = FindBody(Resp, Got, &BodyOff, &BodyLen, &HaveLen);
-            if (Rc == -2) {
-                PhysicalMemoryFreePages(Resp, Pages);
-                TcpClose();
-                return STORE_ERR_HTTP;
+    {
+        int Idle = 0;
+        while (Tries-- > 0 && Got < STORE_HTTP_MAX) {
+            PollNet();
+            Chunk = 0;
+            (void)TcpRecv(Resp + Got, STORE_HTTP_MAX - Got, &Chunk);
+            Got += Chunk;
+            if (Chunk > 0) {
+                Idle = 0;
+            } else {
+                Idle++;
+                if (Idle > 0 && (Idle % STORE_HTTP_IDLE_ACK) == 0) {
+                    (void)TcpSendAck(); /* 催促对端重传缺失段 */
+                }
             }
-            if (Rc == 0 && HaveLen && BodyOff + BodyLen <= Got) {
+            if (Got >= 16) {
+                Rc = FindBody(Resp, Got, &BodyOff, &BodyLen, &HaveLen);
+                if (Rc == -2) {
+                    PhysicalMemoryFreePages(Resp, Pages);
+                    TcpClose();
+                    return STORE_ERR_HTTP;
+                }
+                if (Rc == 0 && HaveLen && BodyOff + BodyLen <= Got) {
+                    break;
+                }
+                if (Rc == 0 && !HaveLen && TcpPeerClosed() && Idle > STORE_HTTP_IDLE_ACK) {
+                    break;
+                }
+            }
+            if (HaveLen && BodyOff + BodyLen <= Got) {
                 break;
             }
-        }
-        if (TcpPeerClosed() && Chunk == 0) {
-            break;
+            /* 无 Content-Length：对端已关且空闲一会儿再结束 */
+            if (!HaveLen && TcpPeerClosed() && Chunk == 0 && Got > 0 &&
+                Idle > STORE_HTTP_IDLE_ACK * 2) {
+                break;
+            }
         }
     }
     TcpClose();
 
     Rc = FindBody(Resp, Got, &BodyOff, &BodyLen, &HaveLen);
+    if (Rc != 0 && Got > 0) {
+        UINTN i;
+        /* 缓冲里找 HTTP/（头被偏移错切时） */
+        for (i = 0; i + 5 < Got; i++) {
+            if (Resp[i] == 'H' && Resp[i + 1] == 'T' && Resp[i + 2] == 'T' &&
+                Resp[i + 3] == 'P' && Resp[i + 4] == '/') {
+                Rc = FindBody(Resp + i, Got - i, &BodyOff, &BodyLen, &HaveLen);
+                if (Rc == 0) {
+                    BodyOff += i;
+                    break;
+                }
+            }
+        }
+    }
+    if (Rc != 0 && Got > 0) {
+        /* 仅收到正文：catalog 以 # 开头，ELF 魔数 */
+        if (Resp[0] == '#' ||
+            (Got >= 4 && Resp[0] == 0x7F && Resp[1] == 'E' && Resp[2] == 'L' &&
+             Resp[3] == 'F')) {
+            BodyOff = 0;
+            BodyLen = Got;
+            HaveLen = 1;
+            Rc = 0;
+            HalConsoleWriteSerial("store: raw body fallback\n");
+        }
+    }
     if (Rc != 0) {
+        HalConsoleWriteSerial("store: bad http got=");
+        HalConsoleWriteSerial(Got > 0 ? "nz\n" : "0\n");
+        if (Got >= 4) {
+            char Snap[8];
+            Snap[0] = (char)Resp[0];
+            Snap[1] = (char)Resp[1];
+            Snap[2] = (char)Resp[2];
+            Snap[3] = (char)Resp[3];
+            Snap[4] = 0;
+            HalConsoleWriteSerial("store: head ");
+            HalConsoleWriteSerial(Snap);
+            HalConsoleWriteSerial("\n");
+        }
         PhysicalMemoryFreePages(Resp, Pages);
-        HalConsoleWriteSerial("store: bad http response\n");
         return Rc == -2 ? STORE_ERR_HTTP : STORE_ERR_NET;
     }
     if (HaveLen) {
         if (BodyOff + BodyLen > Got) {
+            char Msg[80];
+            int n = 0;
+            const char *P = "store: truncated got=";
+            while (*P) {
+                Msg[n++] = *P++;
+            }
+            /* 十进制长度便于对照 Content-Length */
+            {
+                UINT32 V = (UINT32)Got;
+                char Tmp[12];
+                int t = 0;
+                if (V == 0) {
+                    Tmp[t++] = '0';
+                } else {
+                    while (V) {
+                        Tmp[t++] = (char)('0' + (V % 10));
+                        V /= 10;
+                    }
+                }
+                while (t > 0) {
+                    Msg[n++] = Tmp[--t];
+                }
+            }
+            Msg[n++] = '/';
+            {
+                UINT32 V = (UINT32)(BodyOff + BodyLen);
+                char Tmp[12];
+                int t = 0;
+                if (V == 0) {
+                    Tmp[t++] = '0';
+                } else {
+                    while (V) {
+                        Tmp[t++] = (char)('0' + (V % 10));
+                        V /= 10;
+                    }
+                }
+                while (t > 0) {
+                    Msg[n++] = Tmp[--t];
+                }
+            }
+            Msg[n++] = '\n';
+            Msg[n] = 0;
+            HalConsoleWriteSerial(Msg);
             PhysicalMemoryFreePages(Resp, Pages);
-            HalConsoleWriteSerial("store: truncated body\n");
             return STORE_ERR_NET;
         }
     } else {

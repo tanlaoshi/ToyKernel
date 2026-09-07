@@ -20,6 +20,7 @@
 #define TCP_RCV_BUF       32768 /* PR-S2：可缓冲一小 ELF + HTTP 头 */
 #define TCP_MSS           512
 #define TCP_ADV_WND       4096
+#define TCP_CLIENT_ADV_MAX 2048 /* 限流：避免 QEMU 用户网突发打满 RX 环丢包 */
 #define TCP_RTO_POLLS     8000
 #define TCP_MAX_RETRANS   5
 
@@ -55,6 +56,7 @@ static UINT8  gRetransCount;
 static int    gClientMode; /* PR-S2：主动连接收包，不回显 */
 static UINT8  gRcvBuf[TCP_RCV_BUF];
 static UINT32 gRcvBufLen;
+static UINT32 gRcvTotal; /* 本连接已接受字节数（排空缓冲后仍 >0） */
 static int    gPeerClosed;
 
 static UINT16 HostToNet16(UINT16 V) {
@@ -129,6 +131,9 @@ static UINT16 TcpAdvertiseWindow(void) {
         return TCP_ADV_WND;
     }
     Space = TCP_RCV_BUF - gRcvBufLen;
+    if (Space > TCP_CLIENT_ADV_MAX) {
+        Space = TCP_CLIENT_ADV_MAX;
+    }
     if (Space > 0xFFFF) {
         Space = 0xFFFF;
     }
@@ -288,6 +293,7 @@ void TcpInit(void) {
     gRetransCount = 0;
     gClientMode = 0;
     gRcvBufLen = 0;
+    gRcvTotal = 0;
     gPeerClosed = 0;
 }
 
@@ -490,32 +496,38 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
     }
 
     if (DataLen > 0) {
-        if (Seq != gRcvNxt) {
-            /* 乱序丢弃；仍回 ACK 提示期望序号 */
-            TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
-            return;
+        if (gClientMode && Seq != gRcvNxt && gRcvTotal == 0) {
+            /* 仅在尚未接受过任何字节时对齐首段；勿用 gRcvBufLen==0（TcpRecv 排空后会误跳空洞） */
+            gRcvNxt = Seq;
         }
-        if (gClientMode) {
-            /* PR-S2：客户端收包进缓冲，仅 ACK；满则不推进序号（等 TcpRecv） */
+        if (Seq != gRcvNxt) {
+            if (Seq + (UINT32)DataLen <= gRcvNxt) {
+                TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+            } else {
+                TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+                return;
+            }
+        } else if (gClientMode) {
             UINT32 Space = TCP_RCV_BUF - gRcvBufLen;
             UINT32 Copy = (UINT32)DataLen;
             UINT32 i;
 
             if (Space == 0) {
                 TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
-                return;
-            }
-            if (Copy > Space) {
-                Copy = Space;
-            }
-            for (i = 0; i < Copy; i++) {
-                gRcvBuf[gRcvBufLen + i] = Data[i];
-            }
-            gRcvBufLen += Copy;
-            gRcvNxt = Seq + Copy;
-            TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
-            if (Copy < (UINT32)DataLen) {
-                return; /* 未收完；对端重传剩余 */
+            } else {
+                if (Copy > Space) {
+                    Copy = Space;
+                }
+                for (i = 0; i < Copy; i++) {
+                    gRcvBuf[gRcvBufLen + i] = Data[i];
+                }
+                gRcvBufLen += Copy;
+                gRcvTotal += Copy;
+                gRcvNxt = Seq + Copy;
+                TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+                if (Copy < (UINT32)DataLen) {
+                    return;
+                }
             }
         } else {
             gRcvNxt = Seq + (UINT32)DataLen;
@@ -554,15 +566,23 @@ void TcpInput(UINT32 SrcIp, UINT32 DstIp, const UINT8 *Payload, UINTN Len) {
     }
 
     if (Flags & TCP_FLAG_FIN) {
-        gRcvNxt = Seq + (UINT32)DataLen + 1;
-        TcpSendSegment(TCP_FLAG_ACK | (gClientMode ? 0 : TCP_FLAG_FIN), 0, 0,
-                       gSndNxt, gRcvNxt);
-        if (!gClientMode) {
-            gSndNxt++;
+        /*
+         * FIN 序号必须紧接已收数据。过早 FIN（乱序）不得推进 gRcvNxt，
+         * 否则后续段会被当成“对得上”而跳过 HTTP 头（S2：got=0 / head=.ELF）。
+         */
+        if (Seq + (UINT32)DataLen == gRcvNxt) {
+            gRcvNxt++;
+            gPeerClosed = 1;
+            TcpSendSegment(TCP_FLAG_ACK | (gClientMode ? 0 : TCP_FLAG_FIN), 0, 0,
+                           gSndNxt, gRcvNxt);
+            if (!gClientMode) {
+                gSndNxt++;
+                gState = TCP_CLOSED;
+                DebugWrite("tcp: closed\n");
+            }
+        } else {
+            TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
         }
-        gPeerClosed = 1;
-        gState = TCP_CLOSED;
-        DebugWrite("tcp: closed\n");
     }
 }
 
@@ -590,6 +610,10 @@ int TcpRecv(void *Buf, UINTN Max, UINTN *OutLen) {
         }
     }
     gRcvBufLen -= N;
+    /* 排空后通告窗口，否则对端停在 win=0 */
+    if (N > 0 && gClientMode && gState == TCP_ESTABLISHED) {
+        TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
+    }
     if (OutLen) {
         *OutLen = N;
     }
@@ -597,7 +621,17 @@ int TcpRecv(void *Buf, UINTN Max, UINTN *OutLen) {
 }
 
 int TcpPeerClosed(void) {
-    return gPeerClosed || gState == TCP_CLOSED;
+    return gPeerClosed;
+}
+
+int TcpSendAck(void) {
+    if (gState != TCP_ESTABLISHED && !gPeerClosed) {
+        return -1;
+    }
+    if (gState == TCP_CLOSED) {
+        return -1;
+    }
+    return TcpSendSegment(TCP_FLAG_ACK, 0, 0, gSndNxt, gRcvNxt);
 }
 
 void TcpPoll(void) {

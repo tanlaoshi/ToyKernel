@@ -31,6 +31,8 @@ UINT16 TcpPeerPort(void);
 /* PR-S2：客户端收包（TcpConnect 后）；OutLen 可为 NULL */
 int TcpRecv(void *Buf, UINTN Max, UINTN *OutLen);
 int TcpPeerClosed(void);
+/* 发纯 ACK（窗口更新 / 催促对端重传） */
+int TcpSendAck(void);
 
 void TcpGetWindowStats(UINT32 *SndUna, UINT32 *SndNxt, UINT32 *BufLen,
                        UINT16 *PeerWnd, UINT8 *Retrans);

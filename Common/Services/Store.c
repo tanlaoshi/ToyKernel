@@ -249,6 +249,11 @@ static int TryCopy(const char *Src, const char *Dst) {
         PhysicalMemoryFreePages(Buf, Pages);
         return FAT_ERR_INVAL;
     }
+    /*
+     * QEMU vvfat：同名覆盖写常导致宿主文件消失/内容错乱。
+     * 先删再创建，目录项走 DirCreateEntry 路径更稳。
+     */
+    (void)FileSystemDeleteFile(Dst);
     Err = FileSystemWriteFile(Dst, Buf, Got);
     PhysicalMemoryFreePages(Buf, Pages);
     return Err;
