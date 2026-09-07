@@ -222,9 +222,12 @@ int FatDeleteFile(const char *Path) {
         return FAT_ERR_IO;
     }
     DeleteLfnPrefix(Parent, Index, Fat83Checksum(E));
-    if (Cluster >= 2 && !FatFreeChain(Cluster)) {
-        return FAT_ERR_IO;
-    }
+    /*
+     * 不在此 FatFreeChain：QEMU fat:rw(vvfat) 在 guest 释放簇后再 commit
+     * 常触发 commit_one_file 断言（store remove / 删刚写入的文件）。
+     * 只标 0xE5；vvfat 按目录项删宿主文件。真盘会有簇泄漏，课堂可接受。
+     */
+    (void)Cluster;
     E[0] = 0xE5;
     if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
         return FAT_ERR_IO;

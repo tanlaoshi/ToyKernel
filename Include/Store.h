@@ -1,5 +1,5 @@
 /*
- * Store.h — 本地商店（PR-S1）+ 联网拉取（PR-S2）+ 资源包（PR-S3）
+ * Store.h — 本地商店（PR-S1～S3）+ 安装清单/卸载（PR-S4）
  */
 #ifndef STORE_H
 #define STORE_H
@@ -16,6 +16,7 @@
 #define STORE_TITLE_MAX      48
 #define STORE_ARCH_MAX       16
 #define STORE_ENTRIES_MAX    32
+#define STORE_INSTALLED_MAX  24
 
 typedef struct STORE_ENTRY {
     char Id[STORE_ID_MAX];
@@ -27,11 +28,22 @@ typedef struct STORE_ENTRY {
     char Title[STORE_TITLE_MAX];
 } STORE_ENTRY;
 
+/* PR-S4：已装项（ToyDB si.<id>=type|file） */
+typedef struct STORE_INSTALLED {
+    char Id[STORE_ID_MAX];
+    char Type[12];
+    char File[STORE_FILE_MAX];
+} STORE_INSTALLED;
+
 /* 加载 catalog；优先 Store/（S2 同步后），再 Assets/；成功返回条目数 */
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 
-/* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/ */
+/* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/；并记清单 */
 int StoreInstall(const char *Id);
+
+/* PR-S4：列已装 / 卸载（删载荷 + 清 ToyDB） */
+int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount);
+int StoreRemove(const char *Id);
 
 /* 当前本机 arch 标签（如 x86_64） */
 const char *StoreHostArch(void);

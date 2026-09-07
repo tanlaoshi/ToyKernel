@@ -1,8 +1,10 @@
 /*
  * Store.c — PR-S1：离线 catalog 安装；PR-S3：font/asset → Assets/
+ *           PR-S4：ToyDB 已装清单 + store remove
  *
  * 载荷查找顺序：Store/<file> → <file>（卷根）→ Assets/Store/packages/<id>/<file>
  * sha256=- 时跳过校验（教学默认）。
+ * 清单键：si.<id>=type|file ；依赖占位 sd.<id>=-（M1 再填）
  */
 #include "Store.h"
 #include "FileSystem.h"
@@ -11,6 +13,7 @@
 #include "HalConsole.h"
 #include "Font.h"
 #include "Theme.h"
+#include "Db.h"
 
 #define STORE_CATALOG_MAX  (8u * 1024u)
 #define STORE_COPY_MAX     FAT_WRITE_MAX
@@ -334,6 +337,8 @@ static int InstallFromSources(const char *Id, const char *File, const char *Dst,
     return TryCopy(Src, Dst, Check);
 }
 
+static int StoreMarkInstalled(const char *Id, const char *Type, const char *File);
+
 int StoreInstall(const char *Id) {
     STORE_ENTRY *Tab = gStoreTab;
     int Count = 0;
@@ -395,7 +400,191 @@ int StoreInstall(const char *Id) {
             (void)FontReloadAssets();
             ThemeClampFontId();
         }
+        (void)StoreMarkInstalled(Tab[i].Id, Tab[i].Type, Tab[i].File);
         return FAT_OK;
     }
     return FAT_ERR_NOENT;
+}
+
+static int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {
+    int i = 0;
+    int j;
+
+    if (!Out || Max <= 0 || !Prefix || !Id || !Id[0]) {
+        return 0;
+    }
+    for (j = 0; Prefix[j] && i < Max - 1; j++) {
+        Out[i++] = Prefix[j];
+    }
+    for (j = 0; Id[j] && i < Max - 1; j++) {
+        Out[i++] = Id[j];
+    }
+    Out[i] = 0;
+    return Id[j] == 0;
+}
+
+static int StoreMarkInstalled(const char *Id, const char *Type, const char *File) {
+    char Key[DB_KEY_MAX];
+    char DepKey[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+    int i = 0;
+    int j;
+
+    if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
+        return FAT_ERR_INVAL;
+    }
+    /* type|file */
+    for (j = 0; Type && Type[j] && i < (int)sizeof(Val) - 1; j++) {
+        Val[i++] = Type[j];
+    }
+    if (i < (int)sizeof(Val) - 1) {
+        Val[i++] = '|';
+    }
+    for (j = 0; File && File[j] && i < (int)sizeof(Val) - 1; j++) {
+        Val[i++] = File[j];
+    }
+    Val[i] = 0;
+    if (DbSet(Key, Val) != DB_OK) {
+        return FAT_ERR_IO;
+    }
+    /* 依赖占位（M1 再写真实 depends） */
+    if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+        (void)DbSet(DepKey, "-");
+    }
+    return FAT_OK;
+}
+
+typedef struct {
+    STORE_INSTALLED *Out;
+    int Max;
+    int Count;
+} STORE_LIST_CTX;
+
+static int ListInstalledCb(const char *Key, const char *Value, void *Ctx) {
+    STORE_LIST_CTX *C = (STORE_LIST_CTX *)Ctx;
+    STORE_INSTALLED *E;
+    const char *Bar;
+    int i;
+
+    if (!Key || Key[0] != 's' || Key[1] != 'i' || Key[2] != '.') {
+        return 0;
+    }
+    if (!C || !C->Out || C->Count >= C->Max) {
+        return 1;
+    }
+    E = &C->Out[C->Count];
+    for (i = 0; Key[3 + i] && i < STORE_ID_MAX - 1; i++) {
+        E->Id[i] = Key[3 + i];
+    }
+    E->Id[i] = 0;
+    E->Type[0] = 0;
+    E->File[0] = 0;
+    if (!Value) {
+        C->Count++;
+        return 0;
+    }
+    Bar = Value;
+    while (*Bar && *Bar != '|') {
+        Bar++;
+    }
+    {
+        int n = 0;
+        while (Value + n < Bar && n < (int)sizeof(E->Type) - 1) {
+            E->Type[n] = Value[n];
+            n++;
+        }
+        E->Type[n] = 0;
+    }
+    if (*Bar == '|') {
+        Bar++;
+        for (i = 0; Bar[i] && i < STORE_FILE_MAX - 1; i++) {
+            E->File[i] = Bar[i];
+        }
+        E->File[i] = 0;
+    }
+    C->Count++;
+    return 0;
+}
+
+int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount) {
+    STORE_LIST_CTX Ctx;
+
+    if (!Out || Max <= 0 || !OutCount) {
+        return FAT_ERR_INVAL;
+    }
+    Ctx.Out = Out;
+    Ctx.Max = Max;
+    Ctx.Count = 0;
+    (void)DbForEach(ListInstalledCb, &Ctx);
+    *OutCount = Ctx.Count;
+    return FAT_OK;
+}
+
+int StoreRemove(const char *Id) {
+    char Key[DB_KEY_MAX];
+    char DepKey[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+    char Type[12];
+    char File[STORE_FILE_MAX];
+    char Dst[96];
+    const char *Bar;
+    int i;
+    int Kind;
+    int Err;
+
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
+        return FAT_ERR_INVAL;
+    }
+    if (DbGet(Key, Val, sizeof(Val)) != DB_OK) {
+        return FAT_ERR_NOENT;
+    }
+    Bar = Val;
+    while (*Bar && *Bar != '|') {
+        Bar++;
+    }
+    i = 0;
+    while (Val + i < Bar && i < (int)sizeof(Type) - 1) {
+        Type[i] = Val[i];
+        i++;
+    }
+    Type[i] = 0;
+    File[0] = 0;
+    if (*Bar == '|') {
+        Bar++;
+        for (i = 0; Bar[i] && i < STORE_FILE_MAX - 1; i++) {
+            File[i] = Bar[i];
+        }
+        File[i] = 0;
+    }
+    if (File[0] == 0) {
+        (void)DbDelete(Key);
+        return FAT_ERR_INVAL;
+    }
+
+    Kind = EntryKind(Type);
+    if (Kind == STORE_KIND_FONT) {
+        JoinPath(Dst, (int)sizeof(Dst), STORE_FONTS_DIR, File);
+    } else if (Kind == STORE_KIND_ASSET) {
+        JoinPath(Dst, (int)sizeof(Dst), STORE_PACKS_DIR, File);
+    } else {
+        JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, File);
+    }
+
+    Err = FileSystemDeleteFile(Dst);
+    /* vvfat：删刚写入文件曾宿主断言；现 FatDeleteFile 已改为只摘目录项 */
+    if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+        return Err;
+    }
+    (void)DbDelete(Key);
+    if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+        (void)DbDelete(DepKey);
+    }
+    if (Kind == STORE_KIND_FONT) {
+        (void)FontReloadAssets();
+        ThemeClampFontId();
+    }
+    return FAT_OK;
 }

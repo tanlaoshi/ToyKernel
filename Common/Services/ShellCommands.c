@@ -818,6 +818,61 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
+    /* PR-S4：store list-installed | store installed */
+    if (Argc >= 2 &&
+        ((Argv[1][0] == 'l' && Argv[1][1] == 'i' && Argv[1][2] == 's' &&
+          Argv[1][3] == 't' && Argv[1][4] == '-' && Argv[1][5] == 'i') ||
+         (Argv[1][0] == 'i' && Argv[1][1] == 'n' && Argv[1][2] == 's' &&
+          Argv[1][3] == 't' && Argv[1][4] == 'a' && Argv[1][5] == 'l' &&
+          Argv[1][6] == 'l' && Argv[1][7] == 'e' && Argv[1][8] == 'd' &&
+          Argv[1][9] == 0))) {
+        STORE_INSTALLED Inst[STORE_INSTALLED_MAX];
+        int N = 0;
+        Err = StoreListInstalled(Inst, STORE_INSTALLED_MAX, &N);
+        if (Err != FAT_OK) {
+            ConsoleWrite("store list-installed: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store installed:\n");
+        if (N == 0) {
+            ConsoleWrite("  (none)\n");
+            return;
+        }
+        for (i = 0; i < N; i++) {
+            ConsoleWrite("  ");
+            ConsoleWrite(Inst[i].Id);
+            ConsoleWrite("  ");
+            ConsoleWrite(Inst[i].Type);
+            ConsoleWrite("  ");
+            ConsoleWrite(Inst[i].File);
+            ConsoleWrite("\n");
+        }
+        return;
+    }
+
+    /* PR-S4：store remove <id> */
+    if (Argc >= 2 && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
+        Argv[1][2] == 'm' && Argv[1][3] == 'o' && Argv[1][4] == 'v' &&
+        Argv[1][5] == 'e' && Argv[1][6] == 0) {
+        if (Argc < 3) {
+            ConsoleWrite("usage: store remove <id>\n");
+            return;
+        }
+        Err = StoreRemove(Argv[2]);
+        if (Err != FAT_OK) {
+            ConsoleWrite("store remove: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store: removed ");
+        ConsoleWrite(Argv[2]);
+        ConsoleWrite("\n");
+        return;
+    }
+
     Tab = StoreScratchTab();
     Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
     if (Err < 0) {
@@ -842,7 +897,7 @@ static void CommandStore(int Argc, char **Argv) {
     }
     if (Argc < 2 || (Argv[1][0] == 'l' && Argv[1][1] == 'i' &&
                      Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 0)) {
-        ConsoleWrite("usage: store [list]|install|sync|fetch <id>|repo [ip:port]\n");
+        ConsoleWrite("usage: store [list]|install|remove|list-installed|sync|fetch|repo\n");
     }
 }
 
@@ -1002,7 +1057,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
     ConsoleRegister("font", "font [reload|<id>] (Assets/Fonts TOYF)", CommandFont);
-    ConsoleRegister("store", "store list|install|sync|fetch|repo", CommandStore);
+    ConsoleRegister("store", "store list|install|remove|list-installed|sync|fetch|repo", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegister("exit", "alias of halt", CommandExit);
