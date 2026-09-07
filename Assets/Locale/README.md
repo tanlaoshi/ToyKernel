@@ -22,4 +22,4 @@ MSG_ICON_SHELL=终端    # 在 zh.txt 里改
 lang reload
 ```
 
-图标位图仍在 `Assets/Icons/`，与文案无关。说明见 [`Documents/字体与多语言.md`](../../Documents/字体与多语言.md)。
+图标位图仍在 `Assets/Icons/`，与文案无关。说明见 [`Documents/技术手册.md`](../../Documents/技术手册.md)。

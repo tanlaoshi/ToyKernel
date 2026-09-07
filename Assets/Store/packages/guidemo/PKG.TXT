@@ -1,0 +1,8 @@
+name=guidemo
+type=app
+version=1
+file=GUIDEMO.ELF
+sha256=-
+arch=x86_64
+title=GUI Demo
+depends=demopack,sun8

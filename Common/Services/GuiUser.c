@@ -262,7 +262,7 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Background = ThemeSettingsClientBackground();
     CopyTitleBuf(gWins[Idx].TitleBuf, sizeof(gWins[Idx].TitleBuf), Title);
     gWins[Idx].Title = gWins[Idx].TitleBuf;
     gWins[Idx].ClientText[0] = 0;

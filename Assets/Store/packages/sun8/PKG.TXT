@@ -5,3 +5,4 @@ file=VGA8X16.FNT
 sha256=-
 arch=any
 title=Sun 8x16 (store)
+depends=-

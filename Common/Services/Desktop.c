@@ -424,7 +424,7 @@ UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
     HalVideoGetSize(&Sw, &Sh);
     (void)Sw;
     (void)Sh;
-    return ThemeDesktopBg();
+    return ThemeDesktopBackground();
 }
 
 void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
@@ -438,7 +438,7 @@ void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
     BuildWallScreen();
     if (!gWallScreen) {
-        UiFillRectangle(X, Y, W, H, ThemeDesktopBg());
+        UiFillRectangle(X, Y, W, H, ThemeDesktopBackground());
         return;
     }
     Sw = gWallScreenW;

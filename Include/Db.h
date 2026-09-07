@@ -10,7 +10,7 @@
 #include "BootTypes.h"
 
 #define DB_PATH       "TOYOS.DB"
-#define DB_KEY_MAX    32
+#define DB_KEY_MAX    48
 #define DB_VAL_MAX    64
 #define DB_MAX_RECORDS 64
 

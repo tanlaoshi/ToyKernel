@@ -64,11 +64,11 @@ void HalNetPoll(void) {
     ToyDriverNetPoll();
 }
 
-void HalNetGetMac(UINT8 Mac[6]) {
+void HalNetGetMacAddress(UINT8 Mac[6]) {
     ToyDriverNetGetMac(Mac);
 }
 
-UINT32 HalNetGetIp(void) {
+UINT32 HalNetGetIpAddress(void) {
     return ToyDriverNetGetIp();
 }
 
@@ -96,6 +96,6 @@ UINT16 HalNetChecksum(const void *Data, UINTN Len) {
     return ToyDriverNetChecksum(Data, Len);
 }
 
-void HalNetSetLwIpRx(int Enable) {
+void HalNetSetLwipReceive(int Enable) {
     ToyDriverNetSetLwIpRx(Enable);
 }

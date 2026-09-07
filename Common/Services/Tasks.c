@@ -8,6 +8,7 @@
 #include "Gui.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "EditUi.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "LwIp.h"
@@ -52,6 +53,51 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
                 char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
                 if (C >= '0' && C <= '9') {
                     SettingsUiOnDigit(C);
+                }
+            }
+            continue;
+        }
+
+        /* Edit：文本编辑 / Ctrl+S 保存 */
+        if (EditUiIsFocused()) {
+            if (Key == HID_KEY_ESCAPE) {
+                EditUiOnEscape();
+                continue;
+            }
+            if (Key == HID_KEY_ENTER) {
+                EditUiOnEnter();
+                continue;
+            }
+            if (Key == HID_KEY_UP || Key == HID_KEY_DOWN) {
+                EditUiOnArrow(Key == HID_KEY_DOWN);
+                continue;
+            }
+            if (Key == HID_KEY_LEFT || Key == HID_KEY_RIGHT) {
+                EditUiOnArrowLeftRight(Key == HID_KEY_RIGHT);
+                continue;
+            }
+            if (Key == HID_KEY_BACKSPACE) {
+                EditUiOnBackspace();
+                continue;
+            }
+            if (Key == HID_KEY_DELETE) {
+                EditUiOnDeleteKey();
+                continue;
+            }
+            if (Key == HID_KEY_S &&
+                (Report->ModifierKeys & (HID_MOD_LCTRL | HID_MOD_RCTRL))) {
+                EditUiSave();
+                continue;
+            }
+            if (Key == HID_KEY_CAPSLOCK) {
+                HIDKeyboardToggleCapsLock();
+                HalKeyboardSetLeds(HIDKeyboardGetLeds());
+                continue;
+            }
+            {
+                char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
+                if (C != 0) {
+                    EditUiOnChar(C);
                 }
             }
             continue;
@@ -162,6 +208,21 @@ void ShellTask(void) {
                 }
                 continue;
             }
+            if (EditUiIsFocused()) {
+                if (C == 0x1B) {
+                    EditUiOnEscape();
+                } else if (C == '\r' || C == '\n') {
+                    EditUiOnEnter();
+                } else if (C == '\b' || C == 127) {
+                    EditUiOnBackspace();
+                } else if (C == 19) {
+                    /* Ctrl+S */
+                    EditUiSave();
+                } else if (C >= 32 && C <= 126) {
+                    EditUiOnChar(C);
+                }
+                continue;
+            }
             if (C == '\r' || C == '\n') {
                 ConsoleOnEnter();
             } else if (C == 3) {
@@ -210,7 +271,7 @@ void ShellTask(void) {
                 ConsoleWrite("udp from ");
                 ConsoleWrite(IpBuf);
                 ConsoleWrite(":");
-                ConsoleHex32(Dg.SrcPort);
+                ConsoleWriteHex32(Dg.SrcPort);
                 ConsoleWrite(" ");
                 for (i = 0; i < Dg.Len; i++) {
                     char C = (char)Dg.Data[i];

@@ -1,7 +1,8 @@
 /*
- * FilesUi.h — 文件浏览器（PR-FB1 只读 + PR-FB2 写操作）
+ * FilesUi.h — 文件浏览器（PR-FB1/FB2 + PR-U1/U2/U3）
  *
  * 进目录；打开 .ELF / 文本预览；删除（确认）、mkdir、新建空文件、重命名。
+ * U1：左栏固定宽；U2：侧栏书签；U3：右栏列表|预览分区。
  */
 #ifndef FILES_UI_H
 #define FILES_UI_H

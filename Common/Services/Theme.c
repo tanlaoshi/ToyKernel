@@ -1,7 +1,8 @@
 /*
  * Theme.c — 主题存储（PR-D2）+ THEME.CFG（PR-D6）+ mode=WxH（PR-D7）+ TOYOS.DB（PR-DB1）
  *
- * 运行时偏好优先读 TOYOS.DB；仍写 THEME.CFG 供 ToyBoot GOP SetMode。
+ * 运行时颜色/字体优先读 TOYOS.DB；写盘时先 THEME.CFG 再 DB（QEMU edid 认 CFG）。
+ * 分辨率 mode=：读时若 CFG 有则覆盖 DB（与 edid/Boot 权威一致，PR-D-res）。
  * 键：desktop / shell / font / mode（与 THEME.CFG 同名）。
  */
 #include "Theme.h"
@@ -28,16 +29,16 @@ void ThemeInit(void) {
     (void)FontSetById(gFontId);
 }
 
-UINT32 ThemeDesktopBg(void) {
+UINT32 ThemeDesktopBackground(void) {
     return gDesktopBg;
 }
 
-UINT32 ThemeShellClientBg(void) {
+UINT32 ThemeShellClientBackground(void) {
     return gShellClientBg;
 }
 
 /* Settings 客户区底色（M10）；暂与默认浅灰一致，不单独持久化 */
-UINT32 ThemeSettingsClientBg(void) {
+UINT32 ThemeSettingsClientBackground(void) {
     return COLOR_LIGHT_GRAY;
 }
 
@@ -67,11 +68,11 @@ void ThemeClearDisplayMode(void) {
     gModeH = 0;
 }
 
-void ThemeSetDesktopBg(UINT32 Color) {
+void ThemeSetDesktopBackground(UINT32 Color) {
     gDesktopBg = Color;
 }
 
-void ThemeSetShellClientBg(UINT32 Color) {
+void ThemeSetShellClientBackground(UINT32 Color) {
     gShellClientBg = Color;
 }
 
@@ -365,8 +366,51 @@ static int ThemeLoadFromCfg(void) {
     return 0;
 }
 
+/* PR-D-res：仅覆盖 mode=（CFG 与 QEMU edid / Boot 同源） */
+static int ThemeOverlayModeFromCfg(void) {
+    static char Buf[256];
+    UINTN Size = 0;
+    UINTN i;
+    char Line[64];
+    UINTN L;
+    int Got = 0;
+    const char *Val;
+
+    if (FileSystemReadFile(THEME_CFG_PATH, Buf, sizeof(Buf) - 1, &Size) != FAT_OK || Size == 0) {
+        return -1;
+    }
+    Buf[Size] = 0;
+    L = 0;
+    for (i = 0; i <= Size; i++) {
+        char C = (i < Size) ? Buf[i] : '\n';
+        if (C == '\n' || C == '\r' || i == Size) {
+            if (L > 0) {
+                const char *P;
+
+                Line[L] = 0;
+                P = Line;
+                while (*P && IsSpace(*P)) {
+                    P++;
+                }
+                Val = ValueAfterKey(P, "mode");
+                if (Val) {
+                    ApplyLine(P);
+                    Got = 1;
+                }
+                L = 0;
+            }
+            continue;
+        }
+        if (L + 1 < sizeof(Line)) {
+            Line[L++] = C;
+        }
+    }
+    return Got ? 0 : -1;
+}
+
 int ThemeLoad(void) {
     int FromDb;
+    int ModeFromCfg;
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
              ApplyDbKey("font") + ApplyDbKey("mode");
@@ -376,7 +420,12 @@ int ThemeLoad(void) {
         }
         HalConsoleWriteSerial("theme: loaded THEME.CFG\n");
     } else {
-        HalConsoleWriteSerial("theme: loaded TOYOS.DB\n");
+        ModeFromCfg = (ThemeOverlayModeFromCfg() == 0);
+        if (ModeFromCfg) {
+            HalConsoleWriteSerial("theme: loaded TOYOS.DB (mode from THEME.CFG)\n");
+        } else {
+            HalConsoleWriteSerial("theme: loaded TOYOS.DB\n");
+        }
     }
     (void)FontSetById(gFontId);
     if (gFontId >= FontCount() || FontCurrentId() != gFontId) {
@@ -408,16 +457,6 @@ int ThemeSave(void) {
     int i;
     int DbOk = 1;
 
-    DbBeginBatch();
-    PutHex6(Hex, gDesktopBg);
-    Hex[6] = 0;
-    if (DbSet("desktop", Hex) != DB_OK) {
-        DbOk = 0;
-    }
-    PutHex6(Hex, gShellClientBg);
-    if (DbSet("shell", Hex) != DB_OK) {
-        DbOk = 0;
-    }
     FontVal[0] = 0;
     N = 0;
     if (gFontId >= 10) {
@@ -425,26 +464,18 @@ int ThemeSave(void) {
     }
     FontVal[N++] = (char)('0' + (gFontId % 10));
     FontVal[N] = 0;
-    if (DbSet("font", FontVal) != DB_OK) {
-        DbOk = 0;
-    }
     if (ThemeHasDisplayPref()) {
         ModeLen = 0;
         PutDec(ModeVal, gModeW, &ModeLen);
         ModeVal[ModeLen++] = 'x';
         PutDec(ModeVal, gModeH, &ModeLen);
         ModeVal[ModeLen] = 0;
-        if (DbSet("mode", ModeVal) != DB_OK) {
-            DbOk = 0;
-        }
-    } else {
-        (void)DbDelete("mode");
-    }
-    if (DbEndBatch() != DB_OK) {
-        DbOk = 0;
     }
 
-    /* 仍写 THEME.CFG：Boot 读 mode= 做 SetMode */
+    /*
+     * 先写 THEME.CFG：QEMU edid / ToyBoot 认 CFG；若先写 DB 再 CFG 失败，
+     * Settings 显示新分辨率、下次启动仍用旧 edid（常见「设了却变回 1600x900」）。
+     */
     N = 0;
     Buf[N++] = 'd';
     Buf[N++] = 'e';
@@ -496,15 +527,93 @@ int ThemeSave(void) {
     }
     Buf[N] = 0;
 
-    (void)FileSystemDeleteFile(THEME_CFG_PATH);
+    /*
+     * 勿先 Delete 再 Write：QEMU fat:rw/vvfat 上 unlink+create 常丢宿主文件
+     * 或整机异常退出（Settings 改分辨率「saved」但盘上仍是旧 mode）。
+     * FatWriteFile 已支持同名覆盖。
+     */
     if (FileSystemWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
         HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
         return -1;
     }
+    /* 回读确认 mode= 已落盘（vvfat 静默失败时 Guest 缓存仍可能“成功”） */
+    if (ThemeHasDisplayPref()) {
+        UINT32 Rw = 0;
+        UINT32 Rh = 0;
+        char Line[40];
+        UINTN ii;
+        UINTN L = 0;
+        static char RBuf[256];
+        UINTN RSize = 0;
+
+        if (FileSystemReadFile(THEME_CFG_PATH, RBuf, sizeof(RBuf) - 1, &RSize) != FAT_OK ||
+            RSize == 0) {
+            HalConsoleWriteSerial("theme: save verify read failed\n");
+            return -1;
+        }
+        RBuf[RSize] = 0;
+        for (ii = 0; ii <= RSize; ii++) {
+            char C = (ii < RSize) ? RBuf[ii] : '\n';
+            if (C == '\n' || C == '\r' || ii == RSize) {
+                if (L > 0) {
+                    const char *P;
+                    const char *Val;
+                    Line[L] = 0;
+                    P = Line;
+                    while (*P && IsSpace(*P)) {
+                        P++;
+                    }
+                    Val = ValueAfterKey(P, "mode");
+                    if (Val && ParseModeValue(Val, &Rw, &Rh) == 0) {
+                        if (Rw != gModeW || Rh != gModeH) {
+                            HalConsoleWriteSerial("theme: save verify mode mismatch\n");
+                            return -1;
+                        }
+                        break;
+                    }
+                    L = 0;
+                }
+                continue;
+            }
+            if (L + 1 < sizeof(Line)) {
+                Line[L++] = C;
+            }
+        }
+        if (Rw == 0 && Rh == 0 && (gModeW || gModeH)) {
+            HalConsoleWriteSerial("theme: save verify mode missing\n");
+            return -1;
+        }
+    }
+
+    /* 多次 DbSet 合并一次刷盘，减轻 vvfat 连写压力 */
+    DbBeginBatch();
+    PutHex6(Hex, gDesktopBg);
+    Hex[6] = 0;
+    if (DbSet("desktop", Hex) != DB_OK) {
+        DbOk = 0;
+    }
+    PutHex6(Hex, gShellClientBg);
+    if (DbSet("shell", Hex) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("font", FontVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (ThemeHasDisplayPref()) {
+        if (DbSet("mode", ModeVal) != DB_OK) {
+            DbOk = 0;
+        }
+    } else {
+        (void)DbDelete("mode");
+    }
+    if (DbEndBatch() != DB_OK) {
+        DbOk = 0;
+    }
+
     if (!DbOk) {
         HalConsoleWriteSerial("theme: saved THEME.CFG (DB write failed)\n");
     } else {
-        HalConsoleWriteSerial("theme: saved TOYOS.DB + THEME.CFG\n");
+        HalConsoleWriteSerial("theme: saved THEME.CFG + TOYOS.DB\n");
     }
     return 0;
 }

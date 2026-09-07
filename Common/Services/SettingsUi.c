@@ -285,7 +285,7 @@ static void PaintMenu(void) {
             DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
-        CurColor = ThemeDesktopBg();
+        CurColor = ThemeDesktopBackground();
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DESKTOP), COLOR_BLACK);
         Y += 2;
         for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
@@ -297,7 +297,7 @@ static void PaintMenu(void) {
         }
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
     } else if (gPage == SETTINGS_PAGE_SHELL_BG) {
-        CurColor = ThemeShellClientBg();
+        CurColor = ThemeShellClientBackground();
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_SHELL), COLOR_BLACK);
         Y += 2;
         for (i = 0; i < SHELL_COLOR_COUNT; i++) {
@@ -363,7 +363,7 @@ static void ApplyDesktopColor(int Index) {
     if (Index < 0 || Index >= DESKTOP_COLOR_COUNT) {
         return;
     }
-    ThemeSetDesktopBg(gDesktopColors[Index].Color);
+    ThemeSetDesktopBackground(gDesktopColors[Index].Color);
     ThemeApply();
 }
 
@@ -371,7 +371,7 @@ static void ApplyShellColor(int Index) {
     if (Index < 0 || Index >= SHELL_COLOR_COUNT) {
         return;
     }
-    ThemeSetShellClientBg(gShellColors[Index].Color);
+    ThemeSetShellClientBackground(gShellColors[Index].Color);
     ThemeApply();
 }
 

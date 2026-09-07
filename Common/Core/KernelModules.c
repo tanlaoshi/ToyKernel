@@ -67,7 +67,7 @@ static int InitializeVideo(void) {
     ThemeInit();
     HalVideoSet(&V);
     HalVideoInitBackbuffer();
-    HalVideoClearScreen(ThemeDesktopBg());
+    HalVideoClearScreen(ThemeDesktopBackground());
     HalVideoPresent();
     /* PR-H3：无 COM1 时把串口缓冲刷到帧缓冲文字 */
     HalSerialGopEnable();
@@ -86,7 +86,7 @@ static int InitializeCpu(void) {
 }
 
 static int InitializeSmp(void) {
-    return HalSmpStartAps();
+    return HalSmpStartApplicationProcessors();
 }
 
 static int InitializeUsb(void) {
@@ -134,6 +134,7 @@ static int InitializeConsole(void) {
     } else {
         ShellCommandsRegister();
     }
+    ConsoleUserAliasLoad();
     ConsoleInit();
     return 0;
 }

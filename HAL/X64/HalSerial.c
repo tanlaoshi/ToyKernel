@@ -90,6 +90,6 @@ char HalSerialReadChar(void) {
     return SerialReadChar();
 }
 
-void HalSerialHexFormat(char *Buf, UINT64 Value, int Digits) {
+void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits) {
     SerialHexFormat(Buf, Value, Digits);
 }

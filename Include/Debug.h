@@ -17,7 +17,7 @@
 
 #if TOY_DEBUG
 #define DebugWrite(Text)   HalDebugWrite(Text)
-#define DebugHex32(Value)  HalDebugHex32(Value)
+#define DebugHex32(Value)  HalDebugWriteHex32(Value)
 #define DebugHex64(Value)  HalDebugHex64(Value)
 #else
 #define DebugWrite(Text)   ((void)0)

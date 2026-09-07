@@ -77,7 +77,7 @@ static void CommandWrite(int Argc, char **Argv) {
         return;
     }
     ConsoleWrite("write: ok ");
-    ConsoleHex32((UINT32)Len);
+    ConsoleWriteHex32((UINT32)Len);
     ConsoleWrite(" bytes\n");
 }
 
@@ -141,9 +141,9 @@ static void CommandWrbig(int Argc, char **Argv) {
     }
     if (OutSize != Size) {
         ConsoleWrite("wrbig: fail size want=");
-        ConsoleHex32((UINT32)Size);
+        ConsoleWriteHex32((UINT32)Size);
         ConsoleWrite(" got=");
-        ConsoleHex32((UINT32)OutSize);
+        ConsoleWriteHex32((UINT32)OutSize);
         ConsoleWrite("\n");
         Ok = 0;
     } else {
@@ -151,7 +151,7 @@ static void CommandWrbig(int Argc, char **Argv) {
             UINT8 Expect = (UINT8)((i * 131u + 17u) & 0xFFu);
             if (Buf[i] != Expect) {
                 ConsoleWrite("wrbig: fail pattern at ");
-                ConsoleHex32((UINT32)i);
+                ConsoleWriteHex32((UINT32)i);
                 ConsoleWrite("\n");
                 Ok = 0;
                 break;
@@ -161,7 +161,7 @@ static void CommandWrbig(int Argc, char **Argv) {
     PhysicalMemoryFreePages(Buf, Pages);
     if (Ok) {
         ConsoleWrite("wrbig: ok ");
-        ConsoleHex32((UINT32)Size);
+        ConsoleWriteHex32((UINT32)Size);
         ConsoleWrite(" bytes\n");
     }
 }
@@ -256,9 +256,9 @@ static void CommandVols(int Argc, char **Argv) {
         ConsoleWrite(Name);
         ConsoleWrite(":");
         ConsoleWrite(" drive=");
-        ConsoleHex32(Drive);
+        ConsoleWriteHex32(Drive);
         ConsoleWrite(" lba=");
-        ConsoleHex32(StartLba);
+        ConsoleWriteHex32(StartLba);
         if (ReadOnly) {
             ConsoleWrite(" ro");
         }
@@ -321,11 +321,11 @@ static void CommandFileStat(int Argc, char **Argv) {
         ConsoleWrite(" ro");
     }
     ConsoleWrite(" size=");
-    ConsoleHex32(St.Size);
+    ConsoleWriteHex32(St.Size);
     ConsoleWrite(" cluster=");
-    ConsoleHex32(St.Cluster);
+    ConsoleWriteHex32(St.Cluster);
     ConsoleWrite(" attr=");
-    ConsoleHex32((UINT32)St.Attr);
+    ConsoleWriteHex32((UINT32)St.Attr);
     ConsoleWrite("\n");
 }
 
@@ -381,30 +381,58 @@ static void CommandDirStress(int Argc, char **Argv) {
     if (Err != FAT_OK) {
         FatReport("dirstress", Err);
         ConsoleWrite("dirstress: created=");
-        ConsoleHex32((UINT32)Created);
+        ConsoleWriteHex32((UINT32)Created);
         ConsoleWrite(" grew=");
         ConsoleWrite(Grew ? "yes" : "no");
         ConsoleWrite("\n");
         return;
     }
     ConsoleWrite("dirstress: ok created=");
-    ConsoleHex32((UINT32)Created);
+    ConsoleWriteHex32((UINT32)Created);
     ConsoleWrite(" grew=");
     ConsoleWrite(Grew ? "yes" : "no");
     ConsoleWrite("\n");
 }
 
 void ShellCommandsRegisterFs(void) {
-    ConsoleRegister("ls", "list directory (TOYOS: / A: / RES:)", CommandLs);
-    ConsoleRegister("cat", "print file", CommandCat);
+    /* list：默认列目录；二级 tasks/devices 已由 ShellCommandsRegister 挂上 */
+    ConsoleRegister("list", "list directory (TOYOS: / A: / RES:)", CommandLs);
+    ConsoleRegister2("list", "volumes", "list mounted volumes", CommandVols);
+    ConsoleRegisterAlias("list", "ls");
+    ConsoleRegisterAlias("list", "dir");
+    ConsoleRegisterAliasLine("vols", "list", "volumes");
+    ConsoleRegisterAliasLine("volumes", "list", "volumes");
+
+    ConsoleRegister("print", "print file", CommandCat);
+    ConsoleRegisterAlias("print", "cat");
+    ConsoleRegisterAlias("print", "type");
+
     ConsoleRegister("write", "write file text", CommandWrite);
-    ConsoleRegister("wrbig", "write+verify large file (PR-FS3)", CommandWrbig);
-    ConsoleRegister("dirstress", "grow subdir clusters (PR-F3)", CommandDirStress);
-    ConsoleRegister("rm", "remove file or empty dir", CommandRm);
-    ConsoleRegister("mkdir", "create directory", CommandMkdir);
-    ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);
-    ConsoleRegister("mv", "rename/move file or dir", CommandMv);
-    ConsoleRegister("vols", "list mounted volumes", CommandVols);
-    ConsoleRegister("filestat", "file/dir status (PR-F2 FileStat)", CommandFileStat);
-    ConsoleRegister("filesync", "flush volume to disk (PR-F2 FileSync)", CommandFileSync);
+    ConsoleRegister2("write", "big", "write+verify large file", CommandWrbig);
+    ConsoleRegisterAliasLine("wrbig", "write", "big");
+
+    ConsoleRegister2("make", "directory", "create directory", CommandMkdir);
+    ConsoleRegisterAliasLine("mkdir", "make", "directory");
+    ConsoleRegisterAliasLine("md", "make", "directory");
+
+    ConsoleRegister("remove", "remove file or empty dir", CommandRm);
+    ConsoleRegister2("remove", "directory", "remove empty directory", CommandRmdir);
+    ConsoleRegisterAlias("remove", "rm");
+    ConsoleRegisterAlias("remove", "del");
+    ConsoleRegisterAliasLine("rmdir", "remove", "directory");
+    ConsoleRegisterAliasLine("rd", "remove", "directory");
+
+    ConsoleRegister("move", "rename/move file or dir", CommandMv);
+    ConsoleRegisterAlias("move", "mv");
+    ConsoleRegisterAlias("move", "rename");
+
+    ConsoleRegister2("show", "file", "file/dir status", CommandFileStat);
+    ConsoleRegisterAliasLine("filestat", "show", "file");
+    ConsoleRegisterAliasLine("stat", "show", "file");
+
+    ConsoleRegister2("sync", "file", "flush volume to disk", CommandFileSync);
+    ConsoleRegisterAliasLine("filesync", "sync", "file");
+
+    ConsoleRegister2("stress", "directory", "grow subdir clusters", CommandDirStress);
+    ConsoleRegisterAliasLine("dirstress", "stress", "directory");
 }

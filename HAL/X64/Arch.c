@@ -190,7 +190,7 @@ static void GdtLoad(void) {
 
 /* 每核 TSS.RSP0：用户态陷入内核时用的栈（int 0x80 与 SYSCALL 共用） */
 void ArchSetRsp0(UINT64 Rsp0) {
-    UINT32 Cpu = HalCpuId();
+    UINT32 Cpu = HalGetCpuId();
     if (Cpu >= HAL_MAX_CPUS) {
         Cpu = 0;
     }
@@ -366,7 +366,7 @@ UINT64 InterruptDispatch(HAL_FRAME *F) {
     }
     if (F->Vector == VEC_TIMER) {
         LapicEoi();
-        HalCpuTickInc();
+        HalCpuIncrementTicks();
         /* PR-S3：调度上线后所有核进 SchedulerOnTimer（大锁保护） */
         if (!SchedulerIsOnline()) {
             return 0;

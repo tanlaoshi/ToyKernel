@@ -12,6 +12,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "EditUi.h"
 #include "Console.h"
 #include "Locale.h"
 #include "PhysicalMemory.h"
@@ -176,6 +177,10 @@ void CloseWindow(int Idx) {
             gFocusWin = i;
             FilesUiRepaint();
             gFocusWin = SavedFocus;
+        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
+            gFocusWin = i;
+            EditUiRepaint();
+            gFocusWin = SavedFocus;
         } else if (gWins[i].Kind == GUI_WIN_USER) {
             PaintUserClient(i);
         }
@@ -279,6 +284,9 @@ void GuiRaiseToFront(int Idx) {
     } else if (gWins[Idx].Kind == GUI_WIN_FILES) {
         FilesUiRepaint();
         BackupWindowAt(Idx);
+    } else if (gWins[Idx].Kind == GUI_WIN_EDIT) {
+        EditUiRepaint();
+        BackupWindowAt(Idx);
     } else if (gWins[Idx].Kind == GUI_WIN_USER) {
         DrawWindowAtEx(Idx, 0);
         PaintUserClient(Idx);
@@ -354,7 +362,7 @@ int GuiOpenShell(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeShellClientBg();
+    gWins[Idx].Background = ThemeShellClientBackground();
     gWins[Idx].Title = LocStr(MSG_APP_SHELL);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -425,7 +433,7 @@ int GuiOpenSettings(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Background = ThemeSettingsClientBackground();
     gWins[Idx].Title = LocStr(MSG_APP_SETTINGS);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -482,7 +490,7 @@ int GuiOpenFiles(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Background = ThemeSettingsClientBackground();
     gWins[Idx].Title = LocStr(MSG_APP_FILES);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -505,6 +513,85 @@ int GuiOpenFiles(void) {
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     DebugWrite("gui: open files idx=");
+    DebugHex32((UINT32)gFocusWin);
+    DebugWrite("\n");
+    return gFocusWin;
+}
+
+
+int GuiOpenEdit(const char *Path) {
+    int Idx;
+    int i;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Margin = 56;
+
+    if (!Path || !Path[0]) {
+        return -1;
+    }
+
+    /* 复用已有 Edit 窗 */
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_EDIT) {
+            gFocusWin = i;
+            RaiseWindow(i);
+            SyncWindowVisuals();
+            EditUiOpen(Path);
+            DrawWindowAt(i);
+            EditUiRepaint();
+            BackupWindowAt(i);
+            GuiFocusApply();
+            BackupWindowAt(gFocusWin);
+            return gFocusWin;
+        }
+    }
+
+    Idx = AllocWindowSlot();
+    if (Idx < 0) {
+        return -1;
+    }
+    W = 640;
+    H = 440;
+    if (W + Margin * 2 > gScreenW) {
+        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    }
+    if (H + Margin * 2 > gScreenH) {
+        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    }
+    X = Margin + 24;
+    Y = Margin;
+    gWins[Idx].Active = 1;
+    gWins[Idx].Kind = GUI_WIN_EDIT;
+    gWins[Idx].X = X;
+    gWins[Idx].Y = Y;
+    gWins[Idx].Width = W;
+    gWins[Idx].Height = H;
+    gWins[Idx].Background = ThemeSettingsClientBackground();
+    gWins[Idx].Title = "Edit";
+    gWins[Idx].TermSet = 0;
+    gWins[Idx].InputLen = 0;
+    gWins[Idx].WaitPrompt = 0;
+    gWins[Idx].PromptShown = 0;
+    gWins[Idx].InputLine[0] = 0;
+
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
+    DrawWindowAt(Idx);
+    ComposeEnd();
+    gFocusWin = Idx;
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    EditUiOpen(Path);
+    EditUiRepaint();
+    BackupWindowAt(Idx);
+    GuiFocusApply();
+    BackupWindowAt(gFocusWin);
+    DebugWrite("gui: open edit idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;
@@ -537,6 +624,8 @@ void GuiRefreshTitles(void) {
             gWins[i].Title = LocStr(MSG_APP_SETTINGS);
         } else if (gWins[i].Kind == GUI_WIN_FILES) {
             gWins[i].Title = LocStr(MSG_APP_FILES);
+        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
+            gWins[i].Title = "Edit";
         }
     }
     ComposeBegin();
@@ -549,6 +638,8 @@ void GuiRefreshTitles(void) {
         SettingsUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_FILES) {
         FilesUiRepaint();
+    } else if (GuiFocusKind() == GUI_WIN_EDIT) {
+        EditUiRepaint();
     }
 }
 
@@ -577,7 +668,7 @@ void GuiInit(void) {
             gWins[i].PromptShown = 0;
             gWins[i].InputLine[0] = 0;
             gWins[i].Title = "";
-            gWins[i].Background = ThemeShellClientBg();
+            gWins[i].Background = ThemeShellClientBackground();
         }
     }
 
@@ -707,6 +798,12 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 FilesUiRepaint();
             } else {
                 FilesUiOnClick(X, Y);
+            }
+        } else if (GuiFocusKind() == GUI_WIN_EDIT) {
+            if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+                EditUiRepaint();
+            } else {
+                EditUiOnClick(X, Y);
             }
         } else if (GuiFocusKind() == GUI_WIN_SHELL &&
                    !gWinBackupValid[gFocusWin]) {

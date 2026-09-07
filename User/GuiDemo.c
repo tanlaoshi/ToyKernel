@@ -1,5 +1,5 @@
 /*
- * GuiDemo.c — 链 libToyUi/libToyGfx（课堂对照：Documents/用户态GUI入门.md）
+ * GuiDemo.c — 链 libToyUi/libToyGfx（课堂对照：Documents/技术手册.md）
  * Shell：exec GUIDEMO.ELF
  */
 #include <stdio.h>

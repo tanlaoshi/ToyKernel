@@ -23,7 +23,7 @@ void DesktopSetRequestRefresh(void (*Fn)(void));
 void DesktopDraw(void);
 /* 仅重绘与矩形相交的图标/任务栏（关窗擦除区域） */
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
-/* PR-G13：壁纸或 ThemeDesktopBg 填矩形 */
+/* PR-G13：壁纸或 ThemeDesktopBackground 填矩形 */
 void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 UINT32 DesktopBgAt(UINT32 X, UINT32 Y);
 /*

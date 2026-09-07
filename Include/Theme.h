@@ -13,13 +13,13 @@
 
 void ThemeInit(void);
 
-UINT32 ThemeDesktopBg(void);
-UINT32 ThemeShellClientBg(void);
-UINT32 ThemeSettingsClientBg(void);
+UINT32 ThemeDesktopBackground(void);
+UINT32 ThemeShellClientBackground(void);
+UINT32 ThemeSettingsClientBackground(void);
 UINT32 ThemeFontId(void);
 
-void ThemeSetDesktopBg(UINT32 Color);
-void ThemeSetShellClientBg(UINT32 Color);
+void ThemeSetDesktopBackground(UINT32 Color);
+void ThemeSetShellClientBackground(UINT32 Color);
 /* 同步 FontSetById；越界返回 -1 且保持先前字体 */
 int ThemeSetFontId(UINT32 Id);
 /* FontReloadAssets 后钳制 theme font id */

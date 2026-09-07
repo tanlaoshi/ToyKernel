@@ -53,7 +53,7 @@ typedef struct {
     UINT32 EmCtl;
     UINT32 Cap2;
     UINT32 Bohc;
-} __attribute__((packed)) AHCI_GHC;
+} AHCI_GHC;
 
 typedef struct {
     UINT32 Clb;
@@ -76,7 +76,7 @@ typedef struct {
     UINT32 Devslp;
     UINT32 Reserved1[10];
     UINT32 Vendor[4];
-} __attribute__((packed)) AHCI_PORT;
+} AHCI_PORT;
 
 typedef struct {
     UINT16 Flags;
@@ -148,16 +148,6 @@ static void Fence(void) {
 static int WaitClear(volatile UINT32 *Reg, UINT32 Mask, int Timeout) {
     while (Timeout-- > 0) {
         if ((MmioRead32(Reg) & Mask) == 0) {
-            return 1;
-        }
-        HalCpuRelax();
-    }
-    return 0;
-}
-
-static int WaitSet(volatile UINT32 *Reg, UINT32 Mask, int Timeout) {
-    while (Timeout-- > 0) {
-        if ((MmioRead32(Reg) & Mask) == Mask) {
             return 1;
         }
         HalCpuRelax();

@@ -99,7 +99,7 @@ void HalTimerStart(void) {
     TimerStart();
 }
 
-void HalUserInstall(void) {
+void HalInstallUserMode(void) {
     ArchTssInstall();
 }
 
@@ -277,17 +277,17 @@ void HalDebugWrite(const char *Text) {
     HalSerialWrite(Text);
 }
 
-void HalDebugHex32(UINT32 Value) {
+void HalDebugWriteHex32(UINT32 Value) {
     char Buf[12];
 
-    HalSerialHexFormat(Buf, Value, 8);
+    HalSerialFormatHex(Buf, Value, 8);
     HalSerialWrite(Buf);
 }
 
 void HalDebugHex64(UINT64 Value) {
     char Buf[20];
 
-    HalSerialHexFormat(Buf, Value, 16);
+    HalSerialFormatHex(Buf, Value, 16);
     HalSerialWrite(Buf);
 }
 
@@ -319,7 +319,7 @@ void HalVirtIdleLoop(void) {
 void HalTimerPoll(void) {
 }
 
-/* SmpBoot.c 提供 HalCpuCount / HalCpuId / HalSmpStartAps */
+/* SmpBoot.c 提供 HalCpuCount / HalGetCpuId / HalSmpStartApplicationProcessors */
 
 void HalSmpNoteDtb(UINT64 DtbPhys) {
     (void)DtbPhys;

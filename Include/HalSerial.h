@@ -13,6 +13,6 @@ void HalSerialGopEnable(void);
 void HalSerialWrite(const char *Text);
 int HalSerialDataReady(void);
 char HalSerialReadChar(void);
-void HalSerialHexFormat(char *Buf, UINT64 Value, int Digits);
+void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits);
 
 #endif

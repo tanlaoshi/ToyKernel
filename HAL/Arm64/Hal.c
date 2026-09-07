@@ -144,7 +144,7 @@ void HalTimerPoll(void) {
     __asm__ volatile("mrs %0, cntvct_el0" : "=r"(Now));
     Delta = Now - gCntLast;
     while (Delta >= gCntPeriod) {
-        HalCpuTickInc();
+        HalCpuIncrementTicks();
         gCntLast += gCntPeriod;
         Delta -= gCntPeriod;
     }
@@ -154,7 +154,7 @@ void HalTimerPoll(void) {
 void HalExceptionIrq(void) {
     UINT32 Id = HalGicAck();
     if (HalGicIsTimer(Id)) {
-        HalCpuTickInc();
+        HalCpuIncrementTicks();
         HalTimerAck();
     }
     HalGicEoi(Id);
@@ -183,7 +183,7 @@ void HalVirtIdleLoop(void) {
     }
 }
 
-void HalUserInstall(void) {
+void HalInstallUserMode(void) {
     /* EL0 入口前确保向量表；SP_EL1 由当前内核栈承担 */
     HalExceptionVectorsInstall();
 }
@@ -366,15 +366,15 @@ void HalSyncICache(void *Addr, UINTN Size) {
 void HalDebugWrite(const char *Text) {
     HalSerialWrite(Text);
 }
-void HalDebugHex32(UINT32 Value) {
+void HalDebugWriteHex32(UINT32 Value) {
     char Buf[9];
-    HalSerialHexFormat(Buf, Value, 8);
+    HalSerialFormatHex(Buf, Value, 8);
     HalSerialWrite(Buf);
 }
 void HalDebugHex64(UINT64 Value) {
     char Buf[17];
-    HalSerialHexFormat(Buf, Value, 16);
+    HalSerialFormatHex(Buf, Value, 16);
     HalSerialWrite(Buf);
 }
 
-/* HalCpuCount / Id / ticks / HalSmpStartAps → Smp.c（PR-A14） */
+/* HalCpuCount / Id / ticks / HalSmpStartApplicationProcessors → Smp.c（PR-A14） */

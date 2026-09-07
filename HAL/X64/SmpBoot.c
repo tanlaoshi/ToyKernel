@@ -9,7 +9,7 @@
 #include "Scheduler.h"
 /* PR-S1/S2 验证日志始终走串口（不受 TOY_DEBUG 开关影响） */
 #define SmpLog(Text)      HalDebugWrite(Text)
-#define SmpLogHex32(V)    HalDebugHex32(V)
+#define SmpLogHex32(V)    HalDebugWriteHex32(V)
 #define SmpLogHex64(V)    HalDebugHex64(V)
 
 #define LAPIC_BASE       0xFEE00000ULL
@@ -124,7 +124,7 @@ static void MemZero(void *Dst, UINTN Len) {
     }
 }
 
-/* 保证 BSP 在 gApicIds[0]，便于 HalCpuId()==0 表示 BSP */
+/* 保证 BSP 在 gApicIds[0]，便于 HalGetCpuId()==0 表示 BSP */
 static void NormalizeBspFirst(UINT8 BspId, int Count) {
     int i;
     for (i = 0; i < Count; i++) {
@@ -258,7 +258,7 @@ int HalCpuCount(void) {
     return gCpuCount > 0 ? gCpuCount : 1;
 }
 
-UINT32 HalCpuId(void) {
+UINT32 HalGetCpuId(void) {
     UINT8 Apic = LapicGetId();
     int i;
 
@@ -277,8 +277,8 @@ int HalCpuIsBsp(void) {
     return LapicGetId() == gBspApicId;
 }
 
-void HalCpuTickInc(void) {
-    UINT32 Id = HalCpuId();
+void HalCpuIncrementTicks(void) {
+    UINT32 Id = HalGetCpuId();
     if (Id < HAL_MAX_CPUS) {
         gCpuTicks[Id]++;
     }
@@ -291,7 +291,7 @@ UINT64 HalCpuTicks(UINT32 Cpu) {
     return gCpuTicks[Cpu];
 }
 
-int HalSmpStartAps(void) {
+int HalSmpStartApplicationProcessors(void) {
     UINT64 Rsdp = HalPlatformRsdp();
     int Count = 0;
     UINT8 BspFromMadt = 0;

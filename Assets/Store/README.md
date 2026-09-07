@@ -15,7 +15,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 - **S2 ✅**：`store sync` / `fetch` / `repo`  
 - **S3 ✅**：`type=font` → `Assets/Fonts/`；`type=asset` → `Assets/Packs/`；安装后字库自动 `FontReloadAssets`  
 
-总规划 [`Documents/应用商店规划.md`](../../Documents/应用商店规划.md)。
+总规划 [`Documents/路线图.md`](../../Documents/路线图.md)。
 
 ## catalog.txt
 
@@ -23,7 +23,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 - 每条一项，字段用 `|` 分隔（8.3 友好、易手写）：
 
 ```text
-id|type|version|file|sha256|arch|title
+id|type|version|file|sha256|arch|title[|depends]
 ```
 
 | 字段 | 说明 |
@@ -35,17 +35,25 @@ id|type|version|file|sha256|arch|title
 | `sha256` | `-` 跳过；**8 位 hex** = 教学 FNV-1a-32（非真 SHA-256） |
 | `arch` | `x86_64` / `arm64` / `riscv64` / `any` |
 | `title` | 显示名（可 UTF-8） |
+| `depends` | **可选（PR-M1）**：逗号分隔包 id；`store install` 缺依赖拒绝；**PR-M2** `store combo` 按序装齐 |
 
-示例（S3）：
+示例（M2 功能 = app + asset + font）：
 
 ```text
-sun8|font|1|VGA8X16.FNT|-|any|Sun 8x16 (store)
+guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo|demopack,sun8
 demopack|asset|1|INFO.TXT|-|any|Demo asset pack
+sun8|font|1|VGA8X16.FNT|-|any|Sun 8x16 (store)
 ```
 
+```text
+store combo guidemo      # demopack → sun8 → guidemo
+store remove demopack    # 拒绝（仍被 guidemo 需要）
+store uncombo guidemo    # -guidemo → -sun8 → -demopack（无引用才卸）
+```
 ## PKG.TXT（可选，包目录内）
 
-与规划稿一致的 `key=value`；`file=` 相对该包目录。S1 优先读包内 `PKG.TXT`，否则用 catalog 行。
+与规划稿一致的 `key=value`；`file=` 相对该包目录。  
+**PR-M1**：若含 `depends=`，安装时**覆盖** catalog 第 8 段（`depends=-` 或空 = 无依赖）。
 
 ## 安装源顺序
 

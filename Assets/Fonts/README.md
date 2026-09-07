@@ -19,4 +19,4 @@ Guest 路径：`Assets/Fonts/*.FNT`。启动时（FS 就绪后）`FontLoadAssets
 | 16 | `name[16]` NUL 填充 |
 | 32 | 字形：`glyph_count × height × ceil(width/8)` 字节，MSB 在左 |
 
-内建点阵仍在仓库 `Fonts/*.c`；本目录不链入 `Kernel.elf`。详见 [`Documents/字体与多语言.md`](../../Documents/字体与多语言.md)。
+内建点阵仍在仓库 `Fonts/*.c`；本目录不链入 `Kernel.elf`。详见 [`Documents/技术手册.md`](../../Documents/技术手册.md)。

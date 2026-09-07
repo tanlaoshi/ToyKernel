@@ -1,7 +1,7 @@
 # Board：`<board-name>`（模板 — 复制后改名）
 
 > 从 `HAL/Board/_template/` 复制到 `HAL/<Arch>/Board/<board>/`，再填本页。  
-> 约定总览：[`../README.md`](../README.md)。概念：[`Documents/启动与板级支持.md`](../../../Documents/启动与板级支持.md)。
+> 约定总览：[`../README.md`](../README.md)。概念：[`Documents/技术手册.md`](../../../Documents/技术手册.md)。
 
 | 项 | 填写 |
 |----|------|

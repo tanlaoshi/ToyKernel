@@ -1,8 +1,23 @@
 # ToyKernel
 
-ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）配合，构成完整的教学/实验用操作系统。
+ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引导）和 [ToyImage](../ToyImage/)（QEMU 镜像与启动脚本）一起，构成完整的教学/实验用操作系统。
 
-更细的模块说明见 [`Documents/结构说明.md`](Documents/结构说明.md)，分层与 API 边界见 [`Documents/架构分层.md`](Documents/架构分层.md)，发展规划见 [`Documents/路线图.md`](Documents/路线图.md)，用户态库见 [`Documents/用户态库.md`](Documents/用户态库.md)，**GUI 入门**见 [`Documents/用户态GUI入门.md`](Documents/用户态GUI入门.md)，驱动见 [`Documents/驱动框架.md`](Documents/驱动框架.md) / [`Documents/如何增加一个驱动.md`](Documents/如何增加一个驱动.md)，板级见 [`Documents/启动与板级支持.md`](Documents/启动与板级支持.md) / [`Documents/如何增加板级支持.md`](Documents/如何增加板级支持.md)，字体与语言见 [`Documents/字体与多语言.md`](Documents/字体与多语言.md)，扩展边界见 [`Documents/模块化扩展边界.md`](Documents/模块化扩展边界.md)，应用商店见 [`Documents/应用商店规划.md`](Documents/应用商店规划.md)，标识符整改见 [`Documents/命名整改.md`](Documents/命名整改.md)，同步见 [`Documents/同步说明.md`](Documents/同步说明.md)。
+```
+加电 → OVMF（UEFI）→ ToyBoot（BOOTX64.EFI）→ ToyKernel → 桌面 / Shell / 用户 ELF
+```
+
+**文档入口（与仓库根 [`../README.md`](../README.md) 一致）：**
+
+| 文档 | 内容 |
+|------|------|
+| **本 README** / 根 README | 项目是什么、能干什么、怎么编怎么跑 |
+| [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
+| [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
+| [`Documents/协作历程日志.md`](Documents/协作历程日志.md) | 人机协作复盘（可选读） |
+
+`Documents/` 正文以上表为准；课堂讲义见 [`教学内容/`](../教学内容/)。
+
+协作暗号（详见路线图）：**JX** = 按路线图下一刀；**TG** = 已验证，commit + push 同步。
 
 ---
 
@@ -10,230 +25,92 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 | 方向 | 状态 | 说明 |
 |------|------|------|
-| 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80`（legacy）与 `syscall`/`sysret` |
-| 进程隔离 | ✅ | 独立地址空间、`exec`、**fork / wait / yield**、简易 `.so` |
-| 文件与存储 | ✅ | ATA PIO、GPT、FAT 根目录读/写、双盘挂载；**F3** `RES:`；**F4** 用户态目录 API |
-| GUI | ≈ 可用 | x86 多窗口；**virt Arm/RiscV：PR-V5 同一套 Common Gui** |
-| 跨架构 virt | ✅ V1～V6 + A10～A14 | 自有 Boot + ramfb/virtio；真 MMU；用户态 + `HELLO.ELF`；GIC/SBI timer；virt `-smp 2` `HalSmp*`；见 `./run-virt-*.sh` / `./smoke-virt.sh` |
-| 网络 | ✅ N9/N10 | x86 virtio-net；virt Arm/RiscV MMIO + 桌面挂 `net` + `ping`；可选 lwIP |
-| 多核 SMP | ✅ | x86 S1～S4；**virt Arm/RiscV：PR-A14** 演示级 AP idle（shell/gui 仍钉 BSP） |
+| 虚拟内存 + Ring 3 | ✅ | 四级页表、用户段、`int 0x80` 与 `syscall`/`sysret` |
+| 进程 | ✅ | 独立地址空间、`exec`/`fork`/`wait`/`yield`/`kill`、简易 `.so` |
+| 文件与存储 | ✅ | ATA/AHCI/NVMe、GPT、FAT；多卷；`RES:`；Files 浏览器 |
+| GUI | ✅ 教学级 | GOP 多窗口、主题、Settings、合成/脏 Present（G9） |
+| 跨架构 virt | ✅ | Arm64/RiscV 自有 Boot + ramfb/virtio；同一套 Common Gui |
+| 网络 | ✅ | virtio-net；builtin UDP/TCP；可选 `LWIP=1` 用户 socket |
+| SMP | ✅ 演示级 | AP idle / 可偷任务；shell/gui 钉 BSP |
+| 应用商店 | ✅ | `store install/remove/combo`；资源包 + 依赖 |
+
+细表与缺口见 [`Documents/路线图.md`](Documents/路线图.md)。
 
 ---
 
-## 近期更新
-
-### 进程与用户态（阶段 2）
-
-- **fork / wait / yield**：`VirtualMemorySpaceClone`（COW）；子进程 exit 变 zombie；`wait` 默认可阻塞，`rdi=WNOHANG` 非阻塞
-- **简单信号（PR-P4）**：`SYS_KILL`；`SIGKILL`/`SIGTERM`/`SIGINT` 默认终止；CRT `kill`；Shell `kill <pid>`；`KILLDEMO.ELF`
-- **系统调用扩展**：`open` / `read` / `close` / `fork` / `wait` / `kill`；每任务 FD 表（打开时整文件读入内核缓冲）
-- **用户程序**：`HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`、`KILLDEMO.ELF` 等
-- **多任务内核栈修复**：每个用户任务切换时设置独立 TSS `RSP0`（`ArchSetRsp0`），避免子进程 syscall 覆盖父进程中断帧导致 `exec FORK.ELF` 失败
-
-### 存储与启动
-
-- **Block + GPT + FAT**：块设备抽象、分区解析、FAT16/32（8.3 + LFN，`.`/`..`，`mkdir`/`rmdir`，写 ≤1MB）
-- **卷选择**：优先挂载含 `TOYOS.ID` 的 FAT 卷；**PR-F3** 另挂只读 `RES:`（内嵌资源，无 Block）
-- **双盘 QEMU**：`ToyImage/run-split.sh` — 盘 0 为 Boot/ESP，盘 1 为 `rootfs/`（系统文件唯一来源）
-- **大目录**：Shell `dirstress`（默认 24 短名；`grow` 强制目录簇扩展，宜真 FAT/virt）
-- **用户态目录（PR-F4）**：CRT `OpenDirectory` / `ReadDirectory` / `FileStat`；`DIRDEMO.ELF`
-
-### 图形与输入
-
-- **GUI**：Shell 窗口、焦点、标题栏拖动（`VideoCopyRect` 局部刷新）
-- **USB**：xHCI 键盘 + tablet 鼠标
-
-### 网络
-
-- **virtio-net**：ARP、ICMP；默认走自研 builtin 栈（`Net`/`Udp`/`Tcp`，**legacy**）
-- **x86 默认仍 `LWIP=0`**（builtin 课）：`./build.sh` / `./build.sh x86_64` 不含 lwIP
-- **课堂开 lwIP（不改默认）**：`./build.sh LWIP=1` → 内核带 lwIP；串口 `lwip on` 后 RX/TX 走 lwIP；同名 Shell 命令自动切换；再 `exec NETDEMO.ELF` / `NETSRV.ELF`
-- **用户态 socket**：`socket`/`connect`/`bind`/`listen`/`accept`（需 `LWIP=1`）；**libToyNet**（PR-L4）+ `NETLIB.ELF`
-- **virt Arm/RiscV（PR-N10）**：桌面模块表挂 `net`；`run-virt-*.sh` 默认 `-netdev user` + `virtio-net-device`；`TOY_VIRT_NONET=1` 可关；`--headless` 验 `[mod] net` + `ping 10.0.2.2`
-- **双栈策略**：运行时一帧一栈、不热切回 builtin；新功能以 lwIP 为准 → 详见 [`ThirdParty/README.md`](ThirdParty/README.md)
-
-### 架构与工程
-
-- **HAL 分层**：端口 I/O 为 `HalIoRead/Write*`；设备驱动在 `HAL/<Arch>/Drivers/`
-- **目录重构（PR-1/2）**：`Common/{Core,Services,Library}`、`Include/` 公共头、`HAL/{X86_64,Arm64,RiscV}/Drivers/`
-- **Boot 解耦（PR-3）**：Common 经 `BOOT_INFO` / `KernelMain(void)` 启动；UEFI `BOOT_CONFIG` 仅在 `HAL/X64/{Startup.c,BootConfig.h}` 与 ToyBoot 之间传递
-- **HAL 设备门面（PR-4）**：`Block` 后端注册 + `HalDevices.h`（USB 输入 / virtio-net）；Common 不再 `#include` ATA/PCIe/XHCI/Net 驱动头
-- **Driver 类（PR-D1～D4）**：`TOY_DRIVER`；Block / Input / Net 经 `ToyDriver*Attach`；Shell `lsdev`；见 [`Documents/写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md)
-- **HAL 去 x86 命名（PR-6）**：`HalIrqVectorSet`、`HalPagePrivatizeRootSlot`、`TASK.PageRoot` / `VirtualMemory*Root|LoadPageTable`
-- **调试**：`./build.sh DEBUG=1` 打开 `DebugWrite` 串口日志
-
----
-
-## 目录结构
-
-```
-ToyKernel/
-├── Include/             # 公共 API 头（BootTypes.h、BootInfo.h、Hal.h、Scheduler.h…）
-├── Common/
-│   ├── Core/            # 内核、调度、内存、进程、系统调用（仅 .c）
-│   ├── Services/        # Console、Gui、FileSystem、网络服务
-│   └── Library/         # Elf、Block、Gpt、Fat、UI 等（FontData.h 内部用）
-├── HAL/
-│   ├── X86_64/          # Startup、Platform、CPU/中断/分页 + HalPort.h
-│   │   └── Drivers/     # Ata、Serial、XHCI、Net、Video
-│   ├── RiscV/           # 占位
-│   └── Arm64/           # 占位
-├── Fonts/               # 点阵字体数据 + 注册表（Font_* API 见 Include/Font.h）
-├── User/                # Ring 3 示例程序
-├── Makefile
-└── build.sh
-```
-
-上层经 `Include/Hal.h` 访问硬件；`HalPort.h` 与驱动头留在 `HAL/<Arch>/`。
-
----
-
-## 构建
-
-依赖：`gcc`、`ld`（x86-64 交叉或本机 64 位工具链均可）。
+## 最短上手
 
 ```bash
-cd ToyKernel
+# 1. 编内核（会同步到 ToyImage）
+cd ToyKernel && ./build.sh              # 默认 LWIP=0
+# ./build.sh LWIP=1                     # 可选 lwIP + 用户 socket
+# ./build.sh DEBUG=1
 
-./build.sh              # ARCH=x86_64，默认 LWIP=0（builtin 网络课）
-./build.sh LWIP=1       # 课堂：可选 lwIP + 用户 socket（不改默认）
-./build.sh DEBUG=1      # 打开 DebugWrite 串口输出
-./build.sh riscv        # PR-A9：virt 串口 help/mem/ps/halt
-./build.sh arm64
-./build.sh arm64 BOARD=virt   # PR-B2：选 HAL/Arm64/Board/<board>（默认 virt）
-./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
-make boards ARCH=arm64       # 列出可用板包
-./run-virt-arm.sh --headless # PR-V6/N10 virt 冒烟（含 ping）
-```
-
-产物：
-
-- `Build/` — 镜像源码树：`Common/`、`Fonts/` 与 `HAL/` 同级；`Build/HAL/{X86_64,Arm64,RiscV}/Kernel.elf`
-
-- `Build/User/*.elf` — 用户程序（hello / count / fork / catfile）
-- 自动复制到 `../ToyImage/Kernel.elf`
-- x86_64 下同时复制 `HELLO.ELF`、`COUNT.ELF`、`FORK.ELF`、`CAT.ELF`
-
-更新 UEFI 引导（可选）：
-
-```bash
+# 2. 编 UEFI 引导（可选，改 Boot 时才必须）
 cd ../ToyBoot && ./build.sh
-```
 
----
-
-## 在 QEMU 中运行
-
-### x86（UEFI + ToyImage）
-
-```bash
+# 3. QEMU（x86 主路径）
 cd ../ToyImage
-./run-split.sh                 # 唯一入口：盘0 ESP，盘1 rootfs/
-./run-split.sh --kill-qemu     # 清残留 QEMU（防 SIPI/AP 超时）
-TOY_SMP=1 ./run-split.sh       # 单核；宿主忙或 CI
-./smoke-boot.sh                # 无头冒烟，等到 ToyOS ready
+./run-split.sh                 # 盘0=ESP，盘1=rootfs/
+./smoke-boot.sh                # 无头冒烟 → ToyOS ready
 ```
 
-详见 [`ToyImage/QUICK_START.md`](../ToyImage/QUICK_START.md)。
+串口或 Shell 窗出现 `toyos>` 后：`help`、`ls`、`exec HELLO.ELF`、`ping 10.0.2.2`。
 
-`run-split.sh` 使用发行版 OVMF pflash、USB 键鼠、virtio-net（含 UDP/TCP hostfwd）。串口输出在启动终端（`toyos>` 提示符）。启动前会把 cwd 上的 `Kernel.elf`/`THEME.CFG` 等暂存，强制 Guest 只从第二盘加载。
-
-首次或变量盘损坏时，可用 `./run-split.sh --clean-nvram` 从 `OVMF_VARS.fd.clean` 恢复 NVRAM。
-
-### Arm64 / RiscV（自有 Boot virt — PR-V6 / N10）
-
-**这是各 Arch 自有 Boot 的 virt 验收**（`-kernel` + ramfb / virtio-input / virtio-blk / virtio-net）。x86 产品路径仍是 ToyImage + OVMF + `BOOTX64.EFI`。路线图见 [`Documents/路线图.md`](Documents/路线图.md)：**1.2e** ✅；**1.2f A10** ✅ 真 MMU；下一刀 **A11**。
+### Arm64 / RiscV（virt，非 OVMF）
 
 ```bash
 cd ToyKernel
 ./build.sh arm64                 # 或 ./build.sh riscv
-./run-virt-arm.sh                # 默认：gtk 窗口 + 盘 + 网 + 键鼠（交互）
-./run-virt-riscv.sh
-./run-virt-arm.sh --headless     # CI：认 [mod] net + ping 10.0.2.2 后退出
-./run-virt-riscv.sh --headless
-./smoke-virt.sh                  # Arm+RiscV 连续无头冒烟
-TOY_VIRT_NONET=1 ./run-virt-arm.sh --headless  # 关网对照
-./run-virt-arm.sh --serial       # 无 ramfb 的串口子集（A8；无 net）
-./run-virt-arm.sh --help
+./run-virt-arm.sh                # / ./run-virt-riscv.sh
+./smoke-virt.sh                  # 双 arch 无头冒烟
 ```
 
-盘面由 `prepare-virt-rootfs.sh` 从 `../ToyImage/rootfs` 同步到 `virt-rootfs/`，再打成 raw FAT16 `virt-rootfs.img` 挂 virtio-blk（避免 QEMU `fat:rw`/vvfat 与 virtio-net 同机破坏 TX）。默认另挂 QEMU user 网 + `virtio-net-device`（`TOY_VIRT_NONET=1` 可关）。
+### 构建产物
+
+- `Build/HAL/{X86_64,Arm64,RiscV}/Kernel.elf`
+- 用户 ELF 复制到 `../ToyImage/` 与 `rootfs/`
+- 板包：`./build.sh arm64 BOARD=virt`；`make boards ARCH=arm64`
 
 ---
 
-## 验证示例
+## 目录结构（摘要）
 
-内核 Shell（串口或 GUI 窗口）：
-
-```text
-toyos> help
-toyos> ls
-toyos> write NOTE.TXT hello
-toyos> cat NOTE.TXT
-toyos> wrbig BIG.BIN        # PR-FS3：默认 ~2MiB 写+读回校验（上限 FAT_WRITE_MAX=8MiB）
-
-toyos> runuser              # 内嵌 hello
-toyos> exec FORK.ELF        # 预期：C → P → done（调度顺序可能交错）
-toyos> exec CAT.ELF         # 读 TOYOS.ID（需卷上有该文件）
-
-toyos> ps
-toyos> ping 10.0.2.2
-toyos> udplisten 5555
+```
+ToyKernel/
+├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
+├── Common/{Core,Services,Library}
+├── HAL/{X86_64,Arm64,RiscV,Board}/
+├── Fonts/  Assets/  Store/  User/
+├── Documents/        # 路线图 + 技术手册（仅此两份正文）
+├── build.sh  Makefile
+└── README.md         # 本文件
 ```
 
-宿主机 UDP 测试（需 `run.sh` 已配置 hostfwd）：
-
-```bash
-echo hello | nc -u 127.0.0.1 5555
-```
+完整文件职责与启动顺序见 [`技术手册`](Documents/技术手册.md)「目录与启动」。
 
 ---
 
-## 系统调用（双路径，互不耦合）
+## 系统调用（摘要）
 
-| 路径 | 入口 | 返回 | 演示 |
-|------|------|------|------|
-| **legacy** | `int 0x80` → IDT → `Isr128` | `iretq` | `HELLO.ELF` / `FORK.ELF` |
-| **快速** | `syscall` → `LSTAR`/`SyscallEntry` | `sysretq`（同任务） | `SYSHELLO.ELF` / `SYSFORK.ELF` |
+| 路径 | 入口 | 演示 |
+|------|------|------|
+| legacy | `int 0x80` | `HELLO.ELF` / `FORK.ELF` |
+| 快速 | `syscall` | `SYSHELLO.ELF` / `SYSFORK.ELF` |
 
-号表与参数约定相同（`rax` = 号，`rdi`/`rsi`/`rdx` = 参数）。`SyscallDispatch` 共用；两条入口桩互不调用。
-
-| 号 | 名称 | 说明 |
-|----|------|------|
-| 0 | exit | `rdi` = 退出码 |
-| 1 | write | `rdi`=fd，`rsi`=buf，`rdx`=len |
-| 2 | open | `rdi`=路径，返回 fd |
-| 3 | read | `rdi`=fd，`rsi`=buf，`rdx`=len |
-| 4 | close | `rdi`=fd |
-| 5 | fork | 父返回子槽位+1，子返回 0 |
-| 6 | wait | `rdi`=options；返回子 pid（`rdx`=退出码）；`WNOHANG` 时无僵尸返回 0 |
-| 7 | yield | 主动让出 CPU |
-
-详见 `Include/Syscall.h`。
+常用号：`exit` `write` `open` `read` `close` `fork` `wait` `yield`（及 pipe/dup/brk/kill/socket…）。详见 `Include/Syscall.h` 与技术手册「用户态」。
 
 ---
 
-## 已知限制
+## 已知限制（短表）
 
-- FAT：8.3 + LFN；`mkdir`/`rmdir`；写 ≤1MB；无完整 Unicode 控制台渲染
-- TCP：无重传与滑动窗口
-- fork：COW 用户页；`wait` 支持 `WNOHANG`
-- 最多 8 个任务槽
-- `riscv` / `arm64` 尚未实现完整启动
+- FAT 写有上限；无完整 Unicode 控制台
+- Builtin TCP 教学级；完整体验需 `LWIP=1`
+- 任务槽有限；shell/gui 钉 BSP
+- 无完整 POSIX / TTF / 热加载驱动商店
+- 明确不做：手机 SoC、自研编译器
 
----
-
-## 文档与后续
-
-- [`Documents/`](Documents/) — 产品与架构文档归档
-  - [`架构分层.md`](Documents/架构分层.md) — 分层、对外接口、禁止跨层依赖（PR-L0）
-  - [`结构说明.md`](Documents/结构说明.md) — 启动流程、源文件职责、阅读顺序
-  - [`路线图.md`](Documents/路线图.md) — 阶段规划与待办
-  - [`启动与板级支持.md`](Documents/启动与板级支持.md) — UEFI/U-Boot/DTB、Startup、Board 包
-  - [`HAL/Board/README.md`](HAL/Board/README.md) — 板包约定 + `_template`（**PR-B0**）；`BOARD=` 选包（**PR-B2**）
-  - [`驱动框架.md`](Documents/驱动框架.md) — Driver 模型
-  - [`写一个virtio-xxx.md`](Documents/写一个virtio-xxx.md) — 加 virtio 驱动步骤（PR-D3）；`lsdev` 验收（PR-D4）
-- 计划中的后续：见路线图 **1.3b**（**B0 ✅**；B1～B3）∥ **1.3c**（H0～H4）
+更全列表见路线图「缺口 / 明确不做」。
 
 ---
 

@@ -10,6 +10,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "EditUi.h"
 
 void ResetDragState(void) {
     /*
@@ -629,6 +630,8 @@ void GuiDragEnd(void) {
             SettingsUiRepaint();
         } else if (gWins[DragIdx].Kind == GUI_WIN_FILES) {
             FilesUiRepaint();
+        } else if (gWins[DragIdx].Kind == GUI_WIN_EDIT) {
+            EditUiRepaint();
         } else if (gWins[DragIdx].Kind == GUI_WIN_USER) {
             PaintUserClient(DragIdx);
         } else if (gWins[DragIdx].Kind == GUI_WIN_SHELL &&

@@ -1,7 +1,7 @@
 /*
  * pkg/gui — 第一个 GUI 程序模板（PR-L3）
  * 构建：make -C User/pkg/gui
- * 文档：Documents/用户态GUI入门.md
+ * 文档：Documents/技术手册.md
  */
 #include <stdio.h>
 #include <unistd.h>

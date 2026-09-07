@@ -12,6 +12,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "EditUi.h"
 
 void GfxIrqEnter(void) {
     if (gGfxLockDepth++ == 0) {
@@ -834,7 +835,7 @@ void GuiRefreshDesktop(void) {
 
 void GuiApplyThemeColors(void) {
     int i;
-    UINT32 Bg = ThemeShellClientBg();
+    UINT32 Bg = ThemeShellClientBackground();
 
     /* 只更新属性；整屏提交见 GuiComposeThemeScene（PR-G8） */
     for (i = 0; i < MAX_WINS; i++) {
@@ -848,9 +849,11 @@ void GuiApplyThemeColors(void) {
             gWins[i].PromptShown = 0;
             gWins[i].WaitPrompt = 0;
         } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SETTINGS) {
-            gWins[i].Background = ThemeSettingsClientBg();
+            gWins[i].Background = ThemeSettingsClientBackground();
         } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_FILES) {
-            gWins[i].Background = ThemeSettingsClientBg();
+            gWins[i].Background = ThemeSettingsClientBackground();
+        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_EDIT) {
+            gWins[i].Background = ThemeSettingsClientBackground();
         }
     }
 }
@@ -895,6 +898,9 @@ void GuiComposeThemeScene(void) {
         } else if (gWins[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiPaintFocused();
+        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
+            gFocusWin = i;
+            EditUiPaintFocused();
         } else if (gWins[i].Kind == GUI_WIN_USER) {
             gFocusWin = i;
             PaintUserClient(i);

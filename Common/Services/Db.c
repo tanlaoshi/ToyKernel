@@ -210,8 +210,7 @@ int DbSave(void) {
         }
         Buf[N++] = '\n';
     }
-    /* vvfat：同名覆盖写易坏，先删再建 */
-    (void)FileSystemDeleteFile(DB_PATH);
+    /* 同名覆盖写出（勿先 Delete：vvfat unlink+create 易丢文件） */
     if (FileSystemWriteFile(DB_PATH, Buf, N) != FAT_OK) {
         return DB_ERR;
     }
@@ -458,9 +457,12 @@ int DbInit(void) {
         ImportThemeCfgIfEmpty();
     }
     gReady = 1;
-    ConsoleRegister("dbget", "get KV from TOYOS.DB", CommandDbGet);
-    ConsoleRegister("dbset", "set KV in TOYOS.DB", CommandDbSet);
-    ConsoleRegister("dblist", "list TOYOS.DB", CommandDbList);
+    ConsoleRegister2("database", "get", "get KV from TOYOS.DB", CommandDbGet);
+    ConsoleRegister2("database", "set", "set KV in TOYOS.DB", CommandDbSet);
+    ConsoleRegister2("database", "list", "list TOYOS.DB", CommandDbList);
+    ConsoleRegisterAliasLine("dbget", "database", "get");
+    ConsoleRegisterAliasLine("dbset", "database", "set");
+    ConsoleRegisterAliasLine("dblist", "database", "list");
     DebugWrite("db: ready records=");
     DebugHex32((UINT32)DbCount());
     DebugWrite("\n");
