@@ -1,10 +1,11 @@
 /*
- * FilesUi.c — 文件浏览器（PR-FB1/FB2 + PR-U1/U2）
+ * FilesUi.c — 文件浏览器（PR-FB1/FB2 + PR-U1/U2/U3）
  *
  * 列表：进目录 / 开 ELF / 预览文本
  * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
  * U1：左栏固定宽 + 右栏列表
  * U2：侧栏卷/书签点击跳转（TOYOS: / ESP: / Apps/ / Assets/）
+ * U3：右栏再分 列表 | 预览；空态/焦点行与 G12 一致
  */
 #include "FilesUi.h"
 #include "Gui.h"
@@ -95,6 +96,20 @@ static UINT32 gSideY;
 static UINT32 gSideW;
 static UINT32 gSideRow0;
 static UINT32 gSideLineH;
+static UINT32 gPrevX;
+static UINT32 gPrevW;
+
+typedef enum {
+    PREV_NONE = 0,
+    PREV_EMPTY,
+    PREV_DIR,
+    PREV_ELF,
+    PREV_TEXT,
+    PREV_BIN,
+    PREV_ERR
+} PREV_KIND;
+
+static PREV_KIND gPrevKind;
 
 static UINT64 FilesClock(void) {
     return HalCpuTicks(0);
@@ -288,6 +303,7 @@ static void SyncSideSel(void) {
 
 static int ReloadList(void);
 static void Paint(void);
+static void UpdatePreview(void);
 
 static void GotoPath(const char *Path) {
     CopyStr(gCwd, sizeof(gCwd), Path ? Path : "");
@@ -328,10 +344,70 @@ static int ReloadList(void) {
         gCount = 0;
         SetStatus(FatStrError(Err));
         SyncSideSel();
+        gPrevKind = PREV_EMPTY;
+        gViewLen = 0;
+        gViewTitle[0] = 0;
         return Err;
     }
     SyncSideSel();
+    UpdatePreview();
     return FAT_OK;
+}
+
+static int IsMostlyText(const char *Buf, UINTN Len) {
+    UINTN i;
+    UINTN Ok = 0;
+
+    if (Len == 0) {
+        return 1;
+    }
+    for (i = 0; i < Len; i++) {
+        unsigned char C = (unsigned char)Buf[i];
+        if (C == '\n' || C == '\r' || C == '\t' || (C >= 32 && C < 127)) {
+            Ok++;
+        }
+    }
+    return Ok * 10 >= Len * 8;
+}
+
+static void UpdatePreview(void) {
+    FAT_DIR_ENT *E;
+    char Path[FILES_PATH_MAX];
+
+    gViewLen = 0;
+    gViewTitle[0] = 0;
+    gPrevKind = PREV_NONE;
+
+    if (gCount <= 0 || gSelected < 0 || gSelected >= gCount) {
+        gPrevKind = PREV_EMPTY;
+        return;
+    }
+    E = &gEnts[gSelected];
+    CopyStr(gViewTitle, sizeof(gViewTitle), E->Name);
+
+    if (E->Attr & FAT_ATTR_DIR) {
+        gPrevKind = PREV_DIR;
+        return;
+    }
+    if (EndsWithElf(E->Name)) {
+        gPrevKind = PREV_ELF;
+        return;
+    }
+    if (!JoinPath(Path, sizeof(Path), gCwd, E->Name)) {
+        gPrevKind = PREV_ERR;
+        return;
+    }
+    if (FileSystemReadFile(Path, gView, sizeof(gView) - 1, &gViewLen) != FAT_OK) {
+        gViewLen = 0;
+        gPrevKind = PREV_ERR;
+        return;
+    }
+    gView[gViewLen] = 0;
+    if (IsMostlyText(gView, gViewLen)) {
+        gPrevKind = PREV_TEXT;
+    } else {
+        gPrevKind = PREV_BIN;
+    }
 }
 
 static void DrawLine(UINT32 X, UINT32 Y, const char *S, UINT32 Fg) {
@@ -470,89 +546,192 @@ static void PaintList(void) {
         DrawLine(Cx + 8, Y + 8 + LineH * 2, gStatus, COLOR_BLUE);
     }
 
-    Visible = 0;
-    if (H > 8 + LineH * 4) {
-        Visible = (int)((H - 8 - LineH * 4) / LineH);
-    }
-    if (Visible < 1) {
-        Visible = 1;
-    }
-    if (gSelected < gScroll) {
-        gScroll = gSelected;
-    }
-    if (gSelected >= gScroll + Visible) {
-        gScroll = gSelected - Visible + 1;
-    }
-    if (gScroll < 0) {
-        gScroll = 0;
-    }
-
-    gListVisible = Visible;
-    gListTop = Y + 8 + LineH * 3 + 4;
-    gListLineH = LineH;
-    gSbVisible = (gCount > Visible) ? 1 : 0;
-    gSbW = FILES_SB_W;
-    gSbH = (UINT32)Visible * LineH;
-    if (gSbH + gListTop > Y + H) {
-        gSbH = (Y + H > gListTop) ? (Y + H - gListTop) : 0;
-    }
-    gSbX = (Cw > FILES_SB_W + 8) ? (Cx + Cw - FILES_SB_W - 4) : (Cx + 4);
-    gSbY = gListTop;
-    gListRowW = Cw > 8 ? Cw - 8 : Cw;
-    if (gSbVisible && gListRowW > FILES_SB_W + 8) {
-        gListRowW -= (FILES_SB_W + 4);
-    }
-
-    RowY = gListTop;
-    for (i = 0; i < Visible && gScroll + i < gCount; i++) {
-        const FAT_DIR_ENT *E = &gEnts[gScroll + i];
-        int Idx = gScroll + i;
-        int k = 0;
-        int j;
-
-        if (E->Attr & FAT_ATTR_DIR) {
-            Line[k++] = '[';
-            Line[k++] = 'D';
-            Line[k++] = ']';
-            Line[k++] = ' ';
-        } else {
-            Line[k++] = ' ';
-            Line[k++] = ' ';
-            Line[k++] = ' ';
-            Line[k++] = ' ';
+    /* PR-U3：内容区再分 列表 | 预览（窄则只列表） */
+    gPrevW = 0;
+    gPrevX = Cx;
+    if (Cw > 360u) {
+        gPrevW = Cw * 2u / 5u;
+        if (gPrevW < 160u) {
+            gPrevW = 160u;
         }
-        for (j = 0; E->Name[j] && k < (int)sizeof(Line) - 1; j++) {
-            Line[k++] = E->Name[j];
+        if (gPrevW + 120u > Cw) {
+            gPrevW = Cw > 120u ? Cw - 120u : 0;
         }
-        Line[k] = 0;
-        UiDrawListRow(Cx + 4, RowY, gListRowW, LineH, Line,
-                      Idx == gSelected, Idx == gHoverIdx);
-        RowY += LineH;
     }
-    if (gSbVisible && gSbH > 0) {
-        UiDrawScrollBar(gSbX, gSbY, gSbW, gSbH, gScroll, Visible, gCount);
-    }
-    if (gCount == 0) {
-        /* PR-G11：空目录可见空状态区（不只一行灰 (empty)） */
-        UINT32 BoxX = Cx + 12;
-        UINT32 BoxY = RowY;
-        UINT32 BoxW = Cw > 24 ? Cw - 24 : Cw;
-        UINT32 BoxH = LineH * 4 + 20;
-        UINT32 Remain;
+    {
+        UINT32 ListW = Cw - gPrevW;
+        UINT32 ListX = Cx;
 
-        if (BoxY + 8 < Y + H) {
-            Remain = (Y + H) - BoxY - 8;
-            if (BoxH > Remain) {
-                BoxH = Remain;
+        Visible = 0;
+        if (H > 8 + LineH * 4) {
+            Visible = (int)((H - 8 - LineH * 4) / LineH);
+        }
+        if (Visible < 1) {
+            Visible = 1;
+        }
+        if (gSelected < gScroll) {
+            gScroll = gSelected;
+        }
+        if (gSelected >= gScroll + Visible) {
+            gScroll = gSelected - Visible + 1;
+        }
+        if (gScroll < 0) {
+            gScroll = 0;
+        }
+
+        gListVisible = Visible;
+        gListTop = Y + 8 + LineH * 3 + 4;
+        gListLineH = LineH;
+        gSbVisible = (gCount > Visible) ? 1 : 0;
+        gSbW = FILES_SB_W;
+        gSbH = (UINT32)Visible * LineH;
+        if (gSbH + gListTop > Y + H) {
+            gSbH = (Y + H > gListTop) ? (Y + H - gListTop) : 0;
+        }
+        gSbX = (ListW > FILES_SB_W + 8) ? (ListX + ListW - FILES_SB_W - 4) : (ListX + 4);
+        if (gPrevW > 0 && gSbX + gSbW > ListX + ListW) {
+            gSbX = ListX + 4;
+        }
+        gSbY = gListTop;
+        gListRowW = ListW > 8 ? ListW - 8 : ListW;
+        if (gSbVisible && gListRowW > FILES_SB_W + 8) {
+            gListRowW -= (FILES_SB_W + 4);
+        }
+
+        RowY = gListTop;
+        for (i = 0; i < Visible && gScroll + i < gCount; i++) {
+            const FAT_DIR_ENT *E = &gEnts[gScroll + i];
+            int Idx = gScroll + i;
+            int k = 0;
+            int j;
+
+            if (E->Attr & FAT_ATTR_DIR) {
+                Line[k++] = '[';
+                Line[k++] = 'D';
+                Line[k++] = ']';
+                Line[k++] = ' ';
+            } else {
+                Line[k++] = ' ';
+                Line[k++] = ' ';
+                Line[k++] = ' ';
+                Line[k++] = ' ';
+            }
+            for (j = 0; E->Name[j] && k < (int)sizeof(Line) - 1; j++) {
+                Line[k++] = E->Name[j];
+            }
+            Line[k] = 0;
+            UiDrawListRow(ListX + 4, RowY, gListRowW, LineH, Line,
+                          Idx == gSelected, Idx == gHoverIdx);
+            RowY += LineH;
+        }
+        if (gSbVisible && gSbH > 0) {
+            UiDrawScrollBar(gSbX, gSbY, gSbW, gSbH, gScroll, Visible, gCount);
+        }
+        if (gCount == 0) {
+            UINT32 BoxX = ListX + 12;
+            UINT32 BoxY = gListTop;
+            UINT32 BoxW = ListW > 24 ? ListW - 24 : ListW;
+            UINT32 BoxH = LineH * 4 + 20;
+            UINT32 Remain;
+
+            if (BoxY + 8 < Y + H) {
+                Remain = (Y + H) - BoxY - 8;
+                if (BoxH > Remain) {
+                    BoxH = Remain;
+                }
+            }
+            if (BoxW > 8 && BoxH > LineH + 8) {
+                UiFillRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
+                UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_DARK_GRAY);
+                DrawLine(BoxX + 12, BoxY + LineH, LocStr(MSG_FILES_EMPTY), COLOR_DARK_GRAY);
+                if (BoxH >= LineH * 3) {
+                    DrawLine(BoxX + 12, BoxY + LineH * 2 + 4,
+                             LocStr(MSG_FILES_EMPTY_HINT), COLOR_GRAY);
+                }
             }
         }
-        if (BoxW > 8 && BoxH > LineH + 8) {
-            UiFillRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
-            UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_DARK_GRAY);
-            DrawLine(BoxX + 12, BoxY + LineH, LocStr(MSG_FILES_EMPTY), COLOR_DARK_GRAY);
-            if (BoxH >= LineH * 3) {
-                DrawLine(BoxX + 12, BoxY + LineH * 2 + 4,
-                         LocStr(MSG_FILES_EMPTY_HINT), COLOR_GRAY);
+
+        if (gPrevW > 0) {
+            UINT32 Px = Cx + ListW;
+            UINT32 Py = Y + 8;
+            UINT32 Ph = H > 16 ? H - 16 : H;
+            UINT32 Pw = gPrevW;
+            UINT32 InnerX;
+            UINT32 InnerY;
+            UINT32 InnerW;
+            UINT32 InnerH;
+            UINT32 CurY;
+            UINTN ti;
+
+            gPrevX = Px;
+            HalVideoFillRect(Px, Y, 2, H, COLOR_DARK_GRAY);
+            HalVideoFillRect(Px + 2, Y, Pw > 2 ? Pw - 2 : Pw, H, 0x00D8D8E0u);
+            DrawLine(Px + 10, Py, "Preview", COLOR_BLACK);
+            DrawLine(Px + 10, Py + LineH, gViewTitle[0] ? gViewTitle : "(none)",
+                     COLOR_DARK_GRAY);
+
+            InnerX = Px + 8;
+            InnerY = Py + LineH * 2 + 8;
+            InnerW = Pw > 16 ? Pw - 16 : Pw;
+            InnerH = (Y + H > InnerY + 8) ? (Y + H - InnerY - 8) : 0;
+
+            if (gPrevKind == PREV_EMPTY || gPrevKind == PREV_NONE) {
+                if (InnerW > 8 && InnerH > LineH + 8) {
+                    UiFillRectangle(InnerX, InnerY, InnerW, InnerH > LineH * 4 ? LineH * 4 : InnerH,
+                                    COLOR_LIGHT_GRAY);
+                    UiDrawRectangle(InnerX, InnerY,
+                                    InnerW, InnerH > LineH * 4 ? LineH * 4 : InnerH,
+                                    COLOR_DARK_GRAY);
+                    DrawLine(InnerX + 10, InnerY + LineH,
+                             LocStr(MSG_FILES_EMPTY), COLOR_DARK_GRAY);
+                }
+            } else if (gPrevKind == PREV_DIR) {
+                DrawLine(InnerX, InnerY, "[Directory]", COLOR_BLUE);
+                DrawLine(InnerX, InnerY + LineH, "Enter to open", COLOR_DARK_GRAY);
+            } else if (gPrevKind == PREV_ELF) {
+                DrawLine(InnerX, InnerY, "ELF executable", COLOR_BLUE);
+                DrawLine(InnerX, InnerY + LineH, "Enter to run", COLOR_DARK_GRAY);
+            } else if (gPrevKind == PREV_ERR) {
+                DrawLine(InnerX, InnerY, "Cannot read file", COLOR_BLUE);
+            } else if (gPrevKind == PREV_BIN) {
+                DrawLine(InnerX, InnerY, "Binary file", COLOR_BLUE);
+                DrawLine(InnerX, InnerY + LineH, "Enter = hex-ish view", COLOR_DARK_GRAY);
+            } else if (gPrevKind == PREV_TEXT && InnerH > LineH) {
+                char Row[72];
+                int Col = 0;
+                UINT32 MaxCols = (InnerW > 8) ? (InnerW - 4) / (FontAdvanceX() ? FontAdvanceX() : 8) : 20;
+
+                if (MaxCols > sizeof(Row) - 1) {
+                    MaxCols = sizeof(Row) - 1;
+                }
+                if (MaxCols < 8) {
+                    MaxCols = 8;
+                }
+                CurY = InnerY;
+                for (ti = 0; ti < gViewLen && CurY + LineH <= InnerY + InnerH; ti++) {
+                    char C = gView[ti];
+                    if (C == '\n' || Col >= (int)MaxCols) {
+                        Row[Col] = 0;
+                        DrawLine(InnerX, CurY, Row, COLOR_BLACK);
+                        CurY += LineH;
+                        Col = 0;
+                        if (C == '\n') {
+                            continue;
+                        }
+                    }
+                    if (C == '\r') {
+                        continue;
+                    }
+                    if (C >= 32 && C < 127) {
+                        Row[Col++] = C;
+                    } else {
+                        Row[Col++] = '.';
+                    }
+                }
+                if (Col > 0 && CurY + LineH <= InnerY + InnerH) {
+                    Row[Col] = 0;
+                    DrawLine(InnerX, CurY, Row, COLOR_BLACK);
+                }
             }
         }
     }
@@ -938,6 +1117,11 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
         return;
     }
 
+    /* PR-U3：点在预览区不改选中 */
+    if (gPrevW > 0 && X >= gPrevX) {
+        return;
+    }
+
     /* PR-G12：滚动条点选 */
     if (gSbVisible &&
         UiScrollBarHit(gSbX, gSbY, gSbW, gSbH, gScroll, gListVisible, gCount,
@@ -950,6 +1134,7 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
             gSelected = gScroll + gListVisible - 1;
         }
         gHoverIdx = -1;
+        UpdatePreview();
         PaintList();
         return;
     }
@@ -991,6 +1176,7 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
     gClickX = X;
     gClickY = Y;
     gHoverIdx = Idx;
+    UpdatePreview();
     PaintList();
 }
 
@@ -1035,6 +1221,15 @@ void FilesUiOnHover(UINT32 X, UINT32 Y) {
 
     if (gSideHover >= 0) {
         gSideHover = -1;
+    }
+
+    /* PR-U3：预览区无列表悬停 */
+    if (gPrevW > 0 && X >= gPrevX) {
+        if (gHoverIdx >= 0) {
+            gHoverIdx = -1;
+            PaintList();
+        }
+        return;
     }
 
     Prev = gHoverIdx;
@@ -1110,6 +1305,7 @@ void FilesUiOnArrow(int Down) {
         }
     }
     gHoverIdx = gSelected;
+    UpdatePreview();
     PaintList();
 }
 
