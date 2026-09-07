@@ -1,8 +1,8 @@
 /*
- * FilesUi.h — 文件浏览器（PR-FB1/FB2 + PR-U1 双区布局）
+ * FilesUi.h — 文件浏览器（PR-FB1/FB2 + PR-U1/U2）
  *
  * 进目录；打开 .ELF / 文本预览；删除（确认）、mkdir、新建空文件、重命名。
- * U1：左栏固定宽 + 右栏列表；侧栏书签见 U2。
+ * U1：左栏固定宽 + 右栏列表；U2：侧栏 TOYOS:/ESP:/Apps:/Assets/ 书签跳转。
  */
 #ifndef FILES_UI_H
 #define FILES_UI_H

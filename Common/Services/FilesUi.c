@@ -1,9 +1,10 @@
 /*
- * FilesUi.c — 文件浏览器（PR-FB1/FB2 + PR-U1 双区布局）
+ * FilesUi.c — 文件浏览器（PR-FB1/FB2 + PR-U1/U2）
  *
  * 列表：进目录 / 开 ELF / 预览文本
  * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
- * U1：左栏固定宽骨架 + 右栏列表（书签导航见 U2）
+ * U1：左栏固定宽 + 右栏列表
+ * U2：侧栏卷/书签点击跳转（TOYOS: / ESP: / Apps/ / Assets/）
  */
 #include "FilesUi.h"
 #include "Gui.h"
@@ -55,11 +56,29 @@ static UINT64 gClickClock;
 static UINT32 gClickX;
 static UINT32 gClickY;
 static int gHoverIdx = -1;
+static int gSideHover = -1;
+static int gSideSel = -1;
+
+typedef struct {
+    const char *Label;
+    const char *Path;
+} FILES_BOOKMARK;
+
+/* PR-U2：侧栏快捷入口（路径走 FileSystem 卷前缀） */
+static const FILES_BOOKMARK gBookmarks[] = {
+    { "TOYOS:", "TOYOS:" },
+    { "ESP:", "ESP:" },
+    { "Apps/", "TOYOS:Apps" },
+    { "Assets/", "TOYOS:Assets" },
+};
+#define FILES_BOOKMARK_COUNT ((int)(sizeof(gBookmarks) / sizeof(gBookmarks[0])))
 
 /* PR-G12：列表滚动条几何（PaintList 写入，OnClick/OnHover 读取） */
 #define FILES_SB_W 12u
 /* PR-U1：左侧栏固定宽（书签入口 U2） */
 #define FILES_SIDE_W 128u
+/* 与客户区 LIGHT_GRAY(0xC0C0C0) 拉开对比 */
+#define FILES_SIDE_BG 0x00A0A8B0u
 static UINT32 gSbX;
 static UINT32 gSbY;
 static UINT32 gSbW;
@@ -71,6 +90,11 @@ static UINT32 gListRowW;
 static UINT32 gListLineH;
 static UINT32 gContentX;
 static UINT32 gContentW;
+static UINT32 gSideX;
+static UINT32 gSideY;
+static UINT32 gSideW;
+static UINT32 gSideRow0;
+static UINT32 gSideLineH;
 
 static UINT64 FilesClock(void) {
     return HalCpuTicks(0);
@@ -166,7 +190,7 @@ static int JoinPath(char *Out, int Max, const char *Dir, const char *Name) {
         for (j = 0; Dir[j] && i < Max - 1; j++) {
             Out[i++] = Dir[j];
         }
-        if (i < Max - 1 && (i == 0 || Out[i - 1] != '/')) {
+        if (i < Max - 1 && i > 0 && Out[i - 1] != '/' && Out[i - 1] != ':') {
             Out[i++] = '/';
         }
     }
@@ -180,17 +204,116 @@ static int JoinPath(char *Out, int Max, const char *Dir, const char *Name) {
 static void CwdPop(void) {
     int i;
     int Last = -1;
+    int Colon = -1;
 
     for (i = 0; gCwd[i]; i++) {
+        if (gCwd[i] == ':') {
+            Colon = i;
+        }
         if (gCwd[i] == '/') {
             Last = i;
         }
     }
-    if (Last < 0) {
-        gCwd[0] = 0;
+    /* 有子路径：退一层 */
+    if (Last > Colon) {
+        gCwd[Last] = 0;
         return;
     }
-    gCwd[Last] = 0;
+    /* 卷根保留 "TOYOS:"；无前缀则清空 */
+    if (Colon >= 0) {
+        gCwd[Colon + 1] = 0;
+        return;
+    }
+    gCwd[0] = 0;
+}
+
+static int PathEqIgnoreCase(const char *A, const char *B) {
+    return StrEqIgnoreCase(A ? A : "", B ? B : "");
+}
+
+/* 当前 cwd 是否落在该书签（精确或卷内子路径前缀） */
+static int BookmarkMatches(int Idx) {
+    const char *P;
+    int n;
+    int i;
+
+    if (Idx < 0 || Idx >= FILES_BOOKMARK_COUNT) {
+        return 0;
+    }
+    P = gBookmarks[Idx].Path;
+    if (PathEqIgnoreCase(gCwd, P)) {
+        return 1;
+    }
+    /* "TOYOS:" 匹配空 cwd（默认卷根） */
+    n = 0;
+    while (P[n]) {
+        n++;
+    }
+    if (n > 0 && P[n - 1] == ':' && gCwd[0] == 0 &&
+        StrEqIgnoreCase(gBookmarks[Idx].Label, "TOYOS:")) {
+        return 1;
+    }
+    /* Apps/Assets：cwd 为 TOYOS:Apps/... */
+    if (n > 0 && P[n - 1] != ':') {
+        for (i = 0; P[i] && gCwd[i]; i++) {
+            char Ca = P[i];
+            char Cb = gCwd[i];
+            if (Ca >= 'A' && Ca <= 'Z') {
+                Ca = (char)(Ca - 'A' + 'a');
+            }
+            if (Cb >= 'A' && Cb <= 'Z') {
+                Cb = (char)(Cb - 'A' + 'a');
+            }
+            if (Ca != Cb) {
+                return 0;
+            }
+        }
+        if (P[i] == 0 && (gCwd[i] == 0 || gCwd[i] == '/')) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void SyncSideSel(void) {
+    int i;
+    gSideSel = -1;
+    for (i = 0; i < FILES_BOOKMARK_COUNT; i++) {
+        if (BookmarkMatches(i)) {
+            gSideSel = i;
+            break;
+        }
+    }
+}
+
+static int ReloadList(void);
+static void Paint(void);
+
+static void GotoPath(const char *Path) {
+    CopyStr(gCwd, sizeof(gCwd), Path ? Path : "");
+    gMode = FILES_MODE_LIST;
+    SetStatus("");
+    (void)ReloadList();
+    Paint();
+}
+
+static int SideHitIndex(UINT32 X, UINT32 Y) {
+    int Row;
+
+    if (gSideW == 0 || gSideLineH == 0) {
+        return -1;
+    }
+    if (X < gSideX || X >= gSideX + gSideW - 3) {
+        return -1;
+    }
+    if (Y < gSideRow0) {
+        return -1;
+    }
+    Row = (int)((Y - gSideRow0) / gSideLineH);
+    if (Row < 0 || Row >= FILES_BOOKMARK_COUNT) {
+        return -1;
+    }
+    return Row;
 }
 
 static int ReloadList(void) {
@@ -204,8 +327,10 @@ static int ReloadList(void) {
     if (Err != FAT_OK) {
         gCount = 0;
         SetStatus(FatStrError(Err));
+        SyncSideSel();
         return Err;
     }
+    SyncSideSel();
     return FAT_OK;
 }
 
@@ -292,8 +417,9 @@ static void PaintList(void) {
         LineH = 16;
     }
 
-    /* PR-U1：左栏骨架（固定宽）；窄窗则退回单栏 */
+    /* PR-U1/U2：左栏固定宽 + 书签；窄窗退回单栏 */
     SideW = 0;
+    gSideW = 0;
     if (W > FILES_SIDE_W + 160u) {
         SideW = FILES_SIDE_W;
     }
@@ -303,13 +429,25 @@ static void PaintList(void) {
     Cw = gContentW;
 
     if (SideW > 0) {
-        HalVideoFillRect(X, Y, SideW, H, COLOR_LIGHT_GRAY);
-        UiDrawRectangle(X, Y, SideW, H, COLOR_DARK_GRAY);
-        if (SideW > 2) {
-            HalVideoFillRect(X + SideW - 1, Y, 1, H, COLOR_DARK_GRAY);
+        UINT32 RowW;
+
+        gSideX = X;
+        gSideY = Y;
+        gSideW = SideW;
+        gSideLineH = LineH;
+        gSideRow0 = Y + 8 + LineH + 4;
+        RowW = SideW > 10 ? SideW - 10 : SideW;
+
+        HalVideoFillRect(X, Y, SideW, H, FILES_SIDE_BG);
+        if (SideW > 3) {
+            HalVideoFillRect(X + SideW - 3, Y, 3, H, COLOR_DARK_GRAY);
         }
         DrawLine(X + 8, Y + 8, "Places", COLOR_BLACK);
-        DrawLine(X + 8, Y + 8 + LineH, "(bookmarks U2)", COLOR_DARK_GRAY);
+        for (i = 0; i < FILES_BOOKMARK_COUNT; i++) {
+            UiDrawListRow(X + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
+                          gBookmarks[i].Label,
+                          i == gSideSel, i == gSideHover);
+        }
     }
 
     PathShow[0] = 0;
@@ -718,10 +856,11 @@ static void DoPromptCommit(void) {
 }
 
 void FilesUiOpen(void) {
-    gCwd[0] = 0;
+    CopyStr(gCwd, sizeof(gCwd), "TOYOS:");
     gMode = FILES_MODE_LIST;
     gClickSel = -1;
     gHoverIdx = -1;
+    gSideHover = -1;
     SetStatus("");
     (void)ReloadList();
     Paint();
@@ -790,8 +929,12 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
         return;
     }
 
-    /* PR-U1：点在侧栏上忽略（书签点击见 U2） */
-    if (X < gContentX) {
+    /* PR-U2：侧栏书签 */
+    if (gSideW > 0 && X < gContentX) {
+        Idx = SideHitIndex(X, Y);
+        if (Idx >= 0) {
+            GotoPath(gBookmarks[Idx].Path);
+        }
         return;
     }
 
@@ -871,20 +1014,27 @@ void FilesUiOnHover(UINT32 X, UINT32 Y) {
         return;
     }
     if (X < Cx || Y < Cy || X >= Cx + Cw || Y >= Cy + Ch) {
-        if (gHoverIdx >= 0) {
+        if (gHoverIdx >= 0 || gSideHover >= 0) {
+            gHoverIdx = -1;
+            gSideHover = -1;
+            PaintList();
+        }
+        return;
+    }
+
+    /* PR-U2：侧栏悬停 */
+    if (gSideW > 0 && X < gContentX) {
+        Idx = SideHitIndex(X, Y);
+        if (Idx != gSideHover || gHoverIdx >= 0) {
+            gSideHover = Idx;
             gHoverIdx = -1;
             PaintList();
         }
         return;
     }
 
-    /* PR-U1：悬停只算右栏 */
-    if (X < gContentX) {
-        if (gHoverIdx >= 0) {
-            gHoverIdx = -1;
-            PaintList();
-        }
-        return;
+    if (gSideHover >= 0) {
+        gSideHover = -1;
     }
 
     Prev = gHoverIdx;
