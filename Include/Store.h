@@ -1,5 +1,5 @@
 /*
- * Store.h — 本地商店（PR-S1～S3）+ 安装清单/卸载（PR-S4）
+ * Store.h — 本地商店（PR-S1～S4）+ 可见性（PR-S5）
  */
 #ifndef STORE_H
 #define STORE_H
@@ -44,6 +44,10 @@ int StoreInstall(const char *Id);
 /* PR-S4：列已装 / 卸载（删载荷 + 清 ToyDB） */
 int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount);
 int StoreRemove(const char *Id);
+
+/* PR-S5：可见性 — 是否已装 / 依赖串（sd.<id>，缺省 "-"） */
+int StoreIsInstalled(const char *Id);
+int StoreGetDepends(const char *Id, char *Out, int OutMax);
 
 /* 当前本机 arch 标签（如 x86_64） */
 const char *StoreHostArch(void);

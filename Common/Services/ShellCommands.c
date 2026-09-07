@@ -674,6 +674,21 @@ static void CommandFiles(int Argc, char **Argv) {
     }
 }
 
+static void CommandEdit(int Argc, char **Argv) {
+    int Idx;
+    const char *Path;
+
+    if (Argc < 2 || !Argv[1] || !Argv[1][0]) {
+        ConsoleWrite("usage: edit <path>\n");
+        return;
+    }
+    Path = Argv[1];
+    Idx = GuiOpenEdit(Path);
+    if (Idx < 0) {
+        ConsoleWrite("edit: no free window\n");
+    }
+}
+
 static void CommandZh(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
@@ -841,12 +856,16 @@ static void CommandStore(int Argc, char **Argv) {
             return;
         }
         for (i = 0; i < N; i++) {
+            char Dep[64];
             ConsoleWrite("  ");
             ConsoleWrite(Inst[i].Id);
             ConsoleWrite("  ");
             ConsoleWrite(Inst[i].Type);
             ConsoleWrite("  ");
             ConsoleWrite(Inst[i].File);
+            ConsoleWrite("  dep=");
+            (void)StoreGetDepends(Inst[i].Id, Dep, (int)sizeof(Dep));
+            ConsoleWrite(Dep);
             ConsoleWrite("\n");
         }
         return;
@@ -881,23 +900,34 @@ static void CommandStore(int Argc, char **Argv) {
         ConsoleWrite("\n");
         return;
     }
-    ConsoleWrite("store catalog (");
+    /* PR-S5：一行可见 — 状态 / 依赖 / 文件 / 标题 */
+    ConsoleWrite("store (");
     ConsoleWrite(StoreHostArch());
-    ConsoleWrite("):\n");
+    ConsoleWrite(")  state=INST|avail  dep=...\n");
     for (i = 0; i < Count; i++) {
+        char Dep[64];
+        int On = StoreIsInstalled(Tab[i].Id);
+        (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].Id);
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].Type);
+        ConsoleWrite(On ? "  INST  " : "  avail ");
+        ConsoleWrite("dep=");
+        ConsoleWrite(Dep);
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].File);
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].Title);
         ConsoleWrite("\n");
     }
-    if (Argc < 2 || (Argv[1][0] == 'l' && Argv[1][1] == 'i' &&
-                     Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 0)) {
-        ConsoleWrite("usage: store [list]|install|remove|list-installed|sync|fetch|repo\n");
+    if (Argc < 2 ||
+        (Argv[1][0] == 'l' && Argv[1][1] == 'i' && Argv[1][2] == 's' &&
+         Argv[1][3] == 't' && Argv[1][4] == 0) ||
+        (Argv[1][0] == 's' && Argv[1][1] == 't' && Argv[1][2] == 'a' &&
+         Argv[1][3] == 't' && Argv[1][4] == 'u' && Argv[1][5] == 's' &&
+         Argv[1][6] == 0)) {
+        ConsoleWrite("usage: store [list|status]|install|remove|list-installed|sync|fetch|repo\n");
     }
 }
 
@@ -1054,10 +1084,11 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);
+    ConsoleRegister("edit", "edit <path> open text editor (PR-V2)", CommandEdit);
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
     ConsoleRegister("font", "font [reload|<id>] (Assets/Fonts TOYF)", CommandFont);
-    ConsoleRegister("store", "store list|install|remove|list-installed|sync|fetch|repo", CommandStore);
+    ConsoleRegister("store", "store list|status|install|remove|list-installed|sync|fetch|repo", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegister("exit", "alias of halt", CommandExit);

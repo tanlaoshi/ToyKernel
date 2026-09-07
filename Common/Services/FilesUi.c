@@ -926,6 +926,13 @@ static void OpenSelected(void) {
     }
     gView[gViewLen] = 0;
     CopyStr(gViewTitle, sizeof(gViewTitle), E->Name);
+    if (IsMostlyText(gView, gViewLen)) {
+        if (GuiOpenEdit(Path) < 0) {
+            SetStatus("edit: no free window");
+            Paint();
+        }
+        return;
+    }
     gMode = FILES_MODE_VIEW;
     Paint();
 }

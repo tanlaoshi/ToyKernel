@@ -12,6 +12,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "EditUi.h"
 
 void GfxIrqEnter(void) {
     if (gGfxLockDepth++ == 0) {
@@ -851,6 +852,8 @@ void GuiApplyThemeColors(void) {
             gWins[i].Background = ThemeSettingsClientBg();
         } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_FILES) {
             gWins[i].Background = ThemeSettingsClientBg();
+        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_EDIT) {
+            gWins[i].Background = ThemeSettingsClientBg();
         }
     }
 }
@@ -895,6 +898,9 @@ void GuiComposeThemeScene(void) {
         } else if (gWins[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiPaintFocused();
+        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
+            gFocusWin = i;
+            EditUiPaintFocused();
         } else if (gWins[i].Kind == GUI_WIN_USER) {
             gFocusWin = i;
             PaintUserClient(i);

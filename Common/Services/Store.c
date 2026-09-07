@@ -588,3 +588,47 @@ int StoreRemove(const char *Id) {
     }
     return FAT_OK;
 }
+
+int StoreIsInstalled(const char *Id) {
+    char Key[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+
+    if (!Id || Id[0] == 0) {
+        return 0;
+    }
+    if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
+        return 0;
+    }
+    return DbGet(Key, Val, sizeof(Val)) == DB_OK;
+}
+
+int StoreGetDepends(const char *Id, char *Out, int OutMax) {
+    char Key[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+    int i;
+
+    if (!Out || OutMax <= 0) {
+        return FAT_ERR_INVAL;
+    }
+    Out[0] = '-';
+    if (OutMax > 1) {
+        Out[1] = 0;
+    } else {
+        Out[0] = 0;
+        return FAT_ERR_INVAL;
+    }
+    if (!Id || Id[0] == 0) {
+        return FAT_OK;
+    }
+    if (!MakeDbKey(Key, (int)sizeof(Key), "sd.", Id)) {
+        return FAT_OK;
+    }
+    if (DbGet(Key, Val, sizeof(Val)) != DB_OK || Val[0] == 0) {
+        return FAT_OK;
+    }
+    for (i = 0; Val[i] && i < OutMax - 1; i++) {
+        Out[i] = Val[i];
+    }
+    Out[i] = 0;
+    return FAT_OK;
+}

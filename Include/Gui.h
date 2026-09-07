@@ -19,6 +19,7 @@ typedef enum {
     GUI_WIN_SHELL,
     GUI_WIN_SETTINGS,
     GUI_WIN_FILES,
+    GUI_WIN_EDIT,  /* PR-V2：简易文本编辑器 */
     GUI_WIN_USER   /* PR-G14：用户态窗口协议 */
 } GUI_WIN_KIND;
 
@@ -84,6 +85,8 @@ int GuiFocusIndex(void);
 int GuiOpenShell(void);
 int GuiOpenSettings(void);
 int GuiOpenFiles(void);
+/* PR-V2：打开/复用 Edit 窗；Path 为 FAT 文本路径；失败 -1 */
+int GuiOpenEdit(const char *Path);
 /* PR-G14：用户窗；成功返回 wid（槽位下标），失败 -1 */
 int GuiOpenUser(const char *Title, UINT32 W, UINT32 H);
 int GuiDamageUser(int Wid, const char *Text);
