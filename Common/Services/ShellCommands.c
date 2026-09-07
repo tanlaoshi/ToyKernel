@@ -18,6 +18,7 @@
 #include "Gui.h"
 #include "Locale.h"
 #include "Font.h"
+#include "Theme.h"
 #include "Store.h"
 #include "Fat.h"
 
@@ -783,8 +784,37 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("\n");
             return;
         }
-        ConsoleWrite("store: installed to Apps/\n");
-        ConsoleWrite("hint: exec Apps/<ELF> — HELLO prints one line then exits (正常)\n");
+        {
+            STORE_ENTRY *Tab2 = StoreScratchTab();
+            int C2 = 0;
+            int j;
+            const char *Where = "Apps/";
+            (void)StoreLoadCatalog(Tab2, STORE_ENTRIES_MAX, &C2);
+            for (j = 0; j < C2; j++) {
+                int k = 0;
+                while (Argv[2][k] && Argv[2][k] == Tab2[j].Id[k]) {
+                    k++;
+                }
+                if (Argv[2][k] == 0 && Tab2[j].Id[k] == 0) {
+                    if (Tab2[j].Type[0] == 'f') {
+                        Where = "Assets/Fonts/";
+                    } else if (Tab2[j].Type[0] == 'a' && Tab2[j].Type[1] == 's') {
+                        Where = "Assets/Packs/";
+                    }
+                    break;
+                }
+            }
+            ConsoleWrite("store: installed to ");
+            ConsoleWrite(Where);
+            ConsoleWrite("\n");
+            if (Where[0] == 'A' && Where[7] == 'F') {
+                ConsoleWrite("hint: font / font reload — Settings 可选新字面\n");
+            } else if (Where[0] == 'A' && Where[7] == 'P') {
+                ConsoleWrite("hint: blob under Assets/Packs/ (driver reads path)\n");
+            } else {
+                ConsoleWrite("hint: exec Apps/<ELF> — HELLO prints one line then exits (正常)\n");
+            }
+        }
         return;
     }
 
@@ -818,13 +848,31 @@ static void CommandStore(int Argc, char **Argv) {
 
 static void CommandFont(int Argc, char **Argv) {
     UINT32 i;
+    UINT32 Id;
     const FONT_FACE *F;
 
     if (Argc >= 2 && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
         Argv[1][2] == 'l' && Argv[1][3] == 'o' && Argv[1][4] == 'a' &&
         Argv[1][5] == 'd' && Argv[1][6] == 0) {
         (void)FontReloadAssets();
+        ThemeClampFontId();
         ConsoleWrite("font: assets reloaded\n");
+        return;
+    }
+    if (Argc >= 2 && Argv[1][0] >= '0' && Argv[1][0] <= '9') {
+        Id = 0;
+        for (i = 0; Argv[1][i] >= '0' && Argv[1][i] <= '9'; i++) {
+            Id = Id * 10u + (UINT32)(Argv[1][i] - '0');
+        }
+        if (Argv[1][i] != 0 || ThemeSetFontId(Id) != 0) {
+            ConsoleWrite("font: bad id\n");
+            return;
+        }
+        ThemeApply();
+        ConsoleWrite("font: set ");
+        F = FontGetCurrent();
+        ConsoleWrite(F && F->Name ? F->Name : "?");
+        ConsoleWrite("\n");
         return;
     }
     ConsoleWrite("fonts:\n");
@@ -835,7 +883,7 @@ static void CommandFont(int Argc, char **Argv) {
         ConsoleWrite("\n");
     }
     if (Argc < 2) {
-        ConsoleWrite("usage: font [reload]\n");
+        ConsoleWrite("usage: font [reload|<id>]\n");
     }
 }
 
@@ -953,7 +1001,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
-    ConsoleRegister("font", "font [reload] (Assets/Fonts TOYF)", CommandFont);
+    ConsoleRegister("font", "font [reload|<id>] (Assets/Fonts TOYF)", CommandFont);
     ConsoleRegister("store", "store list|install|sync|fetch|repo", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);

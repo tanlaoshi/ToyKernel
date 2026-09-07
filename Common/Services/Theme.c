@@ -76,7 +76,10 @@ void ThemeSetShellClientBg(UINT32 Color) {
 }
 
 int ThemeSetFontId(UINT32 Id) {
+    UINT32 Prev = gFontId;
+
     if (FontSetById(Id) != 0) {
+        (void)FontSetById(Prev);
         return -1;
     }
     gFontId = Id;
@@ -84,11 +87,25 @@ int ThemeSetFontId(UINT32 Id) {
 }
 
 void ThemeApply(void) {
-    (void)FontSetById(gFontId);
+    if (gFontId >= FontCount()) {
+        gFontId = FontCurrentId() < FontCount() ? FontCurrentId() : 0;
+    }
+    if (FontSetById(gFontId) != 0) {
+        gFontId = 0;
+        (void)FontSetById(0);
+    }
     GuiApplyThemeColors();
     /* PR-G8：属性已更新 → 一次自下而上合成 → 备份；勿 GuiRedraw+Raise 多遍 */
     GuiComposeThemeScene();
     (void)ThemeSave();
+}
+
+/* FontReloadAssets 后：偏好 id 越界则钳到当前合法字体 */
+void ThemeClampFontId(void) {
+    if (gFontId >= FontCount()) {
+        gFontId = FontCurrentId() < FontCount() ? FontCurrentId() : 0;
+        (void)FontSetById(gFontId);
+    }
 }
 
 /* ---- PR-D6 / D7 持久化 ---- */
@@ -362,6 +379,9 @@ int ThemeLoad(void) {
         HalConsoleWriteSerial("theme: loaded TOYOS.DB\n");
     }
     (void)FontSetById(gFontId);
+    if (gFontId >= FontCount() || FontCurrentId() != gFontId) {
+        ThemeClampFontId();
+    }
     DebugWrite("theme: desktop=");
     DebugHex32(gDesktopBg);
     DebugWrite(" shell=");

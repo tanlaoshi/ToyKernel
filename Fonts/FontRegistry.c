@@ -21,6 +21,8 @@
 #define FONT_RUNTIME_MAX  2u
 #define FONT_NAME_MAX     16u
 #define FONT_TABLE_MAX    8u
+#define FONT_SPACING_MAX  16u
+#define FONT_SCALE_MAX    8u
 
 typedef struct FONT_RUNTIME_SLOT {
     FONT_FACE Face;
@@ -42,6 +44,54 @@ static UINT16 RdU16(const UINT8 *P) {
 static UINT32 RdU32(const UINT8 *P) {
     return (UINT32)P[0] | ((UINT32)P[1] << 8) | ((UINT32)P[2] << 16) |
            ((UINT32)P[3] << 24);
+}
+
+static char ToUpperAscii(char C) {
+    if (C >= 'a' && C <= 'z') {
+        return (char)(C - 'a' + 'A');
+    }
+    return C;
+}
+
+static int NameEqCi(const char *A, const char *B) {
+    if (!A || !B) {
+        return 0;
+    }
+    while (*A && *B) {
+        if (ToUpperAscii(*A) != ToUpperAscii(*B)) {
+            return 0;
+        }
+        A++;
+        B++;
+    }
+    return *A == 0 && *B == 0;
+}
+
+/* 已注册（内建 + 已占用运行时槽，不含 Candidate） */
+static int FaceNameRegistered(const char *Name, const FONT_RUNTIME_SLOT *Candidate) {
+    UINT32 i;
+
+    if (!Name || Name[0] == 0) {
+        return 0;
+    }
+    if (NameEqCi(Name, gFontFaceTerminus16x32.Name) ||
+        NameEqCi(Name, gFontFaceTerminusX2.Name) ||
+        NameEqCi(Name, gFontFaceTerminus10x18.Name)) {
+        return 1;
+    }
+    for (i = 0; i < FONT_RUNTIME_MAX; i++) {
+        if (!gRuntime[i].Used || &gRuntime[i] == Candidate) {
+            continue;
+        }
+        if (NameEqCi(Name, gRuntime[i].Name)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int BasenameEqCi(const char *A, const char *B) {
+    return NameEqCi(A, B);
 }
 
 static void RebuildFontTable(void) {
@@ -109,9 +159,18 @@ static int ParseToyf(const UINT8 *Buf, UINTN Size, FONT_RUNTIME_SLOT *Out) {
     if (Scale == 0) {
         Scale = 1;
     }
+    if (Scale > FONT_SCALE_MAX) {
+        return -1;
+    }
     if (Width == 0 || Width > 64 || Height == 0 || Height > 64 || Count == 0 ||
         Count > 256) {
         return -1;
+    }
+    if (CharSp > FONT_SPACING_MAX) {
+        CharSp = FONT_SPACING_MAX;
+    }
+    if (LineSp > FONT_SPACING_MAX) {
+        LineSp = FONT_SPACING_MAX;
     }
     Bpr = (Width + 7u) / 8u;
     GlyphBytes = Count * Height * Bpr;
@@ -207,23 +266,117 @@ void FontInit(void) {
 }
 
 int FontLoadAssets(void) {
-    static const char *const Paths[] = {
-        "Assets/Fonts/VGA8X16.FNT",
-        "Assets/Fonts/EXTRA.FNT",
-    };
+    static FAT_DIR_ENT Ents[FAT_LIST_MAX];
+    static char Path[96];
+    static char LoadedBase[FONT_RUNTIME_MAX][FAT_ENT_NAME_MAX];
     UINT32 Slot;
-    UINT32 i;
+    UINT32 BaseCount;
+    int Count = 0;
+    int i;
     int Any = 0;
+    int Err;
 
     ClearRuntime();
     Slot = 0;
-    for (i = 0; i < sizeof(Paths) / sizeof(Paths[0]) && Slot < FONT_RUNTIME_MAX;
-         i++) {
-        if (TryLoadPath(Paths[i], &gRuntime[Slot]) == 0) {
+    BaseCount = 0;
+
+    /* 稳定优先：样本路径 */
+    if (Slot < FONT_RUNTIME_MAX &&
+        TryLoadPath("Assets/Fonts/VGA8X16.FNT", &gRuntime[Slot]) == 0) {
+        if (FaceNameRegistered(gRuntime[Slot].Name, &gRuntime[Slot])) {
+            HalConsoleWriteSerial("font: skip duplicate name ");
+            HalConsoleWriteSerial(gRuntime[Slot].Name);
+            HalConsoleWriteSerial(" (VGA8X16.FNT)\n");
+            FreeRuntimeSlot(&gRuntime[Slot]);
+        } else {
+            {
+                const char *B = "VGA8X16.FNT";
+                int bi = 0;
+                while (*B && bi + 1 < (int)sizeof(LoadedBase[0])) {
+                    LoadedBase[BaseCount][bi++] = *B++;
+                }
+                LoadedBase[BaseCount][bi] = 0;
+                BaseCount++;
+            }
             Slot++;
             Any = 1;
         }
     }
+
+    Err = FileSystemListEntries("Assets/Fonts", Ents, FAT_LIST_MAX, &Count);
+    if (Err == FAT_OK) {
+        for (i = 0; i < Count && Slot < FONT_RUNTIME_MAX; i++) {
+            int n;
+            int j;
+            int SkipBase;
+            UINT32 k;
+
+            if (Ents[i].Attr & FAT_ATTR_DIR) {
+                continue;
+            }
+            n = 0;
+            while (Ents[i].Name[n]) {
+                n++;
+            }
+            if (n < 5) {
+                continue;
+            }
+            /* *.FNT / *.fnt */
+            if (!((Ents[i].Name[n - 4] == '.' &&
+                   (Ents[i].Name[n - 3] == 'F' || Ents[i].Name[n - 3] == 'f') &&
+                   (Ents[i].Name[n - 2] == 'N' || Ents[i].Name[n - 2] == 'n') &&
+                   (Ents[i].Name[n - 1] == 'T' || Ents[i].Name[n - 1] == 't')))) {
+                continue;
+            }
+            /* 跳过已加载基名（含优先路径 VGA8X16.FNT） */
+            SkipBase = 0;
+            for (k = 0; k < BaseCount; k++) {
+                if (BasenameEqCi(Ents[i].Name, LoadedBase[k])) {
+                    SkipBase = 1;
+                    break;
+                }
+            }
+            if (SkipBase) {
+                continue;
+            }
+            {
+                const char *P = "Assets/Fonts/";
+                int pi = 0;
+                while (*P && pi + 1 < (int)sizeof(Path)) {
+                    Path[pi++] = *P++;
+                }
+                j = 0;
+                while (Ents[i].Name[j] && pi + 1 < (int)sizeof(Path)) {
+                    Path[pi++] = Ents[i].Name[j++];
+                }
+                Path[pi] = 0;
+            }
+            if (TryLoadPath(Path, &gRuntime[Slot]) != 0) {
+                continue;
+            }
+            if (FaceNameRegistered(gRuntime[Slot].Name, &gRuntime[Slot])) {
+                HalConsoleWriteSerial("font: skip duplicate name ");
+                HalConsoleWriteSerial(gRuntime[Slot].Name);
+                HalConsoleWriteSerial(" (");
+                HalConsoleWriteSerial(Ents[i].Name);
+                HalConsoleWriteSerial(")\n");
+                FreeRuntimeSlot(&gRuntime[Slot]);
+                continue;
+            }
+            if (BaseCount < FONT_RUNTIME_MAX) {
+                j = 0;
+                while (Ents[i].Name[j] && j + 1 < (int)sizeof(LoadedBase[0])) {
+                    LoadedBase[BaseCount][j] = Ents[i].Name[j];
+                    j++;
+                }
+                LoadedBase[BaseCount][j] = 0;
+                BaseCount++;
+            }
+            Slot++;
+            Any = 1;
+        }
+    }
+
     RebuildFontTable();
     if (!Any) {
         HalConsoleWriteSerial("font: using built-in faces (no Assets/Fonts TOYF)\n");
@@ -237,7 +390,13 @@ int FontReloadAssets(void) {
     (void)FontLoadAssets();
     if (FontSetById(Cur) != 0) {
         (void)FontSetById(0);
+        Cur = 0;
     }
+    /*
+     * Theme 偏好可能仍指向已消失的 runtime id（如卸掉第二包后）。
+     * 由调用方 ThemeClampFontId 同步；此处保证 gCurrentId 合法。
+     */
+    (void)Cur;
     return 0;
 }
 

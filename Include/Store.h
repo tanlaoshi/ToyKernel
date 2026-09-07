@@ -1,5 +1,5 @@
 /*
- * Store.h — 本地商店（PR-S1）+ 联网拉取（PR-S2）
+ * Store.h — 本地商店（PR-S1）+ 联网拉取（PR-S2）+ 资源包（PR-S3）
  */
 #ifndef STORE_H
 #define STORE_H
@@ -9,6 +9,8 @@
 #define STORE_CATALOG_PATH   "Assets/Store/catalog.txt"
 #define STORE_CATALOG_ALT    "Store/catalog.txt"
 #define STORE_APPS_DIR       "Apps"
+#define STORE_FONTS_DIR      "Assets/Fonts"
+#define STORE_PACKS_DIR      "Assets/Packs"
 #define STORE_ID_MAX         32
 #define STORE_FILE_MAX       64
 #define STORE_TITLE_MAX      48
@@ -28,7 +30,7 @@ typedef struct STORE_ENTRY {
 /* 加载 catalog；优先 Store/（S2 同步后），再 Assets/；成功返回条目数 */
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 
-/* 按 id 安装 type=app 到 Apps/<file>；成功 0 */
+/* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/ */
 int StoreInstall(const char *Id);
 
 /* 当前本机 arch 标签（如 x86_64） */

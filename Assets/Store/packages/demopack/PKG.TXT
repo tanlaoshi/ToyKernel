@@ -1,0 +1,7 @@
+name=demopack
+type=asset
+version=1
+file=INFO.TXT
+sha256=-
+arch=any
+title=Demo asset pack

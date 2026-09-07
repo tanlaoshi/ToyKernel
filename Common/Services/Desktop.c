@@ -649,7 +649,10 @@ static void DrawStartMenuRaw(void) {
                              &gIcons[i].Bmp);
             TextX = IconX + MENU_ICON_SZ + 6u;
         }
-        HalVideoDrawStringAt(TextX, Iy + (MENU_ITEM_H - FontCellH()) / 2,
+        HalVideoDrawStringAt(TextX,
+                             Iy + (MENU_ITEM_H > FontCellH()
+                                       ? (MENU_ITEM_H - FontCellH()) / 2
+                                       : 0),
                              Labels[i], COLOR_BLACK);
     }
 }

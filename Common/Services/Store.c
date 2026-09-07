@@ -1,5 +1,5 @@
 /*
- * Store.c — PR-S1：离线 catalog 安装到 Apps/（无网）
+ * Store.c — PR-S1：离线 catalog 安装；PR-S3：font/asset → Assets/
  *
  * 载荷查找顺序：Store/<file> → <file>（卷根）→ Assets/Store/packages/<id>/<file>
  * sha256=- 时跳过校验（教学默认）。
@@ -9,9 +9,17 @@
 #include "Fat.h"
 #include "PhysicalMemory.h"
 #include "HalConsole.h"
+#include "Font.h"
+#include "Theme.h"
 
 #define STORE_CATALOG_MAX  (8u * 1024u)
 #define STORE_COPY_MAX     FAT_WRITE_MAX
+#define STORE_KIND_APP     0
+#define STORE_KIND_FONT    1
+#define STORE_KIND_ASSET   2
+#define STORE_CHECK_NONE   0
+#define STORE_CHECK_ELF    1
+#define STORE_CHECK_TOYF   2
 
 /* 内核任务栈仅 8KiB；catalog 表放 BSS，避免 store sync/HTTP 栈溢出闪退 */
 static STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
@@ -215,7 +223,52 @@ static void JoinPath(char *Dst, int DstMax, const char *A, const char *B) {
     Dst[i] = 0;
 }
 
-static int TryCopy(const char *Src, const char *Dst) {
+static int EnsureDir(const char *Path) {
+    int Err = FileSystemMakeDirectory(Path);
+    if (Err == FAT_OK || Err == FAT_ERR_EXIST) {
+        return FAT_OK;
+    }
+    return Err;
+}
+
+static int EnsureAppsDir(void) {
+    return EnsureDir(STORE_APPS_DIR);
+}
+
+static int EnsureFontsDir(void) {
+    int Err = EnsureDir("Assets");
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    return EnsureDir(STORE_FONTS_DIR);
+}
+
+static int EnsurePacksDir(void) {
+    int Err = EnsureDir("Assets");
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    return EnsureDir(STORE_PACKS_DIR);
+}
+
+static int EntryKind(const char *Type) {
+    if (StrEq(Type, "font")) {
+        return STORE_KIND_FONT;
+    }
+    if (StrEq(Type, "asset")) {
+        return STORE_KIND_ASSET;
+    }
+    if (StrEq(Type, "app") || Type[0] == 0) {
+        return STORE_KIND_APP;
+    }
+    return -1;
+}
+
+/*
+ * Check: ELF / TOYF / 任意 blob（≥4 字节）。
+ * QEMU vvfat：同名覆盖写易坏，先删再建。
+ */
+static int TryCopy(const char *Src, const char *Dst, int Check) {
     FAT_FILE_STAT St;
     UINT8 *Buf;
     UINT32 Pages;
@@ -244,27 +297,41 @@ static int TryCopy(const char *Src, const char *Dst) {
         PhysicalMemoryFreePages(Buf, Pages);
         return Err != FAT_OK ? Err : FAT_ERR_IO;
     }
-    /* 跳过明显损坏的 ELF（空/截断 Store 缓存） */
-    if (!(Buf[0] == 0x7F && Buf[1] == 'E' && Buf[2] == 'L' && Buf[3] == 'F')) {
-        PhysicalMemoryFreePages(Buf, Pages);
-        return FAT_ERR_INVAL;
+    if (Check == STORE_CHECK_ELF) {
+        if (!(Buf[0] == 0x7F && Buf[1] == 'E' && Buf[2] == 'L' && Buf[3] == 'F')) {
+            PhysicalMemoryFreePages(Buf, Pages);
+            return FAT_ERR_INVAL;
+        }
+    } else if (Check == STORE_CHECK_TOYF) {
+        if (!(Buf[0] == 'T' && Buf[1] == 'O' && Buf[2] == 'Y' && Buf[3] == 'F')) {
+            PhysicalMemoryFreePages(Buf, Pages);
+            return FAT_ERR_INVAL;
+        }
     }
-    /*
-     * QEMU vvfat：同名覆盖写常导致宿主文件消失/内容错乱。
-     * 先删再创建，目录项走 DirCreateEntry 路径更稳。
-     */
     (void)FileSystemDeleteFile(Dst);
     Err = FileSystemWriteFile(Dst, Buf, Got);
     PhysicalMemoryFreePages(Buf, Pages);
     return Err;
 }
 
-static int EnsureAppsDir(void) {
-    int Err = FileSystemMakeDirectory(STORE_APPS_DIR);
-    if (Err == FAT_OK || Err == FAT_ERR_EXIST) {
+static int InstallFromSources(const char *Id, const char *File, const char *Dst,
+                              int Check) {
+    char Src[128];
+    char Pkg[160];
+    int Err;
+
+    JoinPath(Src, (int)sizeof(Src), "Store", File);
+    Err = TryCopy(Src, Dst, Check);
+    if (Err == FAT_OK) {
         return FAT_OK;
     }
-    return Err;
+    Err = TryCopy(File, Dst, Check);
+    if (Err == FAT_OK) {
+        return FAT_OK;
+    }
+    JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
+    JoinPath(Src, (int)sizeof(Src), Pkg, File);
+    return TryCopy(Src, Dst, Check);
 }
 
 int StoreInstall(const char *Id) {
@@ -272,9 +339,9 @@ int StoreInstall(const char *Id) {
     int Count = 0;
     int i;
     int Err;
-    char Src[128];
+    int Kind;
+    int Check;
     char Dst[96];
-    char Pkg[160];
 
     if (!Id || Id[0] == 0) {
         return FAT_ERR_INVAL;
@@ -287,40 +354,48 @@ int StoreInstall(const char *Id) {
         if (!StrEq(Tab[i].Id, Id)) {
             continue;
         }
-        if (!StrEq(Tab[i].Type, "app")) {
-            HalConsoleWriteSerial("store: only type=app in S1\n");
+        Kind = EntryKind(Tab[i].Type);
+        if (Kind < 0) {
+            HalConsoleWriteSerial("store: bad type (app|font|asset)\n");
             return FAT_ERR_INVAL;
         }
         if (!ArchOk(Tab[i].Arch)) {
             HalConsoleWriteSerial("store: arch mismatch\n");
             return FAT_ERR_INVAL;
         }
-        if (Tab[i].Sha256[0] && Tab[i].Sha256[0] != '-') {
-            /* S1：有哈希也先跳过（无 SHA 实现）；S2 再验 */
+
+        if (Kind == STORE_KIND_APP) {
+            Err = EnsureAppsDir();
+            if (Err != FAT_OK) {
+                return Err;
+            }
+            JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, Tab[i].File);
+            Check = STORE_CHECK_ELF;
+        } else if (Kind == STORE_KIND_FONT) {
+            Err = EnsureFontsDir();
+            if (Err != FAT_OK) {
+                return Err;
+            }
+            JoinPath(Dst, (int)sizeof(Dst), STORE_FONTS_DIR, Tab[i].File);
+            Check = STORE_CHECK_TOYF;
+        } else {
+            Err = EnsurePacksDir();
+            if (Err != FAT_OK) {
+                return Err;
+            }
+            JoinPath(Dst, (int)sizeof(Dst), STORE_PACKS_DIR, Tab[i].File);
+            Check = STORE_CHECK_NONE;
         }
-        Err = EnsureAppsDir();
+
+        Err = InstallFromSources(Tab[i].Id, Tab[i].File, Dst, Check);
         if (Err != FAT_OK) {
             return Err;
         }
-        JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, Tab[i].File);
-
-        JoinPath(Src, (int)sizeof(Src), "Store", Tab[i].File);
-        Err = TryCopy(Src, Dst);
-        if (Err == FAT_OK) {
-            return FAT_OK;
+        if (Kind == STORE_KIND_FONT) {
+            (void)FontReloadAssets();
+            ThemeClampFontId();
         }
-        Err = TryCopy(Tab[i].File, Dst);
-        if (Err == FAT_OK) {
-            return FAT_OK;
-        }
-        /* Assets/Store/packages/<id>/<file> */
-        JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Tab[i].Id);
-        JoinPath(Src, (int)sizeof(Src), Pkg, Tab[i].File);
-        Err = TryCopy(Src, Dst);
-        if (Err == FAT_OK) {
-            return FAT_OK;
-        }
-        return FAT_ERR_NOENT;
+        return FAT_OK;
     }
     return FAT_ERR_NOENT;
 }
