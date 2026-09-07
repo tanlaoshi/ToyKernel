@@ -5,4 +5,4 @@ file=GUIDEMO.ELF
 sha256=-
 arch=x86_64
 title=GUI Demo
-depends=demopack
+depends=demopack,sun8

@@ -2,6 +2,7 @@
  * Store.c — PR-S1：离线 catalog 安装；PR-S3：font/asset → Assets/
  *           PR-S4：ToyDB 已装清单 + store remove
  *           PR-M1：depends=（catalog 第 8 段 / PKG.TXT）；缺依赖拒绝安装
+ *           PR-M2：store combo / uncombo — 按依赖顺序装卸多包「功能」
  *
  * 载荷查找顺序：Store/<file> → <file>（卷根）→ Assets/Store/packages/<id>/<file>
  * sha256=- 时跳过校验（教学默认）。
@@ -351,7 +352,7 @@ static int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
     return 0;
 }
 
-/* 缺依赖 → 串口提示并返回 FAT_ERR_INVAL（不静默强装） */
+/* 缺依赖 → 串口提示并返回 FAT_ERR_INVAL（不静默强装；M1 / 单包 install） */
 static int CheckDependsInstalled(const char *Depends) {
     char Tok[STORE_ID_MAX];
     const char *P;
@@ -391,10 +392,163 @@ static int CheckDependsInstalled(const char *Depends) {
     }
     if (Missing) {
         HalConsoleWriteSerial("\n");
-        HalConsoleWriteSerial("hint: store install <dep> first (no force)\n");
+        HalConsoleWriteSerial("hint: store install <dep> first, or store combo <id>\n");
         return FAT_ERR_INVAL;
     }
     return FAT_OK;
+}
+
+/* Depends 串是否含 Id（逗号分隔） */
+static int DependsHasId(const char *Depends, const char *Id) {
+    char Tok[STORE_ID_MAX];
+    const char *P;
+    int n;
+
+    if (!Depends || !Id || Id[0] == 0 || Depends[0] == 0 ||
+        (Depends[0] == '-' && Depends[1] == 0)) {
+        return 0;
+    }
+    P = Depends;
+    while (*P) {
+        while (*P == ',' || *P == ' ' || *P == '\t') {
+            P++;
+        }
+        if (*P == 0) {
+            break;
+        }
+        n = 0;
+        while (*P && *P != ',' && n + 1 < STORE_ID_MAX) {
+            if (*P != ' ' && *P != '\t') {
+                Tok[n++] = *P;
+            }
+            P++;
+        }
+        Tok[n] = 0;
+        if (Tok[0] && StrEq(Tok, Id)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* catalog + PKG 覆盖 → OutDepends（已 Normalize） */
+static int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax) {
+    STORE_ENTRY *Tab = gStoreTab;
+    int Count = 0;
+    int i;
+    int Err;
+
+    if (!Id || !OutDepends || OutMax <= 0) {
+        return FAT_ERR_INVAL;
+    }
+    OutDepends[0] = 0;
+    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+    if (Err < 0) {
+        return Err;
+    }
+    for (i = 0; i < Count; i++) {
+        if (!StrEq(Tab[i].Id, Id)) {
+            continue;
+        }
+        CopyStr(OutDepends, OutMax, Tab[i].Depends);
+        if (LoadPkgDepends(Tab[i].Id, OutDepends, OutMax)) {
+            /* PKG 覆盖 */
+        }
+        NormalizeDepends(OutDepends);
+        return FAT_OK;
+    }
+    return FAT_ERR_NOENT;
+}
+
+/* 已装包中谁依赖 Id → OutIds；返回数量 */
+static int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max) {
+    STORE_INSTALLED Inst[STORE_INSTALLED_MAX];
+    int N = 0;
+    int i;
+    int OutN = 0;
+    char Dep[STORE_DEPENDS_MAX];
+
+    if (!Id || !OutIds || Max <= 0) {
+        return 0;
+    }
+    if (StoreListInstalled(Inst, STORE_INSTALLED_MAX, &N) != FAT_OK) {
+        return 0;
+    }
+    for (i = 0; i < N && OutN < Max; i++) {
+        if (StrEq(Inst[i].Id, Id)) {
+            continue;
+        }
+        Dep[0] = 0;
+        (void)StoreGetDepends(Inst[i].Id, Dep, (int)sizeof(Dep));
+        if (DependsHasId(Dep, Id)) {
+            CopyStr(OutIds[OutN], STORE_ID_MAX, Inst[i].Id);
+            OutN++;
+        }
+    }
+    return OutN;
+}
+
+static int ComboInstallRec(const char *Id, int Depth);
+
+int StoreComboInstall(const char *Id) {
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    return ComboInstallRec(Id, 0);
+}
+
+static int ComboInstallRec(const char *Id, int Depth) {
+    char DepBuf[STORE_DEPENDS_MAX];
+    char Tok[STORE_ID_MAX];
+    const char *P;
+    int n;
+    int Err;
+
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    if (Depth > STORE_ENTRIES_MAX) {
+        HalConsoleWriteSerial("store combo: depends cycle or too deep\n");
+        return FAT_ERR_INVAL;
+    }
+    if (StoreIsInstalled(Id)) {
+        return FAT_OK;
+    }
+
+    Err = ResolveEntryDepends(Id, DepBuf, (int)sizeof(DepBuf));
+    if (Err != FAT_OK) {
+        return Err;
+    }
+
+    P = DepBuf;
+    while (*P) {
+        while (*P == ',' || *P == ' ' || *P == '\t') {
+            P++;
+        }
+        if (*P == 0) {
+            break;
+        }
+        n = 0;
+        while (*P && *P != ',' && n + 1 < STORE_ID_MAX) {
+            if (*P != ' ' && *P != '\t') {
+                Tok[n++] = *P;
+            }
+            P++;
+        }
+        Tok[n] = 0;
+        if (Tok[0] == 0) {
+            continue;
+        }
+        Err = ComboInstallRec(Tok, Depth + 1);
+        if (Err != FAT_OK) {
+            return Err;
+        }
+    }
+
+    HalConsoleWriteSerial("store combo: +");
+    HalConsoleWriteSerial(Id);
+    HalConsoleWriteSerial("\n");
+    return StoreInstall(Id);
 }
 
 /*
@@ -675,10 +829,12 @@ int StoreRemove(const char *Id) {
     char Type[12];
     char File[STORE_FILE_MAX];
     char Dst[96];
+    char Users[STORE_INSTALLED_MAX][STORE_ID_MAX];
     const char *Bar;
     int i;
     int Kind;
     int Err;
+    int UserN;
 
     if (!Id || Id[0] == 0) {
         return FAT_ERR_INVAL;
@@ -689,6 +845,20 @@ int StoreRemove(const char *Id) {
     if (DbGet(Key, Val, sizeof(Val)) != DB_OK) {
         return FAT_ERR_NOENT;
     }
+
+    /* PR-M2：仍有已装包依赖本 Id → 拒绝（先卸上层） */
+    UserN = CollectDependents(Id, Users, STORE_INSTALLED_MAX);
+    if (UserN > 0) {
+        HalConsoleWriteSerial("store: still required by:");
+        for (i = 0; i < UserN; i++) {
+            HalConsoleWriteSerial(" ");
+            HalConsoleWriteSerial(Users[i]);
+        }
+        HalConsoleWriteSerial("\n");
+        HalConsoleWriteSerial("hint: store remove <user> first, or store uncombo <leaf>\n");
+        return FAT_ERR_INVAL;
+    }
+
     Bar = Val;
     while (*Bar && *Bar != '|') {
         Bar++;
@@ -733,6 +903,79 @@ int StoreRemove(const char *Id) {
     if (Kind == STORE_KIND_FONT) {
         (void)FontReloadAssets();
         ThemeClampFontId();
+    }
+    return FAT_OK;
+}
+
+int StoreComboRemove(const char *Id) {
+    char DepBuf[STORE_DEPENDS_MAX];
+    char Tok[STORE_ID_MAX];
+    char Deps[STORE_ENTRIES_MAX][STORE_ID_MAX];
+    const char *P;
+    int DepN = 0;
+    int n;
+    int i;
+    int Err;
+    int Users;
+
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    if (!StoreIsInstalled(Id)) {
+        return FAT_ERR_NOENT;
+    }
+
+    DepBuf[0] = 0;
+    (void)StoreGetDepends(Id, DepBuf, (int)sizeof(DepBuf));
+    NormalizeDepends(DepBuf);
+
+    P = DepBuf;
+    while (*P && DepN < STORE_ENTRIES_MAX) {
+        while (*P == ',' || *P == ' ' || *P == '\t') {
+            P++;
+        }
+        if (*P == 0) {
+            break;
+        }
+        n = 0;
+        while (*P && *P != ',' && n + 1 < STORE_ID_MAX) {
+            if (*P != ' ' && *P != '\t') {
+                Tok[n++] = *P;
+            }
+            P++;
+        }
+        Tok[n] = 0;
+        if (Tok[0]) {
+            CopyStr(Deps[DepN], STORE_ID_MAX, Tok);
+            DepN++;
+        }
+    }
+
+    HalConsoleWriteSerial("store uncombo: -");
+    HalConsoleWriteSerial(Id);
+    HalConsoleWriteSerial("\n");
+    Err = StoreRemove(Id);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+
+    /* 逆序卸依赖：仅当已无其他包引用 */
+    for (i = DepN - 1; i >= 0; i--) {
+        char UsersArr[STORE_INSTALLED_MAX][STORE_ID_MAX];
+        if (!StoreIsInstalled(Deps[i])) {
+            continue;
+        }
+        Users = CollectDependents(Deps[i], UsersArr, STORE_INSTALLED_MAX);
+        if (Users > 0) {
+            continue;
+        }
+        HalConsoleWriteSerial("store uncombo: -");
+        HalConsoleWriteSerial(Deps[i]);
+        HalConsoleWriteSerial("\n");
+        Err = StoreRemove(Deps[i]);
+        if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+            return Err;
+        }
     }
     return FAT_OK;
 }

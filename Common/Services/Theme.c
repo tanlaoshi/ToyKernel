@@ -1,7 +1,7 @@
 /*
  * Theme.c — 主题存储（PR-D2）+ THEME.CFG（PR-D6）+ mode=WxH（PR-D7）+ TOYOS.DB（PR-DB1）
  *
- * 运行时偏好优先读 TOYOS.DB；仍写 THEME.CFG 供 ToyBoot GOP SetMode。
+ * 运行时偏好优先读 TOYOS.DB；写盘时先 THEME.CFG 再 DB（QEMU edid 认 CFG）。
  * 键：desktop / shell / font / mode（与 THEME.CFG 同名）。
  */
 #include "Theme.h"
@@ -408,15 +408,6 @@ int ThemeSave(void) {
     int i;
     int DbOk = 1;
 
-    PutHex6(Hex, gDesktopBg);
-    Hex[6] = 0;
-    if (DbSet("desktop", Hex) != DB_OK) {
-        DbOk = 0;
-    }
-    PutHex6(Hex, gShellClientBg);
-    if (DbSet("shell", Hex) != DB_OK) {
-        DbOk = 0;
-    }
     FontVal[0] = 0;
     N = 0;
     if (gFontId >= 10) {
@@ -424,23 +415,18 @@ int ThemeSave(void) {
     }
     FontVal[N++] = (char)('0' + (gFontId % 10));
     FontVal[N] = 0;
-    if (DbSet("font", FontVal) != DB_OK) {
-        DbOk = 0;
-    }
     if (ThemeHasDisplayPref()) {
         ModeLen = 0;
         PutDec(ModeVal, gModeW, &ModeLen);
         ModeVal[ModeLen++] = 'x';
         PutDec(ModeVal, gModeH, &ModeLen);
         ModeVal[ModeLen] = 0;
-        if (DbSet("mode", ModeVal) != DB_OK) {
-            DbOk = 0;
-        }
-    } else {
-        (void)DbDelete("mode");
     }
 
-    /* 仍写 THEME.CFG：Boot 读 mode= 做 SetMode */
+    /*
+     * 先写 THEME.CFG：QEMU edid / ToyBoot 认 CFG；若先写 DB 再 CFG 失败，
+     * Settings 显示新分辨率、下次启动仍用旧 edid（常见「设了却变回 1600x900」）。
+     */
     N = 0;
     Buf[N++] = 'd';
     Buf[N++] = 'e';
@@ -492,14 +478,37 @@ int ThemeSave(void) {
     }
     Buf[N] = 0;
 
+    /* vvfat：同名覆盖偶发不稳；先删再建 */
+    (void)FileSystemDeleteFile(THEME_CFG_PATH);
     if (FileSystemWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
         HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
         return -1;
     }
+
+    PutHex6(Hex, gDesktopBg);
+    Hex[6] = 0;
+    if (DbSet("desktop", Hex) != DB_OK) {
+        DbOk = 0;
+    }
+    PutHex6(Hex, gShellClientBg);
+    if (DbSet("shell", Hex) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("font", FontVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (ThemeHasDisplayPref()) {
+        if (DbSet("mode", ModeVal) != DB_OK) {
+            DbOk = 0;
+        }
+    } else {
+        (void)DbDelete("mode");
+    }
+
     if (!DbOk) {
         HalConsoleWriteSerial("theme: saved THEME.CFG (DB write failed)\n");
     } else {
-        HalConsoleWriteSerial("theme: saved TOYOS.DB + THEME.CFG\n");
+        HalConsoleWriteSerial("theme: saved THEME.CFG + TOYOS.DB\n");
     }
     return 0;
 }

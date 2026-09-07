@@ -1,5 +1,5 @@
 /*
- * Store.h — 本地商店（PR-S1～S5）+ 依赖字段（PR-M1）
+ * Store.h — 本地商店（PR-S1～S5）+ 依赖（PR-M1）+ 组合装卸（PR-M2）
  */
 #ifndef STORE_H
 #define STORE_H
@@ -43,9 +43,15 @@ int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 /* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/；并记清单 */
 int StoreInstall(const char *Id);
 
+/* PR-M2：按依赖顺序装齐「功能」（缺依赖先装，再装 Id）；单包仍可用 StoreInstall */
+int StoreComboInstall(const char *Id);
+
 /* PR-S4：列已装 / 卸载（删载荷 + 清 ToyDB） */
 int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount);
 int StoreRemove(const char *Id);
+
+/* PR-M2：卸 Id，再卸其依赖中已无引用者（逆序组合拆卸） */
+int StoreComboRemove(const char *Id);
 
 /* PR-S5：可见性 — 是否已装 / 依赖串（sd.<id>，缺省 "-"） */
 int StoreIsInstalled(const char *Id);

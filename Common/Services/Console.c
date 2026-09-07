@@ -2,7 +2,8 @@
  * Console.c — 简易命令行 Shell
  *
  * 维护输入行缓冲与命令表，解析空格分隔参数后分发给 Handler。
- * 内置 help / clear / echo；其他模块通过 ConsoleRegister 扩展命令。
+ * 内置 help / clear / echo；其他模块通过 ConsoleRegister / Register2 扩展。
+ * PR-C1：一级/二级分发 + 别名（别名不占 CMD 槽）。
  *
  * 输出经 HalConsole 门面：串口（HalConsoleWriteSerial）与帧缓冲（HalConsoleDraw*，
  * 由本文件配合 Gui 做 clip/备份同步）；不直接调用 HalSerial/HalVideo。
@@ -16,11 +17,14 @@
 #include "Locale.h"
 #include "HIDKeyboard.h"
 #include "LibWrite.h"
+#include "ShellCommands.h"
 
 #define LINE_MAX 128
 #define ARG_MAX  8
 /* builtins+Shell+FS+Db+lwip 已超 32；满表时 ConsoleRegister 静默失败会丢末尾命令（如 lwip） */
 #define CMD_MAX  48
+#define SUB_MAX  12
+#define ALIAS_MAX 48
 /* PR-I2 补：Shell 行缓冲滚动（替代破坏性像素平移） */
 #define SB_LINES 64
 #define SB_COLS  120
@@ -29,10 +33,26 @@ typedef struct {
     const char *Name;
     const char *Help;
     void (*Handler)(int Argc, char **Argv);
+} COMMAND_SUB;
+
+typedef struct {
+    const char *Name;
+    const char *Help;
+    void (*Handler)(int Argc, char **Argv); /* 无二级时使用；有二级则为 NULL */
+    COMMAND_SUB Subs[SUB_MAX];
+    int SubCount;
 } COMMAND;
+
+typedef struct {
+    const char *Alias;
+    const char *Level1;
+    const char *Level2; /* NULL = 仅改写一级 */
+} COMMAND_ALIAS;
 
 static COMMAND gCommands[CMD_MAX];
 static int gCmdCount;
+static COMMAND_ALIAS gAliases[ALIAS_MAX];
+static int gAliasCount;
 static char gLine[LINE_MAX];
 static int gLen;
 static int gWaitPrompt;
@@ -431,17 +451,64 @@ int ConsolePromptSuspended(void) {
     return gPromptSuspend > 0;
 }
 
-/* 内置命令：列出所有已注册命令 */
+/* 内置命令：列出所有已注册命令（一级分组；二级缩进；括号列别名） */
+static void HelpWriteAliasesFor(const char *Level1, const char *Level2) {
+    int First = 1;
+    int i;
+
+    for (i = 0; i < gAliasCount; i++) {
+        if (!StrEq(gAliases[i].Level1, Level1)) {
+            continue;
+        }
+        if (Level2 == 0) {
+            if (gAliases[i].Level2 != 0) {
+                continue;
+            }
+        } else {
+            if (gAliases[i].Level2 == 0 || !StrEq(gAliases[i].Level2, Level2)) {
+                continue;
+            }
+        }
+        if (First) {
+            ConsoleWrite(" (");
+            First = 0;
+        } else {
+            ConsoleWrite(", ");
+        }
+        ConsoleWrite(gAliases[i].Alias);
+    }
+    if (!First) {
+        ConsoleWrite(")");
+    }
+}
+
 static void CommandHelp(int Argc, char **Argv) {
+    int i;
+    int s;
+
     (void)Argc;
     (void)Argv;
     ConsoleWrite("commands:\n");
-    for (int i = 0; i < gCmdCount; i++) {
+    for (i = 0; i < gCmdCount; i++) {
         ConsoleWrite("  ");
         ConsoleWrite(gCommands[i].Name);
-        ConsoleWrite("  ");
-        ConsoleWrite(gCommands[i].Help);
-        ConsoleWrite("\n");
+        if (gCommands[i].SubCount > 0) {
+            HelpWriteAliasesFor(gCommands[i].Name, 0);
+            ConsoleWrite("\n");
+            for (s = 0; s < gCommands[i].SubCount; s++) {
+                ConsoleWrite("    ");
+                ConsoleWrite(gCommands[i].Subs[s].Name);
+                ConsoleWrite("  ");
+                ConsoleWrite(gCommands[i].Subs[s].Help);
+                HelpWriteAliasesFor(gCommands[i].Name, gCommands[i].Subs[s].Name);
+                ConsoleWrite("\n");
+            }
+        } else {
+            ConsoleWrite("  ");
+            ConsoleWrite(gCommands[i].Help);
+            HelpWriteAliasesFor(gCommands[i].Name, 0);
+            ConsoleWrite("\n");
+        }
     }
 }
 
@@ -466,10 +533,50 @@ static void CommandEcho(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* 注册一条 Shell 命令（名称、帮助、处理函数） */
+static int FindCommandIndex(const char *Name) {
+    int i;
+
+    for (i = 0; i < gCmdCount; i++) {
+        if (StrEq(gCommands[i].Name, Name)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void PrintLevel1Usage(const COMMAND *Cmd) {
+    int s;
+
+    ConsoleWrite("usage: ");
+    ConsoleWrite(Cmd->Name);
+    ConsoleWrite(" <");
+    for (s = 0; s < Cmd->SubCount; s++) {
+        if (s > 0) {
+            ConsoleWrite("|");
+        }
+        ConsoleWrite(Cmd->Subs[s].Name);
+    }
+    ConsoleWrite("> ...\n");
+}
+
+/* 注册一条仅一级的 Shell 命令（名称、帮助、处理函数） */
 void ConsoleRegister(const char *Name, const char *Help,
                      void (*Handler)(int Argc, char **Argv)) {
+    int Idx;
+
     if (Name == 0 || Handler == 0) {
+        return;
+    }
+    Idx = FindCommandIndex(Name);
+    if (Idx >= 0) {
+        if (gCommands[Idx].SubCount > 0) {
+            HalConsoleWriteSerial("console: Register on L1 with subs, drop ");
+            HalConsoleWriteSerial(Name);
+            HalConsoleWriteSerial("\n");
+            return;
+        }
+        gCommands[Idx].Help = Help ? Help : "";
+        gCommands[Idx].Handler = Handler;
         return;
     }
     if (gCmdCount >= CMD_MAX) {
@@ -481,15 +588,100 @@ void ConsoleRegister(const char *Name, const char *Help,
     gCommands[gCmdCount].Name = Name;
     gCommands[gCmdCount].Help = Help ? Help : "";
     gCommands[gCmdCount].Handler = Handler;
+    gCommands[gCmdCount].SubCount = 0;
     gCmdCount++;
+}
+
+/* 注册一级+二级；同一一级可多次调用追加二级 */
+void ConsoleRegister2(const char *Level1, const char *Level2, const char *Help,
+                      void (*Handler)(int Argc, char **Argv)) {
+    int Idx;
+    int s;
+
+    if (Level1 == 0 || Level2 == 0 || Handler == 0) {
+        return;
+    }
+    Idx = FindCommandIndex(Level1);
+    if (Idx < 0) {
+        if (gCmdCount >= CMD_MAX) {
+            HalConsoleWriteSerial("console: CMD_MAX full, drop ");
+            HalConsoleWriteSerial(Level1);
+            HalConsoleWriteSerial("\n");
+            return;
+        }
+        Idx = gCmdCount;
+        gCommands[Idx].Name = Level1;
+        gCommands[Idx].Help = "";
+        gCommands[Idx].Handler = 0;
+        gCommands[Idx].SubCount = 0;
+        gCmdCount++;
+    } else if (gCommands[Idx].Handler != 0 && gCommands[Idx].SubCount == 0) {
+        gCommands[Idx].Handler = 0;
+    }
+
+    for (s = 0; s < gCommands[Idx].SubCount; s++) {
+        if (StrEq(gCommands[Idx].Subs[s].Name, Level2)) {
+            gCommands[Idx].Subs[s].Help = Help ? Help : "";
+            gCommands[Idx].Subs[s].Handler = Handler;
+            return;
+        }
+    }
+    if (gCommands[Idx].SubCount >= SUB_MAX) {
+        HalConsoleWriteSerial("console: SUB_MAX full, drop ");
+        HalConsoleWriteSerial(Level1);
+        HalConsoleWriteSerial(" ");
+        HalConsoleWriteSerial(Level2);
+        HalConsoleWriteSerial("\n");
+        return;
+    }
+    s = gCommands[Idx].SubCount;
+    gCommands[Idx].Subs[s].Name = Level2;
+    gCommands[Idx].Subs[s].Help = Help ? Help : "";
+    gCommands[Idx].Subs[s].Handler = Handler;
+    gCommands[Idx].SubCount++;
+}
+
+void ConsoleRegisterAlias(const char *CanonicalLevel1, const char *Alias) {
+    if (CanonicalLevel1 == 0 || Alias == 0) {
+        return;
+    }
+    if (gAliasCount >= ALIAS_MAX) {
+        HalConsoleWriteSerial("console: ALIAS_MAX full\n");
+        return;
+    }
+    gAliases[gAliasCount].Alias = Alias;
+    gAliases[gAliasCount].Level1 = CanonicalLevel1;
+    gAliases[gAliasCount].Level2 = 0;
+    gAliasCount++;
+}
+
+void ConsoleRegisterAliasLine(const char *Alias, const char *Level1,
+                              const char *Level2) {
+    if (Alias == 0 || Level1 == 0 || Level2 == 0) {
+        return;
+    }
+    if (gAliasCount >= ALIAS_MAX) {
+        HalConsoleWriteSerial("console: ALIAS_MAX full\n");
+        return;
+    }
+    gAliases[gAliasCount].Alias = Alias;
+    gAliases[gAliasCount].Level1 = Level1;
+    gAliases[gAliasCount].Level2 = Level2;
+    gAliasCount++;
 }
 
 /* 解析当前输入行并执行匹配的命令 */
 static void RunLine(void) {
     char Buf[LINE_MAX];
     char *Argv[ARG_MAX];
+    char *Work[ARG_MAX];
     int Argc = 0;
+    int WorkArgc;
     int i;
+    int a;
+    int Idx;
+    int s;
+    const COMMAND_ALIAS *Al = 0;
 
     if (gLen >= LINE_MAX) {
         gLen = LINE_MAX - 1;
@@ -519,14 +711,64 @@ static void RunLine(void) {
     if (Argc == 0) {
         return;
     }
-    for (i = 0; i < gCmdCount; i++) {
-        if (StrEq(Argv[0], gCommands[i].Name)) {
-            gCommands[i].Handler(Argc, Argv);
-            return;
+
+    for (a = 0; a < gAliasCount; a++) {
+        if (StrEq(Argv[0], gAliases[a].Alias)) {
+            Al = &gAliases[a];
+            break;
         }
     }
+
+    WorkArgc = 0;
+    if (Al != 0 && Al->Level2 != 0) {
+        if (Argc + 1 > ARG_MAX) {
+            ConsoleWrite("too many args\n");
+            return;
+        }
+        Work[WorkArgc++] = (char *)Al->Level1;
+        Work[WorkArgc++] = (char *)Al->Level2;
+        for (i = 1; i < Argc; i++) {
+            Work[WorkArgc++] = Argv[i];
+        }
+    } else {
+        for (i = 0; i < Argc; i++) {
+            Work[i] = Argv[i];
+        }
+        WorkArgc = Argc;
+        if (Al != 0) {
+            Work[0] = (char *)Al->Level1;
+        }
+    }
+
+    Idx = FindCommandIndex(Work[0]);
+    if (Idx < 0) {
+        ConsoleWrite("unknown: ");
+        ConsoleWrite(Work[0]);
+        ConsoleWrite("  (help)\n");
+        return;
+    }
+
+    if (gCommands[Idx].SubCount > 0) {
+        if (WorkArgc < 2) {
+            PrintLevel1Usage(&gCommands[Idx]);
+            return;
+        }
+        for (s = 0; s < gCommands[Idx].SubCount; s++) {
+            if (StrEq(Work[1], gCommands[Idx].Subs[s].Name)) {
+                gCommands[Idx].Subs[s].Handler(WorkArgc - 1, &Work[1]);
+                return;
+            }
+        }
+        PrintLevel1Usage(&gCommands[Idx]);
+        return;
+    }
+
+    if (gCommands[Idx].Handler != 0) {
+        gCommands[Idx].Handler(WorkArgc, Work);
+        return;
+    }
     ConsoleWrite("unknown: ");
-    ConsoleWrite(Argv[0]);
+    ConsoleWrite(Work[0]);
     ConsoleWrite("  (help)\n");
 }
 
@@ -783,9 +1025,12 @@ void ConsoleOnBackspace(void) {
     HalConsoleBackspaceSerial();
 }
 
+void ConsoleDiscardInput(void) {
+    gLen = 0;
+}
+
 void ConsoleCancelInput(void) {
-    if ((!HalConsoleOnly() && !GuiShellAcceptsInput()) ||
-        gLen <= 0) {
+    if (!HalConsoleOnly() && !GuiShellAcceptsInput()) {
         return;
     }
     while (gLen > 0) {
@@ -793,6 +1038,14 @@ void ConsoleCancelInput(void) {
     }
     ConsoleWrite("^C\n");
     if (gWaitPrompt == 0 && !ConsolePromptSuspended()) {
+        Prompt();
+    }
+}
+
+/* 强制结束 listen 等对提示符的挂起（可叠多层） */
+void ConsoleForceResumePrompt(void) {
+    gPromptSuspend = 0;
+    if (gWaitPrompt == 0) {
         Prompt();
     }
 }
@@ -822,8 +1075,16 @@ void ConsoleOnEnter(void) {
         /* 仅用 Enter 开窗：已有欢迎语+提示符，勿再当空命令执行 */
         return;
     }
+    /*
+     * listen 等挂起提示期间：空回车只应忽略。若不在此清空 gLen，
+     * Prompt() 不会跑，旧命令仍留在缓冲里，再按 Enter 会重跑并叠加 Suspend。
+     */
+    if (ConsolePromptSuspended() && gLen == 0) {
+        return;
+    }
     ConsoleWrite("\n");
     RunLine();
+    gLen = 0;
     ConsolePromptAfterCommand();
 }
 
@@ -850,7 +1111,7 @@ void ConsoleSerialRun(void) {
             } else if (C == '\b' || C == 127) {
                 ConsoleOnBackspace();
             } else if (C == 3) {
-                ConsoleCancelInput();
+                ShellOnInterrupt();
             } else {
                 ConsoleOnChar(C);
             }
@@ -877,6 +1138,9 @@ void ConsoleSerialRun(void) {
                     ConsoleOnEnter();
                 } else if (Key == 0x2A) { /* BACKSPACE */
                     ConsoleOnBackspace();
+                } else if (Key == HID_KEY_C &&
+                           (Report.ModifierKeys & (HID_MOD_LCTRL | HID_MOD_RCTRL)) != 0) {
+                    ShellOnInterrupt();
                 } else {
                     char C = HIDKeyCodeToASCII(Key, Report.ModifierKeys);
                     if (C) {

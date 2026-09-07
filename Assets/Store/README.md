@@ -35,15 +35,21 @@ id|type|version|file|sha256|arch|title[|depends]
 | `sha256` | `-` 跳过；**8 位 hex** = 教学 FNV-1a-32（非真 SHA-256） |
 | `arch` | `x86_64` / `arm64` / `riscv64` / `any` |
 | `title` | 显示名（可 UTF-8） |
-| `depends` | **可选（PR-M1）**：逗号分隔包 id；缺依赖时 `store install` 提示并拒绝 |
+| `depends` | **可选（PR-M1）**：逗号分隔包 id；`store install` 缺依赖拒绝；**PR-M2** `store combo` 按序装齐 |
 
-示例（M1）：
+示例（M2 功能 = app + asset + font）：
 
 ```text
-guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo|demopack
+guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo|demopack,sun8
 demopack|asset|1|INFO.TXT|-|any|Demo asset pack
+sun8|font|1|VGA8X16.FNT|-|any|Sun 8x16 (store)
 ```
 
+```text
+store combo guidemo      # demopack → sun8 → guidemo
+store remove demopack    # 拒绝（仍被 guidemo 需要）
+store uncombo guidemo    # -guidemo → -sun8 → -demopack（无引用才卸）
+```
 ## PKG.TXT（可选，包目录内）
 
 与规划稿一致的 `key=value`；`file=` 相对该包目录。  

@@ -374,7 +374,8 @@ void ShellOnInterrupt(void) {
     if (LwIpActive()) {
         if (LwIpTcpListenStop() == 0) {
             ConsoleWrite("lwip: echo server stopped\n");
-            ConsoleResumePrompt();
+            ConsoleDiscardInput();
+            ConsoleForceResumePrompt();
             return;
         }
     }
@@ -382,7 +383,15 @@ void ShellOnInterrupt(void) {
     if (TcpGetState() == TCP_LISTEN) {
         TcpListenStop();
         ConsoleWrite("tcp: echo server stopped\n");
-        ConsoleResumePrompt();
+        ConsoleDiscardInput();
+        ConsoleForceResumePrompt();
+        return;
+    }
+    /* 挂起中但已非 LISTEN（曾叠层 Suspend）：仍恢复提示符 */
+    if (ConsolePromptSuspended()) {
+        ConsoleWrite("tcp: echo server stopped\n");
+        ConsoleDiscardInput();
+        ConsoleForceResumePrompt();
         return;
     }
     ConsoleCancelInput();
@@ -391,7 +400,7 @@ void ShellOnInterrupt(void) {
 static void CommandTcpListen(int Argc, char **Argv) {
     UINT32 Port = 0;
     if (Argc < 2) {
-        ConsoleWrite("usage: tcplisten <port>|stop\n");
+        ConsoleWrite("usage: tcp listen <port>|stop\n");
         return;
     }
     if (ArgIsStop(Argv[1])) {
@@ -401,18 +410,20 @@ static void CommandTcpListen(int Argc, char **Argv) {
                 ConsoleWrite("tcplisten: not listening\n");
                 return;
             }
-            ConsoleWrite("lwip: echo server stopped\n");
-            ConsoleResumePrompt();
+        ConsoleWrite("lwip: echo server stopped\n");
+            ConsoleDiscardInput();
+            ConsoleForceResumePrompt();
             return;
         }
 #endif
-        if (TcpGetState() != TCP_LISTEN) {
+    if (TcpGetState() != TCP_LISTEN) {
             ConsoleWrite("tcplisten: not listening\n");
             return;
         }
         TcpListenStop();
         ConsoleWrite("tcp: echo server stopped\n");
-        ConsoleResumePrompt();
+        ConsoleDiscardInput();
+        ConsoleForceResumePrompt();
         return;
     }
     for (const char *P = Argv[1]; *P; P++) {
@@ -428,7 +439,9 @@ static void CommandTcpListen(int Argc, char **Argv) {
             ConsoleWrite("tcplisten: failed\n");
             return;
         }
-        ConsoleSuspendPrompt();
+        if (!ConsolePromptSuspended()) {
+            ConsoleSuspendPrompt();
+        }
         ConsoleWrite("lwip: echo server on ");
         ConsoleHex32(Port);
         ConsoleWrite("\n");
@@ -436,7 +449,9 @@ static void CommandTcpListen(int Argc, char **Argv) {
     }
 #endif
     TcpListen((UINT16)Port);
-    ConsoleSuspendPrompt();
+    if (!ConsolePromptSuspended()) {
+        ConsoleSuspendPrompt();
+    }
     ConsoleWrite("tcp: echo server on ");
     ConsoleHex32(Port);
     ConsoleWrite("\n");
@@ -490,7 +505,7 @@ static void CommandTcpConnect(int Argc, char **Argv) {
     UINT32 Port = 0;
     UINTN TextLen;
     if (Argc < 4) {
-        ConsoleWrite("usage: tcpconnect <ip> <port> <text>\n");
+        ConsoleWrite("usage: tcp connect <ip> <port> <text>\n");
         return;
     }
 #ifdef TOY_LWIP
@@ -797,6 +812,7 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("store install: ");
             ConsoleWrite(FatStrError(Err));
             ConsoleWrite("\n");
+            ConsoleWrite("hint: store combo <id> installs depends first\n");
             return;
         }
         {
@@ -884,9 +900,53 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("store remove: ");
             ConsoleWrite(FatStrError(Err));
             ConsoleWrite("\n");
+            ConsoleWrite("hint: still required? store uncombo <leaf>\n");
             return;
         }
         ConsoleWrite("store: removed ");
+        ConsoleWrite(Argv[2]);
+        ConsoleWrite("\n");
+        return;
+    }
+
+    /* PR-M2：store combo <id> — 按依赖顺序装齐功能 */
+    if (Argc >= 2 && Argv[1][0] == 'c' && Argv[1][1] == 'o' &&
+        Argv[1][2] == 'm' && Argv[1][3] == 'b' && Argv[1][4] == 'o' &&
+        Argv[1][5] == 0) {
+        if (Argc < 3) {
+            ConsoleWrite("usage: store combo <id>\n");
+            ConsoleWrite("hint: e.g. store combo guidemo  (demopack+sun8 then app)\n");
+            return;
+        }
+        Err = StoreComboInstall(Argv[2]);
+        if (Err != FAT_OK) {
+            ConsoleWrite("store combo: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store: combo installed ");
+        ConsoleWrite(Argv[2]);
+        ConsoleWrite(" (+depends)\n");
+        return;
+    }
+
+    /* PR-M2：store uncombo <id> — 卸 leaf 再卸无引用依赖 */
+    if (Argc >= 2 && Argv[1][0] == 'u' && Argv[1][1] == 'n' &&
+        Argv[1][2] == 'c' && Argv[1][3] == 'o' && Argv[1][4] == 'm' &&
+        Argv[1][5] == 'b' && Argv[1][6] == 'o' && Argv[1][7] == 0) {
+        if (Argc < 3) {
+            ConsoleWrite("usage: store uncombo <id>\n");
+            return;
+        }
+        Err = StoreComboRemove(Argv[2]);
+        if (Err != FAT_OK) {
+            ConsoleWrite("store uncombo: ");
+            ConsoleWrite(FatStrError(Err));
+            ConsoleWrite("\n");
+            return;
+        }
+        ConsoleWrite("store: combo removed ");
         ConsoleWrite(Argv[2]);
         ConsoleWrite("\n");
         return;
@@ -939,7 +999,7 @@ static void CommandStore(int Argc, char **Argv) {
         (Argv[1][0] == 's' && Argv[1][1] == 't' && Argv[1][2] == 'a' &&
          Argv[1][3] == 't' && Argv[1][4] == 'u' && Argv[1][5] == 's' &&
          Argv[1][6] == 0)) {
-        ConsoleWrite("usage: store [list|status]|install|remove|list-installed|sync|fetch|repo\n");
+        ConsoleWrite("usage: store [list|status]|install|remove|combo|uncombo|list-installed|sync|fetch|repo\n");
     }
 }
 
@@ -1019,12 +1079,6 @@ static void CommandHalt(int Argc, char **Argv) {
     HalCpuPark();
 }
 
-/* exit/quit：教学上常当「退出」；停 CPU（关 QEMU 窗仍须点窗口 ×） */
-static void CommandExit(int Argc, char **Argv) {
-    ConsoleWrite("exit → halt (close QEMU window to leave)\n");
-    CommandHalt(Argc, Argv);
-}
-
 /* PR-D4：列出已绑定驱动（TOY_DRIVER.Name + 类） */
 static const char *DriverClassName(TOY_DRIVER_CLASS Class) {
     switch (Class) {
@@ -1081,8 +1135,8 @@ void ShellCommandsRegisterVirtMin(void) {
     ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
     ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
-    ConsoleRegister("exit", "alias of halt", CommandExit);
-    ConsoleRegister("quit", "alias of halt", CommandExit);
+    ConsoleRegisterAlias("halt", "exit");
+    ConsoleRegisterAlias("halt", "quit");
 }
 
 void ShellCommandsRegister(void) {
@@ -1103,16 +1157,20 @@ void ShellCommandsRegister(void) {
     ConsoleRegister("store", "store list|status|install|remove|list-installed|sync|fetch|repo", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
-    ConsoleRegister("exit", "alias of halt", CommandExit);
-    ConsoleRegister("quit", "alias of halt", CommandExit);
+    ConsoleRegisterAlias("halt", "exit");
+    ConsoleRegisterAlias("halt", "quit");
     ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
     ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
     ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);
     ConsoleRegister("udpsend", "send UDP datagram", CommandUdpSend);
-    ConsoleRegister("tcplisten", "TCP echo server", CommandTcpListen);
-    ConsoleRegister("tcpconnect", "TCP connect and send", CommandTcpConnect);
-    ConsoleRegister("tcpstatus", "TCP connection status", CommandTcpStatus);
+    /* PR-C1 样例：一级/二级 + 粘连别名；其余命令改挂见 C2 */
+    ConsoleRegister2("tcp", "listen", "TCP echo server", CommandTcpListen);
+    ConsoleRegister2("tcp", "connect", "TCP connect and send", CommandTcpConnect);
+    ConsoleRegister2("tcp", "status", "TCP connection status", CommandTcpStatus);
+    ConsoleRegisterAliasLine("tcplisten", "tcp", "listen");
+    ConsoleRegisterAliasLine("tcpconnect", "tcp", "connect");
+    ConsoleRegisterAliasLine("tcpstatus", "tcp", "status");
 #ifdef TOY_LWIP
     ConsoleRegister("lwip", "lwIP stack (lwip on)", CommandLwIp);
 #endif

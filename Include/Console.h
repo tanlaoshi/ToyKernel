@@ -11,8 +11,17 @@
 
 void ConsoleInit(void);
 void ConsoleRegisterBuiltins(void);
+/* 仅一级：无二级表时 Argv[0]=命令名，参数从 Argv[1] 起 */
 void ConsoleRegister(const char *Name, const char *Help,
                      void (*Handler)(int Argc, char **Argv));
+/* 一级+二级：分发后 Handler 收到 Argv[0]=二级名，参数从 Argv[1] 起（已去掉一级） */
+void ConsoleRegister2(const char *Level1, const char *Level2, const char *Help,
+                      void (*Handler)(int Argc, char **Argv));
+/* 别名 → 一级正统名（如 exit → halt）；不占 CMD 槽 */
+void ConsoleRegisterAlias(const char *CanonicalLevel1, const char *Alias);
+/* 粘连别名 → 一级+二级（如 tcplisten → tcp listen） */
+void ConsoleRegisterAliasLine(const char *Alias, const char *Level1,
+                              const char *Level2);
 void ConsoleWrite(const char *Text);
 void ConsoleWriteLen(const char *Data, UINTN Len);
 void ConsoleHex32(UINT32 Value);
@@ -21,6 +30,10 @@ void ConsoleOnChar(char C);
 void ConsoleOnEnter(void);
 void ConsoleOnBackspace(void);
 void ConsoleCancelInput(void);
+/* 丢弃输入行缓冲（不擦屏）；listen 中断后防 Enter 重跑旧命令 */
+void ConsoleDiscardInput(void);
+/* 清零挂起计数并立刻画提示符（tcp listen 停止等） */
+void ConsoleForceResumePrompt(void);
 void ConsoleBindFocus(void);
 /* PR-D3：新开 Shell 窗后打印欢迎语与提示符 */
 void ConsoleOnShellOpened(void);
