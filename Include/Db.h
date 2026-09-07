@@ -25,7 +25,7 @@
 int DbInit(void);
 
 int DbGet(const char *Key, char *Out, UINTN OutMax);
-/* 内存更新并立刻刷盘 */
+/* 内存更新；默认立刻刷盘。Batch 期间只标脏，DbEndBatch 一次写出 */
 int DbSet(const char *Key, const char *Value);
 int DbDelete(const char *Key);
 int DbCount(void);
@@ -34,5 +34,8 @@ int DbForEach(int (*Cb)(const char *Key, const char *Value, void *Ctx), void *Ct
 
 int DbLoad(void);
 int DbSave(void);
+/* ThemeSave 等：多次 DbSet 合并为一次写盘，减轻 QEMU vvfat 压力 */
+void DbBeginBatch(void);
+int  DbEndBatch(void);
 
 #endif

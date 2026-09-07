@@ -408,6 +408,7 @@ int ThemeSave(void) {
     int i;
     int DbOk = 1;
 
+    DbBeginBatch();
     PutHex6(Hex, gDesktopBg);
     Hex[6] = 0;
     if (DbSet("desktop", Hex) != DB_OK) {
@@ -438,6 +439,9 @@ int ThemeSave(void) {
         }
     } else {
         (void)DbDelete("mode");
+    }
+    if (DbEndBatch() != DB_OK) {
+        DbOk = 0;
     }
 
     /* 仍写 THEME.CFG：Boot 读 mode= 做 SetMode */
@@ -492,6 +496,7 @@ int ThemeSave(void) {
     }
     Buf[N] = 0;
 
+    (void)FileSystemDeleteFile(THEME_CFG_PATH);
     if (FileSystemWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
         HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
         return -1;

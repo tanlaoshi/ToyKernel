@@ -17,6 +17,7 @@ typedef struct {
 static DB_REC gRecs[DB_MAX_RECORDS];
 static int gReady;
 static int gDirty;
+static int gBatch;
 
 static int IsSpace(char C) {
     return C == ' ' || C == '\t' || C == '\r' || C == '\n';
@@ -209,6 +210,8 @@ int DbSave(void) {
         }
         Buf[N++] = '\n';
     }
+    /* vvfat：同名覆盖写易坏，先删再建 */
+    (void)FileSystemDeleteFile(DB_PATH);
     if (FileSystemWriteFile(DB_PATH, Buf, N) != FAT_OK) {
         return DB_ERR;
     }
@@ -238,6 +241,15 @@ int DbSet(const char *Key, const char *Value) {
         return DbDelete(Key);
     }
     Slot = FindSlot(Key);
+    if (Slot >= 0) {
+        int i = 0;
+        while (gRecs[Slot].Val[i] && Value[i] && gRecs[Slot].Val[i] == Value[i]) {
+            i++;
+        }
+        if (gRecs[Slot].Val[i] == 0 && Value[i] == 0) {
+            return DB_OK; /* 未变，免写盘 */
+        }
+    }
     if (Slot < 0) {
         Slot = AllocSlot();
     }
@@ -248,6 +260,9 @@ int DbSet(const char *Key, const char *Value) {
     CopyStr(gRecs[Slot].Key, DB_KEY_MAX, Key);
     CopyStr(gRecs[Slot].Val, DB_VAL_MAX, Value);
     gDirty = 1;
+    if (gBatch) {
+        return DB_OK;
+    }
     return DbSave();
 }
 
@@ -264,6 +279,21 @@ int DbDelete(const char *Key) {
     gRecs[Slot].Key[0] = 0;
     gRecs[Slot].Val[0] = 0;
     gDirty = 1;
+    if (gBatch) {
+        return DB_OK;
+    }
+    return DbSave();
+}
+
+void DbBeginBatch(void) {
+    gBatch = 1;
+}
+
+int DbEndBatch(void) {
+    gBatch = 0;
+    if (!gDirty) {
+        return DB_OK;
+    }
     return DbSave();
 }
 

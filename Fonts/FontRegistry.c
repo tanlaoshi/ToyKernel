@@ -109,14 +109,19 @@ static void RebuildFontTable(void) {
 }
 
 static void FreeRuntimeSlot(FONT_RUNTIME_SLOT *S) {
-    if (S->Pages && S->PageCount) {
-        PhysicalMemoryFreePages(S->Pages, S->PageCount);
-    }
+    UINT8 *Pages;
+    UINT32 PageCount;
+
+    S->Face.Glyphs = 0;
+    S->Used = 0;
+    Pages = S->Pages;
+    PageCount = S->PageCount;
     S->Pages = 0;
     S->PageCount = 0;
-    S->Used = 0;
-    S->Face.Glyphs = 0;
     S->Face.Name = S->Name;
+    if (Pages && PageCount) {
+        PhysicalMemoryFreePages(Pages, PageCount);
+    }
 }
 
 static void ClearRuntime(void) {
