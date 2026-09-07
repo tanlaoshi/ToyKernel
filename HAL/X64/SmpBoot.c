@@ -73,17 +73,48 @@ static void DelayLoops(volatile UINT32 N) {
 #define SMP_SIPI_GAP_LOOPS    100000u
 #define SMP_READY_POLL_MAX   2000000u
 
-static void LapicWaitIcr(void) {
-    while (LapicRead(LAPIC_ICR_LO) & (1u << 12)) {
+/* CPUID.1 ECX.31：Hypervisor Present（QEMU/KVM 等）；真机一般为 0 */
+static int RunningUnderHypervisor(void) {
+    UINT32 Eax;
+    UINT32 Ebx;
+    UINT32 Ecx;
+    UINT32 Edx;
+
+    __asm__ volatile("cpuid"
+                     : "=a"(Eax), "=b"(Ebx), "=c"(Ecx), "=d"(Edx)
+                     : "a"(1)
+                     : "memory");
+    (void)Eax;
+    (void)Ebx;
+    (void)Edx;
+    return (Ecx & (1u << 31)) != 0;
+}
+
+static int LapicMmioUsable(void) {
+    UINT32 Id = LapicRead(LAPIC_ID);
+    UINT32 Ver = LapicRead(0x30);
+    /* x2APIC 下 MMIO 常读全 1；未映射同理 — 勿死等 ICR */
+    if (Id == 0xFFFFFFFFu || Ver == 0xFFFFFFFFu) {
+        return 0;
+    }
+    return 1;
+}
+
+static int LapicWaitIcr(void) {
+    int Tries = 1000000;
+    while ((LapicRead(LAPIC_ICR_LO) & (1u << 12)) && Tries-- > 0) {
         __asm__ volatile ("pause");
     }
+    return Tries > 0;
 }
 
 static void LapicSendIpi(UINT8 ApicId, UINT32 Lo) {
-    LapicWaitIcr();
+    if (!LapicWaitIcr()) {
+        return;
+    }
     LapicWrite(LAPIC_ICR_HI, ((UINT32)ApicId) << 24);
     LapicWrite(LAPIC_ICR_LO, Lo);
-    LapicWaitIcr();
+    (void)LapicWaitIcr();
 }
 
 /* 超时后把跳板改成 cli;hlt，迟到 SIPI 也只会停住 */
@@ -305,6 +336,24 @@ int HalSmpStartApplicationProcessors(void) {
     for (i = 0; i < HAL_MAX_CPUS; i++) {
         gCpuTicks[i] = 0;
     }
+
+    if (!LapicMmioUsable()) {
+        SmpLog("smp: LAPIC MMIO unusable (x2APIC?); single CPU\n");
+        return 0;
+    }
+
+    /*
+     * 真机多核（IOAPIC / x2APIC / 中断路由）路线图仍后置（5.5 / NOTES H2）。
+     * QEMU 有 Hypervisor 位 → 继续 INIT/SIPI 演示；裸机只保 BSP，勿挡 H0 亮屏。
+     */
+    if (!RunningUnderHypervisor()) {
+        BspId = LapicGetId();
+        gBspApicId = BspId;
+        gApicIds[0] = BspId;
+        SmpLog("smp: real PC — skip AP bringup (IOAPIC later)\n");
+        return 0;
+    }
+
     BspId = LapicGetId();
     gBspApicId = BspId;
     gApicIds[0] = BspId;

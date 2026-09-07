@@ -23,6 +23,8 @@ static UINT32 *gBack;
 static UINT32  gBackPitch;
 static UINT32  gBackPages;
 static int     gBackOn;
+/* 真机 boot mark：直写 scanout，避开后缓冲 Present 假死 */
+static int     gForceFront;
 
 /* 脏矩形 [gDx0,gDx1) x [gDy0,gDy1) */
 static int     gDirty;
@@ -35,6 +37,9 @@ static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 X1;
     UINT32 Y1;
 
+    if (gForceFront) {
+        return;
+    }
     if (!W || !H || gScreen.Width == 0 || gScreen.Height == 0) {
         return;
     }
@@ -75,11 +80,25 @@ static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 }
 
 static UINT32 *DrawBase(void) {
+    if (gForceFront && gFront) {
+        return gFront;
+    }
     return gBackOn ? gBack : gFront;
 }
 
 static UINT32 DrawPitch(void) {
+    if (gForceFront && gFront) {
+        return gFrontPitch;
+    }
     return gBackOn ? gBackPitch : gFrontPitch;
+}
+
+void VideoDrawBeginFront(void) {
+    gForceFront = 1;
+}
+
+void VideoDrawEndFront(void) {
+    gForceFront = 0;
 }
 
 void VideoSet(VIDEO_CONFIG *VideoConfig) {

@@ -52,6 +52,7 @@ typedef struct {
 } USB_MOUSE_REPORT;
 
 int XhciInit(UINT64 BaseAddress);
+int XhciHidKeyboardReady(void); /* 已 Address+Configure 键盘 */
 int XhciEnableIrq(USB_CONTROLLER *Device);
 void XhciIrq(void);
 void XhciDrainEvents(void);

@@ -47,6 +47,12 @@ void HalVideoPresent(void) {
     VideoPresent();
 }
 
+void HalVideoDrawBeginFront(void) {
+}
+
+void HalVideoDrawEndFront(void) {
+}
+
 int HalVideoBackbufferEnabled(void) {
     return VideoBackbufferEnabled();
 }

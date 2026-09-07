@@ -10,6 +10,8 @@ void HalVideoSet(const VIDEO_CONFIG *Config);
 /* PR-G9：分配并启用后缓冲；Present 提交脏区到 GOP */
 void HalVideoInitBackbuffer(void);
 void HalVideoPresent(void);
+void HalVideoDrawBeginFront(void);
+void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height);
 

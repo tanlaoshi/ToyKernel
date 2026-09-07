@@ -22,8 +22,8 @@ void HalDriverRegister(void) {
     AhciDriverRegister();
     AtaDriverRegister();
     NvmeDriverRegister();
-    InputXhciRegister();
-    InputPs2Register(); /* PR-H2：仅当 xhci-hid 未绑定时生效 */
+    InputXhciRegister(); /* 先 USB HID */
+    InputPs2Register();  /* 后 PS/2：仅当 xhci-hid 未绑 Input 时生效 */
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
 }

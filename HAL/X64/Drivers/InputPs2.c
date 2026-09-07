@@ -8,6 +8,7 @@
 #include "Hal.h"
 #include "Debug.h"
 #include "InputPs2.h"
+#include "VirtualMemory.h"
 
 #define PS2_DATA   0x60
 #define PS2_STATUS 0x64
@@ -26,17 +27,38 @@ static volatile UINT32 gRd;
 static volatile UINT32 gWr;
 static UINT8 gDown[256];
 
+static int Ps2StatusLooksDead(UINT8 St) {
+    /* 无经典 8042 时端口常浮空为 0xFF */
+    return St == 0xFF;
+}
+
+static void FlushObBounded(void) {
+    int i;
+    for (i = 0; i < 10000; i++) {
+        UINT8 St = HalIoRead8(PS2_STATUS);
+        if (Ps2StatusLooksDead(St) || (St & STATUS_OBF) == 0) {
+            return;
+        }
+        (void)HalIoRead8(PS2_DATA);
+    }
+}
+
 static void WaitIbFree(void) {
-    for (int i = 0; i < 100000; i++) {
-        if ((HalIoRead8(PS2_STATUS) & STATUS_IBF) == 0) {
+    for (int i = 0; i < 8000; i++) {
+        UINT8 St = HalIoRead8(PS2_STATUS);
+        if (Ps2StatusLooksDead(St) || (St & STATUS_IBF) == 0) {
             return;
         }
     }
 }
 
 static void WaitOb(void) {
-    for (int i = 0; i < 100000; i++) {
-        if (HalIoRead8(PS2_STATUS) & STATUS_OBF) {
+    for (int i = 0; i < 8000; i++) {
+        UINT8 St = HalIoRead8(PS2_STATUS);
+        if (Ps2StatusLooksDead(St)) {
+            return;
+        }
+        if (St & STATUS_OBF) {
             return;
         }
     }
@@ -200,20 +222,20 @@ static void OnBreak(UINT8 Sc) {
 }
 
 static void Ps2Poll(void) {
-    while (HalIoRead8(PS2_STATUS) & STATUS_OBF) {
+    int Guard = 64;
+
+    while (Guard-- > 0 && (HalIoRead8(PS2_STATUS) & STATUS_OBF)) {
         UINT8 B = HalIoRead8(PS2_DATA);
         if (B == 0xE0) {
             gExt = 1;
             continue;
         }
         if (B == 0xE1) {
-            /* Pause：吞掉后续若干字节 */
             gExt = 0;
             continue;
         }
         if (gExt) {
             gExt = 0;
-            /* 方向键等：暂忽略（H2 最小集） */
             continue;
         }
         if (B & 0x80) {
@@ -255,41 +277,47 @@ static const INPUT_BACKEND gPs2Backend = {
 
 static int Ps2InitHw(void) {
     UINT8 Ack = 0;
+    UINT8 St;
 
-    /* 排空杂字节 */
-    while (HalIoRead8(PS2_STATUS) & STATUS_OBF) {
-        (void)HalIoRead8(PS2_DATA);
+    HalSerialWrite("boot: ps2-kbd probe...\n");
+    St = HalIoRead8(PS2_STATUS);
+    if (Ps2StatusLooksDead(St)) {
+        HalSerialWrite("boot: ps2-kbd no 8042\n");
+        return 0;
     }
 
-    CtrlCmd(0xAD); /* disable kbd */
-    CtrlCmd(0xA7); /* disable mouse */
-    while (HalIoRead8(PS2_STATUS) & STATUS_OBF) {
-        (void)HalIoRead8(PS2_DATA);
-    }
+    FlushObBounded();
+    CtrlCmd(0xAD);
+    CtrlCmd(0xA7);
+    FlushObBounded();
 
-    CtrlCmd(0xAA); /* self-test */
+    CtrlCmd(0xAA);
     if (!KbdRead(&Ack) || Ack != 0x55) {
-        DebugWrite("PS2: controller self-test fail\n");
-        /* 部分机箱无经典 8042；仍尝试开键盘口 */
+        /* 真机无键或无 8042：快速失败，勿继续 reset 长序列 */
+        HalSerialWrite("boot: ps2-kbd self-test fail\n");
+        return 0;
     }
 
-    CtrlCmd(0xAE); /* enable kbd */
-    KbdWrite(0xFF); /* reset */
+    CtrlCmd(0xAE);
+    KbdWrite(0xFF);
     if (KbdRead(&Ack) && Ack == 0xFA) {
-        (void)KbdRead(&Ack); /* BAT 0xAA */
+        (void)KbdRead(&Ack);
     }
 
-    /* 尽量切 Set 1（若设备支持） */
     KbdWrite(0xF0);
     if (KbdRead(&Ack) && Ack == 0xFA) {
         KbdWrite(0x01);
         (void)KbdRead(&Ack);
     }
 
-    KbdWrite(0xF4); /* enable scanning */
+    KbdWrite(0xF4);
     (void)KbdRead(&Ack);
 
-    DebugWrite("PS2: keyboard ready\n");
+    if (Ps2StatusLooksDead(HalIoRead8(PS2_STATUS))) {
+        HalSerialWrite("boot: ps2-kbd died after init\n");
+        return 0;
+    }
+
     HalSerialWrite("boot: ps2-kbd keyboard\n");
     return 1;
 }
@@ -297,8 +325,17 @@ static int Ps2InitHw(void) {
 static int Ps2DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     (void)Self;
     (void)BusCtx;
+    /* USB HID 已就绪则不再抢 Input；控制器起来但无键盘时仍可试 PS/2 */
     if (ToyDriverInputReady()) {
-        return -1; /* xHCI 等已绑 Input */
+        return -1;
+    }
+    /*
+     * 与 xHCI 一样：等 VMM 后再 Probe。
+     * InitDriver 早 Probe 时 xHCI 会跳过，若此时 PS/2 浮空 0xFF 会死等，
+     * 且会抢在亮屏之前；推迟到 HalUsbInit / Input 类再试。
+     */
+    if (!VirtualMemoryEnabled()) {
+        return -1;
     }
     if (gPs2Ready) {
         if (OutPriv) {
@@ -307,6 +344,7 @@ static int Ps2DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
         return 0;
     }
     if (!Ps2InitHw()) {
+        HalSerialWrite("boot: ps2-kbd probe failed\n");
         return -1;
     }
     gPs2Ready = 1;

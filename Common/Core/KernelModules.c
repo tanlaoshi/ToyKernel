@@ -21,6 +21,7 @@
 #include "Db.h"
 #include "Locale.h"
 #include "Driver.h"
+#include "DriverInput.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
@@ -62,14 +63,20 @@ static int InitializeVirtualMemory(void) {
 static int InitializeVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
+    UINT32 W;
+    UINT32 H;
 
     FontInit();
     ThemeInit();
     HalVideoSet(&V);
     HalVideoInitBackbuffer();
     HalVideoClearScreen(ThemeDesktopBackground());
+    /* 再清一遍顶带，去掉固件/进度条残留色块 */
+    HalVideoGetSize(&W, &H);
+    if (W > 0) {
+        HalVideoFillRect(0, 0, W, 64, ThemeDesktopBackground());
+    }
     HalVideoPresent();
-    /* PR-H3：无 COM1 时把串口缓冲刷到帧缓冲文字 */
     HalSerialGopEnable();
     return 0;
 }
@@ -80,8 +87,10 @@ static int InitializeCpu(void) {
     }
     HalTimerInit();
     HalSyscallInit();
-    /* PR-V3：virtio-input；失败可无头继续（仍有串口） */
-    (void)HalUsbInit();
+    /* virt：仍在此挂 virtio-input；x86 真机延后到 gui 后的 usb 模块 */
+    if (HalPlatformVirtConsole()) {
+        (void)HalUsbInit();
+    }
     return 0;
 }
 
@@ -90,7 +99,14 @@ static int InitializeSmp(void) {
 }
 
 static int InitializeUsb(void) {
-    return HalUsbInit();
+    HalSerialWrite("boot: input probe (USB then PS/2)\n");
+    (void)HalUsbInit();
+    if (ToyDriverInputReady()) {
+        HalSerialWrite("boot: input backend ready\n");
+    } else {
+        HalSerialWrite("boot: input NONE (continue)\n");
+    }
+    return 0; /* 无键盘也必须进 gui / 桌面 */
 }
 
 static int InitializeFileSystem(void) {
@@ -98,11 +114,16 @@ static int InitializeFileSystem(void) {
 }
 
 static int InitializeGui(void) {
+    HalSerialWrite("boot: gui...\n");
     (void)DbInit();
-    (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
+    HalSerialWrite("boot: gui fonts\n");
+    (void)FontLoadAssets();
+    HalSerialWrite("boot: gui theme\n");
     (void)ThemeLoad();
     LocaleInit();
+    HalSerialWrite("boot: gui DesktopInit\n");
     GuiInit();
+    HalSerialWrite("boot: gui ready\n");
     return 0;
 }
 
@@ -139,7 +160,7 @@ static int InitializeConsole(void) {
     return 0;
 }
 
-/* x86 全量桌面路径 */
+/* x86 全量：usb 在 gui 前，便于桌面叠画探测结果 */
 static const MODULE gModulesFull[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
@@ -149,8 +170,8 @@ static const MODULE gModulesFull[] = {
     { "cpu",     InitializeCpu },
     { "smp",     InitializeSmp },
     { "file-system",      InitializeFileSystem },
-    { "usb",     InitializeUsb },
     { "network",     InitializeNetwork },
+    { "usb",     InitializeUsb },
     { "gui",     InitializeGui },
     { "scheduler",   InitializeScheduler },
     { "console", InitializeConsole },
@@ -168,7 +189,7 @@ static const MODULE gModulesVirt[] = {
     { "console", InitializeConsole },
 };
 
-/* PR-V5/N10/A14：virt 桌面（A14 挂 smp；输入在 InitializeCpu；N10 挂 net） */
+/* PR-V5/N10/A14：virt 桌面（输入在 usb；N10 挂 net） */
 static const MODULE gModulesVirtDesktop[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },

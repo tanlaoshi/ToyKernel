@@ -49,8 +49,11 @@ cd ../ToyImage && ./prepare-rootfs.sh
 |------|------|
 | 固件加载 `BOOTX64.EFI` | 无「Unsupported」类立刻退出 |
 | ToyBoot 找到 GOP + `Kernel.elf` | 失败类 `Print` 仍会打（即使 `TOY_BOOT_DEBUG=0`） |
-| 跳入 `KernelMain` | `HalVideoSet` 挂上 Boot 传入的帧缓冲 |
+| 跳入 `KernelMain` | 进核后先深蓝灰清屏，再走模块；`HalVideoSet` 挂帧缓冲 |
 | 屏 | **有像素变化**（清屏 / 桌面 / 图标）；即本刀过线 |
+
+真机若停在 `Kernel.elf from TOYOS volume` 且无后续 `loading`/`jump` 行：仍在 Boot。  
+若已 `jump` 但仍是 Boot 白字、从不换色：多为进核后缺页（旧 bug：UEFI 高栈 + 仅映射低 512MB）。现已在 `Startup.c` 切到 BSS 早期栈。
 
 QEMU 回归（无真机时）：
 

@@ -310,6 +310,22 @@ int HalPlatformVirtConsole(void) {
     return 0;
 }
 
+int HalCpuIsHypervisor(void) {
+    UINT32 Eax;
+    UINT32 Ebx;
+    UINT32 Ecx;
+    UINT32 Edx;
+
+    __asm__ volatile("cpuid"
+                     : "=a"(Eax), "=b"(Ebx), "=c"(Ecx), "=d"(Edx)
+                     : "a"(1)
+                     : "memory");
+    (void)Eax;
+    (void)Ebx;
+    (void)Edx;
+    return (Ecx & (1u << 31)) != 0;
+}
+
 void HalVirtIdleLoop(void) {
     for (;;) {
         HalCpuPark();

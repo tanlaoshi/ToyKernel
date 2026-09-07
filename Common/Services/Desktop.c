@@ -949,6 +949,7 @@ void DesktopInit(void) {
     UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
                   DESKTOP_ICON_GAP;
 
+    HalSerialWrite("boot: desktop icons\n");
     gIcons[0].Action = DESKTOP_ACTION_SHELL;
     gIcons[0].IconColor = COLOR_BLUE;
     gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
@@ -974,8 +975,11 @@ void DesktopInit(void) {
     gSelectX = 0;
     gSelectY = 0;
     gMenuOpen = 0;
+    HalSerialWrite("boot: desktop wallpaper\n");
     LoadWallpaper();
+    HalSerialWrite("boot: desktop bmp icons\n");
     LoadDesktopIcons();
+    HalSerialWrite("boot: desktop ready\n");
     DebugWrite("desktop: icons+taskbar ready (bmp48 Assets/Icons)\n");
 }
 

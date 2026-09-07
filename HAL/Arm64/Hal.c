@@ -176,6 +176,10 @@ int HalPlatformVirtConsole(void) {
     return 1;
 }
 
+int HalCpuIsHypervisor(void) {
+    return 1; /* Arm virt 当作 hypervisor 环境 */
+}
+
 void HalVirtIdleLoop(void) {
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {

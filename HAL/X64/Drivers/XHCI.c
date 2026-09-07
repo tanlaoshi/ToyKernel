@@ -28,11 +28,25 @@
 #define DCBAA_SLOTS         16
 #define PORTSC_CCS          (1u << 0)
 #define PORTSC_PED          (1u << 1)
+#define PORTSC_OCA          (1u << 3)
 #define PORTSC_PR           (1u << 4)
 #define PORTSC_PP           (1u << 9)
+#define PORTSC_SPEED_SHIFT  10
 #define PORTSC_CSC          (1u << 17)
+#define PORTSC_PEC          (1u << 18)
+#define PORTSC_WRC          (1u << 19)
+#define PORTSC_OCC          (1u << 20)
 #define PORTSC_PRC          (1u << 21)
-#define PORTSC_CHANGE       0x00FE0000u
+#define PORTSC_PLC          (1u << 22)
+#define PORTSC_CEC          (1u << 23)
+#define PORTSC_WPR          (1u << 31)
+/* 写 PORTSC 时保留的 RO / 状态位（对齐 Linux xhci_port_state_to_neutral） */
+#define PORTSC_RO           (PORTSC_CCS | PORTSC_OCA | (0xFu << PORTSC_SPEED_SHIFT) | (1u << 30))
+#define PORTSC_RWS          (PORTSC_PED | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 8) | \
+                             PORTSC_PP | (1u << 14) | (1u << 15) | (1u << 16) | \
+                             (0x1Fu << 24) | PORTSC_WPR)
+#define PORTSC_CHANGE       (PORTSC_CSC | PORTSC_PEC | PORTSC_WRC | PORTSC_OCC | \
+                             PORTSC_PRC | PORTSC_PLC | PORTSC_CEC)
 
 #define USBCMD_RS           (1u << 0)
 #define USBCMD_HCRST        (1u << 1)
@@ -125,8 +139,10 @@ static UINT32 gEvtDeq;
 static UINT32 gEvtCcs;
 
 static UINT64 gDcbaa[DCBAA_SLOTS + 1] __attribute__((aligned(64)));
-static UINT64 gScratchPtr[16] __attribute__((aligned(64)));
-static UINT8  gScratchBuf[8][4096] __attribute__((aligned(4096)));
+/* HCSPARAMS2 MaxScratchpadBufs 可达 1023；真机见过 0x41(=65)，留到 128 */
+#define XHCI_SCRATCH_MAX 128
+static UINT64 gScratchPtr[XHCI_SCRATCH_MAX] __attribute__((aligned(64)));
+static UINT8  gScratchBuf[XHCI_SCRATCH_MAX][4096] __attribute__((aligned(4096)));
 static UINT8  gDevCtx[2048] __attribute__((aligned(64)));
 static UINT8  gInCtx[2048] __attribute__((aligned(64)));
 static UINT8  gCtrlBuf[256] __attribute__((aligned(64)));
@@ -165,6 +181,20 @@ static UINT64 PointerToPhysical(const void *Ptr) {
 /* 内存屏障，保证 TRB 写入对硬件可见 */
 static void Fence(void) {
     __asm__ volatile ("mfence" ::: "memory");
+}
+
+/* 把 DMA 缓冲从 CPU cache 推出去（真机 RS 后 DMA 读环/DCBAA） */
+static void FlushDma(const void *Ptr, UINTN Size) {
+    const UINT8 *P = (const UINT8 *)Ptr;
+    UINTN Off;
+
+    if (!Ptr || Size == 0) {
+        return;
+    }
+    for (Off = 0; Off < Size; Off += 64) {
+        __asm__ volatile("clflush (%0)" : : "r"(P + Off) : "memory");
+    }
+    Fence();
 }
 
 /* 清零内存块 */
@@ -228,11 +258,14 @@ static UINT32 TrbType(UINT32 Control) {
 
 /* 处理事件环中所有待处理 TRB（命令完成、传输完成） */
 static void ProcessEvents(void) {
+    int Progress = 0;
+
     for (;;) {
         XHCI_TRB *Evt = &gEvtRing[gEvtDeq];
         if ((Evt->Control & TRB_C) != gEvtCcs) {
             break;
         }
+        Progress = 1;
 
         UINT32 Type = TrbType(Evt->Control);
         UINT32 Code = (Evt->Status >> 24) & 0xFF;
@@ -267,9 +300,12 @@ static void ProcessEvents(void) {
         }
     }
 
-    UINT64 Erdp = PointerToPhysical(&gEvtRing[gEvtDeq]) | (1ULL << 3);
-    WriteMmio64(gRuntimeBase + 0x38, Erdp);
-    WriteMmio32(gOperationalBase + 4, USBSTS_EINT);
+    /* 无事件时勿狂写 ERDP——真机 WaitCommand 空转会 MMIO 拖死 */
+    if (Progress) {
+        UINT64 Erdp = PointerToPhysical(&gEvtRing[gEvtDeq]) | (1ULL << 3);
+        WriteMmio64(gRuntimeBase + 0x38, Erdp);
+        WriteMmio32(gOperationalBase + 4, USBSTS_EINT);
+    }
 }
 
 /* 等待命令环完成事件 */
@@ -285,6 +321,9 @@ static int WaitCommand(int Timeout) {
 
 /* 等待传输环完成事件 */
 static int WaitTransfer(int Timeout) {
+    if (!HalCpuIsHypervisor() && Timeout > 50000) {
+        Timeout = 50000;
+    }
     while (Timeout--) {
         ProcessEvents();
         if (gXferDone) {
@@ -302,10 +341,12 @@ static void RingDoorbell(UINT32 Slot, UINT32 Target) {
 
 /* 提交一条命令 TRB 并等待完成 */
 static int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
+    int Wait = HalCpuIsHypervisor() ? 150000 : 40000;
+
     gCmdDone = 0;
     Enqueue(gCmdRing, &gCmd, Param, 0, Control);
     RingDoorbell(0, 0);
-    if (WaitCommand(2000000) < 0) {
+    if (WaitCommand(Wait) < 0) {
         DebugWrite("XHCI: command timeout/fail cc=");
         DebugHex32(gCmdCode);
         DebugWrite("\n");
@@ -329,7 +370,10 @@ static UINT8 *InEp(UINT32 Dci) {
 static void TakeLegacy(void) {
     UINT32 Hcc1 = ReadMmio32(gCapabilityBase + 0x10);
     UINT32 Xecp = (Hcc1 >> 16) & 0xFFFF;
+    int Wait;
+
     if (Xecp == 0) {
+        HalSerialWrite("boot: xhci no legacy cap\n");
         return;
     }
     UINT64 Ptr = gCapabilityBase + (UINT64)Xecp * 4;
@@ -338,14 +382,49 @@ static void TakeLegacy(void) {
         UINT8 Id = (UINT8)(Val & 0xFF);
         UINT8 Next = (UINT8)((Val >> 8) & 0xFF);
         if (Id == 1) {
+            HalSerialWrite("boot: xhci legacy claim\n");
             WriteMmio32(Ptr, Val | (1u << 24));
-            WaitClear(Ptr, (1u << 16), 1000000);
+            /* 真机 BIOS 信号量可能永不清：短等后继续，勿死等 */
+            Wait = HalCpuIsHypervisor() ? 1000000 : 50000;
+            if (!WaitClear(Ptr, (1u << 16), Wait)) {
+                HalSerialWrite("boot: xhci legacy BIOS timeout (cont)\n");
+            } else {
+                HalSerialWrite("boot: xhci legacy ok\n");
+            }
             return;
         }
         if (Next == 0) {
             break;
         }
         Ptr = gCapabilityBase + (UINT64)Next * 4;
+    }
+    HalSerialWrite("boot: xhci legacy USBLEGSUP not found\n");
+}
+
+/* 真机：BootMark 直写帧缓冲（不 Present）；QEMU 正常串口/GOP */
+static void BootLog(const char *Text) {
+    if (!HalCpuIsHypervisor()) {
+        HalSerialBootMark(Text);
+        return;
+    }
+    HalSerialWrite(Text);
+}
+
+/* 停 RS，避免无 HID 时事件环/遗留状态拖死后续 */
+static void HaltControllerQuiet(void) {
+    UINT32 Cmd;
+
+    if (gOperationalBase == 0) {
+        return;
+    }
+    Cmd = ReadMmio32(gOperationalBase);
+    Cmd &= ~USBCMD_RS;
+    WriteMmio32(gOperationalBase, Cmd);
+    (void)WaitSet(gOperationalBase + 4, USBSTS_HCH, 200000);
+    /* 清 EINT；Interrupter 关 IE，降未路由 IRQ 风险 */
+    WriteMmio32(gOperationalBase + 4, USBSTS_EINT);
+    if (gRuntimeBase != 0) {
+        WriteMmio32(gRuntimeBase + 0x20, 0);
     }
 }
 
@@ -355,11 +434,13 @@ static int ResetController(void) {
     Cmd &= ~USBCMD_RS;
     WriteMmio32(gOperationalBase, Cmd);
     if (!WaitSet(gOperationalBase + 4, USBSTS_HCH, 1000000)) {
+        HalSerialWrite("boot: xhci halt timeout\n");
         DebugWrite("XHCI: halt timeout\n");
         return 0;
     }
     WriteMmio32(gOperationalBase, USBCMD_HCRST);
     if (!WaitClear(gOperationalBase, USBCMD_HCRST, 1000000) || !WaitClear(gOperationalBase + 4, USBSTS_CNR, 1000000)) {
+        HalSerialWrite("boot: xhci reset timeout\n");
         DebugWrite("XHCI: reset timeout\n");
         return 0;
     }
@@ -370,47 +451,117 @@ static int ResetController(void) {
 static int StartController(UINT32 MaxSlots) {
     UINT32 Hcs2 = ReadMmio32(gCapabilityBase + 0x08);
     UINT32 Scratch = ((Hcs2 >> 21) & 0x1F) | (((Hcs2 >> 27) & 0x1F) << 5);
+    int RealPc = !HalCpuIsHypervisor();
+    UINT32 Sts;
+    char B[12];
 
     ZeroMemory(gDcbaa, sizeof(gDcbaa));
     ZeroMemory(gDevCtx, sizeof(gDevCtx));
     if (Scratch > 0) {
-        if (Scratch > 8) {
-            DebugWrite("XHCI: too many scratchpad buffers\n");
+        if (Scratch > XHCI_SCRATCH_MAX) {
+            BootLog("boot: xhci scratchpad >max\n");
             return 0;
+        }
+        {
+            BootLog("boot: xhci scratchpad=");
+            HalSerialFormatHex(B, Scratch, 4);
+            if (RealPc) {
+                HalSerialBootMark("boot: xhci scratch ok\n");
+            } else {
+                HalSerialWrite(B);
+                HalSerialWrite("\n");
+            }
         }
         ZeroMemory(gScratchPtr, sizeof(gScratchPtr));
         for (UINT32 i = 0; i < Scratch; i++) {
-            ZeroMemory(gScratchBuf[i], 4096);
             gScratchPtr[i] = PointerToPhysical(gScratchBuf[i]);
+            FlushDma(gScratchBuf[i], 4096);
         }
         gDcbaa[0] = PointerToPhysical(gScratchPtr);
+        FlushDma(gScratchPtr, sizeof(UINT64) * Scratch);
+        BootLog("boot: xhci scratch ptrs ok\n");
     }
 
+    BootLog("boot: xhci prog CONFIG/DCBAAP\n");
     WriteMmio32(gOperationalBase + 0x38, MaxSlots);
+    FlushDma(gDcbaa, sizeof(gDcbaa));
     WriteMmio64(gOperationalBase + 0x30, PointerToPhysical(gDcbaa));
 
+    BootLog("boot: xhci prog CRCR\n");
     InitRing(gCmdRing, &gCmd);
+    FlushDma(gCmdRing, sizeof(gCmdRing));
     WriteMmio64(gOperationalBase + 0x18, PointerToPhysical(gCmdRing) | 1);
 
+    BootLog("boot: xhci prog ERST\n");
     ZeroMemory(gEvtRing, sizeof(gEvtRing));
     gEvtDeq = 0;
     gEvtCcs = 1;
     ZeroMemory(gErst, sizeof(gErst));
     *(UINT64 *)(void *)gErst = PointerToPhysical(gEvtRing);
     *(UINT16 *)(void *)(gErst + 8) = EVT_SIZE;
+    FlushDma(gEvtRing, sizeof(gEvtRing));
+    FlushDma(gErst, sizeof(gErst));
 
-    WriteMmio32(gRuntimeBase + 0x20, 3);
+    /* 真机：先不置 IMAN.IE；ERDP 初值勿带 EHB，减少 Run 即挂 */
+    if (HalCpuIsHypervisor()) {
+        WriteMmio32(gRuntimeBase + 0x20, 3);
+    } else {
+        WriteMmio32(gRuntimeBase + 0x20, 0);
+    }
     WriteMmio32(gRuntimeBase + 0x24, 0);
     WriteMmio32(gRuntimeBase + 0x28, 1);
     WriteMmio32(gRuntimeBase + 0x2C, 0);
     WriteMmio64(gRuntimeBase + 0x30, PointerToPhysical(gErst));
-    WriteMmio64(gRuntimeBase + 0x38, PointerToPhysical(gEvtRing) | (1ULL << 3));
+    if (RealPc) {
+        WriteMmio64(gRuntimeBase + 0x38, PointerToPhysical(gEvtRing));
+    } else {
+        WriteMmio64(gRuntimeBase + 0x38, PointerToPhysical(gEvtRing) | (1ULL << 3));
+    }
 
-    WriteMmio32(gOperationalBase, USBCMD_RS | USBCMD_INTE);
-    if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, 1000000)) {
-        DebugWrite("XHCI: run timeout\n");
+    Fence();
+    Sts = ReadMmio32(gOperationalBase + 4);
+    BootLog("boot: xhci USBSTS before RS=");
+    if (!RealPc) {
+        HalSerialFormatHex(B, Sts, 8);
+        HalSerialWrite(B);
+        HalSerialWrite("\n");
+    } else {
+        HalSerialFormatHex(B, Sts, 8);
+        {
+            char Msg[48];
+            int n = 0;
+            const char *P = "boot: xhci STS=";
+            while (*P && n < 20) {
+                Msg[n++] = *P++;
+            }
+            Msg[n++] = B[0]; Msg[n++] = B[1]; Msg[n++] = B[2]; Msg[n++] = B[3];
+            Msg[n++] = B[4]; Msg[n++] = B[5]; Msg[n++] = B[6]; Msg[n++] = B[7];
+            Msg[n++] = '\n';
+            Msg[n] = 0;
+            HalSerialBootMark(Msg);
+        }
+    }
+
+    /*
+     * 分步：若卡在 before→after 之间=写 RS 挂；卡在 after 后=读 USBSTS/DMA 挂。
+     * 真机勿 cli（SMI/固件可能需要）。
+     */
+    HalSerialBootMark("boot: xhci before RS\n");
+    if (HalCpuIsHypervisor()) {
+        WriteMmio32(gOperationalBase, USBCMD_RS | USBCMD_INTE);
+    } else {
+        WriteMmio32(gOperationalBase, USBCMD_RS);
+    }
+    Fence();
+    HalSerialBootMark("boot: xhci after RS\n");
+
+    if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, RealPc ? 100000 : 1000000)) {
+        BootLog("boot: xhci run timeout\n");
         return 0;
     }
+    Sts = ReadMmio32(gOperationalBase + 4);
+    HalSerialBootMark("boot: xhci RS running\n");
+    (void)Sts;
     return 1;
 }
 
@@ -418,40 +569,110 @@ static UINT32 PortReg(UINT32 Port1) {
     return 0x400 + (Port1 - 1) * 0x10;
 }
 
-/* 复位指定端口并等待连接使能 */
+static UINT8 PortSpeed(UINT32 Portsc) {
+    return (UINT8)((Portsc >> PORTSC_SPEED_SHIFT) & 0xF);
+}
+
+static UINT32 PortscNeutral(UINT32 State) {
+    return (State & PORTSC_RO) | (State & PORTSC_RWS);
+}
+
+/* 只给已连接口上电，避免 18 口全写 */
+static void PowerConnectedPorts(void) {
+    UINT32 p;
+    volatile int D;
+
+    for (p = 1; p <= gMaxPorts && p <= 32; p++) {
+        UINT64 Ps = gOperationalBase + PortReg(p);
+        UINT32 Val = ReadMmio32(Ps);
+        if (!(Val & PORTSC_CCS)) {
+            continue;
+        }
+        if (!(Val & PORTSC_PP)) {
+            WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PP);
+        }
+    }
+    for (D = 0; D < 50000; D++) {
+    }
+}
+
+/*
+ * 使能已连接端口。
+ * 真机：在 cli + GOP mute 下允许短超时 PR（禁写 change 清除位）；
+ * 缓存映射须 UC，否则 PORTSC 写易挂。
+ */
 static int ResetPort(UINT32 Port1) {
     UINT64 Ps = gOperationalBase + PortReg(Port1);
     UINT32 Val = ReadMmio32(Ps);
+    UINT32 Speed;
+    int t;
+    char B[12];
+    int RealPc = !HalCpuIsHypervisor();
+
     if (!(Val & PORTSC_CCS)) {
         return 0;
     }
 
+    HalSerialWrite("boot: xhci portsc=");
+    HalSerialFormatHex(B, Val, 8);
+    HalSerialWrite(B);
+    HalSerialWrite("\n");
+    if (RealPc) {
+        char Msg[48];
+        int n = 0;
+        const char *P = "boot: xhci portsc=";
+        while (*P && n < 24) {
+            Msg[n++] = *P++;
+        }
+        Msg[n++] = B[0]; Msg[n++] = B[1]; Msg[n++] = B[2]; Msg[n++] = B[3];
+        Msg[n++] = B[4]; Msg[n++] = B[5]; Msg[n++] = B[6]; Msg[n++] = B[7];
+        Msg[n++] = '\n';
+        Msg[n] = 0;
+        BootLog(Msg);
+    }
+
+    if ((Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
+        BootLog("boot: xhci port already PED\n");
+        return 1;
+    }
+
     if (!(Val & PORTSC_PP)) {
-        WriteMmio32(Ps, (Val & ~PORTSC_CHANGE) | PORTSC_PP);
-        WaitSet(Ps, PORTSC_PP, 100000);
+        WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PP);
+        if (!WaitSet(Ps, PORTSC_PP, RealPc ? 20000 : 30000)) {
+            BootLog("boot: xhci PP timeout\n");
+            return 0;
+        }
         Val = ReadMmio32(Ps);
     }
 
-    WriteMmio32(Ps, (Val & ~PORTSC_CHANGE) | PORTSC_PR | PORTSC_PP);
-    if (!WaitSet(Ps, PORTSC_PRC, 2000000)) {
-        DebugWrite("XHCI: port reset timeout\n");
+    Speed = PortSpeed(Val);
+    BootLog("boot: xhci port reset...\n");
+    Val = PortscNeutral(ReadMmio32(Ps));
+    if (Speed >= 4) {
+        WriteMmio32(Ps, Val | PORTSC_WPR | PORTSC_PP);
+    } else {
+        WriteMmio32(Ps, Val | PORTSC_PR | PORTSC_PP);
+    }
+
+    if (!WaitSet(Ps, PORTSC_PRC | PORTSC_WRC, RealPc ? 40000 : 60000)) {
+        BootLog("boot: xhci reset timeout\n");
         return 0;
     }
 
-    Val = ReadMmio32(Ps);
-    WriteMmio32(Ps, (Val & ~PORTSC_CHANGE) | PORTSC_PRC | PORTSC_CSC);
-    for (int t = 0; t < 100000; t++) {
+    /* 真机：勿再写 PORTSC 清 change（易二次挂）；只轮询 PED */
+    if (!RealPc) {
+        Val = ReadMmio32(Ps);
+        WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PRC | PORTSC_WRC | PORTSC_CSC);
+    }
+    for (t = 0; t < (RealPc ? 20000 : 30000); t++) {
         Val = ReadMmio32(Ps);
         if ((Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
+            BootLog("boot: xhci port enabled\n");
             return 1;
         }
     }
-    DebugWrite("XHCI: port not enabled after reset\n");
+    BootLog("boot: xhci port not PED\n");
     return 0;
-}
-
-static UINT8 PortSpeed(UINT32 Portsc) {
-    return (UINT8)((Portsc >> 10) & 0xF);
 }
 
 static UINT16 SpeedMps(UINT8 Speed) {
@@ -547,7 +768,7 @@ static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
     UINT32 StatusDir = (Setup->wLength && (Setup->bmRequestType & 0x80)) ? 0 : TRB_DIR_IN;
     Enqueue(gEp0Ring, &gEp0, 0, 0, TRB_TYPE(TRB_STATUS) | TRB_IOC | StatusDir);
     RingDoorbell(gXferSlot, 1);
-    if (WaitTransfer(2000000) < 0) {
+    if (WaitTransfer(150000) < 0) {
         DebugWrite("XHCI: EP0 transfer failed cc=");
         DebugHex32(gXferCode);
         DebugWrite("\n");
@@ -687,7 +908,8 @@ static int ParseConfig(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
             UINT8 Class = Cfg[Off + 5];
             UINT8 Sub = Cfg[Off + 6];
             UINT8 Proto = Cfg[Off + 7];
-            if (Class == 3 && Sub == 1 && Proto == 1) {
+            /* Boot keyboard 3/1/1；部分键鼠固件报 Proto=0 仍可用 boot report */
+            if (Class == 3 && Sub == 1 && (Proto == 1 || Proto == 0)) {
                 FoundIface = 1;
                 *Iface = Cfg[Off + 2];
             } else {
@@ -891,18 +1113,41 @@ static int InitMouseOnPort(UINT32 Port1) {
 
 /* 完整 xHCI 初始化：复位、建环、枚举端口上的 USB 键盘 */
 int XhciInit(UINT64 BaseAddress) {
+    int RealPc = !HalCpuIsHypervisor();
+    char B[12];
+
+    /*
+     * 实测：白字最后停在 ports=0x12 且无 B10 黄字 → Present 在该行可能不返回。
+     * 真机：一进 Init 就 mute，ports/探针全走 BootMark（直写帧缓冲）。
+     */
+    if (RealPc) {
+        HalSerialGopMute(1);
+        HalSerialBootMark("boot: xhci-B10 enter\n");
+    }
+
     if (BaseAddress == 0) {
-        DebugWrite("XHCI: null BAR\n");
+        if (RealPc) {
+            HalSerialBootMark("boot: xhci null BAR\n");
+            HalSerialGopMute(0);
+        } else {
+            HalSerialWrite("boot: xhci null BAR\n");
+        }
         return 0;
     }
 
     gCapabilityBase = BaseAddress;
     UINT32 Cap = ReadMmio32(gCapabilityBase);
     UINT32 CapLength = Cap & 0xFF;
-    if (CapLength < 0x20) {
-        DebugWrite("XHCI: bad CapLength ");
-        DebugHex32(Cap);
-        DebugWrite("\n");
+    if (Cap == 0xFFFFFFFFu || CapLength < 0x20 || CapLength == 0xFF) {
+        if (RealPc) {
+            HalSerialBootMark("boot: xhci bad CAP\n");
+            HalSerialGopMute(0);
+        } else {
+            HalSerialWrite("boot: xhci bad CAP=");
+            HalSerialFormatHex(B, Cap, 8);
+            HalSerialWrite(B);
+            HalSerialWrite("\n");
+        }
         return 0;
     }
 
@@ -921,21 +1166,60 @@ int XhciInit(UINT64 BaseAddress) {
         MaxSlots = DCBAA_SLOTS;
     }
 
-    DebugWrite("XHCI: cap=");
-    DebugHex64(gCapabilityBase);
-    DebugWrite(" ports=");
-    DebugHex32(gMaxPorts);
-    DebugWrite(" ctx=");
-    DebugHex32(gCtxSize);
-    DebugWrite("\n");
+    HalSerialFormatHex(B, gMaxPorts, 2);
+    if (RealPc) {
+        char Msg[40];
+        int n = 0;
+        const char *P = "boot: xhci ports=";
+        while (*P && n < 28) {
+            Msg[n++] = *P++;
+        }
+        Msg[n++] = B[0];
+        Msg[n++] = B[1];
+        Msg[n++] = '\n';
+        Msg[n] = 0;
+        HalSerialBootMark(Msg);
+    } else {
+        HalSerialWrite("boot: xhci ports=");
+        HalSerialWrite(B);
+        HalSerialWrite("\n");
+    }
 
+    /*
+     * 真机 B10 探针（只测一件事）：黄字 before RS / after RS / RS running。
+     * 本核不做端口枚举；测完即停。
+     */
+    if (RealPc) {
+        HalSerialBootMark("boot: xhci-B10 probe\n");
+        HalSerialBootMark("boot: xhci-B10 HCRST\n");
+        if (!ResetController()) {
+            HalSerialGopMute(0);
+            HalSerialWrite("boot: xhci-B10 HCRST fail\n");
+            return 1;
+        }
+        HalSerialBootMark("boot: xhci-B10 Start\n");
+        if (!StartController(MaxSlots)) {
+            HalSerialGopMute(0);
+            HalSerialWrite("boot: xhci-B10 RS fail/timeout\n");
+            return 1;
+        }
+        HalSerialGopMute(0);
+        HalSerialWrite("boot: xhci-B10 RS ok, probe stop\n");
+        return 1;
+    }
+
+    BootLog("boot: xhci take legacy...\n");
     TakeLegacy();
+    BootLog("boot: xhci after legacy\n");
+
     if (!ResetController() || !StartController(MaxSlots)) {
         return 0;
     }
+    HalSerialWrite("boot: xhci controller running\n");
     DebugWrite("XHCI: controller running\n");
+    HalSerialWrite("boot: xhci poll HID (IOAPIC not required)\n");
+    PowerConnectedPorts();
 
-    /* PR-H2：普查各口 CCS；优先 boot keyboard（3/1/1），勿假定第一口就是键盘 */
     {
         UINT32 Surveyed = 0;
         for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
@@ -949,9 +1233,12 @@ int XhciInit(UINT64 BaseAddress) {
                 DebugWrite("\n");
             }
         }
-        DebugWrite("XHCI: CCS ports=");
-        DebugHex32(Surveyed);
-        DebugWrite("\n");
+        {
+            HalSerialWrite("boot: xhci CCS ports=");
+            HalSerialFormatHex(B, Surveyed, 2);
+            HalSerialWrite(B);
+            HalSerialWrite("\n");
+        }
     }
 
     UINT32 Port1 = 0;
@@ -961,108 +1248,107 @@ int XhciInit(UINT64 BaseAddress) {
     UINT8 ConfigVal = 1;
     int HaveIntr = 0;
 
-    for (int Wait = 0; Wait < 50 && Port1 == 0; Wait++) {
-        for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
-            UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(p));
-            if (!(Ps & PORTSC_CCS)) {
-                continue;
-            }
-            if (!ResetPort(p)) {
-                continue;
-            }
-            UINT32 After = ReadMmio32(gOperationalBase + PortReg(p));
-            Speed = PortSpeed(After);
-            gPort1 = p;
-            gSpeed = Speed;
-            DebugWrite("XHCI: try keyboard port ");
-            DebugHex32(p);
-            DebugWrite(" speed=");
-            DebugHex32(Speed);
-            DebugWrite("\n");
-
-            if (!AddressDevice(p, Speed)) {
-                DisableSlot(gSlotId);
-                continue;
-            }
-
-            if (GetDesc(0x0100, 0, 18, gCtrlBuf) < 0) {
-                DebugWrite("XHCI: GET_DESCRIPTOR device failed\n");
-                DisableSlot(gSlotId);
-                continue;
-            }
+    /* 以下仅 QEMU（真机已在上方 return） */
+    {
+        int PassMax = 3;
+        for (int Wait = 0; Wait < PassMax && Port1 == 0; Wait++) {
+            HalSerialWrite("boot: xhci enum pass=");
             {
-                USB_DEVICE_DESCRIPTOR *Dev = (USB_DEVICE_DESCRIPTOR *)(void *)gCtrlBuf;
-                DebugWrite("XHCI: VID=");
-                DebugHex32(Dev->idVendor);
-                DebugWrite(" PID=");
-                DebugHex32(Dev->idProduct);
-                DebugWrite("\n");
-                (void)Dev;
+                char B[12];
+                HalSerialFormatHex(B, (UINT64)(UINT32)(Wait + 1), 2);
+                HalSerialWrite(B);
+                HalSerialWrite("\n");
             }
+            for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
+                UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(p));
+                if (!(Ps & PORTSC_CCS)) {
+                    continue;
+                }
+                HalSerialWrite("boot: xhci try port=");
+                {
+                    char B[12];
+                    HalSerialFormatHex(B, p, 2);
+                    HalSerialWrite(B);
+                    HalSerialWrite("\n");
+                }
+                if (!ResetPort(p)) {
+                    continue;
+                }
+                UINT32 After = ReadMmio32(gOperationalBase + PortReg(p));
+                Speed = PortSpeed(After);
+                gPort1 = p;
+                gSpeed = Speed;
 
-            if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
-                DebugWrite("XHCI: GET_DESCRIPTOR config(9) failed\n");
-                DisableSlot(gSlotId);
-                continue;
-            }
-            UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
-            if (Total < 9) {
-                Total = 9;
-            }
-            if (Total > sizeof(gCtrlBuf)) {
-                Total = (UINT16)sizeof(gCtrlBuf);
-            }
-            if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
-                DebugWrite("XHCI: GET_DESCRIPTOR config failed\n");
-                DisableSlot(gSlotId);
-                continue;
-            }
-            ConfigVal = gCtrlBuf[5];
-            if (ConfigVal == 0) {
-                ConfigVal = 1;
-            }
+                HalSerialWrite("boot: xhci address...\n");
+                if (!AddressDevice(p, Speed)) {
+                    HalSerialWrite("boot: xhci address fail\n");
+                    DisableSlot(gSlotId);
+                    continue;
+                }
+                HalSerialWrite("boot: xhci address ok\n");
 
-            HaveIntr = ParseConfig(gCtrlBuf, Total, Speed, &gKbdIface, &EpAddr, &Mps, &Interval);
-            if (!HaveIntr) {
-                DebugWrite("XHCI: no boot keyboard iface on port ");
-                DebugHex32(p);
-                DebugWrite("\n");
-                DisableSlot(gSlotId);
-                continue;
+                if (GetDesc(0x0100, 0, 18, gCtrlBuf) < 0) {
+                    DisableSlot(gSlotId);
+                    continue;
+                }
+                if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+                    DisableSlot(gSlotId);
+                    continue;
+                }
+                {
+                    UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+                    if (Total < 9) {
+                        Total = 9;
+                    }
+                    if (Total > sizeof(gCtrlBuf)) {
+                        Total = (UINT16)sizeof(gCtrlBuf);
+                    }
+                    if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+                        DisableSlot(gSlotId);
+                        continue;
+                    }
+                    ConfigVal = gCtrlBuf[5];
+                    if (ConfigVal == 0) {
+                        ConfigVal = 1;
+                    }
+                    HaveIntr = ParseConfig(gCtrlBuf, Total, Speed, &gKbdIface, &EpAddr, &Mps,
+                                           &Interval);
+                }
+                if (!HaveIntr) {
+                    DisableSlot(gSlotId);
+                    continue;
+                }
+                if (SetConfig(ConfigVal) < 0) {
+                    DisableSlot(gSlotId);
+                    continue;
+                }
+                (void)SetProtocolBoot(gKbdIface);
+                SetIdle(gKbdIface);
+                if (!ConfigureIntr(EpAddr, Mps, Interval, Speed)) {
+                    DisableSlot(gSlotId);
+                    continue;
+                }
+                ZeroMemory(gReportBuf, 8);
+                QueueIntr();
+                gUseGetReport = 0;
+                Port1 = p;
+                break;
             }
-
-            if (SetConfig(ConfigVal) < 0) {
-                DebugWrite("XHCI: SET_CONFIGURATION failed\n");
-                DisableSlot(gSlotId);
-                continue;
-            }
-            if (SetProtocolBoot(gKbdIface) < 0) {
-                DebugWrite("XHCI: SET_PROTOCOL failed (continuing)\n");
-            }
-            SetIdle(gKbdIface);
-
-            if (!ConfigureIntr(EpAddr, Mps, Interval, Speed)) {
-                DebugWrite("XHCI: ConfigureIntr failed\n");
-                DisableSlot(gSlotId);
-                continue;
-            }
-            ZeroMemory(gReportBuf, 8);
-            QueueIntr();
-            gUseGetReport = 0;
-            Port1 = p;
-            break;
-        }
-        if (Port1 == 0) {
-            for (volatile int d = 0; d < 200000; d++) {
+            if (Port1 == 0) {
+                for (volatile int d = 0; d < 40000; d++) {
+                }
             }
         }
     }
+
     if (Port1 == 0) {
+        HalSerialWrite("boot: xhci up but no HID keyboard\n");
         DebugWrite("XHCI: no keyboard\n");
-        return 0;
+        return 1;
     }
 
     DebugWrite("XHCI: keyboard ready\n");
+    HalSerialWrite("boot: xhci-hid poll ready\n");
 
     for (UINT32 p = 1; p <= gMaxPorts; p++) {
         if (p == gPort1) {
@@ -1074,6 +1360,10 @@ int XhciInit(UINT64 BaseAddress) {
     }
 
     return 1;
+}
+
+int XhciHidKeyboardReady(void) {
+    return gSlotId != 0;
 }
 
 /* 将键盘报告推入环形软件队列 */
@@ -1172,13 +1462,32 @@ void XhciIrq(void) {
     }
 }
 
-/* 轮询排空事件环（启用 IRQ 前调用） */
+/* 排空事件环：轮询不依赖 IMAN；IRQ 模式仍走 XhciIrq */
 void XhciDrainEvents(void) {
-    for (int i = 0; i < 8; i++) {
-        if (!(ReadMmio32(gRuntimeBase + 0x20) & 1u)) {
-            break;
+    int i;
+
+    if (gUseIrq) {
+        for (i = 0; i < 8; i++) {
+            if (!(ReadMmio32(gRuntimeBase + 0x20) & 1u)) {
+                break;
+            }
+            XhciIrq();
         }
-        XhciIrq();
+        return;
+    }
+
+    for (i = 0; i < 32; i++) {
+        ProcessEvents();
+        if (gIntrDone) {
+            gIntrDone = 0;
+            KbdPush();
+            QueueIntr();
+        }
+        if (gMouseIntrDone) {
+            gMouseIntrDone = 0;
+            MousePush();
+            QueueMouseIntr();
+        }
     }
 }
 

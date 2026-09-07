@@ -24,6 +24,9 @@ int VideoBackbufferEnabled(void);
 UINT32 VideoBackbufferPages(void);
 /* 脏矩形 blit 到 GOP；无后缓冲时为空操作 */
 void VideoPresent(void);
+/* 直写 scanout（boot 进度，勿与 Present 混用长路径） */
+void VideoDrawBeginFront(void);
+void VideoDrawEndFront(void);
 void VideoGetSize(UINT32 *Width, UINT32 *Height);
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略文字 clip，供光标等全屏叠层 */

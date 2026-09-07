@@ -14,6 +14,11 @@ void KernelMain(void) {
 
     /* 尽早挂上帧缓冲，避免 mem 等模块 ConsoleWrite 时 Width=0 死循环 */
     HalVideoSet(&V);
+    /* H0：进核即改像素（在开分页 / 驱动 Probe 之前），真机卡死时可区分 Boot vs Kernel */
+    if (Info && Info->FrameBufferSize != 0) {
+        HalVideoClearScreen(0x00204060u);
+        HalVideoPresent();
+    }
 
     if (KernelModulesRun() != 0) {
         for (;;) {

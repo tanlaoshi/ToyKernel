@@ -198,6 +198,14 @@ int HalPlatformVirtConsole(void) {
 #endif
 }
 
+int HalCpuIsHypervisor(void) {
+#if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 void HalVirtIdleLoop(void) {
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
