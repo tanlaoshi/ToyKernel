@@ -428,9 +428,12 @@ int DbInit(void) {
         ImportThemeCfgIfEmpty();
     }
     gReady = 1;
-    ConsoleRegister("dbget", "get KV from TOYOS.DB", CommandDbGet);
-    ConsoleRegister("dbset", "set KV in TOYOS.DB", CommandDbSet);
-    ConsoleRegister("dblist", "list TOYOS.DB", CommandDbList);
+    ConsoleRegister2("database", "get", "get KV from TOYOS.DB", CommandDbGet);
+    ConsoleRegister2("database", "set", "set KV in TOYOS.DB", CommandDbSet);
+    ConsoleRegister2("database", "list", "list TOYOS.DB", CommandDbList);
+    ConsoleRegisterAliasLine("dbget", "database", "get");
+    ConsoleRegisterAliasLine("dbset", "database", "set");
+    ConsoleRegisterAliasLine("dblist", "database", "list");
     DebugWrite("db: ready records=");
     DebugHex32((UINT32)DbCount());
     DebugWrite("\n");

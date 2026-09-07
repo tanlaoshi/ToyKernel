@@ -618,11 +618,20 @@ static void ShellLwIpPrintStatus(void) {
 }
 
 static void CommandLwIp(int Argc, char **Argv) {
-    if (Argc < 2) {
+    const char *Word;
+
+    /* 正统：lwip on|status → Argv[0]=二级；旧：lwip on → Argv[1] */
+    if (Argc >= 1 && Argv[0][0] == 'o' && Argv[0][1] == 'n' && Argv[0][2] == 0) {
+        Word = Argv[0];
+    } else if (Argc >= 1 && Argv[0][0] == 's') {
+        Word = Argv[0];
+    } else if (Argc >= 2) {
+        Word = Argv[1];
+    } else {
         ConsoleWrite("usage: lwip on|status\n");
         return;
     }
-    if (Argv[1][0] == 'o' && Argv[1][1] == 'n' && Argv[1][2] == 0) {
+    if (Word[0] == 'o' && Word[1] == 'n' && Word[2] == 0) {
         if (LwIpActive()) {
             ConsoleWrite("lwip: already on\n");
             return;
@@ -634,7 +643,7 @@ static void CommandLwIp(int Argc, char **Argv) {
         ShellLwIpPrintStatus();
         return;
     }
-    if (Argv[1][0] == 's') {
+    if (Word[0] == 's') {
         if (!LwIpActive()) {
             ConsoleWrite("lwip: off (builtin stack; run lwip on)\n");
             return;
@@ -711,17 +720,98 @@ static void CommandZh(int Argc, char **Argv) {
     ConsoleWrite("你好，世界！中文测试\n");
 }
 
-static void CommandStore(int Argc, char **Argv) {
+static int StoreWordEq(const char *A, const char *B) {
+    if (A == 0 || B == 0) {
+        return 0;
+    }
+    while (*A && *B) {
+        if (*A != *B) {
+            return 0;
+        }
+        A++;
+        B++;
+    }
+    return *A == *B;
+}
+
+static void StorePrintUsage(void) {
+    ConsoleWrite(
+        "usage: store <list|install|remove|combo|uncombo|installed|sync|fetch|repo> ...\n");
+    ConsoleWrite(
+        "  aliases: (none)→list, status→list, rm→remove, list-installed→installed\n");
+}
+
+static void StoreCmdListCatalog(void) {
     STORE_ENTRY *Tab;
     int Count = 0;
+    int i;
+    int Err;
+
+    Tab = StoreScratchTab();
+    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+    if (Err < 0) {
+        ConsoleWrite("store: catalog ");
+        ConsoleWrite(FatStrError(Err));
+        ConsoleWrite("\n");
+        return;
+    }
+    ConsoleWrite("store (");
+    ConsoleWrite(StoreHostArch());
+    ConsoleWrite(")  state=INST|avail  dep=...\n");
+    for (i = 0; i < Count; i++) {
+        char Dep[64];
+        int On = StoreIsInstalled(Tab[i].Id);
+        if (On) {
+            (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
+        } else if (Tab[i].Depends[0]) {
+            int k = 0;
+            while (Tab[i].Depends[k] && k < (int)sizeof(Dep) - 1) {
+                Dep[k] = Tab[i].Depends[k];
+                k++;
+            }
+            Dep[k] = 0;
+        } else {
+            Dep[0] = '-';
+            Dep[1] = 0;
+        }
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].Id);
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].Type);
+        ConsoleWrite(On ? "  INST  " : "  avail ");
+        ConsoleWrite("dep=");
+        ConsoleWrite(Dep);
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].File);
+        ConsoleWrite("  ");
+        ConsoleWrite(Tab[i].Title);
+        ConsoleWrite("\n");
+    }
+}
+
+static void CommandStore(int Argc, char **Argv) {
+    const char *Sub;
     int i;
     int Err;
     UINT32 Ip;
     UINT16 Port;
     char IpBuf[24];
 
-    if (Argc >= 2 && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
-        Argv[1][2] == 'p' && Argv[1][3] == 'o' && Argv[1][4] == 0) {
+    /* PR-C3：正统二级无中横线；别名在此展开 */
+    if (Argc < 2) {
+        Sub = "list";
+    } else {
+        Sub = Argv[1];
+        if (StoreWordEq(Sub, "status")) {
+            Sub = "list";
+        } else if (StoreWordEq(Sub, "rm")) {
+            Sub = "remove";
+        } else if (StoreWordEq(Sub, "list-installed")) {
+            Sub = "installed";
+        }
+    }
+
+    if (StoreWordEq(Sub, "repo")) {
         if (Argc >= 3) {
             if (StoreRepoSet(Argv[2]) != 0) {
                 ConsoleWrite("store repo: bad ip:port\n");
@@ -740,8 +830,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    if (Argc >= 2 && Argv[1][0] == 's' && Argv[1][1] == 'y' &&
-        Argv[1][2] == 'n' && Argv[1][3] == 'c' && Argv[1][4] == 0) {
+    if (StoreWordEq(Sub, "sync")) {
         Err = StoreSyncCatalog();
         if (Err == -41 || Err == -2) {
             ConsoleWrite("store sync: HTTP not 200 (host http.server + /catalog.txt?)\n");
@@ -765,9 +854,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    if (Argc >= 2 && Argv[1][0] == 'f' && Argv[1][1] == 'e' &&
-        Argv[1][2] == 't' && Argv[1][3] == 'c' && Argv[1][4] == 'h' &&
-        Argv[1][5] == 0) {
+    if (StoreWordEq(Sub, "fetch")) {
         if (Argc < 3) {
             ConsoleWrite("usage: store fetch <id>\n");
             return;
@@ -800,9 +887,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    if (Argc >= 2 && Argv[1][0] == 'i' && Argv[1][1] == 'n' &&
-        Argv[1][2] == 's' && Argv[1][3] == 't' && Argv[1][4] == 'a' &&
-        Argv[1][5] == 'l' && Argv[1][6] == 'l' && Argv[1][7] == 0) {
+    if (StoreWordEq(Sub, "install")) {
         if (Argc < 3) {
             ConsoleWrite("usage: store install <id>\n");
             return;
@@ -849,19 +934,12 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    /* PR-S4：store list-installed | store installed */
-    if (Argc >= 2 &&
-        ((Argv[1][0] == 'l' && Argv[1][1] == 'i' && Argv[1][2] == 's' &&
-          Argv[1][3] == 't' && Argv[1][4] == '-' && Argv[1][5] == 'i') ||
-         (Argv[1][0] == 'i' && Argv[1][1] == 'n' && Argv[1][2] == 's' &&
-          Argv[1][3] == 't' && Argv[1][4] == 'a' && Argv[1][5] == 'l' &&
-          Argv[1][6] == 'l' && Argv[1][7] == 'e' && Argv[1][8] == 'd' &&
-          Argv[1][9] == 0))) {
+    if (StoreWordEq(Sub, "installed")) {
         STORE_INSTALLED Inst[STORE_INSTALLED_MAX];
         int N = 0;
         Err = StoreListInstalled(Inst, STORE_INSTALLED_MAX, &N);
         if (Err != FAT_OK) {
-            ConsoleWrite("store list-installed: ");
+            ConsoleWrite("store installed: ");
             ConsoleWrite(FatStrError(Err));
             ConsoleWrite("\n");
             return;
@@ -887,10 +965,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    /* PR-S4：store remove <id> */
-    if (Argc >= 2 && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
-        Argv[1][2] == 'm' && Argv[1][3] == 'o' && Argv[1][4] == 'v' &&
-        Argv[1][5] == 'e' && Argv[1][6] == 0) {
+    if (StoreWordEq(Sub, "remove")) {
         if (Argc < 3) {
             ConsoleWrite("usage: store remove <id>\n");
             return;
@@ -909,10 +984,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    /* PR-M2：store combo <id> — 按依赖顺序装齐功能 */
-    if (Argc >= 2 && Argv[1][0] == 'c' && Argv[1][1] == 'o' &&
-        Argv[1][2] == 'm' && Argv[1][3] == 'b' && Argv[1][4] == 'o' &&
-        Argv[1][5] == 0) {
+    if (StoreWordEq(Sub, "combo")) {
         if (Argc < 3) {
             ConsoleWrite("usage: store combo <id>\n");
             ConsoleWrite("hint: e.g. store combo guidemo  (demopack+sun8 then app)\n");
@@ -931,10 +1003,7 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    /* PR-M2：store uncombo <id> — 卸 leaf 再卸无引用依赖 */
-    if (Argc >= 2 && Argv[1][0] == 'u' && Argv[1][1] == 'n' &&
-        Argv[1][2] == 'c' && Argv[1][3] == 'o' && Argv[1][4] == 'm' &&
-        Argv[1][5] == 'b' && Argv[1][6] == 'o' && Argv[1][7] == 0) {
+    if (StoreWordEq(Sub, "uncombo")) {
         if (Argc < 3) {
             ConsoleWrite("usage: store uncombo <id>\n");
             return;
@@ -952,55 +1021,12 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    Tab = StoreScratchTab();
-    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
-    if (Err < 0) {
-        ConsoleWrite("store: catalog ");
-        ConsoleWrite(FatStrError(Err));
-        ConsoleWrite("\n");
+    if (StoreWordEq(Sub, "list")) {
+        StoreCmdListCatalog();
         return;
     }
-    /* PR-S5：一行可见 — 状态 / 依赖 / 文件 / 标题 */
-    ConsoleWrite("store (");
-    ConsoleWrite(StoreHostArch());
-    ConsoleWrite(")  state=INST|avail  dep=...\n");
-    for (i = 0; i < Count; i++) {
-        char Dep[64];
-        int On = StoreIsInstalled(Tab[i].Id);
-        if (On) {
-            (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
-        } else if (Tab[i].Depends[0]) {
-            int k = 0;
-            while (Tab[i].Depends[k] && k < (int)sizeof(Dep) - 1) {
-                Dep[k] = Tab[i].Depends[k];
-                k++;
-            }
-            Dep[k] = 0;
-        } else {
-            Dep[0] = '-';
-            Dep[1] = 0;
-        }
-        ConsoleWrite("  ");
-        ConsoleWrite(Tab[i].Id);
-        ConsoleWrite("  ");
-        ConsoleWrite(Tab[i].Type);
-        ConsoleWrite(On ? "  INST  " : "  avail ");
-        ConsoleWrite("dep=");
-        ConsoleWrite(Dep);
-        ConsoleWrite("  ");
-        ConsoleWrite(Tab[i].File);
-        ConsoleWrite("  ");
-        ConsoleWrite(Tab[i].Title);
-        ConsoleWrite("\n");
-    }
-    if (Argc < 2 ||
-        (Argv[1][0] == 'l' && Argv[1][1] == 'i' && Argv[1][2] == 's' &&
-         Argv[1][3] == 't' && Argv[1][4] == 0) ||
-        (Argv[1][0] == 's' && Argv[1][1] == 't' && Argv[1][2] == 'a' &&
-         Argv[1][3] == 't' && Argv[1][4] == 'u' && Argv[1][5] == 's' &&
-         Argv[1][6] == 0)) {
-        ConsoleWrite("usage: store [list|status]|install|remove|combo|uncombo|list-installed|sync|fetch|repo\n");
-    }
+
+    StorePrintUsage();
 }
 
 static void CommandFont(int Argc, char **Argv) {
@@ -1129,42 +1155,69 @@ static void CommandLsdev(int Argc, char **Argv) {
 }
 
 void ShellCommandsRegisterVirtMin(void) {
-    ConsoleRegister("ps", "list tasks", CommandPs);
-    ConsoleRegister("mem", "physical memory stats", CommandMem);
-    ConsoleRegister("exec", "load ELF (TOYOS:FILE)", CommandExec);
+    ConsoleRegister2("list", "tasks", "list tasks", CommandPs);
+    ConsoleRegisterAliasLine("ps", "list", "tasks");
+    ConsoleRegister2("show", "memory", "physical memory stats", CommandMem);
+    ConsoleRegisterAliasLine("mem", "show", "memory");
+    ConsoleRegister("execute", "load ELF (TOYOS:FILE)", CommandExec);
+    ConsoleRegisterAlias("execute", "exec");
     ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
-    ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
+    ConsoleRegister2("list", "devices", "list bound drivers", CommandLsdev);
+    ConsoleRegisterAliasLine("lsdev", "list", "devices");
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegisterAlias("halt", "exit");
     ConsoleRegisterAlias("halt", "quit");
 }
 
 void ShellCommandsRegister(void) {
-    ConsoleRegister("info", "boot framebuffer info", CommandInfo);
-    ConsoleRegister("ps", "list tasks", CommandPs);
-    ConsoleRegister("mem", "physical memory stats", CommandMem);
-    ConsoleRegister("memtest", "alloc/verify/free one page", CommandMemtest);
-    ConsoleRegister("runuser", "run embedded hello ELF", CommandRunuser);
-    ConsoleRegister("exec", "load ELF (TOYOS:FILE / A:FILE)", CommandExec);
+    /* list / show / test / run / set（目录类二级在 ShellCommandsRegisterFs） */
+    ConsoleRegister2("list", "tasks", "list tasks", CommandPs);
+    ConsoleRegister2("list", "devices", "list bound drivers", CommandLsdev);
+    ConsoleRegisterAliasLine("ps", "list", "tasks");
+    ConsoleRegisterAliasLine("tasks", "list", "tasks");
+    ConsoleRegisterAliasLine("lsdev", "list", "devices");
+
+    ConsoleRegister2("show", "memory", "physical memory stats", CommandMem);
+    ConsoleRegister2("show", "network", "network info", CommandNet);
+    ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
+    ConsoleRegisterAliasLine("mem", "show", "memory");
+    ConsoleRegisterAliasLine("memory", "show", "memory");
+    ConsoleRegisterAliasLine("net", "show", "network");
+    ConsoleRegisterAliasLine("network", "show", "network");
+    ConsoleRegisterAliasLine("info", "show", "info");
+
+    ConsoleRegister2("test", "memory", "alloc/verify/free one page", CommandMemtest);
+    ConsoleRegister2("test", "glyph", "UTF-8 Chinese glyph test", CommandZh);
+    ConsoleRegisterAliasLine("memtest", "test", "memory");
+    ConsoleRegisterAliasLine("zh", "test", "glyph");
+
+    ConsoleRegister2("run", "user", "run embedded hello ELF", CommandRunuser);
+    ConsoleRegisterAliasLine("runuser", "run", "user");
+
+    ConsoleRegister2("set", "language", "set language en|zh|reload", CommandLang);
+    ConsoleRegisterAliasLine("lang", "set", "language");
+    ConsoleRegisterAliasLine("language", "set", "language");
+
+    ConsoleRegister("execute", "load ELF (TOYOS:FILE / A:FILE)", CommandExec);
+    ConsoleRegisterAlias("execute", "exec");
     ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
     ConsoleRegister("shell", "open Shell window", CommandShell);
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("edit", "edit <path> open text editor (PR-V2)", CommandEdit);
-    ConsoleRegister("zh", "UTF-8 Chinese glyph test", CommandZh);
-    ConsoleRegister("lang", "lang en|zh|reload (Assets/Locale)", CommandLang);
     ConsoleRegister("font", "font [reload|<id>] (Assets/Fonts TOYF)", CommandFont);
-    ConsoleRegister("store", "store list|status|install|remove|list-installed|sync|fetch|repo", CommandStore);
+    ConsoleRegister("store", "store list|install|remove|combo|uncombo|installed|…", CommandStore);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegisterAlias("halt", "exit");
     ConsoleRegisterAlias("halt", "quit");
-    ConsoleRegister("lsdev", "list bound drivers (PR-D4)", CommandLsdev);
-    ConsoleRegister("net", "network info", CommandNet);
     ConsoleRegister("ping", "ICMP echo", CommandPing);
-    ConsoleRegister("udplisten", "bind UDP port", CommandUdpListen);
-    ConsoleRegister("udpsend", "send UDP datagram", CommandUdpSend);
-    /* PR-C1 样例：一级/二级 + 粘连别名；其余命令改挂见 C2 */
+
+    ConsoleRegister2("udp", "listen", "bind UDP port", CommandUdpListen);
+    ConsoleRegister2("udp", "send", "send UDP datagram", CommandUdpSend);
+    ConsoleRegisterAliasLine("udplisten", "udp", "listen");
+    ConsoleRegisterAliasLine("udpsend", "udp", "send");
+
     ConsoleRegister2("tcp", "listen", "TCP echo server", CommandTcpListen);
     ConsoleRegister2("tcp", "connect", "TCP connect and send", CommandTcpConnect);
     ConsoleRegister2("tcp", "status", "TCP connection status", CommandTcpStatus);
@@ -1172,6 +1225,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegisterAliasLine("tcpconnect", "tcp", "connect");
     ConsoleRegisterAliasLine("tcpstatus", "tcp", "status");
 #ifdef TOY_LWIP
-    ConsoleRegister("lwip", "lwIP stack (lwip on)", CommandLwIp);
+    ConsoleRegister2("lwip", "on", "enable lwIP stack", CommandLwIp);
+    ConsoleRegister2("lwip", "status", "lwIP status", CommandLwIp);
 #endif
 }

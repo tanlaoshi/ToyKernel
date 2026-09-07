@@ -134,6 +134,7 @@ static int InitializeConsole(void) {
     } else {
         ShellCommandsRegister();
     }
+    ConsoleUserAliasLoad();
     ConsoleInit();
     return 0;
 }

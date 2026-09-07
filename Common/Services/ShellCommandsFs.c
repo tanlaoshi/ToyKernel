@@ -395,16 +395,44 @@ static void CommandDirStress(int Argc, char **Argv) {
 }
 
 void ShellCommandsRegisterFs(void) {
-    ConsoleRegister("ls", "list directory (TOYOS: / A: / RES:)", CommandLs);
-    ConsoleRegister("cat", "print file", CommandCat);
+    /* list：默认列目录；二级 tasks/devices 已由 ShellCommandsRegister 挂上 */
+    ConsoleRegister("list", "list directory (TOYOS: / A: / RES:)", CommandLs);
+    ConsoleRegister2("list", "volumes", "list mounted volumes", CommandVols);
+    ConsoleRegisterAlias("list", "ls");
+    ConsoleRegisterAlias("list", "dir");
+    ConsoleRegisterAliasLine("vols", "list", "volumes");
+    ConsoleRegisterAliasLine("volumes", "list", "volumes");
+
+    ConsoleRegister("print", "print file", CommandCat);
+    ConsoleRegisterAlias("print", "cat");
+    ConsoleRegisterAlias("print", "type");
+
     ConsoleRegister("write", "write file text", CommandWrite);
-    ConsoleRegister("wrbig", "write+verify large file (PR-FS3)", CommandWrbig);
-    ConsoleRegister("dirstress", "grow subdir clusters (PR-F3)", CommandDirStress);
-    ConsoleRegister("rm", "remove file or empty dir", CommandRm);
-    ConsoleRegister("mkdir", "create directory", CommandMkdir);
-    ConsoleRegister("rmdir", "remove empty directory", CommandRmdir);
-    ConsoleRegister("mv", "rename/move file or dir", CommandMv);
-    ConsoleRegister("vols", "list mounted volumes", CommandVols);
-    ConsoleRegister("filestat", "file/dir status (PR-F2 FileStat)", CommandFileStat);
-    ConsoleRegister("filesync", "flush volume to disk (PR-F2 FileSync)", CommandFileSync);
+    ConsoleRegister2("write", "big", "write+verify large file", CommandWrbig);
+    ConsoleRegisterAliasLine("wrbig", "write", "big");
+
+    ConsoleRegister2("make", "directory", "create directory", CommandMkdir);
+    ConsoleRegisterAliasLine("mkdir", "make", "directory");
+    ConsoleRegisterAliasLine("md", "make", "directory");
+
+    ConsoleRegister("remove", "remove file or empty dir", CommandRm);
+    ConsoleRegister2("remove", "directory", "remove empty directory", CommandRmdir);
+    ConsoleRegisterAlias("remove", "rm");
+    ConsoleRegisterAlias("remove", "del");
+    ConsoleRegisterAliasLine("rmdir", "remove", "directory");
+    ConsoleRegisterAliasLine("rd", "remove", "directory");
+
+    ConsoleRegister("move", "rename/move file or dir", CommandMv);
+    ConsoleRegisterAlias("move", "mv");
+    ConsoleRegisterAlias("move", "rename");
+
+    ConsoleRegister2("show", "file", "file/dir status", CommandFileStat);
+    ConsoleRegisterAliasLine("filestat", "show", "file");
+    ConsoleRegisterAliasLine("stat", "show", "file");
+
+    ConsoleRegister2("sync", "file", "flush volume to disk", CommandFileSync);
+    ConsoleRegisterAliasLine("filesync", "sync", "file");
+
+    ConsoleRegister2("stress", "directory", "grow subdir clusters", CommandDirStress);
+    ConsoleRegisterAliasLine("dirstress", "stress", "directory");
 }

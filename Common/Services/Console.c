@@ -17,6 +17,7 @@
 #include "Locale.h"
 #include "HIDKeyboard.h"
 #include "LibWrite.h"
+#include "Db.h"
 #include "ShellCommands.h"
 
 #define LINE_MAX 128
@@ -24,7 +25,10 @@
 /* builtins+Shell+FS+Db+lwip 已超 32；满表时 ConsoleRegister 静默失败会丢末尾命令（如 lwip） */
 #define CMD_MAX  48
 #define SUB_MAX  12
-#define ALIAS_MAX 48
+#define ALIAS_MAX 80
+#define USER_ALIAS_MAX 16
+#define USER_ALIAS_NAME 20
+#define USER_ALIAS_WORD 16
 /* PR-I2 补：Shell 行缓冲滚动（替代破坏性像素平移） */
 #define SB_LINES 64
 #define SB_COLS  120
@@ -49,10 +53,19 @@ typedef struct {
     const char *Level2; /* NULL = 仅改写一级 */
 } COMMAND_ALIAS;
 
+/* PR-C3 补：用户自定义别名（可覆盖同名内置别名；落盘 al.<name>） */
+typedef struct {
+    char Alias[USER_ALIAS_NAME];
+    char Level1[USER_ALIAS_WORD];
+    char Level2[USER_ALIAS_WORD]; /* [0]==0 表示无二级 */
+} USER_ALIAS;
+
 static COMMAND gCommands[CMD_MAX];
 static int gCmdCount;
 static COMMAND_ALIAS gAliases[ALIAS_MAX];
 static int gAliasCount;
+static USER_ALIAS gUserAliases[USER_ALIAS_MAX];
+static int gUserAliasCount;
 static char gLine[LINE_MAX];
 static int gLen;
 static int gWaitPrompt;
@@ -456,6 +469,29 @@ static void HelpWriteAliasesFor(const char *Level1, const char *Level2) {
     int First = 1;
     int i;
 
+    for (i = 0; i < gUserAliasCount; i++) {
+        if (gUserAliases[i].Alias[0] != 0 &&
+            StrEq(gUserAliases[i].Level1, Level1)) {
+            if (Level2 == 0) {
+                if (gUserAliases[i].Level2[0] != 0) {
+                    continue;
+                }
+            } else {
+                if (gUserAliases[i].Level2[0] == 0 ||
+                    !StrEq(gUserAliases[i].Level2, Level2)) {
+                    continue;
+                }
+            }
+            if (First) {
+                ConsoleWrite(" (");
+                First = 0;
+            } else {
+                ConsoleWrite(", ");
+            }
+            ConsoleWrite(gUserAliases[i].Alias);
+            ConsoleWrite("*");
+        }
+    }
     for (i = 0; i < gAliasCount; i++) {
         if (!StrEq(gAliases[i].Level1, Level1)) {
             continue;
@@ -493,6 +529,8 @@ static void CommandHelp(int Argc, char **Argv) {
         ConsoleWrite("  ");
         ConsoleWrite(gCommands[i].Name);
         if (gCommands[i].SubCount > 0) {
+            ConsoleWrite("  ");
+            ConsoleWrite(gCommands[i].Help[0] ? gCommands[i].Help : "(family)");
             HelpWriteAliasesFor(gCommands[i].Name, 0);
             ConsoleWrite("\n");
             for (s = 0; s < gCommands[i].SubCount; s++) {
@@ -569,13 +607,8 @@ void ConsoleRegister(const char *Name, const char *Help,
     }
     Idx = FindCommandIndex(Name);
     if (Idx >= 0) {
-        if (gCommands[Idx].SubCount > 0) {
-            HalConsoleWriteSerial("console: Register on L1 with subs, drop ");
-            HalConsoleWriteSerial(Name);
-            HalConsoleWriteSerial("\n");
-            return;
-        }
-        gCommands[Idx].Help = Help ? Help : "";
+        /* 允许给已有二级族补默认 Handler（如 list 列目录） */
+        gCommands[Idx].Help = Help ? Help : gCommands[Idx].Help;
         gCommands[Idx].Handler = Handler;
         return;
     }
@@ -615,9 +648,8 @@ void ConsoleRegister2(const char *Level1, const char *Level2, const char *Help,
         gCommands[Idx].Handler = 0;
         gCommands[Idx].SubCount = 0;
         gCmdCount++;
-    } else if (gCommands[Idx].Handler != 0 && gCommands[Idx].SubCount == 0) {
-        gCommands[Idx].Handler = 0;
     }
+    /* 可保留已有 L1 Handler 作默认（如 list 列目录 + list tasks） */
 
     for (s = 0; s < gCommands[Idx].SubCount; s++) {
         if (StrEq(gCommands[Idx].Subs[s].Name, Level2)) {
@@ -670,6 +702,293 @@ void ConsoleRegisterAliasLine(const char *Alias, const char *Level1,
     gAliasCount++;
 }
 
+static void CopyWord(char *Dst, int DstMax, const char *Src) {
+    int i = 0;
+
+    if (DstMax <= 0) {
+        return;
+    }
+    while (Src[i] && i < DstMax - 1) {
+        Dst[i] = Src[i];
+        i++;
+    }
+    Dst[i] = 0;
+}
+
+static int FindUserAliasIndex(const char *Name) {
+    int i;
+
+    for (i = 0; i < gUserAliasCount; i++) {
+        if (StrEq(gUserAliases[i].Alias, Name)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int AliasTargetOk(const char *Level1, const char *Level2) {
+    int Idx;
+    int s;
+
+    Idx = FindCommandIndex(Level1);
+    if (Idx < 0) {
+        return 0;
+    }
+    if (Level2 == 0 || Level2[0] == 0) {
+        return 1;
+    }
+    for (s = 0; s < gCommands[Idx].SubCount; s++) {
+        if (StrEq(gCommands[Idx].Subs[s].Name, Level2)) {
+            return 1;
+        }
+    }
+    /* 允许 list Apps 类：有默认 Handler 即可挂仅一级别名；二级须真实存在 */
+    return 0;
+}
+
+static int UserAliasPersist(const char *Alias, const char *Level1,
+                            const char *Level2, int Delete) {
+    char Key[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+    int i;
+    int j;
+
+    Key[0] = 'a';
+    Key[1] = 'l';
+    Key[2] = '.';
+    i = 0;
+    while (Alias[i] && i + 4 < DB_KEY_MAX) {
+        Key[3 + i] = Alias[i];
+        i++;
+    }
+    Key[3 + i] = 0;
+    if (Delete) {
+        return DbDelete(Key);
+    }
+    i = 0;
+    while (Level1[i] && i + 1 < DB_VAL_MAX) {
+        Val[i] = Level1[i];
+        i++;
+    }
+    if (Level2 != 0 && Level2[0] != 0) {
+        if (i + 2 >= DB_VAL_MAX) {
+            return DB_INVAL;
+        }
+        Val[i++] = ' ';
+        j = 0;
+        while (Level2[j] && i + 1 < DB_VAL_MAX) {
+            Val[i++] = Level2[j++];
+        }
+    }
+    Val[i] = 0;
+    return DbSet(Key, Val);
+}
+
+/* 返回 0 成功；负值失败（已打 Console 文案） */
+static int UserAliasSet(const char *Alias, const char *Level1,
+                        const char *Level2) {
+    int Idx;
+    const char *L2 = Level2;
+
+    if (Alias == 0 || Alias[0] == 0 || Level1 == 0 || Level1[0] == 0) {
+        ConsoleWrite("alias: bad name\n");
+        return -1;
+    }
+    if (L2 != 0 && L2[0] == 0) {
+        L2 = 0;
+    }
+    if (!AliasTargetOk(Level1, L2)) {
+        ConsoleWrite("alias: unknown target\n");
+        return -1;
+    }
+    Idx = FindUserAliasIndex(Alias);
+    if (Idx < 0) {
+        if (gUserAliasCount >= USER_ALIAS_MAX) {
+            ConsoleWrite("alias: table full\n");
+            return -1;
+        }
+        Idx = gUserAliasCount++;
+    }
+    CopyWord(gUserAliases[Idx].Alias, USER_ALIAS_NAME, Alias);
+    CopyWord(gUserAliases[Idx].Level1, USER_ALIAS_WORD, Level1);
+    if (L2) {
+        CopyWord(gUserAliases[Idx].Level2, USER_ALIAS_WORD, L2);
+    } else {
+        gUserAliases[Idx].Level2[0] = 0;
+    }
+    if (UserAliasPersist(Alias, Level1, L2, 0) != DB_OK) {
+        ConsoleWrite("alias: set (memory only; db save failed)\n");
+    }
+    return 0;
+}
+
+static int UserAliasRemove(const char *Alias) {
+    int Idx;
+    int i;
+
+    Idx = FindUserAliasIndex(Alias);
+    if (Idx < 0) {
+        ConsoleWrite("alias: not found\n");
+        return -1;
+    }
+    (void)UserAliasPersist(Alias, 0, 0, 1);
+    for (i = Idx; i < gUserAliasCount - 1; i++) {
+        gUserAliases[i] = gUserAliases[i + 1];
+    }
+    gUserAliasCount--;
+    return 0;
+}
+
+static int UserAliasLoadCb(const char *Key, const char *Value, void *Ctx) {
+    char Alias[USER_ALIAS_NAME];
+    char L1[USER_ALIAS_WORD];
+    char L2[USER_ALIAS_WORD];
+    int i;
+    int j;
+
+    (void)Ctx;
+    if (Key[0] != 'a' || Key[1] != 'l' || Key[2] != '.') {
+        return 0;
+    }
+    CopyWord(Alias, USER_ALIAS_NAME, Key + 3);
+    if (Alias[0] == 0 || Value == 0 || Value[0] == 0) {
+        return 0;
+    }
+    i = 0;
+    while (Value[i] && Value[i] != ' ' && i < USER_ALIAS_WORD - 1) {
+        L1[i] = Value[i];
+        i++;
+    }
+    L1[i] = 0;
+    L2[0] = 0;
+    if (Value[i] == ' ') {
+        i++;
+        j = 0;
+        while (Value[i] && Value[i] != ' ' && j < USER_ALIAS_WORD - 1) {
+            L2[j++] = Value[i++];
+        }
+        L2[j] = 0;
+    }
+    if (!AliasTargetOk(L1, L2[0] ? L2 : 0)) {
+        return 0;
+    }
+    if (FindUserAliasIndex(Alias) >= 0) {
+        return 0;
+    }
+    if (gUserAliasCount >= USER_ALIAS_MAX) {
+        return 0;
+    }
+    CopyWord(gUserAliases[gUserAliasCount].Alias, USER_ALIAS_NAME, Alias);
+    CopyWord(gUserAliases[gUserAliasCount].Level1, USER_ALIAS_WORD, L1);
+    CopyWord(gUserAliases[gUserAliasCount].Level2, USER_ALIAS_WORD, L2);
+    gUserAliasCount++;
+    return 0;
+}
+
+void ConsoleUserAliasLoad(void) {
+    gUserAliasCount = 0;
+    (void)DbForEach(UserAliasLoadCb, 0);
+}
+
+/* alias / unalias（PR-C3 用户自定义；* 在 help 中标用户别名） */
+static void CommandAlias(int Argc, char **Argv) {
+    char Name[USER_ALIAS_NAME];
+    char L1[USER_ALIAS_WORD];
+    char L2[USER_ALIAS_WORD];
+    const char *P;
+    int i;
+    int j;
+
+    if (Argc < 2) {
+        if (gUserAliasCount == 0) {
+            ConsoleWrite("alias: (none)  usage: alias <name> <cmd> [sub]\n");
+            ConsoleWrite("  or alias name=cmd [sub]; unalias <name>\n");
+            return;
+        }
+        for (i = 0; i < gUserAliasCount; i++) {
+            ConsoleWrite("  ");
+            ConsoleWrite(gUserAliases[i].Alias);
+            ConsoleWrite("=");
+            ConsoleWrite(gUserAliases[i].Level1);
+            if (gUserAliases[i].Level2[0]) {
+                ConsoleWrite(" ");
+                ConsoleWrite(gUserAliases[i].Level2);
+            }
+            ConsoleWrite("\n");
+        }
+        return;
+    }
+
+    /* alias name=l1 [l2] */
+    P = Argv[1];
+    i = 0;
+    while (P[i] && P[i] != '=' && i < USER_ALIAS_NAME - 1) {
+        Name[i] = P[i];
+        i++;
+    }
+    Name[i] = 0;
+    if (P[i] == '=') {
+        P = P + i + 1;
+        j = 0;
+        while (P[j] && P[j] != ' ' && j < USER_ALIAS_WORD - 1) {
+            L1[j] = P[j];
+            j++;
+        }
+        L1[j] = 0;
+        L2[0] = 0;
+        if (P[j] == ' ') {
+            P = P + j + 1;
+            j = 0;
+            while (P[j] && j < USER_ALIAS_WORD - 1) {
+                L2[j] = P[j];
+                j++;
+            }
+            L2[j] = 0;
+        } else if (Argc >= 3) {
+            CopyWord(L2, USER_ALIAS_WORD, Argv[2]);
+        }
+        if (L1[0] == 0) {
+            ConsoleWrite("usage: alias name=cmd [sub]\n");
+            return;
+        }
+        if (UserAliasSet(Name, L1, L2[0] ? L2 : 0) == 0) {
+            ConsoleWrite("alias: set ");
+            ConsoleWrite(Name);
+            ConsoleWrite("\n");
+        }
+        return;
+    }
+
+    /* alias name l1 [l2] */
+    if (Argc < 3) {
+        ConsoleWrite("usage: alias <name> <cmd> [sub]\n");
+        return;
+    }
+    CopyWord(Name, USER_ALIAS_NAME, Argv[1]);
+    CopyWord(L1, USER_ALIAS_WORD, Argv[2]);
+    L2[0] = 0;
+    if (Argc >= 4) {
+        CopyWord(L2, USER_ALIAS_WORD, Argv[3]);
+    }
+    if (UserAliasSet(Name, L1, L2[0] ? L2 : 0) == 0) {
+        ConsoleWrite("alias: set ");
+        ConsoleWrite(Name);
+        ConsoleWrite("\n");
+    }
+}
+
+static void CommandUnalias(int Argc, char **Argv) {
+    if (Argc < 2) {
+        ConsoleWrite("usage: unalias <name>\n");
+        return;
+    }
+    if (UserAliasRemove(Argv[1]) == 0) {
+        ConsoleWrite("alias: removed ");
+        ConsoleWrite(Argv[1]);
+        ConsoleWrite("\n");
+    }
+}
+
 /* 解析当前输入行并执行匹配的命令 */
 static void RunLine(void) {
     char Buf[LINE_MAX];
@@ -681,7 +1000,9 @@ static void RunLine(void) {
     int a;
     int Idx;
     int s;
+    int Ua;
     const COMMAND_ALIAS *Al = 0;
+    const USER_ALIAS *UaPtr = 0;
 
     if (gLen >= LINE_MAX) {
         gLen = LINE_MAX - 1;
@@ -712,15 +1033,31 @@ static void RunLine(void) {
         return;
     }
 
-    for (a = 0; a < gAliasCount; a++) {
-        if (StrEq(Argv[0], gAliases[a].Alias)) {
-            Al = &gAliases[a];
-            break;
+    /* 用户别名优先（可盖住内置别名） */
+    Ua = FindUserAliasIndex(Argv[0]);
+    if (Ua >= 0) {
+        UaPtr = &gUserAliases[Ua];
+    } else {
+        for (a = 0; a < gAliasCount; a++) {
+            if (StrEq(Argv[0], gAliases[a].Alias)) {
+                Al = &gAliases[a];
+                break;
+            }
         }
     }
 
     WorkArgc = 0;
-    if (Al != 0 && Al->Level2 != 0) {
+    if (UaPtr != 0 && UaPtr->Level2[0] != 0) {
+        if (Argc + 1 > ARG_MAX) {
+            ConsoleWrite("too many args\n");
+            return;
+        }
+        Work[WorkArgc++] = (char *)UaPtr->Level1;
+        Work[WorkArgc++] = (char *)UaPtr->Level2;
+        for (i = 1; i < Argc; i++) {
+            Work[WorkArgc++] = Argv[i];
+        }
+    } else if (Al != 0 && Al->Level2 != 0) {
         if (Argc + 1 > ARG_MAX) {
             ConsoleWrite("too many args\n");
             return;
@@ -735,7 +1072,9 @@ static void RunLine(void) {
             Work[i] = Argv[i];
         }
         WorkArgc = Argc;
-        if (Al != 0) {
+        if (UaPtr != 0) {
+            Work[0] = (char *)UaPtr->Level1;
+        } else if (Al != 0) {
             Work[0] = (char *)Al->Level1;
         }
     }
@@ -749,15 +1088,23 @@ static void RunLine(void) {
     }
 
     if (gCommands[Idx].SubCount > 0) {
-        if (WorkArgc < 2) {
+        if (WorkArgc >= 2) {
+            for (s = 0; s < gCommands[Idx].SubCount; s++) {
+                if (StrEq(Work[1], gCommands[Idx].Subs[s].Name)) {
+                    gCommands[Idx].Subs[s].Handler(WorkArgc - 1, &Work[1]);
+                    return;
+                }
+            }
+            if (gCommands[Idx].Handler != 0) {
+                gCommands[Idx].Handler(WorkArgc, Work);
+                return;
+            }
             PrintLevel1Usage(&gCommands[Idx]);
             return;
         }
-        for (s = 0; s < gCommands[Idx].SubCount; s++) {
-            if (StrEq(Work[1], gCommands[Idx].Subs[s].Name)) {
-                gCommands[Idx].Subs[s].Handler(WorkArgc - 1, &Work[1]);
-                return;
-            }
+        if (gCommands[Idx].Handler != 0) {
+            gCommands[Idx].Handler(WorkArgc, Work);
+            return;
         }
         PrintLevel1Usage(&gCommands[Idx]);
         return;
@@ -807,11 +1154,15 @@ void ConsoleFocusLoad(void) {
     }
 }
 
-/* 注册 help / clear / echo（须在 ShellCommands 之前调用） */
+/* 注册 help / clear / echo / alias（须在 ShellCommands 之前调用） */
 void ConsoleRegisterBuiltins(void) {
     ConsoleRegister("help", "list commands", CommandHelp);
+    ConsoleRegisterAlias("help", "?");
     ConsoleRegister("clear", "clear screen", CommandClear);
+    ConsoleRegisterAlias("clear", "cls");
     ConsoleRegister("echo", "print arguments", CommandEcho);
+    ConsoleRegister("alias", "alias [name[=]cmd [sub]] (user; TOYOS.DB)", CommandAlias);
+    ConsoleRegister("unalias", "remove user alias", CommandUnalias);
 }
 
 /* 将控制台输出限制在当前焦点窗口客户区内（不重置光标） */
