@@ -11,9 +11,9 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 文档 | 内容 |
 |------|------|
 | **本 README** / 根 README | 项目是什么、能干什么、怎么编怎么跑 |
-| [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、未完成/已完成、同步说明、各类规划 |
-| [`Documents/技术手册.md`](Documents/技术手册.md) | 架构、结构、板级/驱动/用户态等详细白皮书 |
-| [`Documents/协作历程日志.md`](Documents/协作历程日志.md) | 与 Agent 协作过程复盘（决策轨迹，非排期） |
+| [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
+| [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
+| [`Documents/协作历程日志.md`](Documents/协作历程日志.md) | 人机协作复盘（可选读） |
 
 `Documents/` 正文以上表为准；课堂讲义见 [`教学内容/`](../教学内容/)。
 
