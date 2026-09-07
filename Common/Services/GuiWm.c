@@ -362,7 +362,7 @@ int GuiOpenShell(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeShellClientBg();
+    gWins[Idx].Background = ThemeShellClientBackground();
     gWins[Idx].Title = LocStr(MSG_APP_SHELL);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -433,7 +433,7 @@ int GuiOpenSettings(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Background = ThemeSettingsClientBackground();
     gWins[Idx].Title = LocStr(MSG_APP_SETTINGS);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -490,7 +490,7 @@ int GuiOpenFiles(void) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Background = ThemeSettingsClientBackground();
     gWins[Idx].Title = LocStr(MSG_APP_FILES);
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -568,7 +568,7 @@ int GuiOpenEdit(const char *Path) {
     gWins[Idx].Y = Y;
     gWins[Idx].Width = W;
     gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBg();
+    gWins[Idx].Background = ThemeSettingsClientBackground();
     gWins[Idx].Title = "Edit";
     gWins[Idx].TermSet = 0;
     gWins[Idx].InputLen = 0;
@@ -668,7 +668,7 @@ void GuiInit(void) {
             gWins[i].PromptShown = 0;
             gWins[i].InputLine[0] = 0;
             gWins[i].Title = "";
-            gWins[i].Background = ThemeShellClientBg();
+            gWins[i].Background = ThemeShellClientBackground();
         }
     }
 

@@ -271,7 +271,7 @@ void ShellTask(void) {
                 ConsoleWrite("udp from ");
                 ConsoleWrite(IpBuf);
                 ConsoleWrite(":");
-                ConsoleHex32(Dg.SrcPort);
+                ConsoleWriteHex32(Dg.SrcPort);
                 ConsoleWrite(" ");
                 for (i = 0; i < Dg.Len; i++) {
                     char C = (char)Dg.Data[i];

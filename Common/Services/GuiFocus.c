@@ -278,7 +278,7 @@ int GuiShellWindowActive(int Idx) {
 }
 
 
-void GuiSetFocusWin(int Idx) {
+void GuiSetFocusWindow(int Idx) {
     if (Idx >= 0 && Idx < MAX_WINS && gWins[Idx].Active) {
         gFocusWin = Idx;
     }

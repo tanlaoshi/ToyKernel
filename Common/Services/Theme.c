@@ -29,16 +29,16 @@ void ThemeInit(void) {
     (void)FontSetById(gFontId);
 }
 
-UINT32 ThemeDesktopBg(void) {
+UINT32 ThemeDesktopBackground(void) {
     return gDesktopBg;
 }
 
-UINT32 ThemeShellClientBg(void) {
+UINT32 ThemeShellClientBackground(void) {
     return gShellClientBg;
 }
 
 /* Settings 客户区底色（M10）；暂与默认浅灰一致，不单独持久化 */
-UINT32 ThemeSettingsClientBg(void) {
+UINT32 ThemeSettingsClientBackground(void) {
     return COLOR_LIGHT_GRAY;
 }
 
@@ -68,11 +68,11 @@ void ThemeClearDisplayMode(void) {
     gModeH = 0;
 }
 
-void ThemeSetDesktopBg(UINT32 Color) {
+void ThemeSetDesktopBackground(UINT32 Color) {
     gDesktopBg = Color;
 }
 
-void ThemeSetShellClientBg(UINT32 Color) {
+void ThemeSetShellClientBackground(UINT32 Color) {
     gShellClientBg = Color;
 }
 

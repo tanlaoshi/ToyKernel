@@ -26,8 +26,8 @@ void ConsoleRegisterAliasLine(const char *Alias, const char *Level1,
 void ConsoleUserAliasLoad(void);
 void ConsoleWrite(const char *Text);
 void ConsoleWriteLen(const char *Data, UINTN Len);
-void ConsoleHex32(UINT32 Value);
-void ConsoleHex64(UINT64 Value);
+void ConsoleWriteHex32(UINT32 Value);
+void ConsoleWriteHex64(UINT64 Value);
 void ConsoleOnChar(char C);
 void ConsoleOnEnter(void);
 void ConsoleOnBackspace(void);

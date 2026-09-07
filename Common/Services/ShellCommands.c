@@ -31,11 +31,11 @@ static void CommandInfo(int Argc, char **Argv) {
         return;
     }
     ConsoleWrite("video ");
-    ConsoleHex32(Info->HorizontalResolution);
+    ConsoleWriteHex32(Info->HorizontalResolution);
     ConsoleWrite(" x ");
-    ConsoleHex32(Info->VerticalResolution);
+    ConsoleWriteHex32(Info->VerticalResolution);
     ConsoleWrite(" fb=");
-    ConsoleHex64(Info->FrameBufferBase);
+    ConsoleWriteHex64(Info->FrameBufferBase);
     ConsoleWrite("\n");
 }
 
@@ -47,20 +47,20 @@ static void CommandMem(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
     ConsoleWrite("physical memory\n  free  ");
-    ConsoleHex64(PhysicalMemoryFreePageCount() << PAGE_SHIFT);
+    ConsoleWriteHex64(PhysicalMemoryFreePageCount() << PAGE_SHIFT);
     ConsoleWrite(" bytes (");
-    ConsoleHex32((UINT32)PhysicalMemoryFreePageCount());
+    ConsoleWriteHex32((UINT32)PhysicalMemoryFreePageCount());
     ConsoleWrite(" pages)\n  total ");
-    ConsoleHex64(PhysicalMemoryTotalPages() << PAGE_SHIFT);
+    ConsoleWriteHex64(PhysicalMemoryTotalPages() << PAGE_SHIFT);
     ConsoleWrite(" bytes tracked\n");
     if (Info) {
         for (i = 0; i < Info->RegionCount; i++) {
             RegionBytes += Info->Regions[i].Size;
         }
         ConsoleWrite("  boot  ");
-        ConsoleHex64(RegionBytes);
+        ConsoleWriteHex64(RegionBytes);
         ConsoleWrite(" bytes in ");
-        ConsoleHex32(Info->RegionCount);
+        ConsoleWriteHex32(Info->RegionCount);
         ConsoleWrite(" region(s)\n");
     }
 }
@@ -81,20 +81,20 @@ static void CommandMemtest(int Argc, char **Argv) {
     for (int i = 0; i < (int)PAGE_SIZE; i++) {
         if (Bytes[i] != (UINT8)i) {
             ConsoleWrite("memtest: verify failed at ");
-            ConsoleHex32((UINT32)i);
+            ConsoleWriteHex32((UINT32)i);
             ConsoleWrite("\n");
             PhysicalMemoryFreePage(Page);
             return;
         }
     }
     ConsoleWrite("memtest: page ");
-    ConsoleHex64((UINT64)(UINTN)Page);
+    ConsoleWriteHex64((UINT64)(UINTN)Page);
     ConsoleWrite(" ok, freeing\n");
     PhysicalMemoryFreePage(Page);
     ConsoleWrite("memtest: free pages ");
-    ConsoleHex32((UINT32)Before);
+    ConsoleWriteHex32((UINT32)Before);
     ConsoleWrite(" -> ");
-    ConsoleHex32((UINT32)PhysicalMemoryFreePageCount());
+    ConsoleWriteHex32((UINT32)PhysicalMemoryFreePageCount());
     ConsoleWrite("\n");
 }
 
@@ -128,7 +128,7 @@ static void CommandPs(int Argc, char **Argv) {
             continue;
         }
         ConsoleWrite("  pid=");
-        ConsoleHex32((UINT32)(i + 1));
+        ConsoleWriteHex32((UINT32)(i + 1));
         ConsoleWrite(" ");
         ConsoleWrite(T->Name);
         if (T->IsUser) {
@@ -142,26 +142,26 @@ static void CommandPs(int Argc, char **Argv) {
             ConsoleWrite(" blocked");
         }
         ConsoleWrite(" root=");
-        ConsoleHex64(T->PageRoot);
+        ConsoleWriteHex64(T->PageRoot);
         ConsoleWrite(" rip=");
-        ConsoleHex64(SchedulerTaskRip(T));
+        ConsoleWriteHex64(SchedulerTaskRip(T));
         ConsoleWrite(" ticks=");
-        ConsoleHex32(T->Ticks);
+        ConsoleWriteHex32(T->Ticks);
         ConsoleWrite(" cpu=");
-        ConsoleHex32((UINT32)T->OnCpu);
+        ConsoleWriteHex32((UINT32)T->OnCpu);
         ConsoleWrite(" home=");
-        ConsoleHex32((UINT32)T->HomeCpu);
+        ConsoleWriteHex32((UINT32)T->HomeCpu);
         if (SchedulerCurrent() == T) {
             ConsoleWrite(" *");
         }
         ConsoleWrite("\n");
     }
     ConsoleWrite("cpu ticks=");
-    ConsoleHex64(HalCpuTicks(0));
+    ConsoleWriteHex64(HalCpuTicks(0));
     ConsoleWrite(" worker loops=");
-    ConsoleHex32(WorkerLoopCount());
+    ConsoleWriteHex32(WorkerLoopCount());
     ConsoleWrite(" steals=");
-    ConsoleHex64(SchedulerStealCount());
+    ConsoleWriteHex64(SchedulerStealCount());
     ConsoleWrite("\n");
 }
 
@@ -240,9 +240,9 @@ static void CommandNet(int Argc, char **Argv) {
         UINT32 RxFrames = 0;
         HalNetGetStats(&TxDone, &RxFrames);
         ConsoleWrite("stats tx_done=");
-        ConsoleHex32(TxDone);
+        ConsoleWriteHex32(TxDone);
         ConsoleWrite(" rx_frames=");
-        ConsoleHex32(RxFrames);
+        ConsoleWriteHex32(RxFrames);
         ConsoleWrite("\n");
     }
 #ifdef TOY_LWIP
@@ -313,14 +313,14 @@ static void CommandUdpListen(int Argc, char **Argv) {
             return;
         }
         ConsoleWrite("lwip: udp listening ");
-        ConsoleHex32(Port);
+        ConsoleWriteHex32(Port);
         ConsoleWrite("\n");
         return;
     }
 #endif
     UdpBind((UINT16)Port);
     ConsoleWrite("udp: listening ");
-    ConsoleHex32(Port);
+    ConsoleWriteHex32(Port);
     ConsoleWrite("\n");
 }
 
@@ -443,7 +443,7 @@ static void CommandTcpListen(int Argc, char **Argv) {
             ConsoleSuspendPrompt();
         }
         ConsoleWrite("lwip: echo server on ");
-        ConsoleHex32(Port);
+        ConsoleWriteHex32(Port);
         ConsoleWrite("\n");
         return;
     }
@@ -453,7 +453,7 @@ static void CommandTcpListen(int Argc, char **Argv) {
         ConsoleSuspendPrompt();
     }
     ConsoleWrite("tcp: echo server on ");
-    ConsoleHex32(Port);
+    ConsoleWriteHex32(Port);
     ConsoleWrite("\n");
 }
 
@@ -470,33 +470,33 @@ static void CommandTcpStatus(int Argc, char **Argv) {
     if (LwIpActive()) {
         ConsoleWrite("tcpstatus: lwIP active (builtin idle)\n");
         ConsoleWrite("  tcp listen=");
-        ConsoleHex32(LwIpTcpListenPort());
+        ConsoleWriteHex32(LwIpTcpListenPort());
         ConsoleWrite(" udp bind=");
-        ConsoleHex32(LwIpUdpBoundPort());
+        ConsoleWriteHex32(LwIpUdpBoundPort());
         ConsoleWrite("\n");
         return;
     }
 #endif
     TcpGetWindowStats(&Una, &Nxt, &BufLen, &PeerWnd, &Retrans);
     ConsoleWrite("tcp state=");
-    ConsoleHex32((UINT32)TcpGetState());
+    ConsoleWriteHex32((UINT32)TcpGetState());
     ConsoleWrite(" local=");
-    ConsoleHex32(TcpLocalPort());
+    ConsoleWriteHex32(TcpLocalPort());
     ConsoleWrite(" peer=");
     HalNetFormatIp(TcpPeerIp(), IpBuf, sizeof(IpBuf));
     ConsoleWrite(IpBuf);
     ConsoleWrite(":");
-    ConsoleHex32(TcpPeerPort());
+    ConsoleWriteHex32(TcpPeerPort());
     ConsoleWrite("\n  snd_una=");
-    ConsoleHex32(Una);
+    ConsoleWriteHex32(Una);
     ConsoleWrite(" snd_nxt=");
-    ConsoleHex32(Nxt);
+    ConsoleWriteHex32(Nxt);
     ConsoleWrite(" buf=");
-    ConsoleHex32(BufLen);
+    ConsoleWriteHex32(BufLen);
     ConsoleWrite(" peer_wnd=");
-    ConsoleHex32(PeerWnd);
+    ConsoleWriteHex32(PeerWnd);
     ConsoleWrite(" retrans=");
-    ConsoleHex32(Retrans);
+    ConsoleWriteHex32(Retrans);
     ConsoleWrite("\n");
 }
 
@@ -546,7 +546,7 @@ static void CommandTcpConnect(int Argc, char **Argv) {
         } else {
             ConsoleWrite("tcpconnect: syn failed\n");
             ConsoleWrite("hint: on host run nc -l ");
-            ConsoleHex32(Port);
+            ConsoleWriteHex32(Port);
             ConsoleWrite(" first\n");
         }
         return;
@@ -611,9 +611,9 @@ static void CommandTcpConnect(int Argc, char **Argv) {
 static void ShellLwIpPrintStatus(void) {
     ConsoleWrite("lwip: on (RX unified; ping/tcp/udp via lwIP)\n");
     ConsoleWrite("  tcp listen=");
-    ConsoleHex32(LwIpTcpListenPort());
+    ConsoleWriteHex32(LwIpTcpListenPort());
     ConsoleWrite(" udp bind=");
-    ConsoleHex32(LwIpUdpBoundPort());
+    ConsoleWriteHex32(LwIpUdpBoundPort());
     ConsoleWrite("\n");
 }
 
@@ -825,7 +825,7 @@ static void CommandStore(int Argc, char **Argv) {
         ConsoleWrite("store repo ");
         ConsoleWrite(IpBuf);
         ConsoleWrite(":");
-        ConsoleHex32(Port);
+        ConsoleWriteHex32(Port);
         ConsoleWrite("\n");
         return;
     }
@@ -1139,7 +1139,7 @@ static void CommandLsdev(int Argc, char **Argv) {
         return;
     }
     ConsoleWrite("lsdev: bound=");
-    ConsoleHex32((UINT32)Bound);
+    ConsoleWriteHex32((UINT32)Bound);
     ConsoleWrite("\n");
     for (i = 0; i < ToyDriverInstanceCount(); i++) {
         const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(i);

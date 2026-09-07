@@ -395,14 +395,14 @@ void ConsoleWriteLen(const char *Data, UINTN Len) {
 }
 
 /* 输出 32 位十六进制 */
-void ConsoleHex32(UINT32 Value) {
+void ConsoleWriteHex32(UINT32 Value) {
     char Buf[12];
     HalSerialFormatHex(Buf, Value, 8);
     ConsoleWrite(Buf);
 }
 
 /* 输出 64 位十六进制 */
-void ConsoleHex64(UINT64 Value) {
+void ConsoleWriteHex64(UINT64 Value) {
     char Buf[20];
     HalSerialFormatHex(Buf, Value, 16);
     ConsoleWrite(Buf);
@@ -1251,7 +1251,7 @@ void ConsolePaintShellWindow(int Idx) {
         return;
     }
     Saved = GuiFocusIndex();
-    GuiSetFocusWin(Idx);
+    GuiSetFocusWindow(Idx);
     gLen = 0;
     gWaitPrompt = 0;
     gAtLineStart = 1;
@@ -1266,7 +1266,7 @@ void ConsolePaintShellWindow(int Idx) {
     HalVideoClearClip();
     GuiBackupFocusWindow();
     if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
-        GuiSetFocusWin(Saved);
+        GuiSetFocusWindow(Saved);
     }
 }
 
