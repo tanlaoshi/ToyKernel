@@ -1,7 +1,7 @@
 # Board：`milk-v-duo-s`（Milk-V Duo S / SG2000）
 
 > **PR-B3**：第一个真机命令行板包。厂商 U-Boot（**不改源码**）+ SoC UART0 → 串口 `ToyOS ready`。  
-> 约定总览：[`HAL/Board/README.md`](../../../Board/README.md)。操作：[`Documents/如何增加板级支持.md`](../../../../Documents/如何增加板级支持.md)。
+> 约定总览：[`HAL/Board/README.md`](../../../Board/README.md)。操作：[`Documents/技术手册.md`](../../../../Documents/技术手册.md)。
 
 | 项 | 填写 |
 |----|------|

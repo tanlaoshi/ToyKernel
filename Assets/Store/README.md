@@ -15,7 +15,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 - **S2 ✅**：`store sync` / `fetch` / `repo`  
 - **S3 ✅**：`type=font` → `Assets/Fonts/`；`type=asset` → `Assets/Packs/`；安装后字库自动 `FontReloadAssets`  
 
-总规划 [`Documents/应用商店规划.md`](../../Documents/应用商店规划.md)。
+总规划 [`Documents/路线图.md`](../../Documents/路线图.md)。
 
 ## catalog.txt
 

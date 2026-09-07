@@ -1,8 +1,8 @@
 # Board 包约定（PR-B0）
 
 > **一句话**：别人加板只交 `HAL/<Arch>/Board/<board>/`；**Common / Gui / FAT diff 为空**；**不改**厂商 U-Boot / BootROM。  
-> 概念（UEFI vs U-Boot、DTB、Startup）：[`Documents/启动与板级支持.md`](../../Documents/启动与板级支持.md)。  
-> **逐步操作**：[`Documents/如何增加板级支持.md`](../../Documents/如何增加板级支持.md)。  
+> 概念（UEFI vs U-Boot、DTB、Startup）：[`Documents/技术手册.md`](../../Documents/技术手册.md)。  
+> **逐步操作**：[`Documents/技术手册.md`](../../Documents/技术手册.md)。  
 > 排期：[`Documents/路线图.md`](../../Documents/路线图.md) **1.3b**（B0～B3）。**x86 桌面真机见 1.3c，勿与本树混仓。**
 
 ---
@@ -26,7 +26,7 @@ HAL/
 ```
 
 - **Arch vs Board**：MMU / 异常 / IRQ 控制器形状留在 `HAL/<Arch>/`；内存图、串口基址、模块子集、DTB 兼容串在 Board。  
-- **设备 vs 板**：声卡等走 Driver（[`驱动框架.md`](../../Documents/驱动框架.md)）；板只声明「有这颗设备」并注册，不改 Services。  
+- **设备 vs 板**：声卡等走 Driver（[`驱动框架.md`](../../Documents/技术手册.md)）；板只声明「有这颗设备」并注册，不改 Services。  
 - **Makefile `BOARD=`**：**B2 ✅** — `BOARD=virt`（默认）→ `HAL/<Arch>/Board/<board>/`；`make boards`；缺包报错。
 
 ---
@@ -87,7 +87,7 @@ load mmc 0:1 ${fdt_addr_r} board.dtb
 booti ${kernel_addr_r} - ${fdt_addr_r}
 ```
 
-合流点永远是 `BOOT_INFO` → `KernelMain`（见 [`架构分层.md`](../../Documents/架构分层.md) §3）。
+合流点永远是 `BOOT_INFO` → `KernelMain`（见 [`架构分层.md`](../../Documents/技术手册.md) §3）。
 
 ---
 

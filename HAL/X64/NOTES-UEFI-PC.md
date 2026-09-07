@@ -1,5 +1,7 @@
 # x86 UEFI PC / 笔记本目标机（PR-H0）
 
+> 概念与步骤见 [`../../Documents/技术手册.md`](../../Documents/技术手册.md)「Boot / 真机」。本页只留 **机型本地**备注。
+>
 > 与 **1.3b Board 包**互不混仓。本页只服务 **1.3c**：课堂桌面真机 = UEFI PC，亮屏走 **ToyBoot GOP**。  
 > 排期见 [`Documents/路线图.md`](../../Documents/路线图.md) **1.3c**；Boot 说明见 [`ToyBoot/README.md`](../../../ToyBoot/README.md)。
 
