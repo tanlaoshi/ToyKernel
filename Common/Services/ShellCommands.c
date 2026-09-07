@@ -907,7 +907,19 @@ static void CommandStore(int Argc, char **Argv) {
     for (i = 0; i < Count; i++) {
         char Dep[64];
         int On = StoreIsInstalled(Tab[i].Id);
-        (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
+        if (On) {
+            (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
+        } else if (Tab[i].Depends[0]) {
+            int k = 0;
+            while (Tab[i].Depends[k] && k < (int)sizeof(Dep) - 1) {
+                Dep[k] = Tab[i].Depends[k];
+                k++;
+            }
+            Dep[k] = 0;
+        } else {
+            Dep[0] = '-';
+            Dep[1] = 0;
+        }
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].Id);
         ConsoleWrite("  ");

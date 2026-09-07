@@ -1,5 +1,5 @@
 /*
- * Store.h — 本地商店（PR-S1～S4）+ 可见性（PR-S5）
+ * Store.h — 本地商店（PR-S1～S5）+ 依赖字段（PR-M1）
  */
 #ifndef STORE_H
 #define STORE_H
@@ -15,6 +15,7 @@
 #define STORE_FILE_MAX       64
 #define STORE_TITLE_MAX      48
 #define STORE_ARCH_MAX       16
+#define STORE_DEPENDS_MAX    64 /* 与 DB_VAL_MAX 对齐；逗号分隔 id */
 #define STORE_ENTRIES_MAX    32
 #define STORE_INSTALLED_MAX  24
 
@@ -26,6 +27,7 @@ typedef struct STORE_ENTRY {
     char Sha256[72]; /* "-" / 8hex FNV / 跳过其它 */
     char Arch[STORE_ARCH_MAX];
     char Title[STORE_TITLE_MAX];
+    char Depends[STORE_DEPENDS_MAX]; /* PR-M1：可选；空或 "-" = 无依赖 */
 } STORE_ENTRY;
 
 /* PR-S4：已装项（ToyDB si.<id>=type|file） */

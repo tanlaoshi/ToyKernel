@@ -23,7 +23,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 - 每条一项，字段用 `|` 分隔（8.3 友好、易手写）：
 
 ```text
-id|type|version|file|sha256|arch|title
+id|type|version|file|sha256|arch|title[|depends]
 ```
 
 | 字段 | 说明 |
@@ -35,17 +35,19 @@ id|type|version|file|sha256|arch|title
 | `sha256` | `-` 跳过；**8 位 hex** = 教学 FNV-1a-32（非真 SHA-256） |
 | `arch` | `x86_64` / `arm64` / `riscv64` / `any` |
 | `title` | 显示名（可 UTF-8） |
+| `depends` | **可选（PR-M1）**：逗号分隔包 id；缺依赖时 `store install` 提示并拒绝 |
 
-示例（S3）：
+示例（M1）：
 
 ```text
-sun8|font|1|VGA8X16.FNT|-|any|Sun 8x16 (store)
+guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo|demopack
 demopack|asset|1|INFO.TXT|-|any|Demo asset pack
 ```
 
 ## PKG.TXT（可选，包目录内）
 
-与规划稿一致的 `key=value`；`file=` 相对该包目录。S1 优先读包内 `PKG.TXT`，否则用 catalog 行。
+与规划稿一致的 `key=value`；`file=` 相对该包目录。  
+**PR-M1**：若含 `depends=`，安装时**覆盖** catalog 第 8 段（`depends=-` 或空 = 无依赖）。
 
 ## 安装源顺序
 

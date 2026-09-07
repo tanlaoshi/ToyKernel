@@ -654,7 +654,6 @@ static void PaintList(void) {
         if (gPrevW > 0) {
             UINT32 Px = Cx + ListW;
             UINT32 Py = Y + 8;
-            UINT32 Ph = H > 16 ? H - 16 : H;
             UINT32 Pw = gPrevW;
             UINT32 InnerX;
             UINT32 InnerY;
