@@ -64,6 +64,7 @@ static UINT32 *gWallScreen;
 static UINT32  gWallScreenW;
 static UINT32  gWallScreenH;
 static UINT32  gWallScreenPages;
+static int     gDesktopBusy; /* 防 DesktopInit / OnDisplayResize 重入 */
 
 /* PR-R2：由 Gui 注册，Desktop 不 include Gui.h */
 static int (*gPointOccupied)(UINT32 X, UINT32 Y);
@@ -344,6 +345,10 @@ static void BuildWallScreen(void) {
     UINT32 Pages;
     UINT32 Y;
     UINT32 X;
+    UINT32 WallW;
+    UINT32 WallH;
+    UINT32 *WallPix;
+    UINT32 *Dst;
 
     HalVideoGetSize(&Sw, &Sh);
     if (Sw == 0 || Sh == 0) {
@@ -356,31 +361,61 @@ static void BuildWallScreen(void) {
     if (!gWallReady || !gWall.Pixels || gWall.Width == 0 || gWall.Height == 0) {
         return;
     }
+    /* 快照尺寸与指针，避免缩放循环中被重入释放 */
+    WallPix = gWall.Pixels;
+    WallW = gWall.Width;
+    WallH = gWall.Height;
     Bytes = (UINT64)Sw * (UINT64)Sh * sizeof(UINT32);
     Pages = (UINT32)((Bytes + 4095ull) / 4096ull);
     if (Pages == 0) {
         return;
     }
-    gWallScreen = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
-    if (!gWallScreen) {
+    Dst = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
+    if (!Dst) {
         return;
     }
+    for (Y = 0; Y < Sh; Y++) {
+        UINT32 Sy = (Y * WallH) / Sh;
+        if (Sy >= WallH) {
+            Sy = WallH - 1;
+        }
+        for (X = 0; X < Sw; X++) {
+            UINT32 Sx = (X * WallW) / Sw;
+            if (Sx >= WallW) {
+                Sx = WallW - 1;
+            }
+            Dst[Y * Sw + X] = WallPix[Sy * WallW + Sx];
+        }
+    }
+    gWallScreen = Dst;
     gWallScreenPages = Pages;
     gWallScreenW = Sw;
     gWallScreenH = Sh;
-    for (Y = 0; Y < Sh; Y++) {
-        UINT32 Sy = (Y * gWall.Height) / Sh;
-        if (Sy >= gWall.Height) {
-            Sy = gWall.Height - 1;
-        }
-        for (X = 0; X < Sw; X++) {
-            UINT32 Sx = (X * gWall.Width) / Sw;
-            if (Sx >= gWall.Width) {
-                Sx = gWall.Width - 1;
-            }
-            gWallScreen[Y * Sw + X] = gWall.Pixels[Sy * gWall.Width + Sx];
-        }
-    }
+}
+
+static void PlaceDesktopIcons(void) {
+    UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
+                  DESKTOP_ICON_GAP;
+
+    gIcons[0].Action = DESKTOP_ACTION_SHELL;
+    gIcons[0].IconColor = COLOR_BLUE;
+    gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
+    gIcons[0].X = DESKTOP_ORIGIN_X;
+    gIcons[0].Y = DESKTOP_ORIGIN_Y;
+
+    gIcons[1].Action = DESKTOP_ACTION_SETTINGS;
+    gIcons[1].IconColor = 0x00606080;
+    gIcons[1].BmpPath = "Assets/Icons/bmp48/SET.BMP";
+    gIcons[1].X = DESKTOP_ORIGIN_X;
+    gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
+
+    gIcons[2].Action = DESKTOP_ACTION_FILES;
+    gIcons[2].IconColor = 0x00208040;
+    gIcons[2].BmpPath = "Assets/Icons/bmp48/FILES.BMP";
+    gIcons[2].X = DESKTOP_ORIGIN_X;
+    gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
+
+    DesktopRefreshLabels();
 }
 
 static void LoadWallpaper(void) {
@@ -946,29 +981,14 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
 }
 
 void DesktopInit(void) {
-    UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
-                  DESKTOP_ICON_GAP;
+    if (gDesktopBusy) {
+        DebugWrite("desktop: Init reenter ignored\n");
+        return;
+    }
+    gDesktopBusy = 1;
 
     HalSerialWrite("boot: desktop icons\n");
-    gIcons[0].Action = DESKTOP_ACTION_SHELL;
-    gIcons[0].IconColor = COLOR_BLUE;
-    gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
-    gIcons[0].X = DESKTOP_ORIGIN_X;
-    gIcons[0].Y = DESKTOP_ORIGIN_Y;
-
-    gIcons[1].Action = DESKTOP_ACTION_SETTINGS;
-    gIcons[1].IconColor = 0x00606080;
-    gIcons[1].BmpPath = "Assets/Icons/bmp48/SET.BMP";
-    gIcons[1].X = DESKTOP_ORIGIN_X;
-    gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
-
-    gIcons[2].Action = DESKTOP_ACTION_FILES;
-    gIcons[2].IconColor = 0x00208040;
-    gIcons[2].BmpPath = "Assets/Icons/bmp48/FILES.BMP";
-    gIcons[2].X = DESKTOP_ORIGIN_X;
-    gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
-
-    DesktopRefreshLabels();
+    PlaceDesktopIcons();
 
     gSelected = -1;
     gSelectClock = 0;
@@ -981,6 +1001,23 @@ void DesktopInit(void) {
     LoadDesktopIcons();
     HalSerialWrite("boot: desktop ready\n");
     DebugWrite("desktop: icons+taskbar ready (bmp48 Assets/Icons)\n");
+    gDesktopBusy = 0;
+}
+
+/* 热切分辨率：只重算壁纸缓存与图标坐标，不重读 BMP（防 FAT/长循环重入） */
+void DesktopOnDisplayResize(void) {
+    if (gDesktopBusy) {
+        DebugWrite("desktop: resize reenter ignored\n");
+        return;
+    }
+    gDesktopBusy = 1;
+    PlaceDesktopIcons();
+    gMenuOpen = 0;
+    FreeWallScreen();
+    if (gWallReady) {
+        BuildWallScreen();
+    }
+    gDesktopBusy = 0;
 }
 
 void DesktopRefreshLabels(void) {

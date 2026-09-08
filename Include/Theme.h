@@ -2,7 +2,8 @@
  * Theme.h — 桌面/Shell 主题（PR-D2）+ FAT 持久化（PR-D6）+ 分辨率偏好（PR-D7）
  *
  * 偏好键 desktop/shell/font/mode：优先 TOYOS.DB（PR-DB1）；仍写 THEME.CFG
- * 供 ToyBoot GOP SetMode（重启生效）。ThemeLoad 在 GuiInit 前；ThemeApply 末尾 ThemeSave。
+ * 供 ToyBoot GOP SetMode（冷启动）。ThemeLoad 在 GuiInit 前；ThemeApply 末尾 ThemeSave。
+ * PR-G-hotres：QEMU 上 ThemeApplyDisplayLive 可运行时切分辨率（Bochs DISPI）。
  */
 #ifndef THEME_H
 #define THEME_H
@@ -34,6 +35,11 @@ UINT32 ThemeDisplayHeight(void);
 int ThemeHasDisplayPref(void);
 void ThemeSetDisplayMode(UINT32 Width, UINT32 Height);
 void ThemeClearDisplayMode(void);
+/*
+ * PR-G-hotres：尝试运行时切到 WxH（QEMU Bochs VGA）。
+ * 成功 0 并重绘桌面；不支持/失败 -1（调用方仍可 ThemeSave 走重启路径）。
+ */
+int ThemeApplyDisplayLive(UINT32 Width, UINT32 Height);
 
 /* 应用 FontId 与窗属性，再 GuiComposeThemeScene 一次提交；并 ThemeSave */
 void ThemeApply(void);

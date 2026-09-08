@@ -1486,6 +1486,7 @@ static void MousePush(void) {
     }
     USB_MOUSE_REPORT *R = &gMouseQ[gMouseWriteIndex];
     R->Wheel = 0;
+    R->Absolute = 0;
     X0 = (UINT32)(gMouseBuf[1] | (gMouseBuf[2] << 8));
     Y0 = (UINT32)(gMouseBuf[3] | (gMouseBuf[4] << 8));
     X1 = (UINT32)(gMouseBuf[2] | (gMouseBuf[3] << 8));
@@ -1496,6 +1497,7 @@ static void MousePush(void) {
         R->Buttons = gMouseBuf[0] & 7;
         R->X = X0;
         R->Y = Y0;
+        R->Absolute = 1;
         if (gMouseReportLen >= 6) {
             R->Wheel = (INT8)gMouseBuf[5];
         }
@@ -1504,6 +1506,7 @@ static void MousePush(void) {
         R->Buttons = gMouseBuf[1] & 7;
         R->X = X1;
         R->Y = Y1;
+        R->Absolute = 1;
         if (gMouseReportLen >= 7) {
             R->Wheel = (INT8)gMouseBuf[6];
         }

@@ -65,6 +65,8 @@ int    gGfxLockDepth;
 UINT64 gGfxIrqFlags;
 int    gComposeBusy;
 int    gDeferPresent;
+static int gInputLocked;
+static UINT8 gMousePrevBtn;
 
 GUI_CONSOLE_OPS gGuiConsoleOps;
 
@@ -691,6 +693,69 @@ void GuiInit(void) {
     DebugWrite("gui: desktop ready (icons + no app windows)\n");
 }
 
+void GuiOnDisplayResize(void) {
+    int i;
+
+    HalVideoGetSize(&gScreenW, &gScreenH);
+    if (gScreenW == 0) {
+        gScreenW = 1024;
+    }
+    if (gScreenH == 0) {
+        gScreenH = 768;
+    }
+    if (gCursorX >= gScreenW) {
+        gCursorX = gScreenW / 2;
+    }
+    if (gCursorY >= gScreenH) {
+        gCursorY = gScreenH / 2;
+    }
+    gCursorVisible = 0;
+    gDragWin = -1;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWins[i].Active) {
+            continue;
+        }
+        gWinBackupValid[i] = 0;
+        if (gWins[i].Width > gScreenW) {
+            gWins[i].Width = gScreenW;
+        }
+        if (gWins[i].Height > gScreenH) {
+            gWins[i].Height = gScreenH;
+        }
+        if (gWins[i].X + gWins[i].Width > gScreenW) {
+            gWins[i].X = (gScreenW > gWins[i].Width)
+                              ? (gScreenW - gWins[i].Width)
+                              : 0;
+        }
+        if (gWins[i].Y + gWins[i].Height > gScreenH) {
+            gWins[i].Y = (gScreenH > gWins[i].Height)
+                              ? (gScreenH - gWins[i].Height)
+                              : 0;
+        }
+    }
+
+    DesktopOnDisplayResize();
+    GuiRedraw();
+    /* 热切持锁时勿重画 Settings：避免半成品 hit 与解锁后误点 */
+    if (!GuiInputLocked()) {
+        if (GuiFocusKind() == GUI_WIN_SETTINGS) {
+            SettingsUiRepaint();
+        } else if (GuiFocusKind() == GUI_WIN_FILES) {
+            FilesUiRepaint();
+        } else if (GuiFocusKind() == GUI_WIN_EDIT) {
+            EditUiRepaint();
+        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+            GuiConsoleOpsPaintShellWindow(GuiFocusIndex());
+        }
+    }
+    DebugWrite("gui: display resize ");
+    DebugHex32(gScreenW);
+    DebugWrite("x");
+    DebugHex32(gScreenH);
+    DebugWrite("\n");
+}
+
 
 void GuiOnArrowKey(UINT8 Key) {
     UINT32 X = gCursorX;
@@ -839,8 +904,6 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
 
 
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
-    static UINT8 PrevBtn;
-
     /* 合成进行中只跟踪坐标/钮，避免嵌套 Move/Capture 采到半成品 FB。
      * 若光标仍画在旧位置，先擦掉，否则 Compose 期间移动会留下十字印。 */
     if (gComposeBusy) {
@@ -854,6 +917,8 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
         gCursorX = Mouse->X;
         gCursorY = Mouse->Y;
         gCursorBtn = Mouse->Buttons;
+        /* 仍推进边沿基准，避免合成结束后误触发按下 */
+        gMousePrevBtn = Mouse->Buttons;
         return;
     }
 
@@ -869,22 +934,46 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
         }
     }
 
-    if ((Mouse->Buttons & 1) && !(PrevBtn & 1)) {
+    if ((Mouse->Buttons & 1) && !(gMousePrevBtn & 1)) {
         GuiHandleClick(gCursorX, gCursorY);
     } else if ((Mouse->Buttons & 1) && gDragWin >= 0) {
         /* PR-G10 L2：与 GuiPollMouse 统一，按住拖动时持续更新 */
         GuiDragUpdate(gCursorX, gCursorY);
     }
-    if (!(Mouse->Buttons & 1) && (PrevBtn & 1)) {
+    if (!(Mouse->Buttons & 1) && (gMousePrevBtn & 1)) {
         GuiDragEnd();
     }
     /* PR-I3：右键按下边沿 → 占位回调（bit1） */
-    if ((Mouse->Buttons & 2) && !(PrevBtn & 2)) {
+    if ((Mouse->Buttons & 2) && !(gMousePrevBtn & 2)) {
         GuiRightClickPlaceholder(gCursorX, gCursorY);
     }
-    PrevBtn = Mouse->Buttons;
+    gMousePrevBtn = Mouse->Buttons;
 }
 
+
+void GuiInputLock(int Locked) {
+    HAL_MOUSE_REPORT Raw;
+    UINT8 LastBtn = gMousePrevBtn;
+
+    if (Locked) {
+        gInputLocked = 1;
+        return;
+    }
+    /* 解锁前排空：热切期间堆积的边沿会在新分辨率下误点其它档 */
+    if (HalMousePresent()) {
+        HalInputPoll();
+        while (HalMouseDequeue(&Raw)) {
+            LastBtn = Raw.Buttons;
+        }
+    }
+    gMousePrevBtn = LastBtn;
+    gCursorBtn = LastBtn;
+    gInputLocked = 0;
+}
+
+int GuiInputLocked(void) {
+    return gInputLocked;
+}
 
 /* 从 XHCI 鼠标队列取报告并交给 GuiOnMouse（单一边沿/拖动逻辑） */
 void GuiPollMouse(void) {
@@ -907,13 +996,25 @@ void GuiPollMouse(void) {
 
     HalInputPoll();
 
+    if (gInputLocked) {
+        while (HalMouseDequeue(&Raw)) {
+            gMousePrevBtn = Raw.Buttons;
+            gCursorBtn = Raw.Buttons;
+        }
+        return;
+    }
+
     while (HalMouseDequeue(&Raw)) {
         UINT32 X;
         UINT32 Y;
 
-        if (Raw.X > Sw || Raw.Y > Sh) {
-            X = Raw.X * Sw / 32767;
-            Y = Raw.Y * Sh / 32767;
+        /*
+         * usb-tablet：X/Y 恒为 0..32767。旧启发式「>屏宽才缩放」在
+         * 1024/1280/1600 下会把左侧绝对坐标当成像素 → 热切后误点其它档。
+         */
+        if (Raw.Absolute || Raw.X > 4096u || Raw.Y > 4096u) {
+            X = (UINT32)((UINT64)Raw.X * (UINT64)Sw / 32767ull);
+            Y = (UINT32)((UINT64)Raw.Y * (UINT64)Sh / 32767ull);
         } else {
             X = Raw.X;
             Y = Raw.Y;

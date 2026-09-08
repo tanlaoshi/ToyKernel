@@ -20,10 +20,17 @@ typedef struct {
 void VideoSet(VIDEO_CONFIG *VideoConfig);
 /* PR-G9：启用后缓冲；Buf 为 Width*Height 个 UINT32，Pages 供记录 */
 void VideoSetBackbuffer(UINT32 *Buf, UINT32 Pages);
+/* PR-G-hotres：释放后缓冲页（切分辨率前调用） */
+void VideoReleaseBackbuffer(void);
 int VideoBackbufferEnabled(void);
 UINT32 VideoBackbufferPages(void);
 /* 脏矩形 blit 到 GOP；无后缓冲时为空操作 */
 void VideoPresent(void);
+/* PR-G-hotres：Bochs/QEMU VGA DISPI；成功 0，无 Bochs/失败 -1 */
+int VideoBochsSetMode(UINT32 Width, UINT32 Height);
+int VideoBochsAvailable(void);
+UINT64 VideoFrameBufferBase(void);
+UINT64 VideoFrameBufferSize(void);
 /* 直写 scanout（boot 进度，勿与 Present 混用长路径） */
 void VideoDrawBeginFront(void);
 void VideoDrawEndFront(void);

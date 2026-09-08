@@ -39,6 +39,8 @@ typedef struct {
 void GuiRegisterConsoleOps(const GUI_CONSOLE_OPS *Ops);
 
 void GuiInit(void);
+/* PR-G-hotres：HalVideoSetMode 成功后钳窗/光标并整桌重绘 */
+void GuiOnDisplayResize(void);
 void GuiPointerMove(UINT32 X, UINT32 Y);
 void GuiCursorPaint(void);
 void GuiFrameBufferBegin(void);
@@ -74,6 +76,9 @@ void GuiFocusClearClient(void);
 int GuiShellAcceptsInput(void);
 void GuiFocusHome(void);
 void GuiPollMouse(void);
+/* ThemeSave / 热切期间禁止 ShellTask 抢跑 GuiPollMouse（防 vvfat 重入写） */
+void GuiInputLock(int Locked);
+int GuiInputLocked(void);
 int GuiShellWindowActive(int Idx);
 void GuiSetFocusWindow(int Idx);
 /* 置顶 + 从备份重合成；内容绘制前应调用，避免写穿上层窗 */

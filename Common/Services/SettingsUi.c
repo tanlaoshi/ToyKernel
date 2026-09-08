@@ -1,9 +1,8 @@
 /*
  * SettingsUi.c — Settings 菜单（PR-D5/D7 + PR-G12 控件化）
  *
- * 分辨率经 ThemeSave → TOYOS.DB + THEME.CFG mode=WxH。
- * QEMU：退出后 ./run-split.sh（edid from rootfs）；真机：Guest reboot。
- * PR-G12：主/子页用 UiDrawButton；鼠标点选与数字键等价。
+ * 分辨率：ThemeSave → TOYOS.DB + THEME.CFG；QEMU 优先 ThemeApplyDisplayLive（PR-G-hotres）。
+ * 热切失败时仍写盘，提示退出 QEMU 重跑脚本（D7）。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -45,7 +44,7 @@ typedef struct {
 #define SETTINGS_HIT_MAX 16
 
 static SETTINGS_PAGE gPage = SETTINGS_PAGE_MAIN;
-static int gRebootHint;
+static int gDisplayHint; /* 0=无；1=须重启；2=已热切 */
 static SETTINGS_HIT gHits[SETTINGS_HIT_MAX];
 static int gHitCount;
 
@@ -281,7 +280,9 @@ static void PaintMenu(void) {
         }
         DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_HINT_MAIN), COLOR_DARK_GRAY);
-        if (gRebootHint) {
+        if (gDisplayHint == 2) {
+            DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
+        } else if (gDisplayHint == 1) {
             DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
@@ -340,8 +341,15 @@ static void PaintMenu(void) {
         Line[3] = ' ';
         FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
         DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
+        if (HasPref && (PrefW != NowW || PrefH != NowH)) {
+            /* Guest reboot 不改 QEMU edid：偏好已写盘但 Now 仍是启动分辨率 */
+            DrawHint(X0, &Y, MaxBottom, "Pref!=Now: quit QEMU + ./run-split.sh",
+                     COLOR_BLUE);
+        }
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-        if (gRebootHint) {
+        if (gDisplayHint == 2) {
+            DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
+        } else if (gDisplayHint == 1) {
             DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_LANGUAGE) {
@@ -386,23 +394,65 @@ static void ApplyFont(int Index) {
 }
 
 static void ApplyDisplayChoice(int Index) {
+    UINT32 W = 0;
+    UINT32 H = 0;
+    int Live = 0;
+    int Saved = 0;
+    static int sBusy;
+
+    if (sBusy) {
+        return;
+    }
+    sBusy = 1;
+    GuiInputLock(1);
+
     if (Index == 0) {
         ThemeClearDisplayMode();
     } else if (Index >= 1 && Index <= MODE_COUNT) {
-        ThemeSetDisplayMode(gModes[Index - 1].W, gModes[Index - 1].H);
+        W = gModes[Index - 1].W;
+        H = gModes[Index - 1].H;
+        ThemeSetDisplayMode(W, H);
     } else {
+        GuiInputLock(0);
+        sBusy = 0;
         return;
     }
-    if (ThemeSave() != 0) {
+
+    /* 先热切（不碰盘）；再 ThemeSave。vvfat 写失败也不回滚已切分辨率。 */
+    if (Index >= 1 && W != 0 && H != 0) {
+        char Dim[24];
+        FormatUxU(Dim, sizeof(Dim), W, H);
+        HalConsoleWriteSerial("settings: apply ");
+        HalConsoleWriteSerial(Dim);
+        HalConsoleWriteSerial("\n");
+        if (ThemeApplyDisplayLive(W, H) == 0) {
+            Live = 1;
+            HalConsoleWriteSerial("settings: display applied live\n");
+            DebugWrite("settings: display applied live\n");
+        }
+    }
+
+    if (ThemeSave() == 0) {
+        Saved = 1;
+    } else {
         HalConsoleWriteSerial("settings: display save failed\n");
         DebugWrite("settings: display save failed\n");
-        gRebootHint = 0;
-        PaintMenu();
-        return;
     }
-    gRebootHint = 1;
-    HalConsoleWriteSerial("settings: display saved; QEMU: quit and ./run-split.sh (edid); HW: reboot\n");
-    DebugWrite("settings: display pref saved (relaunch QEMU on VM)\n");
+
+    if (Live) {
+        gDisplayHint = 2;
+        HalConsoleWriteSerial(
+            "settings: live OK; cold boot still needs quit QEMU + ./run-split.sh\n");
+    } else if (Saved) {
+        gDisplayHint = 1;
+        HalConsoleWriteSerial(
+            "settings: display saved; quit QEMU window, then ./run-split.sh (edid)\n");
+        DebugWrite("settings: display pref saved (relaunch QEMU on VM)\n");
+    } else {
+        gDisplayHint = 0;
+    }
+    GuiInputLock(0);
+    sBusy = 0;
     PaintMenu();
 }
 
@@ -427,7 +477,7 @@ void SettingsUiPaintFocused(void) {
 
 void SettingsUiOpen(void) {
     gPage = SETTINGS_PAGE_MAIN;
-    gRebootHint = 0;
+    gDisplayHint = 0;
     PaintMenu();
     DebugWrite("settings: main menu\n");
 }

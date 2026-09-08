@@ -120,6 +120,12 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     if (Existing && OldCluster >= 2) {
         UINT32 Cl = OldCluster;
         UINT8 E[32];
+        UINT32 OldSize = 0;
+        int DidExtend = 0;
+
+        if (DirReadEntry(Parent, (UINT32)Index, E)) {
+            OldSize = Read32(E + 28);
+        }
 
         Written = 0;
         PrevCluster = 0;
@@ -144,6 +150,7 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
                         return FAT_ERR_IO;
                     }
                     Cl = Neu;
+                    DidExtend = 1;
                 } else {
                     Cl = Next;
                 }
@@ -168,22 +175,29 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
             }
             Written += Chunk;
         }
-        /* 缩短：目录项改 Size，尾簇不释放（vvfat 安全） */
-        if (!FatSet(PrevCluster, EocValue())) {
-            return FAT_ERR_IO;
+        /*
+         * vvfat：同长覆写只写数据簇；勿无 FatSet 截断链、勿改目录项。
+         * 改 Size / 扩链时才动元数据（缩短也不 FatFreeChain）。
+         */
+        if (DidExtend) {
+            if (!FatSet(PrevCluster, EocValue())) {
+                return FAT_ERR_IO;
+            }
         }
 
-        if (!DirReadEntry(Parent, (UINT32)Index, E)) {
-            return FAT_ERR_IO;
-        }
-        E[11] = FAT_ATTR_ARCH;
-        if (gFatType == 32) {
-            Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
-        }
-        Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
-        Write32(E + 28, (UINT32)Size);
-        if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
-            return FAT_ERR_IO;
+        if (Size != OldSize || FirstCluster != OldCluster || DidExtend) {
+            if (!DirReadEntry(Parent, (UINT32)Index, E)) {
+                return FAT_ERR_IO;
+            }
+            E[11] = FAT_ATTR_ARCH;
+            if (gFatType == 32) {
+                Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
+            }
+            Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
+            Write32(E + 28, (UINT32)Size);
+            if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
+                return FAT_ERR_IO;
+            }
         }
         return FAT_OK;
     }

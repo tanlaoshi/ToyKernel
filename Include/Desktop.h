@@ -16,6 +16,8 @@ typedef enum {
 } DESKTOP_ACTION;
 
 void DesktopInit(void);
+/* PR-G-hotres：分辨率热切后重建壁纸缓存/图标坐标，不重读 FAT（避免长循环重入） */
+void DesktopOnDisplayResize(void);
 /* Gui 注册：点是否被窗占用（图标避让）；菜单开合时请求刷新桌面 */
 void DesktopSetPointOccupied(int (*Fn)(UINT32 X, UINT32 Y));
 void DesktopSetRequestRefresh(void (*Fn)(void));

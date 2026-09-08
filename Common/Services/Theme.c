@@ -13,6 +13,8 @@
 #include "Db.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "VirtualMemory.h"
+#include "BootInfo.h"
 
 static UINT32 gDesktopBg = COLOR_DARK_GRAY;
 static UINT32 gShellClientBg = COLOR_LIGHT_GRAY;
@@ -66,6 +68,49 @@ void ThemeSetDisplayMode(UINT32 Width, UINT32 Height) {
 void ThemeClearDisplayMode(void) {
     gModeW = 0;
     gModeH = 0;
+}
+
+int ThemeApplyDisplayLive(UINT32 Width, UINT32 Height) {
+    const BOOT_INFO *Info;
+    UINT64 Base;
+    UINT64 MapBytes;
+    UINT64 Need;
+
+    if (Width < 640 || Height < 480) {
+        return -1;
+    }
+    if (!HalVideoCanHotSetMode()) {
+        return -1;
+    }
+
+    Info = BootInfoGet();
+    Base = HalVideoFrameBufferBase();
+    if (Base == 0 && Info) {
+        Base = Info->FrameBufferBase;
+    }
+    if (Base == 0) {
+        return -1;
+    }
+
+    Need = (UINT64)Width * (UINT64)Height * sizeof(UINT32);
+    /* 映射到至少 16MiB，覆盖 Settings 最大档 1600x900 */
+    MapBytes = 16ull * 1024 * 1024;
+    if (Info && Info->FrameBufferSize > MapBytes) {
+        MapBytes = Info->FrameBufferSize;
+    }
+    if (Need > MapBytes) {
+        MapBytes = Need;
+    }
+    if (VirtualMemoryMapRange(Base, Base, (UINTN)MapBytes,
+                              PTE_PRESENT | PTE_WRITABLE) != 0) {
+        return -1;
+    }
+
+    if (HalVideoSetMode(Width, Height) != 0) {
+        return -1;
+    }
+    GuiOnDisplayResize();
+    return 0;
 }
 
 void ThemeSetDesktopBackground(UINT32 Color) {
@@ -456,6 +501,15 @@ int ThemeSave(void) {
     UINTN ModeLen = 0;
     int i;
     int DbOk = 1;
+    static char sLastCfg[160];
+    static UINTN sLastCfgN;
+    static int sBusy;
+
+    if (sBusy) {
+        HalConsoleWriteSerial("theme: save reenter skipped\n");
+        return -1;
+    }
+    sBusy = 1;
 
     FontVal[0] = 0;
     N = 0;
@@ -531,59 +585,39 @@ int ThemeSave(void) {
      * 勿先 Delete 再 Write：QEMU fat:rw/vvfat 上 unlink+create 常丢宿主文件
      * 或整机异常退出（Settings 改分辨率「saved」但盘上仍是旧 mode）。
      * FatWriteFile 已支持同名覆盖。
+     * 内容未变则跳过 CFG 写（连点 Settings 时减轻 vvfat commit）。
      */
+    if (N != sLastCfgN || sLastCfgN == 0) {
+        /* fall through write */
+    } else {
+        int Same = 1;
+        for (i = 0; (UINTN)i < N; i++) {
+            if (sLastCfg[i] != Buf[i]) {
+                Same = 0;
+                break;
+            }
+        }
+        if (Same) {
+            HalConsoleWriteSerial("theme: already saved (skip)\n");
+            sBusy = 0;
+            return 0;
+        }
+    }
+
     if (FileSystemWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
         HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
+        sBusy = 0;
         return -1;
     }
-    /* 回读确认 mode= 已落盘（vvfat 静默失败时 Guest 缓存仍可能“成功”） */
-    if (ThemeHasDisplayPref()) {
-        UINT32 Rw = 0;
-        UINT32 Rh = 0;
-        char Line[40];
-        UINTN ii;
-        UINTN L = 0;
-        static char RBuf[256];
-        UINTN RSize = 0;
-
-        if (FileSystemReadFile(THEME_CFG_PATH, RBuf, sizeof(RBuf) - 1, &RSize) != FAT_OK ||
-            RSize == 0) {
-            HalConsoleWriteSerial("theme: save verify read failed\n");
-            return -1;
-        }
-        RBuf[RSize] = 0;
-        for (ii = 0; ii <= RSize; ii++) {
-            char C = (ii < RSize) ? RBuf[ii] : '\n';
-            if (C == '\n' || C == '\r' || ii == RSize) {
-                if (L > 0) {
-                    const char *P;
-                    const char *Val;
-                    Line[L] = 0;
-                    P = Line;
-                    while (*P && IsSpace(*P)) {
-                        P++;
-                    }
-                    Val = ValueAfterKey(P, "mode");
-                    if (Val && ParseModeValue(Val, &Rw, &Rh) == 0) {
-                        if (Rw != gModeW || Rh != gModeH) {
-                            HalConsoleWriteSerial("theme: save verify mode mismatch\n");
-                            return -1;
-                        }
-                        break;
-                    }
-                    L = 0;
-                }
-                continue;
-            }
-            if (L + 1 < sizeof(Line)) {
-                Line[L++] = C;
-            }
-        }
-        if (Rw == 0 && Rh == 0 && (gModeW || gModeH)) {
-            HalConsoleWriteSerial("theme: save verify mode missing\n");
-            return -1;
-        }
+    for (i = 0; (UINTN)i < N && (UINTN)i < sizeof(sLastCfg); i++) {
+        sLastCfg[i] = Buf[i];
     }
+    sLastCfgN = N;
+    /*
+     * 故意不在 Write 后立刻 Read 同文件：QEMU fat:rw/vvfat 会断言
+     * get_cluster_count_for_direntry（Settings 改分辨率整机 abort）。
+     * 宿主可用 cat rootfs/THEME.CFG 确认；Guest 以内存 + DB 为准。
+     */
 
     /* 多次 DbSet 合并一次刷盘，减轻 vvfat 连写压力 */
     DbBeginBatch();
@@ -615,5 +649,6 @@ int ThemeSave(void) {
     } else {
         HalConsoleWriteSerial("theme: saved THEME.CFG + TOYOS.DB\n");
     }
+    sBusy = 0;
     return 0;
 }

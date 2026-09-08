@@ -33,6 +33,7 @@ typedef struct {
     UINT32 Y;
     UINT8  Buttons;
     INT8   Wheel;
+    UINT8  Absolute; /* 1：X/Y 为 0..32767 平板坐标（QEMU usb-tablet） */
 } HAL_MOUSE_REPORT;
 
 int HalBlockInit(void);
