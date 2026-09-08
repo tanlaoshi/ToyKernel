@@ -18,9 +18,9 @@
 #include "PhysicalMemory.h"
 #include "CoreOps.h"
 
-GUI_WINDOW gWins[MAX_WINS];
-UINT32 gScreenW;
-UINT32 gScreenH;
+GUI_WINDOW gWindows[MAX_WINS];
+UINT32 gScreenWidth;
+UINT32 gScreenHeight;
 UINT32 gCursorX;
 UINT32 gCursorY;
 UINT8  gCursorBtn;
@@ -109,29 +109,29 @@ void CloseWindow(int Idx) {
     int i;
     int SavedFocus;
 
-    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return;
     }
-    X = gWins[Idx].X;
-    Y = gWins[Idx].Y;
-    Ww = gWins[Idx].Width;
-    Wh = gWins[Idx].Height;
-    if (gWins[Idx].Kind == GUI_WIN_USER) {
-        gWins[Idx].ClosePending = 1;
+    X = gWindows[Idx].X;
+    Y = gWindows[Idx].Y;
+    Ww = gWindows[Idx].Width;
+    Wh = gWindows[Idx].Height;
+    if (gWindows[Idx].Kind == GUI_WIN_USER) {
+        gWindows[Idx].ClosePending = 1;
     }
-    gWins[Idx].Active = 0;
-    gWins[Idx].Kind = GUI_WIN_NONE;
-    gWins[Idx].TermSet = 0;
-    gWins[Idx].InputLen = 0;
-    gWins[Idx].WaitPrompt = 0;
-    gWins[Idx].PromptShown = 0;
-    gWins[Idx].InputLine[0] = 0;
-    gWins[Idx].UserButtonClick = -1;
+    gWindows[Idx].Active = 0;
+    gWindows[Idx].Kind = GUI_WIN_NONE;
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
+    gWindows[Idx].PromptShown = 0;
+    gWindows[Idx].InputLine[0] = 0;
+    gWindows[Idx].UserButtonClick = -1;
     {
         int Bi;
         for (Bi = 0; Bi < 4; Bi++) {
-            gWins[Idx].UserButtonUsed[Bi] = 0;
-            gWins[Idx].UserButtonLabel[Bi][0] = 0;
+            gWindows[Idx].UserButtonUsed[Bi] = 0;
+            gWindows[Idx].UserButtonLabel[Bi][0] = 0;
         }
     }
     gWinBackupValid[Idx] = 0;
@@ -141,7 +141,7 @@ void CloseWindow(int Idx) {
     if (gFocusWin == Idx) {
         gFocusWin = -1;
         for (i = MAX_WINS - 1; i >= 0; i--) {
-            if (gWins[i].Active) {
+            if (gWindows[i].Active) {
                 gFocusWin = i;
                 break;
             }
@@ -161,29 +161,29 @@ void CloseWindow(int Idx) {
     SyncWindowVisualsEx(1);
     gFocusWin = SavedFocus;
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
-        if (!RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
+        if (!RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width, gWindows[i].Height,
                             X, Y, Ww, Wh)) {
             continue;
         }
         DrawWindowAtEx(i, 0);
-        if (gWins[i].Kind == GUI_WIN_SHELL) {
+        if (gWindows[i].Kind == GUI_WIN_SHELL) {
             GuiConsoleOpsPaintShellWindow(i);
-        } else if (gWins[i].Kind == GUI_WIN_SETTINGS) {
+        } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
             gFocusWin = i;
             SettingsUiRepaint();
             gFocusWin = SavedFocus;
-        } else if (gWins[i].Kind == GUI_WIN_FILES) {
+        } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiRepaint();
             gFocusWin = SavedFocus;
-        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
+        } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
             gFocusWin = i;
             EditUiRepaint();
             gFocusWin = SavedFocus;
-        } else if (gWins[i].Kind == GUI_WIN_USER) {
+        } else if (gWindows[i].Kind == GUI_WIN_USER) {
             PaintUserClient(i);
         }
         BackupWindowAtEx(i, 1);
@@ -215,7 +215,7 @@ int PointInAnyActiveWindow(UINT32 X, UINT32 Y) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && PointInWindow(&gWins[i], X, Y)) {
+        if (gWindows[i].Active && PointInWindow(&gWindows[i], X, Y)) {
             return 1;
         }
     }
@@ -227,7 +227,7 @@ int PointOnAnyClose(UINT32 X, UINT32 Y) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && PointInClose(&gWins[i], X, Y)) {
+        if (gWindows[i].Active && PointInClose(&gWindows[i], X, Y)) {
             return 1;
         }
     }
@@ -242,7 +242,7 @@ void RaiseWindow(int Idx) {
     int HasBackup = 0;
 
     for (J = Idx + 1; J < MAX_WINS; J++) {
-        if (gWins[J].Active) {
+        if (gWindows[J].Active) {
             Top = J;
         }
     }
@@ -257,11 +257,11 @@ void RaiseWindow(int Idx) {
         }
     }
     {
-        WinCopy(&gWinSwap, &gWins[Idx]);
+        WinCopy(&gWinSwap, &gWindows[Idx]);
         for (J = Idx; J < Top; J++) {
-            WinCopy(&gWins[J], &gWins[J + 1]);
+            WinCopy(&gWindows[J], &gWindows[J + 1]);
         }
-        WinCopy(&gWins[Top], &gWinSwap);
+        WinCopy(&gWindows[Top], &gWinSwap);
         /* 窗口与备份必须一起挪，否则会把别的窗备份贴到错误位置（花屏） */
         if (HasBackup || gDragHasBackup) {
             ShiftWinBackupsUp(Idx, Top);
@@ -273,27 +273,27 @@ void RaiseWindow(int Idx) {
 
 /* 置顶并按备份重合成，避免只改焦点却在下层写穿 */
 void GuiRaiseToFront(int Idx) {
-    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return;
     }
     RaiseWindow(Idx);
     SyncWindowVisuals();
     GuiFocusApply();
     /* 顶层无有效备份时补内容，再抓一份干净备份 */
-    if (gWins[Idx].Kind == GUI_WIN_SETTINGS) {
+    if (gWindows[Idx].Kind == GUI_WIN_SETTINGS) {
         SettingsUiRepaint();
         BackupWindowAt(Idx);
-    } else if (gWins[Idx].Kind == GUI_WIN_FILES) {
+    } else if (gWindows[Idx].Kind == GUI_WIN_FILES) {
         FilesUiRepaint();
         BackupWindowAt(Idx);
-    } else if (gWins[Idx].Kind == GUI_WIN_EDIT) {
+    } else if (gWindows[Idx].Kind == GUI_WIN_EDIT) {
         EditUiRepaint();
         BackupWindowAt(Idx);
-    } else if (gWins[Idx].Kind == GUI_WIN_USER) {
+    } else if (gWindows[Idx].Kind == GUI_WIN_USER) {
         DrawWindowAtEx(Idx, 0);
         PaintUserClient(Idx);
         BackupWindowAtEx(Idx, 1);
-    } else if (gWins[Idx].Kind == GUI_WIN_SHELL && !gWinBackupValid[Idx]) {
+    } else if (gWindows[Idx].Kind == GUI_WIN_SHELL && !gWinBackupValid[Idx]) {
         /* 欢迎语级恢复；完整历史需备份一直有效 */
         GuiConsoleOpsOnShellOpened();
         BackupWindowAt(Idx);
@@ -310,7 +310,7 @@ int AllocWindowSlot(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             return i;
         }
     }
@@ -325,8 +325,8 @@ void PlaceNewWindow(int Idx, UINT32 *OutX, UINT32 *OutY,
     UINT32 W;
     UINT32 H;
 
-    W = gScreenW > Margin * 2 + 200 ? gScreenW - Margin * 2 : gScreenW - 32;
-    H = gScreenH > Margin * 2 + 120 ? gScreenH - Margin * 2 : gScreenH - 32;
+    W = gScreenWidth > Margin * 2 + 200 ? gScreenWidth - Margin * 2 : gScreenWidth - 32;
+    H = gScreenHeight > Margin * 2 + 120 ? gScreenHeight - Margin * 2 : gScreenHeight - 32;
     if (W > 720) {
         W = 720;
     }
@@ -335,10 +335,10 @@ void PlaceNewWindow(int Idx, UINT32 *OutX, UINT32 *OutY,
     }
     *OutX = Margin + Cascade;
     *OutY = Margin + Cascade;
-    if (*OutX + W > gScreenW) {
+    if (*OutX + W > gScreenWidth) {
         *OutX = Margin;
     }
-    if (*OutY + H > gScreenH) {
+    if (*OutY + H > gScreenHeight) {
         *OutY = Margin;
     }
     *OutW = W;
@@ -358,20 +358,20 @@ int GuiOpenShell(void) {
         return -1;
     }
     PlaceNewWindow(Idx, &X, &Y, &W, &H);
-    gWins[Idx].Active = 1;
-    gWins[Idx].Kind = GUI_WIN_SHELL;
-    gWins[Idx].X = X;
-    gWins[Idx].Y = Y;
-    gWins[Idx].Width = W;
-    gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeShellClientBackground();
-    gWins[Idx].Title = LocStr(MSG_APP_SHELL);
-    gWins[Idx].TermSet = 0;
-    gWins[Idx].InputLen = 0;
-    gWins[Idx].WaitPrompt = 0;
+    gWindows[Idx].Active = 1;
+    gWindows[Idx].Kind = GUI_WIN_SHELL;
+    gWindows[Idx].X = X;
+    gWindows[Idx].Y = Y;
+    gWindows[Idx].Width = W;
+    gWindows[Idx].Height = H;
+    gWindows[Idx].Background = ThemeShellClientBackground();
+    gWindows[Idx].Title = LocStr(MSG_APP_SHELL);
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
     /* 先标已 prompt，避免 FocusApply→FocusLoad 抢画；OnShellOpened 再清客户区重画 */
-    gWins[Idx].PromptShown = 1;
-    gWins[Idx].InputLine[0] = 0;
+    gWindows[Idx].PromptShown = 1;
+    gWindows[Idx].InputLine[0] = 0;
 
     /* M3/G7：备份前必擦光标，避免十字烙进窗备份 */
     ComposeBegin();
@@ -421,27 +421,27 @@ int GuiOpenSettings(void) {
             H = 420;
         }
     }
-    if (W + Margin * 2 > gScreenW) {
-        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    if (W + Margin * 2 > gScreenWidth) {
+        W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
-    if (H + Margin * 2 > gScreenH) {
-        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    if (H + Margin * 2 > gScreenHeight) {
+        H = gScreenHeight > Margin * 2 ? gScreenHeight - Margin * 2 : gScreenHeight / 2;
     }
-    X = (gScreenW > W + Margin) ? (gScreenW - W - Margin) : Margin;
+    X = (gScreenWidth > W + Margin) ? (gScreenWidth - W - Margin) : Margin;
     Y = Margin;
-    gWins[Idx].Active = 1;
-    gWins[Idx].Kind = GUI_WIN_SETTINGS;
-    gWins[Idx].X = X;
-    gWins[Idx].Y = Y;
-    gWins[Idx].Width = W;
-    gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBackground();
-    gWins[Idx].Title = LocStr(MSG_APP_SETTINGS);
-    gWins[Idx].TermSet = 0;
-    gWins[Idx].InputLen = 0;
-    gWins[Idx].WaitPrompt = 0;
-    gWins[Idx].PromptShown = 0;
-    gWins[Idx].InputLine[0] = 0;
+    gWindows[Idx].Active = 1;
+    gWindows[Idx].Kind = GUI_WIN_SETTINGS;
+    gWindows[Idx].X = X;
+    gWindows[Idx].Y = Y;
+    gWindows[Idx].Width = W;
+    gWindows[Idx].Height = H;
+    gWindows[Idx].Background = ThemeSettingsClientBackground();
+    gWindows[Idx].Title = LocStr(MSG_APP_SETTINGS);
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
+    gWindows[Idx].PromptShown = 0;
+    gWindows[Idx].InputLine[0] = 0;
 
     ComposeBegin();
     GfxIrqEnter();
@@ -478,27 +478,27 @@ int GuiOpenFiles(void) {
     }
     W = 640;
     H = 480;
-    if (W + Margin * 2 > gScreenW) {
-        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    if (W + Margin * 2 > gScreenWidth) {
+        W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
-    if (H + Margin * 2 > gScreenH) {
-        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    if (H + Margin * 2 > gScreenHeight) {
+        H = gScreenHeight > Margin * 2 ? gScreenHeight - Margin * 2 : gScreenHeight / 2;
     }
     X = Margin;
-    Y = (gScreenH > H + Margin) ? (gScreenH - H - Margin) : Margin;
-    gWins[Idx].Active = 1;
-    gWins[Idx].Kind = GUI_WIN_FILES;
-    gWins[Idx].X = X;
-    gWins[Idx].Y = Y;
-    gWins[Idx].Width = W;
-    gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBackground();
-    gWins[Idx].Title = LocStr(MSG_APP_FILES);
-    gWins[Idx].TermSet = 0;
-    gWins[Idx].InputLen = 0;
-    gWins[Idx].WaitPrompt = 0;
-    gWins[Idx].PromptShown = 0;
-    gWins[Idx].InputLine[0] = 0;
+    Y = (gScreenHeight > H + Margin) ? (gScreenHeight - H - Margin) : Margin;
+    gWindows[Idx].Active = 1;
+    gWindows[Idx].Kind = GUI_WIN_FILES;
+    gWindows[Idx].X = X;
+    gWindows[Idx].Y = Y;
+    gWindows[Idx].Width = W;
+    gWindows[Idx].Height = H;
+    gWindows[Idx].Background = ThemeSettingsClientBackground();
+    gWindows[Idx].Title = LocStr(MSG_APP_FILES);
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
+    gWindows[Idx].PromptShown = 0;
+    gWindows[Idx].InputLine[0] = 0;
 
     ComposeBegin();
     GfxIrqEnter();
@@ -536,7 +536,7 @@ int GuiOpenEdit(const char *Path) {
 
     /* 复用已有 Edit 窗 */
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_EDIT) {
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_EDIT) {
             gFocusWin = i;
             RaiseWindow(i);
             SyncWindowVisuals();
@@ -556,27 +556,27 @@ int GuiOpenEdit(const char *Path) {
     }
     W = 640;
     H = 440;
-    if (W + Margin * 2 > gScreenW) {
-        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    if (W + Margin * 2 > gScreenWidth) {
+        W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
-    if (H + Margin * 2 > gScreenH) {
-        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    if (H + Margin * 2 > gScreenHeight) {
+        H = gScreenHeight > Margin * 2 ? gScreenHeight - Margin * 2 : gScreenHeight / 2;
     }
     X = Margin + 24;
     Y = Margin;
-    gWins[Idx].Active = 1;
-    gWins[Idx].Kind = GUI_WIN_EDIT;
-    gWins[Idx].X = X;
-    gWins[Idx].Y = Y;
-    gWins[Idx].Width = W;
-    gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBackground();
-    gWins[Idx].Title = "Edit";
-    gWins[Idx].TermSet = 0;
-    gWins[Idx].InputLen = 0;
-    gWins[Idx].WaitPrompt = 0;
-    gWins[Idx].PromptShown = 0;
-    gWins[Idx].InputLine[0] = 0;
+    gWindows[Idx].Active = 1;
+    gWindows[Idx].Kind = GUI_WIN_EDIT;
+    gWindows[Idx].X = X;
+    gWindows[Idx].Y = Y;
+    gWindows[Idx].Width = W;
+    gWindows[Idx].Height = H;
+    gWindows[Idx].Background = ThemeSettingsClientBackground();
+    gWindows[Idx].Title = "Edit";
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
+    gWindows[Idx].PromptShown = 0;
+    gWindows[Idx].InputLine[0] = 0;
 
     ComposeBegin();
     GfxIrqEnter();
@@ -601,10 +601,10 @@ int GuiOpenEdit(const char *Path) {
 
 
 GUI_WIN_KIND GuiWindowKind(int Idx) {
-    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return GUI_WIN_NONE;
     }
-    return gWins[Idx].Kind;
+    return gWindows[Idx].Kind;
 }
 
 
@@ -617,17 +617,17 @@ void GuiRefreshTitles(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
-        if (gWins[i].Kind == GUI_WIN_SHELL) {
-            gWins[i].Title = LocStr(MSG_APP_SHELL);
-        } else if (gWins[i].Kind == GUI_WIN_SETTINGS) {
-            gWins[i].Title = LocStr(MSG_APP_SETTINGS);
-        } else if (gWins[i].Kind == GUI_WIN_FILES) {
-            gWins[i].Title = LocStr(MSG_APP_FILES);
-        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
-            gWins[i].Title = "Edit";
+        if (gWindows[i].Kind == GUI_WIN_SHELL) {
+            gWindows[i].Title = LocStr(MSG_APP_SHELL);
+        } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
+            gWindows[i].Title = LocStr(MSG_APP_SETTINGS);
+        } else if (gWindows[i].Kind == GUI_WIN_FILES) {
+            gWindows[i].Title = LocStr(MSG_APP_FILES);
+        } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
+            gWindows[i].Title = "Edit";
         }
     }
     ComposeBegin();
@@ -647,13 +647,13 @@ void GuiRefreshTitles(void) {
 
 
 void GuiInit(void) {
-    HalVideoGetSize(&gScreenW, &gScreenH);
-    if (gScreenW == 0) {
-        gScreenW = 1024;
-        gScreenH = 768;
+    HalVideoGetSize(&gScreenWidth, &gScreenHeight);
+    if (gScreenWidth == 0) {
+        gScreenWidth = 1024;
+        gScreenHeight = 768;
     }
-    gCursorX = gScreenW / 2;
-    gCursorY = gScreenH / 2;
+    gCursorX = gScreenWidth / 2;
+    gCursorY = gScreenHeight / 2;
     gFocusWin = -1;
     gCursorVisible = 0;
     gDragWin = -1;
@@ -662,15 +662,15 @@ void GuiInit(void) {
         int i;
 
         for (i = 0; i < MAX_WINS; i++) {
-            gWins[i].Active = 0;
-            gWins[i].Kind = GUI_WIN_NONE;
-            gWins[i].TermSet = 0;
-            gWins[i].InputLen = 0;
-            gWins[i].WaitPrompt = 0;
-            gWins[i].PromptShown = 0;
-            gWins[i].InputLine[0] = 0;
-            gWins[i].Title = "";
-            gWins[i].Background = ThemeShellClientBackground();
+            gWindows[i].Active = 0;
+            gWindows[i].Kind = GUI_WIN_NONE;
+            gWindows[i].TermSet = 0;
+            gWindows[i].InputLen = 0;
+            gWindows[i].WaitPrompt = 0;
+            gWindows[i].PromptShown = 0;
+            gWindows[i].InputLine[0] = 0;
+            gWindows[i].Title = "";
+            gWindows[i].Background = ThemeShellClientBackground();
         }
     }
 
@@ -696,41 +696,41 @@ void GuiInit(void) {
 void GuiOnDisplayResize(void) {
     int i;
 
-    HalVideoGetSize(&gScreenW, &gScreenH);
-    if (gScreenW == 0) {
-        gScreenW = 1024;
+    HalVideoGetSize(&gScreenWidth, &gScreenHeight);
+    if (gScreenWidth == 0) {
+        gScreenWidth = 1024;
     }
-    if (gScreenH == 0) {
-        gScreenH = 768;
+    if (gScreenHeight == 0) {
+        gScreenHeight = 768;
     }
-    if (gCursorX >= gScreenW) {
-        gCursorX = gScreenW / 2;
+    if (gCursorX >= gScreenWidth) {
+        gCursorX = gScreenWidth / 2;
     }
-    if (gCursorY >= gScreenH) {
-        gCursorY = gScreenH / 2;
+    if (gCursorY >= gScreenHeight) {
+        gCursorY = gScreenHeight / 2;
     }
     gCursorVisible = 0;
     gDragWin = -1;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
         gWinBackupValid[i] = 0;
-        if (gWins[i].Width > gScreenW) {
-            gWins[i].Width = gScreenW;
+        if (gWindows[i].Width > gScreenWidth) {
+            gWindows[i].Width = gScreenWidth;
         }
-        if (gWins[i].Height > gScreenH) {
-            gWins[i].Height = gScreenH;
+        if (gWindows[i].Height > gScreenHeight) {
+            gWindows[i].Height = gScreenHeight;
         }
-        if (gWins[i].X + gWins[i].Width > gScreenW) {
-            gWins[i].X = (gScreenW > gWins[i].Width)
-                              ? (gScreenW - gWins[i].Width)
+        if (gWindows[i].X + gWindows[i].Width > gScreenWidth) {
+            gWindows[i].X = (gScreenWidth > gWindows[i].Width)
+                              ? (gScreenWidth - gWindows[i].Width)
                               : 0;
         }
-        if (gWins[i].Y + gWins[i].Height > gScreenH) {
-            gWins[i].Y = (gScreenH > gWins[i].Height)
-                              ? (gScreenH - gWins[i].Height)
+        if (gWindows[i].Y + gWindows[i].Height > gScreenHeight) {
+            gWindows[i].Y = (gScreenHeight > gWindows[i].Height)
+                              ? (gScreenHeight - gWindows[i].Height)
                               : 0;
         }
     }
@@ -750,9 +750,9 @@ void GuiOnDisplayResize(void) {
         }
     }
     DebugWrite("gui: display resize ");
-    DebugHex32(gScreenW);
+    DebugHex32(gScreenWidth);
     DebugWrite("x");
-    DebugHex32(gScreenH);
+    DebugHex32(gScreenHeight);
     DebugWrite("\n");
 }
 
@@ -764,11 +764,11 @@ void GuiOnArrowKey(UINT8 Key) {
 
     if (Key == 0x50 && X >= Step) {
         X -= Step;
-    } else if (Key == 0x4F && X + Step < gScreenW) {
+    } else if (Key == 0x4F && X + Step < gScreenWidth) {
         X += Step;
     } else if (Key == 0x52 && Y >= Step) {
         Y -= Step;
-    } else if (Key == 0x51 && Y + Step < gScreenH) {
+    } else if (Key == 0x51 && Y + Step < gScreenHeight) {
         Y += Step;
     } else if (Key == 0x28) {
         GUI_MOUSE_STATE M;
@@ -803,7 +803,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
 
     /* 关闭钮可能被其它窗口挡住；先扫一遍所有窗口的 × 区域 */
     for (i = MAX_WINS - 1; i >= 0; i--) {
-        if (gWins[i].Active && PointInClose(&gWins[i], X, Y)) {
+        if (gWindows[i].Active && PointInClose(&gWindows[i], X, Y)) {
             CloseWindow(i);
             return 1;
         }
@@ -814,13 +814,13 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
      * SyncWindowVisuals 会重贴备份；Raise 会搬槽，导致之后命中失败或事件写到错槽。
      */
     for (i = MAX_WINS - 1; i >= 0; i--) {
-        if (!PointInWindow(&gWins[i], X, Y)) {
+        if (!PointInWindow(&gWindows[i], X, Y)) {
             continue;
         }
-        if (gWins[i].Kind == GUI_WIN_USER && !PointInTitle(&gWins[i], X, Y)) {
+        if (gWindows[i].Kind == GUI_WIN_USER && !PointInTitle(&gWindows[i], X, Y)) {
             Hit = UserButtonHit(i, X, Y);
             if (Hit >= 0) {
-                gWins[i].UserButtonClick = Hit;
+                gWindows[i].UserButtonClick = Hit;
                 GuiFocusSave();
                 RaiseWindow(i);
                 /* 轻量置顶：勿 Sync 整桌（避免闪烁/吞事件） */
@@ -832,7 +832,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
     }
 
     for (i = MAX_WINS - 1; i >= 0; i--) {
-        if (!PointInWindow(&gWins[i], X, Y)) {
+        if (!PointInWindow(&gWindows[i], X, Y)) {
             continue;
         }
         GuiFocusSave();
@@ -840,34 +840,34 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         SyncWindowVisuals();
         GuiFocusApply();
         DebugWrite("gui: focus ");
-        DebugWrite(gWins[gFocusWin].Title);
+        DebugWrite(gWindows[gFocusWin].Title);
         DebugWrite("\n");
 
-        if (PointInTitle(&gWins[gFocusWin], X, Y) &&
+        if (PointInTitle(&gWindows[gFocusWin], X, Y) &&
             !PointOnAnyClose(X, Y)) {
             GfxIrqEnter();
             CursorRestore();
             GfxIrqLeave();
             RaiseWindow(gFocusWin);
             gDragWin = gFocusWin;
-            gDragOffX = (INT32)X - (INT32)gWins[gFocusWin].X;
-            gDragOffY = (INT32)Y - (INT32)gWins[gFocusWin].Y;
+            gDragOffX = (INT32)X - (INT32)gWindows[gFocusWin].X;
+            gDragOffY = (INT32)Y - (INT32)gWindows[gFocusWin].Y;
             gDragArmed = 1;
         }
         if (GuiFocusKind() == GUI_WIN_SETTINGS) {
-            if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 SettingsUiRepaint();
             } else {
                 SettingsUiOnClick(X, Y);
             }
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
-            if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 FilesUiRepaint();
             } else {
                 FilesUiOnClick(X, Y);
             }
         } else if (GuiFocusKind() == GUI_WIN_EDIT) {
-            if (PointInTitle(&gWins[gFocusWin], X, Y)) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 EditUiRepaint();
             } else {
                 EditUiOnClick(X, Y);
@@ -988,10 +988,10 @@ void GuiPollMouse(void) {
 
     HalVideoGetSize(&Sw, &Sh);
     if (Sw == 0) {
-        Sw = gScreenW ? gScreenW : 1024;
+        Sw = gScreenWidth ? gScreenWidth : 1024;
     }
     if (Sh == 0) {
-        Sh = gScreenH ? gScreenH : 768;
+        Sh = gScreenHeight ? gScreenHeight : 768;
     }
 
     HalInputPoll();

@@ -306,7 +306,7 @@ int HalConsoleOnly(void) {
     return 0;
 }
 
-int HalPlatformVirtConsole(void) {
+int HalPlatformIsVirtSerialConsole(void) {
     return 0;
 }
 
@@ -326,7 +326,7 @@ int HalCpuIsHypervisor(void) {
     return (Ecx & (1u << 31)) != 0;
 }
 
-void HalVirtIdleLoop(void) {
+void HalVirtPlatformIdleLoop(void) {
     for (;;) {
         HalCpuPark();
     }

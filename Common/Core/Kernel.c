@@ -39,7 +39,7 @@ void KernelMain(void) {
         return;
     }
 
-    if (HalHasFrameBuffer() && HalPlatformVirtConsole()) {
+    if (HalHasFrameBuffer() && HalPlatformIsVirtSerialConsole()) {
         SchedulerCreate("shell", ShellTask);
         SchedulerCreate("gui", GuiTask);
         SchedulerCreate("worker", WorkerTask);

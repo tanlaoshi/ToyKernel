@@ -39,7 +39,7 @@ static void CommandInfo(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-static void CommandMem(int Argc, char **Argv) {
+static void CommandMemory(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
     UINT64 RegionBytes = 0;
     UINT32 i;
@@ -113,7 +113,7 @@ static void CommandExec(int Argc, char **Argv) {
     }
     if (ProcessExec(Argv[1]) == 0) {
         /* virt：ProcessExec 内已协作跑完并 ShowPrompt；x86 等定时器收尸 */
-        if (!HalPlatformVirtConsole()) {
+        if (!HalPlatformIsVirtSerialConsole()) {
             ConsoleWaitPrompt();
         }
     }
@@ -1251,7 +1251,7 @@ static void CommandLsdev(int Argc, char **Argv) {
 void ShellCommandsRegisterVirtMin(void) {
     ConsoleRegister2("list", "tasks", "list tasks", CommandPs);
     ConsoleRegisterAliasLine("ps", "list", "tasks");
-    ConsoleRegister2("show", "memory", "physical memory stats", CommandMem);
+    ConsoleRegister2("show", "memory", "physical memory stats", CommandMemory);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegister("execute", "load ELF (TOYOS:FILE)", CommandExec);
     ConsoleRegisterAlias("execute", "exec");
@@ -1271,7 +1271,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegisterAliasLine("tasks", "list", "tasks");
     ConsoleRegisterAliasLine("lsdev", "list", "devices");
 
-    ConsoleRegister2("show", "memory", "physical memory stats", CommandMem);
+    ConsoleRegister2("show", "memory", "physical memory stats", CommandMemory);
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
     ConsoleRegisterAliasLine("mem", "show", "memory");

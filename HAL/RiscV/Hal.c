@@ -189,7 +189,7 @@ int HalConsoleOnly(void) {
     return HalHasFrameBuffer() ? 0 : 1;
 }
 
-int HalPlatformVirtConsole(void) {
+int HalPlatformIsVirtSerialConsole(void) {
     /* virt 平台形状（协作调度 / 桌面模块表）；真机板包 IS_VIRT=0（PR-B3） */
 #if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
     return 1;
@@ -206,7 +206,7 @@ int HalCpuIsHypervisor(void) {
 #endif
 }
 
-void HalVirtIdleLoop(void) {
+void HalVirtPlatformIdleLoop(void) {
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
         HalCpuHalt();
@@ -341,7 +341,7 @@ void HalSchedulerEnter(struct HAL_INTERRUPT_FRAME *Frame) {
     UINT64 Stack;
 
     if (!Frame || Frame->InstructionPointer == 0) {
-        HalVirtIdleLoop();
+        HalVirtPlatformIdleLoop();
         return;
     }
     Entry = Frame->InstructionPointer;
@@ -352,7 +352,7 @@ void HalSchedulerEnter(struct HAL_INTERRUPT_FRAME *Frame) {
         :
         : "r"(Stack), "r"(Entry)
         : "memory");
-    HalVirtIdleLoop();
+    HalVirtPlatformIdleLoop();
 }
 /* HalUserEnter 在 TrapVec.S */
 

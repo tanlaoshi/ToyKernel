@@ -50,7 +50,7 @@ void GfxPresent(void) {
 
 
 UINT32 TitleBarColor(int Idx) {
-    if (Idx == gFocusWin && gWins[Idx].Active) {
+    if (Idx == gFocusWin && gWindows[Idx].Active) {
         return COLOR_BLUE;
     }
     return COLOR_GRAY;
@@ -71,11 +71,11 @@ int PixelOccludedByAbove(int Idx, UINT32 X, UINT32 Y) {
     int j;
 
     for (j = Idx + 1; j < MAX_WINS; j++) {
-        if (!gWins[j].Active) {
+        if (!gWindows[j].Active) {
             continue;
         }
-        if (X >= gWins[j].X && X < gWins[j].X + gWins[j].Width &&
-            Y >= gWins[j].Y && Y < gWins[j].Y + gWins[j].Height) {
+        if (X >= gWindows[j].X && X < gWindows[j].X + gWindows[j].Width &&
+            Y >= gWindows[j].Y && Y < gWindows[j].Y + gWindows[j].Height) {
             return 1;
         }
     }
@@ -123,7 +123,7 @@ void DrawHLineOccluded(int Idx, UINT32 X0, UINT32 X1, UINT32 Y,
     UINT32 RunStart = 0;
     int InRun = 0;
 
-    if (X1 < X0 || Y >= gScreenH) {
+    if (X1 < X0 || Y >= gScreenHeight) {
         return;
     }
     for (X = X0; X <= X1; X++) {
@@ -149,7 +149,7 @@ void DrawVLineOccluded(int Idx, UINT32 X, UINT32 Y0, UINT32 Y1,
     UINT32 RunStart = 0;
     int InRun = 0;
 
-    if (Y1 < Y0 || X >= gScreenW) {
+    if (Y1 < Y0 || X >= gScreenWidth) {
         return;
     }
     for (Y = Y0; Y <= Y1; Y++) {
@@ -211,7 +211,7 @@ void RefreshOtherChrome(int SkipIdx) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && i != SkipIdx) {
+        if (gWindows[i].Active && i != SkipIdx) {
             DrawWindowChromeAt(i);
         }
     }
@@ -231,11 +231,11 @@ void SyncWindowVisualsEx(int ClearDesktop) {
     GfxIrqLeave();
     HalVideoClearClip();
     if (ClearDesktop) {
-        DesktopFillRect(0, 0, gScreenW, gScreenH);
+        DesktopFillRect(0, 0, gScreenWidth, gScreenHeight);
         DesktopDraw();
     }
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
         if (gWinBackupValid[i] && gWinBackup[i] != 0) {
@@ -299,7 +299,7 @@ void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
 
 
 void DrawWindowAtEx(int Idx, int Occlude) {
-    const GUI_WINDOW *W = &gWins[Idx];
+    const GUI_WINDOW *W = &gWindows[Idx];
 
     if (!W->Active) {
         return;
@@ -376,7 +376,7 @@ void DrawWindowAt(int Idx) {
 
 /* 仅重绘标题栏与边框，保留客户区已有文字；不画到上层窗口上 */
 void DrawWindowChromeAt(int Idx) {
-    const GUI_WINDOW *W = &gWins[Idx];
+    const GUI_WINDOW *W = &gWindows[Idx];
 
     if (!W->Active) {
         return;
@@ -429,11 +429,11 @@ int WindowOccludedByOther(int Idx) {
     int j;
 
     for (j = Idx + 1; j < MAX_WINS; j++) {
-        if (!gWins[j].Active) {
+        if (!gWindows[j].Active) {
             continue;
         }
-        if (RectIntersects(gWins[Idx].X, gWins[Idx].Y, gWins[Idx].Width, gWins[Idx].Height,
-                           gWins[j].X, gWins[j].Y, gWins[j].Width, gWins[j].Height)) {
+        if (RectIntersects(gWindows[Idx].X, gWindows[Idx].Y, gWindows[Idx].Width, gWindows[Idx].Height,
+                           gWindows[j].X, gWindows[j].Y, gWindows[j].Width, gWindows[j].Height)) {
             return 1;
         }
     }
@@ -445,7 +445,7 @@ int AllActiveWindowsHaveValidBackup(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && !gWinBackupValid[i]) {
+        if (gWindows[i].Active && !gWinBackupValid[i]) {
             return 0;
         }
     }
@@ -463,13 +463,13 @@ UINT32 BackupPageCount(UINT32 Ww, UINT32 Wh) {
 int EnsureWindowBackupBuf(int Idx) {
     UINT32 Pages;
 
-    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return 0;
     }
-    if (gWins[Idx].Width == 0 || gWins[Idx].Height == 0) {
+    if (gWindows[Idx].Width == 0 || gWindows[Idx].Height == 0) {
         return 0;
     }
-    Pages = BackupPageCount(gWins[Idx].Width, gWins[Idx].Height);
+    Pages = BackupPageCount(gWindows[Idx].Width, gWindows[Idx].Height);
     if (Pages == 0) {
         return 0;
     }
@@ -496,7 +496,7 @@ void PreallocWindowBackups(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active) {
+        if (gWindows[i].Active) {
             EnsureWindowBackupBuf(i);
         }
     }
@@ -508,7 +508,7 @@ void PreallocWindowBackups(void) {
  * 否则 Occluded 路径会跳过重叠区，备份镂空，透视桌面/抬窗花屏。
  */
 void BackupWindowAtEx(int Idx, int ForceFull) {
-    const GUI_WINDOW *Win = &gWins[Idx];
+    const GUI_WINDOW *Win = &gWindows[Idx];
     UINT32 Rw;
     UINT32 Rh;
     UINT32 Bw;
@@ -526,11 +526,11 @@ void BackupWindowAtEx(int Idx, int ForceFull) {
     }
     Rw = Win->Width;
     Rh = Win->Height;
-    if (Win->X + Rw > gScreenW) {
-        Rw = gScreenW - Win->X;
+    if (Win->X + Rw > gScreenWidth) {
+        Rw = gScreenWidth - Win->X;
     }
-    if (Win->Y + Rh > gScreenH) {
-        Rh = gScreenH - Win->Y;
+    if (Win->Y + Rh > gScreenHeight) {
+        Rh = gScreenHeight - Win->Y;
     }
     if (Rw == 0 || Rh == 0) {
         return;
@@ -612,7 +612,7 @@ void BackupWindowAt(int Idx) {
 
 /* 与 DrawWindowAt 布局一致；仅作无备份时的回退 */
 UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
-    const GUI_WINDOW *W = &gWins[Idx];
+    const GUI_WINDOW *W = &gWindows[Idx];
     UINT32 Lx;
     UINT32 Ly;
 
@@ -636,7 +636,7 @@ UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
 
 
 void PaintWindowFromBackup(int Idx) {
-    const GUI_WINDOW *Win = &gWins[Idx];
+    const GUI_WINDOW *Win = &gWindows[Idx];
 
     if (!Win->Active) {
         return;
@@ -685,26 +685,26 @@ int RectIntersects(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
 
 
 void ClipRectToScreen(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H) {
-    if (*W == 0 || *H == 0 || gScreenW == 0 || gScreenH == 0) {
+    if (*W == 0 || *H == 0 || gScreenWidth == 0 || gScreenHeight == 0) {
         *W = 0;
         return;
     }
-    if (*X >= gScreenW || *Y >= gScreenH) {
+    if (*X >= gScreenWidth || *Y >= gScreenHeight) {
         *W = 0;
         *H = 0;
         return;
     }
-    if (*X + *W > gScreenW) {
-        *W = gScreenW - *X;
+    if (*X + *W > gScreenWidth) {
+        *W = gScreenWidth - *X;
     }
-    if (*Y + *H > gScreenH) {
-        *H = gScreenH - *Y;
+    if (*Y + *H > gScreenHeight) {
+        *H = gScreenHeight - *Y;
     }
 }
 
 
 UINT32 SampleWindowBackupPixel(int Idx, UINT32 Px, UINT32 Py) {
-    const GUI_WINDOW *W = &gWins[Idx];
+    const GUI_WINDOW *W = &gWindows[Idx];
     UINT32 Bw;
     UINT32 Bh;
     UINT32 Lx;
@@ -728,7 +728,7 @@ UINT32 SampleWindowBackupPixel(int Idx, UINT32 Px, UINT32 Py) {
 
 
 int WindowBackupCoversPixel(int Idx, UINT32 Px, UINT32 Py) {
-    const GUI_WINDOW *W = &gWins[Idx];
+    const GUI_WINDOW *W = &gWindows[Idx];
 
     if (!gWinBackupValid[Idx] || !W->Active) {
         return 0;
@@ -742,7 +742,7 @@ int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py) {
     int j;
 
     for (j = Idx + 1; j < MAX_WINS; j++) {
-        if (gWins[j].Active && PointInWindow(&gWins[j], Px, Py)) {
+        if (gWindows[j].Active && PointInWindow(&gWindows[j], Px, Py)) {
             return 1;
         }
     }
@@ -763,14 +763,14 @@ void GuiBackupSyncRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 Dst;
     int Idx;
 
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return;
     }
     Idx = gFocusWin;
     if (!gWinBackupValid[Idx] || gWinBackup[Idx] == 0) {
         return;
     }
-    Win = &gWins[Idx];
+    Win = &gWindows[Idx];
     Bw = gWinBackupW[Idx];
     Bh = gWinBackupH[Idx];
     if (Bw == 0 || Bh == 0) {
@@ -799,7 +799,7 @@ void GuiBackupSyncRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 
 
 void GuiBackupFocusWindow(void) {
-    if (gFocusWin >= 0 && gFocusWin < MAX_WINS && gWins[gFocusWin].Active) {
+    if (gFocusWin >= 0 && gFocusWin < MAX_WINS && gWindows[gFocusWin].Active) {
         BackupWindowAt(gFocusWin);
     }
 }
@@ -814,7 +814,7 @@ void GuiRedraw(void) {
     CursorRestore();
     GfxIrqLeave();
     HalVideoClearClip();
-    DesktopFillRect(0, 0, gScreenW, gScreenH);
+    DesktopFillRect(0, 0, gScreenWidth, gScreenHeight);
     DesktopDraw();
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindowAt(i);
@@ -839,21 +839,21 @@ void GuiApplyThemeColors(void) {
 
     /* 只更新属性；整屏提交见 GuiComposeThemeScene（PR-G8） */
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL) {
-            gWins[i].Background = Bg;
-            gWins[i].TermSet = 0;
-            gWins[i].TermX = 0;
-            gWins[i].TermY = 0;
-            gWins[i].InputLen = 0;
-            gWins[i].InputLine[0] = 0;
-            gWins[i].PromptShown = 0;
-            gWins[i].WaitPrompt = 0;
-        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SETTINGS) {
-            gWins[i].Background = ThemeSettingsClientBackground();
-        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_FILES) {
-            gWins[i].Background = ThemeSettingsClientBackground();
-        } else if (gWins[i].Active && gWins[i].Kind == GUI_WIN_EDIT) {
-            gWins[i].Background = ThemeSettingsClientBackground();
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_SHELL) {
+            gWindows[i].Background = Bg;
+            gWindows[i].TermSet = 0;
+            gWindows[i].TermX = 0;
+            gWindows[i].TermY = 0;
+            gWindows[i].InputLen = 0;
+            gWindows[i].InputLine[0] = 0;
+            gWindows[i].PromptShown = 0;
+            gWindows[i].WaitPrompt = 0;
+        } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_SETTINGS) {
+            gWindows[i].Background = ThemeSettingsClientBackground();
+        } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_FILES) {
+            gWindows[i].Background = ThemeSettingsClientBackground();
+        } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_EDIT) {
+            gWindows[i].Background = ThemeSettingsClientBackground();
         }
     }
 }
@@ -876,11 +876,11 @@ void GuiComposeThemeScene(void) {
     HalVideoClearClip();
 
     /* 先铺底：有 DeferPresent 时整屏 wipe 不会露到屏幕 */
-    DesktopFillRect(0, 0, gScreenW, gScreenH);
+    DesktopFillRect(0, 0, gScreenWidth, gScreenHeight);
     DesktopDraw();
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
         /*
@@ -889,19 +889,19 @@ void GuiComposeThemeScene(void) {
          */
         gFocusWin = SavedFocus;
         DrawWindowAtEx(i, 0);
-        if (gWins[i].Kind == GUI_WIN_SHELL) {
+        if (gWindows[i].Kind == GUI_WIN_SHELL) {
             gFocusWin = i;
             GuiConsoleOpsPaintShellWindow(i);
-        } else if (gWins[i].Kind == GUI_WIN_SETTINGS) {
+        } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
             gFocusWin = i;
             SettingsUiPaintFocused();
-        } else if (gWins[i].Kind == GUI_WIN_FILES) {
+        } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiPaintFocused();
-        } else if (gWins[i].Kind == GUI_WIN_EDIT) {
+        } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
             gFocusWin = i;
             EditUiPaintFocused();
-        } else if (gWins[i].Kind == GUI_WIN_USER) {
+        } else if (gWindows[i].Kind == GUI_WIN_USER) {
             gFocusWin = i;
             PaintUserClient(i);
         }
@@ -910,7 +910,7 @@ void GuiComposeThemeScene(void) {
     }
 
     gFocusWin = SavedFocus;
-    if (SavedFocus >= 0 && SavedFocus < MAX_WINS && gWins[SavedFocus].Active) {
+    if (SavedFocus >= 0 && SavedFocus < MAX_WINS && gWindows[SavedFocus].Active) {
         GuiFocusApply();
     } else {
         HalVideoClearClip();
@@ -927,7 +927,7 @@ void GuiComposeThemeScene(void) {
 
 
 void GuiPaintWindow(int Idx) {
-    if (Idx < 0 || Idx >= MAX_WINS || !gWins[Idx].Active) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return;
     }
     GfxIrqEnter();
@@ -943,7 +943,7 @@ void GuiBackupAllWindows(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active) {
+        if (gWindows[i].Active) {
             BackupWindowAt(i);
         }
     }

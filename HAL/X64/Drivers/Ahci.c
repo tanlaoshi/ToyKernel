@@ -124,7 +124,7 @@ static void MmioWrite32(volatile UINT32 *Reg, UINT32 Val) {
     *Reg = Val;
 }
 
-static void MemZero(void *Ptr, UINTN Len) {
+static void ZeroMemory(void *Ptr, UINTN Len) {
     UINT8 *B = (UINT8 *)Ptr;
     UINTN i;
     for (i = 0; i < Len; i++) {
@@ -132,7 +132,7 @@ static void MemZero(void *Ptr, UINTN Len) {
     }
 }
 
-static void MemCopy(void *Dst, const void *Src, UINTN Len) {
+static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
@@ -246,7 +246,7 @@ static int PortInit(volatile AHCI_PORT *Port, AHCI_DRIVE *Drive) {
     if (!Mem) {
         return 0;
     }
-    MemZero(Mem, 3u * PAGE_SIZE);
+    ZeroMemory(Mem, 3u * PAGE_SIZE);
     Phys = (UINT64)(UINTN)Mem;
 
     Drive->Cl = (AHCI_CMD_HDR *)(UINTN)Mem;
@@ -310,14 +310,14 @@ static int PortXfer(AHCI_DRIVE *Drive, UINT32 Lba, UINT32 Count, void *Buffer, i
         Bytes = Chunk * 512u;
 
         if (Write) {
-            MemCopy(Drive->Bounce, Data + (UINTN)Done * 512u, Bytes);
+            CopyMemory(Drive->Bounce, Data + (UINTN)Done * 512u, Bytes);
         }
 
         if (!WaitClear(&Port->Tfd, AHCI_PxTFD_BSY | AHCI_PxTFD_DRQ, 1000000)) {
             return 0;
         }
 
-        MemZero(Fis, 64);
+        ZeroMemory(Fis, 64);
         Fis[0] = FIS_TYPE_REG_H2D;
         Fis[1] = 1u << 7; /* C=1 */
         Fis[2] = Write ? ATA_CMD_WRITE_DMA_EXT : ATA_CMD_READ_DMA_EXT;
@@ -333,7 +333,7 @@ static int PortXfer(AHCI_DRIVE *Drive, UINT32 Lba, UINT32 Count, void *Buffer, i
         Fis[12] = (UINT8)(Chunk & 0xFF);
         Fis[13] = (UINT8)((Chunk >> 8) & 0xFF);
 
-        MemZero(&Ct->Prdt[0], sizeof(Ct->Prdt[0]));
+        ZeroMemory(&Ct->Prdt[0], sizeof(Ct->Prdt[0]));
         Ct->Prdt[0].Dba = (UINT32)BouncePhys;
         Ct->Prdt[0].Dbau = (UINT32)(BouncePhys >> 32);
         Ct->Prdt[0].Dbc = (Bytes - 1u) | (1u << 31);
@@ -370,7 +370,7 @@ static int PortXfer(AHCI_DRIVE *Drive, UINT32 Lba, UINT32 Count, void *Buffer, i
         MmioWrite32(&Port->Is, 0xFFFFFFFFu);
 
         if (!Write) {
-            MemCopy(Data + (UINTN)Done * 512u, Drive->Bounce, Bytes);
+            CopyMemory(Data + (UINTN)Done * 512u, Drive->Bounce, Bytes);
         }
         Done += Chunk;
     }

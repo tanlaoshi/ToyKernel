@@ -10,10 +10,10 @@ int GuiFocusClient(UINT32 *X, UINT32 *Y, UINT32 *Width, UINT32 *Height, UINT32 *
     const GUI_WINDOW *Win;
     UINT32 Pad = GUI_CLIENT_PAD;
 
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return 0;
     }
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     /* 与 DrawWindowAt 一致：1px 白边内侧再加 GUI_CLIENT_PAD 文本边距 */
     if (X) {
         *X = Win->X + 1 + Pad;
@@ -48,11 +48,11 @@ void GuiFocusSave(void) {
     UINT32 Ay;
     GUI_WINDOW *Win;
 
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return;
     }
     GuiConsoleOpsFocusSave();
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     if (!GuiFocusClient(&Cx, &Cy, &W, &H, &Bg)) {
         return;
     }
@@ -72,7 +72,7 @@ void GuiFocusSave(void) {
 void GuiConsolePull(char *Line, int *Len, int *WaitPrompt) {
     GUI_WINDOW *Win;
 
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         if (Len) {
             *Len = 0;
         }
@@ -84,7 +84,7 @@ void GuiConsolePull(char *Line, int *Len, int *WaitPrompt) {
         }
         return;
     }
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     if (Line) {
         int i;
         for (i = 0; i < Win->InputLen && i < GUI_INPUT_LINE_MAX - 1; i++) {
@@ -105,10 +105,10 @@ void GuiConsolePush(const char *Line, int Len, int WaitPrompt) {
     GUI_WINDOW *Win;
     int i;
 
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return;
     }
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     if (Len >= GUI_INPUT_LINE_MAX) {
         Len = GUI_INPUT_LINE_MAX - 1;
     }
@@ -122,18 +122,18 @@ void GuiConsolePush(const char *Line, int Len, int WaitPrompt) {
 
 
 int GuiConsoleNeedsPrompt(void) {
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return 0;
     }
-    return !gWins[gFocusWin].PromptShown;
+    return !gWindows[gFocusWin].PromptShown;
 }
 
 
 void GuiConsoleMarkPrompt(void) {
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return;
     }
-    gWins[gFocusWin].PromptShown = 1;
+    gWindows[gFocusWin].PromptShown = 1;
 }
 
 
@@ -141,18 +141,18 @@ void GuiShellRequestPrompt(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL) {
-            gWins[i].PromptShown = 0;
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_SHELL) {
+            gWindows[i].PromptShown = 0;
         }
     }
 }
 
 
 int GuiConsoleHasDisplay(void) {
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return 0;
     }
-    return gWins[gFocusWin].TermSet;
+    return gWindows[gFocusWin].TermSet;
 }
 
 
@@ -177,7 +177,7 @@ void GuiFocusApplyClip(void) {
         return;
     }
     HalVideoSetClipRegion(X, Y, W, H, Bg);
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     if (!Win->TermSet) {
         HalVideoSetTextCursor(X, Y);
         Win->TermX = 0;
@@ -214,13 +214,13 @@ void GuiFocusSyncCursor(void) {
     UINT32 Ay;
     GUI_WINDOW *Win;
 
-    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWins[gFocusWin].Active) {
+    if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {
         return;
     }
     if (!GuiFocusClient(&Cx, &Cy, &W, &H, &Bg)) {
         return;
     }
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     HalVideoGetTextCursor(&Ax, &Ay);
     Win->TermX = (Ax >= Cx) ? (Ax - Cx) : 0;
     Win->TermY = (Ay >= Cy) ? (Ay - Cy) : 0;
@@ -253,7 +253,7 @@ void GuiFocusClearClient(void) {
      */
     HalVideoFillRect(X, Y, W, H, Bg);
     HalVideoSetClipOrigin(X, Y, W, H, Bg);
-    Win = &gWins[gFocusWin];
+    Win = &gWindows[gFocusWin];
     Win->TermX = 0;
     Win->TermY = 0;
     Win->TermSet = 1;
@@ -266,20 +266,20 @@ void GuiFocusClearClient(void) {
 
 int GuiShellAcceptsInput(void) {
     return gFocusWin >= 0 && gFocusWin < MAX_WINS &&
-           gWins[gFocusWin].Active &&
-           gWins[gFocusWin].Kind == GUI_WIN_SHELL &&
+           gWindows[gFocusWin].Active &&
+           gWindows[gFocusWin].Kind == GUI_WIN_SHELL &&
            !WindowOccludedByOther(gFocusWin);
 }
 
 
 int GuiShellWindowActive(int Idx) {
-    return Idx >= 0 && Idx < MAX_WINS && gWins[Idx].Active &&
-           gWins[Idx].Kind == GUI_WIN_SHELL;
+    return Idx >= 0 && Idx < MAX_WINS && gWindows[Idx].Active &&
+           gWindows[Idx].Kind == GUI_WIN_SHELL;
 }
 
 
 void GuiSetFocusWindow(int Idx) {
-    if (Idx >= 0 && Idx < MAX_WINS && gWins[Idx].Active) {
+    if (Idx >= 0 && Idx < MAX_WINS && gWindows[Idx].Active) {
         gFocusWin = Idx;
     }
 }
@@ -304,7 +304,7 @@ void GuiFocusHome(void) {
     }
     HalVideoSetClipOrigin(X, Y, W, H, Bg);
     if (gFocusWin >= 0 && gFocusWin < MAX_WINS) {
-        Win = &gWins[gFocusWin];
+        Win = &gWindows[gFocusWin];
         Win->TermX = 0;
         Win->TermY = 0;
         Win->TermSet = 1;

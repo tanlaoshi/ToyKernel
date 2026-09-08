@@ -47,15 +47,15 @@ int AnyWindowsOverlap(void) {
     int j;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
         for (j = i + 1; j < MAX_WINS; j++) {
-            if (!gWins[j].Active) {
+            if (!gWindows[j].Active) {
                 continue;
             }
-            if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
-                               gWins[j].X, gWins[j].Y, gWins[j].Width, gWins[j].Height)) {
+            if (RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width, gWindows[i].Height,
+                               gWindows[j].X, gWindows[j].Y, gWindows[j].Width, gWindows[j].Height)) {
                 return 1;
             }
         }
@@ -73,12 +73,12 @@ UINT32 TopmostBelowDragPixel(UINT32 Px, UINT32 Py, int DragIdx) {
     UINT32 IconColor;
 
     for (i = DragIdx - 1; i >= 0; i--) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
-        if (Px >= gWins[i].X && Py >= gWins[i].Y &&
-            Px < gWins[i].X + gWins[i].Width &&
-            Py < gWins[i].Y + gWins[i].Height) {
+        if (Px >= gWindows[i].X && Py >= gWindows[i].Y &&
+            Px < gWindows[i].X + gWindows[i].Width &&
+            Py < gWindows[i].Y + gWindows[i].Height) {
             if (gWinBackupValid[i] && gWinBackup[i] != 0) {
                 return SampleWindowBackupPixel(i, Px, Py);
             }
@@ -156,22 +156,22 @@ void CaptureDragRestoreData(int DragIdx) {
 
     gScreenSnapValid = 0;
     gUnderDragValid = 0;
-    if (DragIdx < 0 || DragIdx >= MAX_WINS || !gWins[DragIdx].Active) {
+    if (DragIdx < 0 || DragIdx >= MAX_WINS || !gWindows[DragIdx].Active) {
         return;
     }
-    if (gScreenW == 0 || gScreenH == 0) {
+    if (gScreenWidth == 0 || gScreenHeight == 0) {
         return;
     }
 
-    gDragStartX = gWins[DragIdx].X;
-    gDragStartY = gWins[DragIdx].Y;
-    gDragStartW = gWins[DragIdx].Width;
-    gDragStartH = gWins[DragIdx].Height;
+    gDragStartX = gWindows[DragIdx].X;
+    gDragStartY = gWindows[DragIdx].Y;
+    gDragStartW = gWindows[DragIdx].Width;
+    gDragStartH = gWindows[DragIdx].Height;
     if (gDragStartW == 0 || gDragStartH == 0) {
         return;
     }
 
-    Pages = BackupPageCount(gScreenW, gScreenH);
+    Pages = BackupPageCount(gScreenWidth, gScreenHeight);
     if (gScreenSnap != 0 && gScreenSnapPages != Pages) {
         PhysicalMemoryFreePages(gScreenSnap, gScreenSnapPages);
         gScreenSnap = 0;
@@ -185,9 +185,9 @@ void CaptureDragRestoreData(int DragIdx) {
         gScreenSnapPages = Pages;
     }
     /* 含被拖窗的全屏快照：非起始 footprint 露底时用 */
-    HalVideoReadRect(0, 0, gScreenW, gScreenH, gScreenSnap);
+    HalVideoReadRect(0, 0, gScreenWidth, gScreenHeight, gScreenSnap);
     gScreenSnapValid = 1;
-    EnsureDragDirtyBuf(gScreenW, gScreenH);
+    EnsureDragDirtyBuf(gScreenWidth, gScreenHeight);
 
     if (!EnsureUnderDragBuf(gDragStartW, gDragStartH)) {
         return;
@@ -198,14 +198,14 @@ void CaptureDragRestoreData(int DragIdx) {
      * 再读入 under-drag，最后恢复 Active 并贴回被拖窗。
      */
     HalVideoClearClip();
-    gWins[DragIdx].Active = 0;
+    gWindows[DragIdx].Active = 0;
     DesktopFillRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH);
     DesktopDrawRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH);
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active || i == DragIdx) {
+        if (!gWindows[i].Active || i == DragIdx) {
             continue;
         }
-        if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
+        if (RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width, gWindows[i].Height,
                            gDragStartX, gDragStartY, gDragStartW, gDragStartH)) {
             /* 必须贴备份（含客户区文字），禁止 DrawWindowAt 空壳 */
             PaintWindowFromBackup(i);
@@ -213,7 +213,7 @@ void CaptureDragRestoreData(int DragIdx) {
     }
     HalVideoReadRect(gDragStartX, gDragStartY, gDragStartW, gDragStartH, gUnderDrag);
     gUnderDragValid = 1;
-    gWins[DragIdx].Active = 1;
+    gWindows[DragIdx].Active = 1;
 
     /* 贴回被拖窗（备份应在 Begin/Start 里已抓好） */
     if (gWinBackupValid[DragIdx] && gWinBackup[DragIdx] != 0) {
@@ -235,7 +235,7 @@ void BeginDragBackups(int DragIdx) {
     if (!Overlap) {
         ResetDragState();
     }
-    if (DragIdx < 0 || DragIdx >= MAX_WINS || !gWins[DragIdx].Active) {
+    if (DragIdx < 0 || DragIdx >= MAX_WINS || !gWindows[DragIdx].Active) {
         return;
     }
     if (!EnsureWindowBackupBuf(DragIdx)) {
@@ -243,7 +243,7 @@ void BeginDragBackups(int DragIdx) {
         return;
     }
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active) {
+        if (!gWindows[i].Active) {
             continue;
         }
         EnsureWindowBackupBuf(i);
@@ -274,7 +274,7 @@ void StartDragBackups(int DragIdx) {
 
         HalVideoClearClip();
         for (i = 0; i < MAX_WINS; i++) {
-            if (!gWins[i].Active) {
+            if (!gWindows[i].Active) {
                 continue;
             }
             if (i == DragIdx || !WindowOccludedByOther(i)) {
@@ -317,12 +317,12 @@ UINT32 CompositeDragPixel(UINT32 Px, UINT32 Py, int DragIdx,
     }
 
     /* 拖动前全屏快照是露出区域的权威来源（被挡窗备份在重叠区是脏的） */
-    if (gScreenSnapValid && Px < gScreenW && Py < gScreenH) {
-        return gScreenSnap[Py * gScreenW + Px];
+    if (gScreenSnapValid && Px < gScreenWidth && Py < gScreenHeight) {
+        return gScreenSnap[Py * gScreenWidth + Px];
     }
 
     for (i = MAX_WINS - 1; i >= 0; i--) {
-        if (i == DragIdx || !gWins[i].Active) {
+        if (i == DragIdx || !gWindows[i].Active) {
             continue;
         }
         if (WindowBackupCoversPixel(i, Px, Py)) {
@@ -336,7 +336,7 @@ UINT32 CompositeDragPixel(UINT32 Px, UINT32 Py, int DragIdx,
 /* 旧/新 footprint 并集一次扫描线写出，避免先清灰再全窗重贴的两步闪屏 */
 void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                                      UINT32 Ww, UINT32 Wh) {
-    const GUI_WINDOW *Drag = &gWins[DragIdx];
+    const GUI_WINDOW *Drag = &gWindows[DragIdx];
     UINT32 Nx = Drag->X;
     UINT32 Ny = Drag->Y;
     UINT32 DuX;
@@ -430,10 +430,10 @@ void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active || i == SkipIdx) {
+        if (!gWindows[i].Active || i == SkipIdx) {
             continue;
         }
-        if (RectIntersects(gWins[i].X, gWins[i].Y, gWins[i].Width, gWins[i].Height,
+        if (RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width, gWindows[i].Height,
                            Fx, Fy, Fw, Fh)) {
             PaintWindowFromBackup(i);
         }
@@ -455,12 +455,12 @@ void PaintAllWindowsDraw(int DragIdx) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWins[i].Active || i == DragIdx) {
+        if (!gWindows[i].Active || i == DragIdx) {
             continue;
         }
         DrawWindowAt(i);
     }
-    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWins[DragIdx].Active) {
+    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWindows[DragIdx].Active) {
         DrawWindowAt(DragIdx);
     }
 }
@@ -468,7 +468,7 @@ void PaintAllWindowsDraw(int DragIdx) {
 
 /* 拖动一帧：脏区并集内单次合成（无中间灰底） */
 void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
-    const GUI_WINDOW *Drag = &gWins[DragIdx];
+    const GUI_WINDOW *Drag = &gWindows[DragIdx];
 
     HalVideoClearClip();
     CompositeDragDirtyRegion(DragIdx, OldX, OldY, Drag->Width, Drag->Height);
@@ -477,8 +477,8 @@ void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
 
 /* 窗口必须完整留在屏内 */
 void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y) {
-    INT32 MaxX = (INT32)gScreenW - (INT32)W->Width;
-    INT32 MaxY = (INT32)gScreenH - (INT32)W->Height;
+    INT32 MaxX = (INT32)gScreenWidth - (INT32)W->Width;
+    INT32 MaxY = (INT32)gScreenHeight - (INT32)W->Height;
 
     if (MaxX < 0) {
         MaxX = 0;
@@ -511,7 +511,7 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     if (Idx < 0 || Idx >= MAX_WINS) {
         return;
     }
-    W = &gWins[Idx];
+    W = &gWindows[Idx];
     if (!W->Active) {
         return;
     }
@@ -522,7 +522,7 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     if (NewX == Ox && NewY == Oy) {
         return;
     }
-    if (NewX + Ww > gScreenW || NewY + Wh > gScreenH) {
+    if (NewX + Ww > gScreenWidth || NewY + Wh > gScreenHeight) {
         return;
     }
 
@@ -577,10 +577,10 @@ void GuiDragUpdate(UINT32 X, UINT32 Y) {
     INT32 Dy;
     GUI_WINDOW *W;
 
-    if (gDragWin < 0 || gDragWin >= MAX_WINS || !gWins[gDragWin].Active) {
+    if (gDragWin < 0 || gDragWin >= MAX_WINS || !gWindows[gDragWin].Active) {
         return;
     }
-    W = &gWins[gDragWin];
+    W = &gWindows[gDragWin];
     Nx = (INT32)X - gDragOffX;
     Ny = (INT32)Y - gDragOffY;
     ClampWindowPos(W, &Nx, &Ny);
@@ -611,12 +611,12 @@ void GuiDragEnd(void) {
     gDragWin = -1;
     gDragArmed = 0;
     /* 与 GuiDragUpdate 一致：-1 哨兵 + 上界，避免 -Warray-bounds */
-    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWins[DragIdx].Active) {
+    if (DragIdx >= 0 && DragIdx < MAX_WINS && gWindows[DragIdx].Active) {
         if (DidDrag) {
             INT32 Nx = (INT32)gCursorX - gDragOffX;
             INT32 Ny = (INT32)gCursorY - gDragOffY;
 
-            ClampWindowPos(&gWins[DragIdx], &Nx, &Ny);
+            ClampWindowPos(&gWindows[DragIdx], &Nx, &Ny);
             MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
             RaiseWindow(DragIdx);
             /*
@@ -626,15 +626,15 @@ void GuiDragEnd(void) {
             SyncWindowVisualsEx(1);
             GuiFocusApply();
         }
-        if (gWins[DragIdx].Kind == GUI_WIN_SETTINGS) {
+        if (gWindows[DragIdx].Kind == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
-        } else if (gWins[DragIdx].Kind == GUI_WIN_FILES) {
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_FILES) {
             FilesUiRepaint();
-        } else if (gWins[DragIdx].Kind == GUI_WIN_EDIT) {
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_EDIT) {
             EditUiRepaint();
-        } else if (gWins[DragIdx].Kind == GUI_WIN_USER) {
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_USER) {
             PaintUserClient(DragIdx);
-        } else if (gWins[DragIdx].Kind == GUI_WIN_SHELL &&
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_SHELL &&
                    !gWinBackupValid[DragIdx]) {
             GuiConsoleOpsOnShellOpened();
         }
@@ -643,7 +643,7 @@ void GuiDragEnd(void) {
             int i;
 
             for (i = 0; i < MAX_WINS; i++) {
-                if (gWins[i].Active && gWins[i].Kind == GUI_WIN_SHELL &&
+                if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_SHELL &&
                     !gWinBackupValid[i]) {
                     int Prev = gFocusWin;
 
@@ -653,7 +653,7 @@ void GuiDragEnd(void) {
                 }
             }
         }
-        if (gWins[DragIdx].Active) {
+        if (gWindows[DragIdx].Active) {
             BackupWindowAt(DragIdx);
         }
     }

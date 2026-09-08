@@ -160,8 +160,8 @@ int HalConsoleOnly(void);
  * virt 平台形状（协作调度、virt 桌面模块表 vs x86 全表）。
  * 串口子集请用 HalConsoleOnly，不要把本函数当「所有非 x86」。
  */
-int HalPlatformVirtConsole(void);
-void HalVirtIdleLoop(void);
+int HalPlatformIsVirtSerialConsole(void);
+void HalVirtPlatformIdleLoop(void);
 /* 轮询时钟（virt 无 IRQ 时由 IdleLoop 调用；x86 可为空） */
 void HalTimerPoll(void);
 /* CPUID.1 ECX.31：QEMU/KVM 等为 1，裸机多为 0 */

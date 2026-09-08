@@ -116,7 +116,7 @@ static void Fence(void) {
     __asm__ volatile("mfence" ::: "memory");
 }
 
-static void MemZero(void *Ptr, UINTN Len) {
+static void ZeroMemory(void *Ptr, UINTN Len) {
     UINT8 *B = (UINT8 *)Ptr;
     UINTN i;
     for (i = 0; i < Len; i++) {
@@ -124,7 +124,7 @@ static void MemZero(void *Ptr, UINTN Len) {
     }
 }
 
-static void MemCopy(void *Dst, const void *Src, UINTN Len) {
+static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
@@ -218,7 +218,7 @@ int E1000Ready(void) {
 }
 
 void E1000GetMac(UINT8 Mac[6]) {
-    MemCopy(Mac, gMac, 6);
+    CopyMemory(Mac, gMac, 6);
 }
 
 int E1000Setup(void) {
@@ -263,7 +263,7 @@ int E1000Setup(void) {
     if (!Mem) {
         return 0;
     }
-    MemZero(Mem, 11u * PAGE_SIZE);
+    ZeroMemory(Mem, 11u * PAGE_SIZE);
     Phys = (UINT64)(UINTN)Mem;
 
     gRxRing = (E1000_RX_DESC *)(UINTN)Mem;
@@ -344,8 +344,8 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
         return -1;
     }
 
-    MemZero(gTxBuf, Wire);
-    MemCopy(gTxBuf, Frame, Len);
+    ZeroMemory(gTxBuf, Wire);
+    CopyMemory(gTxBuf, Frame, Len);
     D->Addr = (UINT64)(UINTN)gTxBuf;
     D->Length = (UINT16)Wire;
     D->Cso = 0;

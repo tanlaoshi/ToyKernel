@@ -23,7 +23,7 @@ int ModulesRun(const MODULE *List, int Count) {
 
     for (i = 0; i < Count; i++) {
         /* virt：串口始终打 [mod]；x86 仍可用 DEBUG=1 看 DebugWrite */
-        if (HalPlatformVirtConsole()) {
+        if (HalPlatformIsVirtSerialConsole()) {
             ModLog(List[i].Name, "\n");
         } else if (i > 0) {
             DebugWrite("[mod] ");

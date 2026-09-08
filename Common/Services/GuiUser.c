@@ -48,7 +48,7 @@ void PaintUserClient(int Idx) {
     if (Idx < 0 || Idx >= MAX_WINS) {
         return;
     }
-    W = &gWins[Idx];
+    W = &gWindows[Idx];
     if (!W->Active || W->Kind != GUI_WIN_USER) {
         return;
     }
@@ -116,19 +116,19 @@ void PaintUserClient(int Idx) {
 int UserWindowIndexAfterRaise(int Wid) {
     int i;
 
-    if (Wid >= 0 && Wid < MAX_WINS && gWins[Wid].Active &&
-        gWins[Wid].Kind == GUI_WIN_USER) {
+    if (Wid >= 0 && Wid < MAX_WINS && gWindows[Wid].Active &&
+        gWindows[Wid].Kind == GUI_WIN_USER) {
         RaiseWindow(Wid);
     } else {
         for (i = 0; i < MAX_WINS; i++) {
-            if (gWins[i].Active && gWins[i].Kind == GUI_WIN_USER) {
+            if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER) {
                 RaiseWindow(i);
                 break;
             }
         }
     }
     if (gFocusWin >= 0 && gFocusWin < MAX_WINS &&
-        gWins[gFocusWin].Active && gWins[gFocusWin].Kind == GUI_WIN_USER) {
+        gWindows[gFocusWin].Active && gWindows[gFocusWin].Kind == GUI_WIN_USER) {
         return gFocusWin;
     }
     return -1;
@@ -182,7 +182,7 @@ int UserButtonHit(int Idx, UINT32 X, UINT32 Y) {
     if (Idx < 0 || Idx >= MAX_WINS) {
         return -1;
     }
-    W = &gWins[Idx];
+    W = &gWindows[Idx];
     if (!W->Active || W->Kind != GUI_WIN_USER) {
         return -1;
     }
@@ -247,39 +247,39 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     if (H < 100) {
         H = 100;
     }
-    if (W + Margin * 2 > gScreenW) {
-        W = gScreenW > Margin * 2 ? gScreenW - Margin * 2 : gScreenW / 2;
+    if (W + Margin * 2 > gScreenWidth) {
+        W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
-    if (H + Margin * 2 > gScreenH) {
-        H = gScreenH > Margin * 2 ? gScreenH - Margin * 2 : gScreenH / 2;
+    if (H + Margin * 2 > gScreenHeight) {
+        H = gScreenHeight > Margin * 2 ? gScreenHeight - Margin * 2 : gScreenHeight / 2;
     }
-    X = (gScreenW > W) ? (gScreenW - W) / 2 : 0;
-    Y = (gScreenH > H + 40) ? (gScreenH - H) / 3 : Margin;
+    X = (gScreenWidth > W) ? (gScreenWidth - W) / 2 : 0;
+    Y = (gScreenHeight > H + 40) ? (gScreenHeight - H) / 3 : Margin;
 
-    gWins[Idx].Active = 1;
-    gWins[Idx].Kind = GUI_WIN_USER;
-    gWins[Idx].X = X;
-    gWins[Idx].Y = Y;
-    gWins[Idx].Width = W;
-    gWins[Idx].Height = H;
-    gWins[Idx].Background = ThemeSettingsClientBackground();
-    CopyTitleBuf(gWins[Idx].TitleBuf, sizeof(gWins[Idx].TitleBuf), Title);
-    gWins[Idx].Title = gWins[Idx].TitleBuf;
-    gWins[Idx].ClientText[0] = 0;
-    gWins[Idx].ClosePending = 0;
-    gWins[Idx].UserButtonClick = -1;
+    gWindows[Idx].Active = 1;
+    gWindows[Idx].Kind = GUI_WIN_USER;
+    gWindows[Idx].X = X;
+    gWindows[Idx].Y = Y;
+    gWindows[Idx].Width = W;
+    gWindows[Idx].Height = H;
+    gWindows[Idx].Background = ThemeSettingsClientBackground();
+    CopyTitleBuf(gWindows[Idx].TitleBuf, sizeof(gWindows[Idx].TitleBuf), Title);
+    gWindows[Idx].Title = gWindows[Idx].TitleBuf;
+    gWindows[Idx].ClientText[0] = 0;
+    gWindows[Idx].ClosePending = 0;
+    gWindows[Idx].UserButtonClick = -1;
     {
         int Bi;
         for (Bi = 0; Bi < 4; Bi++) {
-            gWins[Idx].UserButtonUsed[Bi] = 0;
-            gWins[Idx].UserButtonLabel[Bi][0] = 0;
+            gWindows[Idx].UserButtonUsed[Bi] = 0;
+            gWindows[Idx].UserButtonLabel[Bi][0] = 0;
         }
     }
-    gWins[Idx].TermSet = 0;
-    gWins[Idx].InputLen = 0;
-    gWins[Idx].WaitPrompt = 0;
-    gWins[Idx].PromptShown = 0;
-    gWins[Idx].InputLine[0] = 0;
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
+    gWindows[Idx].PromptShown = 0;
+    gWindows[Idx].InputLine[0] = 0;
 
     ComposeBegin();
     GfxIrqEnter();
@@ -318,26 +318,26 @@ int GuiDamageUser(int Wid, const char *Text) {
         return -1;
     }
     /* Raise 前用 Wid 写文案；槽位移动后 Repaint 用 gFocusWin */
-    if (!gWins[Wid].Active || gWins[Wid].Kind != GUI_WIN_USER) {
+    if (!gWindows[Wid].Active || gWindows[Wid].Kind != GUI_WIN_USER) {
         return -1;
     }
-    CopyTitleBuf(gWins[Wid].ClientText, sizeof(gWins[Wid].ClientText), Text);
+    CopyTitleBuf(gWindows[Wid].ClientText, sizeof(gWindows[Wid].ClientText), Text);
     RepaintUserWindow(Wid);
     return 0;
 }
 
 
 int GuiUserAddButton(int Wid, int ButtonId, const char *Label) {
-    if (Wid < 0 || Wid >= MAX_WINS || !gWins[Wid].Active ||
-        gWins[Wid].Kind != GUI_WIN_USER) {
+    if (Wid < 0 || Wid >= MAX_WINS || !gWindows[Wid].Active ||
+        gWindows[Wid].Kind != GUI_WIN_USER) {
         return -1;
     }
     if (ButtonId < 0 || ButtonId >= 4 || !Label) {
         return -1;
     }
-    gWins[Wid].UserButtonUsed[ButtonId] = 1;
-    CopyTitleBuf(gWins[Wid].UserButtonLabel[ButtonId],
-                 sizeof(gWins[Wid].UserButtonLabel[ButtonId]), Label);
+    gWindows[Wid].UserButtonUsed[ButtonId] = 1;
+    CopyTitleBuf(gWindows[Wid].UserButtonLabel[ButtonId],
+                 sizeof(gWindows[Wid].UserButtonLabel[ButtonId]), Label);
     RepaintUserWindow(Wid);
     return 0;
 }
@@ -353,20 +353,20 @@ int GuiPollUserInput(int Wid) {
      * 关闭/按钮事件在整表上查找，避免点了按钮 poll 永远读到 0。
      */
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].ClosePending) {
-            gWins[i].ClosePending = 0;
+        if (gWindows[i].ClosePending) {
+            gWindows[i].ClosePending = 0;
             return 1;
         }
     }
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].UserButtonClick >= 0 && gWins[i].UserButtonClick < 4) {
-            Id = gWins[i].UserButtonClick;
-            gWins[i].UserButtonClick = -1;
+        if (gWindows[i].UserButtonClick >= 0 && gWindows[i].UserButtonClick < 4) {
+            Id = gWindows[i].UserButtonClick;
+            gWindows[i].UserButtonClick = -1;
             return 100 + Id;
         }
     }
     for (i = 0; i < MAX_WINS; i++) {
-        if (gWins[i].Active && gWins[i].Kind == GUI_WIN_USER) {
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER) {
             return 0;
         }
     }

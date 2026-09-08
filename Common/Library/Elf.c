@@ -5,7 +5,7 @@
 #include "PhysicalMemory.h"
 #include "Hal.h"
 
-static void MemZero(void *Ptr, UINTN Size) {
+static void ZeroMemory(void *Ptr, UINTN Size) {
     UINT8 *B = (UINT8 *)Ptr;
     for (UINTN i = 0; i < Size; i++) {
         B[i] = 0;
@@ -68,7 +68,7 @@ static int ElfMapSegment(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Image,
         if (!Page) {
             return -1;
         }
-        MemZero(Page, PAGE_SIZE);
+        ZeroMemory(Page, PAGE_SIZE);
 
         for (UINT64 Off = 0; Off < PAGE_SIZE; Off++) {
             UINT64 Va = Virt + Off;
@@ -100,7 +100,7 @@ static int ElfMapStack(VIRTUAL_ADDRESS_SPACE *Space) {
         if (!Page) {
             return -1;
         }
-        MemZero(Page, PAGE_SIZE);
+        ZeroMemory(Page, PAGE_SIZE);
         if (VirtualMemorySpaceMapPage(Space, Virt, (UINT64)(UINTN)Page, Flags) != 0) {
             PhysicalMemoryFreePage(Page);
             return -1;
@@ -346,7 +346,7 @@ int ElfLoadShared(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
             return -1;
         }
     }
-    MemZero(Info, sizeof(*Info));
+    ZeroMemory(Info, sizeof(*Info));
     Info->Base = Base;
     Info->Image = Bytes;
     Info->Size = Size;

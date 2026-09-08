@@ -138,7 +138,7 @@ static void ParkAp(UINT8 ApicId) {
     LapicSendIpi(ApicId, 0x00008500u);
 }
 
-static void MemCopy(void *Dst, const void *Src, UINTN Len) {
+static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
@@ -147,7 +147,7 @@ static void MemCopy(void *Dst, const void *Src, UINTN Len) {
     }
 }
 
-static void MemZero(void *Dst, UINTN Len) {
+static void ZeroMemory(void *Dst, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     UINTN i;
     for (i = 0; i < Len; i++) {
@@ -214,7 +214,7 @@ static void SetupTrampolineGdt(void) {
     UINT64 *Gdt = (UINT64 *)(UINTN)SMP_GDT_PHYS;
     UINT16 *Gdtr = (UINT16 *)(UINTN)SMP_GDTR_PHYS;
 
-    MemZero(Gdt, 8 * sizeof(UINT64));
+    ZeroMemory(Gdt, 8 * sizeof(UINT64));
     Gdt[0] = 0;
     /* 0x08: 32-bit code */
     Gdt[1] = 0x00CF9A000000FFFFULL;
@@ -245,7 +245,7 @@ static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
         return -1;
     }
 
-    MemCopy((void *)(UINTN)SMP_TRAMP_PHYS, _binary_SmpTramp_bin_start, TrampSize);
+    CopyMemory((void *)(UINTN)SMP_TRAMP_PHYS, _binary_SmpTramp_bin_start, TrampSize);
     SetupTrampolineGdt();
 
     __asm__ volatile ("mov %%cr3, %0" : "=r"(Cr3));

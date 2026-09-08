@@ -403,7 +403,7 @@ int ProcessExec(const char *Path) {
         return -1;
     }
     /* PR-A12 / B1：virt 平台形状无定时抢占 → 协作排空用户任务 */
-    if (HalPlatformVirtConsole()) {
+    if (HalPlatformIsVirtSerialConsole()) {
         SchedulerCoopDrainUsers();
     }
     return 0;

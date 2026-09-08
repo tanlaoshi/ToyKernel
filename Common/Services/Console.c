@@ -1444,8 +1444,8 @@ void ConsoleOnEnter(void) {
 void ConsoleSerialRun(void) {
     static HAL_KEYBOARD_REPORT Prev;
     HAL_KEYBOARD_REPORT Report;
-    /* PR-B3：真机命令行靶非 virt 形状；文案跟 HalPlatformVirtConsole */
-    if (HalPlatformVirtConsole()) {
+    /* PR-B3：真机命令行靶非 virt 形状；文案跟 HalPlatformIsVirtSerialConsole */
+    if (HalPlatformIsVirtSerialConsole()) {
         HalConsoleWriteSerial(
             "virt: serial shell (help/mem/ps/halt; kbd via virtio-input)\n");
     } else {

@@ -13,11 +13,11 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     *Sy = Cy >= CURSOR_HALF ? Cy - CURSOR_HALF : 0;
     UINT32 Ex = Cx + CURSOR_HALF + 1;
     UINT32 Ey = Cy + CURSOR_HALF + 1;
-    if (Ex > gScreenW) {
-        Ex = gScreenW;
+    if (Ex > gScreenWidth) {
+        Ex = gScreenWidth;
     }
-    if (Ey > gScreenH) {
-        Ey = gScreenH;
+    if (Ey > gScreenHeight) {
+        Ey = gScreenHeight;
     }
     *Sw = Ex - *Sx;
     *Sh = Ey - *Sy;
@@ -31,10 +31,10 @@ void DrawCursorAt(UINT32 X, UINT32 Y) {
     for (i = -CURSOR_HALF; i <= CURSOR_HALF; i++) {
         int Px = (int)X + i;
         int Py = (int)Y + i;
-        if (Px >= 0 && (UINT32)Px < gScreenW) {
+        if (Px >= 0 && (UINT32)Px < gScreenWidth) {
             HalVideoDrawPixelRaw((UINT32)Px, Y, COLOR_WHITE);
         }
-        if (Py >= 0 && (UINT32)Py < gScreenH) {
+        if (Py >= 0 && (UINT32)Py < gScreenHeight) {
             HalVideoDrawPixelRaw(X, (UINT32)Py, COLOR_WHITE);
         }
     }
@@ -80,11 +80,11 @@ void CursorPaint(void) {
 
 
 void CursorMove(UINT32 X, UINT32 Y) {
-    if (X >= gScreenW) {
-        X = gScreenW > 0 ? gScreenW - 1 : 0;
+    if (X >= gScreenWidth) {
+        X = gScreenWidth > 0 ? gScreenWidth - 1 : 0;
     }
-    if (Y >= gScreenH) {
-        Y = gScreenH > 0 ? gScreenH - 1 : 0;
+    if (Y >= gScreenHeight) {
+        Y = gScreenHeight > 0 ? gScreenHeight - 1 : 0;
     }
     if (X == gCursorX && Y == gCursorY) {
         return;

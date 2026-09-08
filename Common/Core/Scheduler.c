@@ -695,7 +695,7 @@ void SchedulerCoopDrainUsers(void) {
     UINT32 Cpu;
     int i;
 
-    if (!HalPlatformVirtConsole()) {
+    if (!HalPlatformIsVirtSerialConsole()) {
         return;
     }
 

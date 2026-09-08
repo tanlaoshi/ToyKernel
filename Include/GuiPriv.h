@@ -43,9 +43,9 @@ typedef struct {
 } GUI_WINDOW;
 
 /* 共享状态（定义见各 .c） */
-extern GUI_WINDOW gWins[MAX_WINS];
-extern UINT32 gScreenW;
-extern UINT32 gScreenH;
+extern GUI_WINDOW gWindows[MAX_WINS];
+extern UINT32 gScreenWidth;
+extern UINT32 gScreenHeight;
 extern UINT32 gCursorX;
 extern UINT32 gCursorY;
 extern UINT8  gCursorBtn;

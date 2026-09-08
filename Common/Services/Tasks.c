@@ -237,7 +237,7 @@ void ShellTask(void) {
         /* 主动排空 XHCI 事件：不单靠 MSI 窗口，减少「桌面假死」 */
         HalInputPoll();
         /* PR-V5 virt：无抢占，GuiTask 饿死；在 shell 循环里顺带刷鼠标 */
-        if (HalPlatformVirtConsole()) {
+        if (HalPlatformIsVirtSerialConsole()) {
             GuiPollMouse();
             HalVideoPresent();
         }

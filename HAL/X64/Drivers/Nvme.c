@@ -106,7 +106,7 @@ static void MmioW64(volatile UINT8 *Bar, UINT32 Off, UINT64 Val) {
     *(volatile UINT64 *)(Bar + Off) = Val;
 }
 
-static void MemZero(void *Ptr, UINTN Len) {
+static void ZeroMemory(void *Ptr, UINTN Len) {
     UINT8 *B = (UINT8 *)Ptr;
     UINTN i;
     for (i = 0; i < Len; i++) {
@@ -114,7 +114,7 @@ static void MemZero(void *Ptr, UINTN Len) {
     }
 }
 
-static void MemCopy(void *Dst, const void *Src, UINTN Len) {
+static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
@@ -183,7 +183,7 @@ static int AdminCmd(NVME_CTRL *C, NVME_SQE *Cmd) {
     UINT16 Tail = C->AsqTail;
 
     Cmd->Cdw0 = (UINT32)(Cmd->Cdw0 & 0xFFu) | ((UINT32)Cid << 16);
-    MemCopy(&C->Asq[Tail], Cmd, sizeof(*Cmd));
+    CopyMemory(&C->Asq[Tail], Cmd, sizeof(*Cmd));
     Fence();
     Tail = (UINT16)((Tail + 1u) % NVME_QSIZE);
     C->AsqTail = Tail;
@@ -196,7 +196,7 @@ static int IoCmd(NVME_CTRL *C, NVME_SQE *Cmd) {
     UINT16 Tail = C->IosqTail;
 
     Cmd->Cdw0 = (UINT32)(Cmd->Cdw0 & 0xFFu) | ((UINT32)Cid << 16);
-    MemCopy(&C->Iosq[Tail], Cmd, sizeof(*Cmd));
+    CopyMemory(&C->Iosq[Tail], Cmd, sizeof(*Cmd));
     Fence();
     Tail = (UINT16)((Tail + 1u) % NVME_QSIZE);
     C->IosqTail = Tail;
@@ -222,12 +222,12 @@ static int IdentifyNs(NVME_CTRL *C) {
     UINT8 Flbas;
     UINT8 Lbads;
 
-    MemZero(&Cmd, sizeof(Cmd));
+    ZeroMemory(&Cmd, sizeof(Cmd));
     Cmd.Cdw0 = NVME_OPC_IDENTIFY;
     Cmd.Nsid = 1;
     Cmd.Prp1 = (UINT64)(UINTN)Id;
     Cmd.Cdw10 = NVME_CNS_NS;
-    MemZero(Id, PAGE_SIZE);
+    ZeroMemory(Id, PAGE_SIZE);
     if (!AdminCmd(C, &Cmd)) {
         return 0;
     }
@@ -250,7 +250,7 @@ static int IdentifyNs(NVME_CTRL *C) {
 static int CreateIoQueues(NVME_CTRL *C) {
     NVME_SQE Cmd;
 
-    MemZero(&Cmd, sizeof(Cmd));
+    ZeroMemory(&Cmd, sizeof(Cmd));
     Cmd.Cdw0 = NVME_OPC_CREATE_CQ;
     Cmd.Prp1 = (UINT64)(UINTN)C->Iocq;
     Cmd.Cdw10 = ((NVME_QSIZE - 1u) << 16) | 1u; /* QSIZE | QID=1 */
@@ -259,7 +259,7 @@ static int CreateIoQueues(NVME_CTRL *C) {
         return 0;
     }
 
-    MemZero(&Cmd, sizeof(Cmd));
+    ZeroMemory(&Cmd, sizeof(Cmd));
     Cmd.Cdw0 = NVME_OPC_CREATE_SQ;
     Cmd.Prp1 = (UINT64)(UINTN)C->Iosq;
     Cmd.Cdw10 = ((NVME_QSIZE - 1u) << 16) | 1u;
@@ -301,7 +301,7 @@ static int CtrlInit(NVME_CTRL *C, UINT64 Bar) {
     if (!Mem) {
         return 0;
     }
-    MemZero(Mem, 6u * PAGE_SIZE);
+    ZeroMemory(Mem, 6u * PAGE_SIZE);
     Phys = (UINT64)(UINTN)Mem;
 
     C->Asq = (NVME_SQE *)(UINTN)(Mem + 0u * PAGE_SIZE);
@@ -399,10 +399,10 @@ static int Xfer(NVME_CTRL *C, UINT32 Lba, UINT32 Count, void *Buffer, int Write)
         Bytes = Chunk * SecBytes;
 
         if (Write) {
-            MemCopy(C->Bounce, Data + (UINTN)Done * SecBytes, Bytes);
+            CopyMemory(C->Bounce, Data + (UINTN)Done * SecBytes, Bytes);
         }
 
-        MemZero(&Cmd, sizeof(Cmd));
+        ZeroMemory(&Cmd, sizeof(Cmd));
         Cmd.Cdw0 = Write ? NVME_OPC_WRITE : NVME_OPC_READ;
         Cmd.Nsid = C->NsId;
         Cmd.Prp1 = BouncePhys;
@@ -414,7 +414,7 @@ static int Xfer(NVME_CTRL *C, UINT32 Lba, UINT32 Count, void *Buffer, int Write)
             return 0;
         }
         if (!Write) {
-            MemCopy(Data + (UINTN)Done * SecBytes, C->Bounce, Bytes);
+            CopyMemory(Data + (UINTN)Done * SecBytes, C->Bounce, Bytes);
         }
         Done += Chunk;
         (void)SecShift;
@@ -466,7 +466,7 @@ int NvmeSetup(void) {
                 }
 
                 C = &gCtrl[gCtrlCount];
-                MemZero(C, sizeof(*C));
+                ZeroMemory(C, sizeof(*C));
                 if (!CtrlInit(C, Bar)) {
                     DebugWrite("nvme: ctrl init fail\n");
                     continue;
