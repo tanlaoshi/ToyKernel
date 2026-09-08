@@ -22,6 +22,8 @@
 #include "Console.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "AcpiMadt.h"
+#include "Platform.h"
 
 #define RING_SIZE           32
 #define EVT_SIZE            32
@@ -97,6 +99,9 @@ static UINT64 gDoorbellBase;
 static UINT64 gRuntimeBase;
 static UINT32 gCtxSize;
 static UINT32 gMaxPorts;
+/* 真机探针：DMAR/TE 留给写 RS 前那行黄字 */
+static int gXhciDmar = -2; /* -2未查 -1坏 0无 1有 */
+static int gXhciTe = -2;   /* -2未做 -1失败 0无DRHD 1本关 2已关 */
 static UINT32 gPort1;
 static UINT8  gSpeed;
 static UINT32 gSlotId;
@@ -447,6 +452,18 @@ static int ResetController(void) {
     return 1;
 }
 
+/* 真机：只停 RS，不做 HCRST（该机 HCRST 后再 set RS 会挂） */
+static int HaltOnly(void) {
+    UINT32 Cmd = ReadMmio32(gOperationalBase);
+    if (Cmd & USBCMD_RS) {
+        WriteMmio32(gOperationalBase, Cmd & ~USBCMD_RS);
+        if (!WaitSet(gOperationalBase + 4, USBSTS_HCH, 200000)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* 分配 DCBAA、建环并 Run 控制器 */
 static int StartController(UINT32 MaxSlots) {
     UINT32 Hcs2 = ReadMmio32(gCapabilityBase + 0x08);
@@ -544,9 +561,42 @@ static int StartController(UINT32 MaxSlots) {
 
     /*
      * 分步：若卡在 before→after 之间=写 RS 挂；卡在 after 后=读 USBSTS/DMA 挂。
-     * 真机勿 cli（SMI/固件可能需要）。
+     * 黄字带上 D/TE，避免被覆盖后看不到。
      */
-    HalSerialBootMark("boot: xhci before RS\n");
+    if (RealPc) {
+        char Msg[48];
+        int n = 0;
+        const char *P = "boot: xhci bRS D";
+        while (*P && n < 20) {
+            Msg[n++] = *P++;
+        }
+        if (gXhciDmar == 1) {
+            Msg[n++] = 'y';
+        } else if (gXhciDmar == 0) {
+            Msg[n++] = 'n';
+        } else {
+            Msg[n++] = '?';
+        }
+        Msg[n++] = ' ';
+        Msg[n++] = 'T';
+        Msg[n++] = 'e';
+        if (gXhciTe == 2) {
+            Msg[n++] = '2';
+        } else if (gXhciTe == 1) {
+            Msg[n++] = '1';
+        } else if (gXhciTe == 0) {
+            Msg[n++] = '0';
+        } else if (gXhciTe == -1) {
+            Msg[n++] = 'f';
+        } else {
+            Msg[n++] = '-';
+        }
+        Msg[n++] = '\n';
+        Msg[n] = 0;
+        HalSerialBootMark(Msg);
+    } else {
+        HalSerialBootMark("boot: xhci before RS\n");
+    }
     if (HalCpuIsHypervisor()) {
         WriteMmio32(gOperationalBase, USBCMD_RS | USBCMD_INTE);
     } else {
@@ -1122,7 +1172,41 @@ int XhciInit(UINT64 BaseAddress) {
      */
     if (RealPc) {
         HalSerialGopMute(1);
-        HalSerialBootMark("boot: xhci-B10 enter\n");
+        HalSerialBootMark("boot: xhci-B14 enter\n");
+        gXhciDmar = -2;
+        gXhciTe = -2;
+        {
+            UINT64 Rsdp = HalPlatformRsdp();
+            int Dmar;
+            int Te;
+            if (Rsdp == 0) {
+                HalSerialBootMark("boot: xhci RSDP=0\n");
+            } else {
+                HalSerialBootMark("boot: xhci RSDP ok\n");
+                Dmar = AcpiTablePresent(Rsdp, "DMAR");
+                gXhciDmar = Dmar;
+                if (Dmar > 0) {
+                    HalSerialBootMark("boot: xhci DMAR=yes\n");
+                    HalSerialBootMark("boot: xhci TE off...\n");
+                    Te = AcpiDmarDisableTranslation(Rsdp);
+                    gXhciTe = Te;
+                    if (Te == 2) {
+                        HalSerialBootMark("boot: xhci TE was ON->off\n");
+                    } else if (Te == 1) {
+                        HalSerialBootMark("boot: xhci TE already off\n");
+                    } else if (Te == 0) {
+                        HalSerialBootMark("boot: xhci TE no DRHD\n");
+                    } else {
+                        HalSerialBootMark("boot: xhci TE off fail\n");
+                    }
+                } else if (Dmar == 0) {
+                    HalSerialBootMark("boot: xhci DMAR=no\n");
+                    gXhciTe = -2;
+                } else {
+                    HalSerialBootMark("boot: xhci DMAR=bad\n");
+                }
+            }
+        }
     }
 
     if (BaseAddress == 0) {
@@ -1186,25 +1270,36 @@ int XhciInit(UINT64 BaseAddress) {
     }
 
     /*
-     * 真机 B10 探针（只测一件事）：黄字 before RS / after RS / RS running。
-     * 本核不做端口枚举；测完即停。
+     * 真机 B14：仅裸写 RS（不装环、不进 StartController）。
+     * 黄字末行若仍是 bRS Dy Te1 → 不是本镜像。
+     * bRS bare 停住 → 写 RS 本身挂；B14 bare OK/TO → 裸写返回，回桌面。
      */
     if (RealPc) {
-        HalSerialBootMark("boot: xhci-B10 probe\n");
-        HalSerialBootMark("boot: xhci-B10 HCRST\n");
-        if (!ResetController()) {
+        HalSerialBootMark("boot: xhci-B14 probe\n");
+        TakeLegacy();
+        HalSerialBootMark("boot: xhci-B14 halt\n");
+        if (!HaltOnly()) {
+            HalSerialBootMark("boot: xhci-B14 halt fail\n");
             HalSerialGopMute(0);
-            HalSerialWrite("boot: xhci-B10 HCRST fail\n");
+            HalSerialWrite("boot: xhci-B14 halt fail, desktop\n");
             return 1;
         }
-        HalSerialBootMark("boot: xhci-B10 Start\n");
-        if (!StartController(MaxSlots)) {
+
+        HalSerialBootMark("boot: xhci bRS bare\n");
+        WriteMmio32(gOperationalBase, USBCMD_RS);
+        Fence();
+        HalSerialBootMark("boot: xhci aRS bare\n");
+        if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, 100000)) {
+            HalSerialBootMark("boot: xhci B14 bare TO\n");
             HalSerialGopMute(0);
-            HalSerialWrite("boot: xhci-B10 RS fail/timeout\n");
+            HalSerialWrite("boot: xhci-B14 bare RS timeout, desktop\n");
+            (void)HaltOnly();
             return 1;
         }
+        HalSerialBootMark("boot: xhci B14 bare OK\n");
         HalSerialGopMute(0);
-        HalSerialWrite("boot: xhci-B10 RS ok, probe stop\n");
+        HalSerialWrite("boot: xhci-B14 bare RS ok, desktop (no Start)\n");
+        (void)HaltOnly();
         return 1;
     }
 
