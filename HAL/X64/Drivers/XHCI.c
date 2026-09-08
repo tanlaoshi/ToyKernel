@@ -1314,7 +1314,6 @@ int XhciInit(UINT64 BaseAddress) {
     }
     HalSerialWrite("boot: xhci controller running\n");
     DebugWrite("XHCI: controller running\n");
-    HalSerialWrite("boot: xhci poll HID (IOAPIC not required)\n");
     PowerConnectedPorts();
 
     {
@@ -1445,7 +1444,7 @@ int XhciInit(UINT64 BaseAddress) {
     }
 
     DebugWrite("XHCI: keyboard ready\n");
-    HalSerialWrite("boot: xhci-hid poll ready\n");
+    HalSerialWrite("boot: xhci-hid ready\n");
 
     for (UINT32 p = 1; p <= gMaxPorts; p++) {
         if (p == gPort1) {
@@ -1599,22 +1598,30 @@ void XhciDrainEvents(void) {
     SpinLockRelease(&gHidQueueLock);
 }
 
-/* 通过 PciEnableMsi 绑定中断向量；失败仍可 Poll 排空事件环（PR-H2） */
+/* 通过 PciEnableMsi 绑定；失败则 IOAPIC INTx（PR-H-ioapic）；再失败 Poll（PR-H2） */
 int XhciEnableIrq(USB_CONTROLLER *Device) {
+    UINT8 Dest;
+
     if (gUseGetReport || gSlotId == 0) {
         DebugWrite("XHCI: no interrupt EP, IRQ unused\n");
         gUseIrq = 0;
         return 0;
     }
-    if (!PciEnableMsi(Device, VEC_XHCI)) {
-        DebugWrite("XHCI: MSI failed; poll drain\n");
-        gUseIrq = 0;
+    if (PciEnableMsi(Device, VEC_XHCI)) {
+        gUseIrq = 1;
         XhciDrainEvents();
-        return 0;
+        return 1;
     }
-    gUseIrq = 1;
+    Dest = HalCpuApicId(HalCpuCount() > 1 ? 1u : 0u);
+    if (PciEnableIoApicIntx(Device, VEC_XHCI, Dest)) {
+        gUseIrq = 1;
+        XhciDrainEvents();
+        return 1;
+    }
+    DebugWrite("XHCI: MSI/IOAPIC failed; poll drain\n");
+    gUseIrq = 0;
     XhciDrainEvents();
-    return 1;
+    return 0;
 }
 
 /* 返回是否使用 MSI-X 中断模式（否则为 GET_REPORT 轮询） */

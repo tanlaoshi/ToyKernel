@@ -36,7 +36,10 @@ ToyBoot **优先**从含 `TOYOS.ID` 的卷加载 `Kernel.elf`（启动盘仅兜�
 cd ToyKernel && ./build.sh
 cd ../ToyBoot && ./build.sh          # → ToyImage/EFI/BOOT/BOOTX64.EFI
 cd ../ToyImage && ./prepare-rootfs.sh
-# 将 EFI/ 与 rootfs/ 内容拷到 U 盘对应分区
+# 推荐脚本（ESP 256MiB + TOYOS 剩余）：
+./make-usb-stick.sh --device /dev/sdX --yes --sync   # 首次分区
+./sync-usb.sh                                       # 日常同步
+# 或手动：将 EFI/ 拷到 ESP，rootfs/ 拷到 TOYOS
 ```
 
 从固件 Boot Menu 选该 U 盘；成功时屏上应出现桌面（或至少 GOP 清屏 / 壁纸色），串口若有则见 `ToyOS ready`。
@@ -85,10 +88,11 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H2：真机键盘
 
-- **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`（非“第一口即键盘”）；多控制器逐个试 BAR；映射所选 BAR；MSI 失败仍 Bind，`HalInputPoll` → `XhciDrainEvents`
+- **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`；多控制器逐个试 BAR；**MSI → IOAPIC INTx → poll**（`HalInputPoll` → `XhciDrainEvents`）
 - **PS/2 fallback**：`InputPs2.c`（`ps2-kbd`），仅当 Input 类尚未绑定时 Probe；`lsdev` 可见 `xhci-hid` 或 `ps2-kbd`
-- 串口期望（`TOY_DEBUG=0` 也可见）：`boot: xhci-hid keyboard` 或 `boot: ps2-kbd keyboard`
-- **未做**：USB hub、EHCI/UHCI、方向键全集、真机 IOAPIC
+- 串口期望（`TOY_DEBUG=0` 也可见）：`boot: xhci-hid keyboard` 或 `boot: ps2-kbd keyboard`；cpu 模块后见 `boot: ioapic base=…`
+- **未做**：USB hub、EHCI/UHCI、方向键全集、IRQ remapping / 多 IOAPIC
+- **PR-H-ioapic**：`IoApicInit`（MADT Type1/2）；MSI 失败时 XHCI 经 IOAPIC INTx → `VEC_XHCI`；SMP>1 时 dest=AP1
 
 ### H3：无 COM1 → GOP 控制台
 

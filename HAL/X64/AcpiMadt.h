@@ -11,6 +11,23 @@
 int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
                   UINT8 *OutBspApicId);
 
+/* PR-H-ioapic：MADT Type1 I/O APIC + Type2 Interrupt Source Override */
+typedef struct {
+    UINT64 Address;
+    UINT32 GsiBase;
+    UINT8  Id;
+} ACPI_IOAPIC_INFO;
+
+typedef struct {
+    UINT8  IsaIrq;
+    UINT32 Gsi;
+    UINT16 Flags; /* ACPI MPS INTI：极性 / 触发 */
+} ACPI_ISO_ENTRY;
+
+int AcpiMadtParseIo(UINT64 RsdpPhys,
+                    ACPI_IOAPIC_INFO *OutIo, int MaxIo, int *OutIoCount,
+                    ACPI_ISO_ENTRY *OutIso, int MaxIso, int *OutIsoCount);
+
 /* 查 XSDT/RSDT 是否含签名为 Sig4 的表（如 "DMAR"）；1=有 0=无 -1=RSDP 无效 */
 int AcpiTablePresent(UINT64 RsdpPhys, const char *Sig4);
 

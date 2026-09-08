@@ -175,6 +175,7 @@ int HalCpuIsHypervisor(void);
 
 int HalCpuCount(void);
 UINT32 HalGetCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
+UINT8 HalCpuApicId(UINT32 LogicalCpu); /* x86：LAPIC ID；其它 arch：0 */
 int HalCpuIsBsp(void);
 UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 timer 计数 */
 void HalCpuIncrementTicks(void);

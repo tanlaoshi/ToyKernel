@@ -151,11 +151,11 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
         }
         return 0;
     }
-    /* 真机暂无 IOAPIC：勿开 MSI，避免异常 IRQ；无键盘时也不 Drain */
-    if (Dev && HalCpuIsHypervisor() && XhciHidKeyboardReady()) {
+    /* PR-H-ioapic：MSI 优先；失败则 IOAPIC INTx；再失败 poll（H2） */
+    if (Dev && XhciHidKeyboardReady()) {
         (void)XhciEnableIrq(Dev);
         if (!XhciUsesIrq()) {
-            DebugWrite("XHCI: bound without MSI (poll)\n");
+            DebugWrite("XHCI: bound without IRQ (poll)\n");
         }
     }
     return 1;

@@ -25,5 +25,7 @@ UINT32 PciReadConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset);
 void PciWriteConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset, UINT32 Value);
 int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers);
 int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector);
+/* PR-H-ioapic：MSI 失败后清 INTx Disable，经 IOAPIC 投 Vector */
+int PciEnableIoApicIntx(USB_CONTROLLER *Device, UINT8 Vector, UINT8 DestApicId);
 
 #endif

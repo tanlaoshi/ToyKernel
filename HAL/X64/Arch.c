@@ -1,7 +1,7 @@
 /*
  * Arch.c — x86-64 架构初始化与中断分发
  *
- * 职责：加载 GDT/IDT、屏蔽 8259 PIC、启用 LAPIC、配置周期定时器。
+ * 职责：加载 GDT/IDT、屏蔽 8259 PIC、启用 LAPIC/IOAPIC、配置周期定时器。
  * 中断入口在 Interrupt.S；本文件实现 InterruptDispatch 与各设备 IRQ 处理逻辑。
  */
 #include "Arch.h"
@@ -14,6 +14,7 @@
 #include "BootTypes.h"
 #include "Syscall.h"
 #include "VirtualMemory.h"
+#include "IoApic.h"
 
 extern void Isr128(void);
 
@@ -392,6 +393,7 @@ int ArchInit(void) {
     PicMaskAll();
     LapicEnable();
     IdtLoad();
+    (void)IoApicInit(); /* PR-H-ioapic：掩 RTE；设备路由在驱动里 */
     __asm__ volatile ("sti");
     LapicSelfIpi(VEC_XHCI);
     for (volatile int i = 0; i < 1000000; i++) {

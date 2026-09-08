@@ -8,6 +8,7 @@
 #include "Console.h"
 #include "Debug.h"
 #include "Hal.h"
+#include "IoApic.h"
 
 #define PCI_CONFIG_ADDRESS  0xCF8
 #define PCI_CONFIG_DATA     0xCFC
@@ -240,6 +241,21 @@ int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector) {
                    (Dw0 & 0xFFFFu) | ((UINT32)Ctl << 16));
     DebugWrite("MSI enabled vec=");
     DebugHex32(Vector);
+    DebugWrite("\n");
+    return 1;
+}
+
+int PciEnableIoApicIntx(USB_CONTROLLER *Device, UINT8 Vector, UINT8 DestApicId) {
+    if (!Device || !IoApicReady()) {
+        return 0;
+    }
+    if (IoApicRoutePciIntx(Device, Vector, DestApicId) != 0) {
+        return 0;
+    }
+    DebugWrite("IOAPIC INTx enabled vec=");
+    DebugHex32(Vector);
+    DebugWrite(" dest=");
+    DebugHex32(DestApicId);
     DebugWrite("\n");
     return 1;
 }

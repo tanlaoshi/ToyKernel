@@ -210,6 +210,91 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
     return 0;
 }
 
+static ACPI_MADT *FindMadt(UINT64 RsdpPhys) {
+    ACPI_RSDP *Rsdp;
+    ACPI_SDT_HEADER *Root;
+    ACPI_MADT *Madt;
+
+    if (MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return 0;
+    }
+    Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
+    if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
+        return 0;
+    }
+    Madt = 0;
+    if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Madt = (ACPI_MADT *)FindTableXsdt(Root, "APIC");
+        }
+    }
+    if (Madt == 0 && Rsdp->RsdtAddress != 0) {
+        Root = MapSdtHeader((UINT64)Rsdp->RsdtAddress);
+        if (Root) {
+            Madt = (ACPI_MADT *)FindTableRsdt(Root, "APIC");
+        }
+    }
+    return Madt;
+}
+
+int AcpiMadtParseIo(UINT64 RsdpPhys,
+                    ACPI_IOAPIC_INFO *OutIo, int MaxIo, int *OutIoCount,
+                    ACPI_ISO_ENTRY *OutIso, int MaxIso, int *OutIsoCount) {
+    ACPI_MADT *Madt;
+    UINT8 *P;
+    UINT8 *End;
+    int IoCount = 0;
+    int IsoCount = 0;
+
+    if (OutIoCount) {
+        *OutIoCount = 0;
+    }
+    if (OutIsoCount) {
+        *OutIsoCount = 0;
+    }
+    if (RsdpPhys == 0) {
+        return -1;
+    }
+    Madt = FindMadt(RsdpPhys);
+    if (Madt == 0) {
+        return -1;
+    }
+
+    P = (UINT8 *)(Madt + 1);
+    End = (UINT8 *)Madt + Madt->Header.Length;
+    while (P + 2 <= End) {
+        UINT8 Type = P[0];
+        UINT8 Len = P[1];
+        if (Len < 2 || P + Len > End) {
+            break;
+        }
+        /* Type 1: I/O APIC */
+        if (Type == 1 && Len >= 12 && OutIo && IoCount < MaxIo) {
+            OutIo[IoCount].Id = P[2];
+            OutIo[IoCount].Address = (UINT64)(*(UINT32 *)(P + 4));
+            OutIo[IoCount].GsiBase = *(UINT32 *)(P + 8);
+            IoCount++;
+        }
+        /* Type 2: Interrupt Source Override */
+        if (Type == 2 && Len >= 10 && OutIso && IsoCount < MaxIso) {
+            OutIso[IsoCount].IsaIrq = P[3];
+            OutIso[IsoCount].Gsi = *(UINT32 *)(P + 4);
+            OutIso[IsoCount].Flags = *(UINT16 *)(P + 8);
+            IsoCount++;
+        }
+        P += Len;
+    }
+
+    if (OutIoCount) {
+        *OutIoCount = IoCount;
+    }
+    if (OutIsoCount) {
+        *OutIsoCount = IsoCount;
+    }
+    return 0;
+}
+
 int AcpiTablePresent(UINT64 RsdpPhys, const char *Sig4) {
     ACPI_RSDP *Rsdp;
     ACPI_SDT_HEADER *Root;
