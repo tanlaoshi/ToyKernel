@@ -271,7 +271,7 @@ void FontInit(void) {
 }
 
 int FontLoadAssets(void) {
-    static FAT_DIR_ENT Ents[FAT_LIST_MAX];
+    static FAT_DIRECTORY_ENTRY Ents[FAT_LIST_MAX];
     static char Path[96];
     static char LoadedBase[FONT_RUNTIME_MAX][FAT_ENT_NAME_MAX];
     UINT32 Slot;

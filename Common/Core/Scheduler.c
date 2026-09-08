@@ -26,9 +26,9 @@ static UINT64 gStealCount;   /* 偷任务次数（调试/ps） */
 typedef struct {
     TASK *Slot[MAX_TASKS];
     int   Count;
-} CPU_RUNQ;
+} CPU_RUN_QUEUE;
 
-static CPU_RUNQ gRunq[HAL_MAX_CPUS];
+static CPU_RUN_QUEUE gRunq[HAL_MAX_CPUS];
 
 static TASK *CurrentTask(void) {
     UINT32 Id = HalGetCpuId();
@@ -70,7 +70,7 @@ static void RunqInit(void) {
 }
 
 static void RunqEnqueue(UINT32 Cpu, TASK *T) {
-    CPU_RUNQ *Q;
+    CPU_RUN_QUEUE *Q;
     if (!T || Cpu >= HAL_MAX_CPUS || IsIdleTask(T) || T->InRunq) {
         return;
     }
@@ -84,7 +84,7 @@ static void RunqEnqueue(UINT32 Cpu, TASK *T) {
 }
 
 static TASK *RunqDequeue(UINT32 Cpu) {
-    CPU_RUNQ *Q;
+    CPU_RUN_QUEUE *Q;
     TASK *T;
     int i;
     if (Cpu >= HAL_MAX_CPUS) {
@@ -108,7 +108,7 @@ static TASK *RunqDequeue(UINT32 Cpu) {
 
 /* 从队尾偷：减少与本地 dequeue 冲突的直觉（大锁下等价于任取） */
 static TASK *RunqStealOne(UINT32 Victim) {
-    CPU_RUNQ *Q;
+    CPU_RUN_QUEUE *Q;
     TASK *T;
     if (Victim >= HAL_MAX_CPUS) {
         return 0;
@@ -133,7 +133,7 @@ static void RunqRemove(TASK *T) {
         return;
     }
     for (c = 0; c < HAL_MAX_CPUS; c++) {
-        CPU_RUNQ *Q = &gRunq[c];
+        CPU_RUN_QUEUE *Q = &gRunq[c];
         for (i = 0; i < Q->Count; i++) {
             if (Q->Slot[i] != T) {
                 continue;
@@ -233,7 +233,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
             continue;
         }
         UINT8 *Top = gTasks[i].Stack + sizeof(gTasks[i].Stack);
-        HAL_FRAME *F = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
+        HAL_INTERRUPT_FRAME *F = (HAL_INTERRUPT_FRAME *)(Top - sizeof(HAL_INTERRUPT_FRAME));
         HalFrameSetKernelEntry(F, (UINT64)(UINTN)Entry, (UINT64)(UINTN)Top);
 
         gTasks[i].Frame = F;
@@ -266,7 +266,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
 }
 
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
-                    VM_ADDR_SPACE *Space, UINT64 BrkBase) {
+                    VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase) {
     TASK *Cur;
 
     SpinLockAcquire(&gSchedulerLock);
@@ -276,7 +276,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
             continue;
         }
         UINT8 *Top = gTasks[i].Stack + sizeof(gTasks[i].Stack);
-        HAL_FRAME *F = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
+        HAL_INTERRUPT_FRAME *F = (HAL_INTERRUPT_FRAME *)(Top - sizeof(HAL_INTERRUPT_FRAME));
         HalFrameSetUserEntry(F, Rip, Rsp);
 
         gTasks[i].Frame = F;
@@ -577,7 +577,7 @@ static int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt) {
     return TerminateUserLocked(T, Code, ShowPrompt);
 }
 
-UINT64 SchedulerOnTimer(HAL_FRAME *Frame) {
+UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
     TASK *Cur;
     TASK *Next;
     UINT32 Cpu;
@@ -685,7 +685,7 @@ void SchedulerCoopDrainUsers(void) {
     gCoopDrain = 0;
 }
 
-UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
+UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     INT32 Code;
     TASK *Exiting;
     TASK *Next;
@@ -739,13 +739,13 @@ UINT64 SchedulerExitUser(HAL_FRAME *Frame) {
     return Ret;
 }
 
-UINT64 SchedulerFork(HAL_FRAME *Frame) {
-    VM_ADDR_SPACE *ChildSpace;
+UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
+    VIRTUAL_ADDRESS_SPACE *ChildSpace;
     TASK *Parent;
     INT32 ParentSlot;
     int Child;
     UINT8 *Top;
-    HAL_FRAME *CF;
+    HAL_INTERRUPT_FRAME *CF;
 
     SpinLockAcquire(&gSchedulerLock);
     Parent = CurrentTask();
@@ -795,7 +795,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     }
 
     Top = gTasks[Child].Stack + sizeof(gTasks[Child].Stack);
-    CF = (HAL_FRAME *)(Top - sizeof(HAL_FRAME));
+    CF = (HAL_INTERRUPT_FRAME *)(Top - sizeof(HAL_INTERRUPT_FRAME));
     HalFrameCopy(CF, Frame);
     HalFrameSetReturn(CF, 0);
 
@@ -829,7 +829,7 @@ UINT64 SchedulerFork(HAL_FRAME *Frame) {
     return 0;
 }
 
-UINT64 SchedulerWait(HAL_FRAME *Frame) {
+UINT64 SchedulerWait(HAL_INTERRUPT_FRAME *Frame) {
     TASK *Self;
     INT32 MyId;
     int i;
@@ -900,7 +900,7 @@ UINT64 SchedulerWait(HAL_FRAME *Frame) {
     return Ret;
 }
 
-UINT64 SchedulerKill(HAL_FRAME *Frame) {
+UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame) {
     INT32 Pid;
     INT32 Sig;
     INT32 Slot;
@@ -1007,7 +1007,7 @@ int SchedulerKillPid(INT32 Pid, INT32 Sig) {
     return 0;
 }
 
-UINT64 SchedulerYield(HAL_FRAME *Frame) {
+UINT64 SchedulerYield(HAL_INTERRUPT_FRAME *Frame) {
     TASK *Cur;
     TASK *Next;
     UINT32 Cpu;

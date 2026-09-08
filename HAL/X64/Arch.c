@@ -314,7 +314,7 @@ void TimerStart(void) {
 }
 
 /* 打印异常信息后 cli+hlt 死循环（#PF 时额外打印 CR2） */
-static void ExceptionHalt(HAL_FRAME *F) {
+static void ExceptionHalt(HAL_INTERRUPT_FRAME *F) {
     char Buf[24];
 
     ArchCli();
@@ -344,9 +344,9 @@ static volatile UINT32 gIrqCount;
 
 /*
  * 中断 C 分发入口（由 Isr.S 调用）
- * 返回值：0 表示不切换任务；非 0 为新任务 HAL_FRAME 指针（切换 RSP）
+ * 返回值：0 表示不切换任务；非 0 为新任务 HAL_INTERRUPT_FRAME 指针（切换 RSP）
  */
-UINT64 InterruptDispatch(HAL_FRAME *F) {
+UINT64 InterruptDispatch(HAL_INTERRUPT_FRAME *F) {
     if (F->Vector == 14) {
         UINT64 Cr2;
         __asm__ volatile ("mov %%cr2, %0" : "=r"(Cr2));

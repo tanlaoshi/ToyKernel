@@ -83,7 +83,7 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
         return FAT_ERR_INVAL;
     }
     if (Size > FAT_WRITE_MAX) {
-        return FAT_ERR_FBIG;
+        return FAT_ERR_FILE_TOO_BIG;
     }
     if (!ResolvePathParentLeaf(Path, &Parent, Leaf)) {
         return FAT_ERR_NOENT;

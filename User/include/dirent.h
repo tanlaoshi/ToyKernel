@@ -2,7 +2,7 @@
  * dirent.h — 用户态目录 / 文件状态（PR-F4）
  *
  * 名称写全：OpenDirectory / ReadDirectory / FileStat（勿用孤立 opendir/stat）。
- * 布局与内核 FAT_DIR_ENT / FAT_FILE_STAT 一致，经 syscall 拷贝。
+ * 布局与内核 FAT_DIRECTORY_ENTRY / FAT_FILE_STAT 一致，经 syscall 拷贝。
  */
 #ifndef DIRENT_H
 #define DIRENT_H

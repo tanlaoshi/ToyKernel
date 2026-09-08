@@ -70,7 +70,7 @@ int VfsListDir(const char *Path) {
     return gOps->ListDir(Path);
 }
 
-int VfsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+int VfsListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount) {
     if (!gOps || !gOps->ListEntries) {
         return NoBackend();
     }

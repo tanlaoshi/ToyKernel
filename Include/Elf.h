@@ -112,18 +112,18 @@ typedef struct {
     UINTN        DynSymCount;
 } ELF_SO_INFO;
 
-int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
+int ElfLoadFromMemory(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
                       ELF_LOAD_RESULT *Out);
 
 /* 收集主 ELF 的 DT_NEEDED 短名（最多 ELF_MAX_NEEDED）；返回个数，失败 -1 */
 int ElfCollectNeeded(const void *Image, UINTN Size, char Names[][16], int Max);
 
 /* 将 ET_DYN 装到 Base；Info 填符号表（指向 Image 内） */
-int ElfLoadShared(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
+int ElfLoadShared(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
                   UINT64 Base, ELF_SO_INFO *Info);
 
 /* 解析主 ELF 的 RELA/JMPREL，用已装载 SO 解析 JUMP_SLOT/GLOB_DAT/RELATIVE */
-int ElfRelocateProgram(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
+int ElfRelocateProgram(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
                        const ELF_SO_INFO *Sos, int SoCount);
 
 #endif

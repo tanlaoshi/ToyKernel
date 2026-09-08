@@ -262,7 +262,7 @@ static int SysOpenDirectory(UINT64 UserPath) {
 }
 
 static int SysReadDirectory(int Fd, UINT64 UserOut) {
-    FAT_DIR_ENT Ent;
+    FAT_DIRECTORY_ENTRY Ent;
     TASK *T = SchedulerCurrent();
     int Rc;
 
@@ -324,7 +324,7 @@ static int SysAccept(int Fd) {
     return SchedulerFdAccept(T, Fd);
 }
 
-static int SysExecve(HAL_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,
+static int SysExecve(HAL_INTERRUPT_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,
                      UINT64 UserEnvp) {
     char Path[PATH_MAX_LEN + 1];
     UINTN i;
@@ -353,7 +353,7 @@ static int SysExecve(HAL_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,
     return ProcessExecve(Frame, Path, UserArgv, UserEnvp);
 }
 
-UINT64 SyscallDispatch(HAL_FRAME *Frame) {
+UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     UINT64 Ret = 0;
 
     /* 保持 IF=0 直到 iretq 恢复用户 RFLAGS，避免在返回路径嵌套定时器抢占 */

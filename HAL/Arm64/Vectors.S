@@ -2,7 +2,7 @@
  * Vectors.S — PR-A10 缺页 + PR-A11 Lower-EL SVC / 用户帧
  * VBAR_EL1 要求 2KiB 对齐；每槽 0x80 字节。
  *
- * HAL_FRAME（与 HalPort.h 一致）：
+ * HAL_INTERRUPT_FRAME（与 HalPort.h 一致）：
  *   X[0..30] @0, Vec@248, Err@256, InstructionPointer@264, Cs@272, Rflags@280, StackPointer@288, Ss@296
  */
     .section .text
@@ -150,7 +150,7 @@ HalExcIrq:
     eret
 
 /*
- * Lower EL：在 SP_EL1 上压 HAL_FRAME，调 HalExceptionLower。
+ * Lower EL：在 SP_EL1 上压 HAL_INTERRUPT_FRAME，调 HalExceptionLower。
  * 返回 0 → 恢复本帧 eret；非 0 → 切到新帧（调度标签同 x86）。
  */
 HalExcLowerSync:
@@ -184,7 +184,7 @@ HalExcLowerSync:
     str     x0, [sp, #272]          /* Cs */
     str     x0, [sp, #296]          /* Ss */
 
-    mov     x0, sp                  /* HAL_FRAME*；304 字节对齐友好 */
+    mov     x0, sp                  /* HAL_INTERRUPT_FRAME*；304 字节对齐友好 */
     bl      HalExceptionLower
 
     /* 自测 exit 经 HalUserSelfTestReturn；调度切换：低 2 位标签 */
@@ -232,7 +232,7 @@ HalExcLowerSync:
 
     .global HalUserSelfTestEnter
     .type HalUserSelfTestEnter, %function
-    /* void HalUserSelfTestEnter(UINT64 Ksp, HAL_FRAME *Frame) */
+    /* void HalUserSelfTestEnter(UINT64 Ksp, HAL_INTERRUPT_FRAME *Frame) */
 HalUserSelfTestEnter:
     /* 保存全部 callee-saved + 原 SP 到 gUserSelfRet 扩展区 */
     adrp    x2, gUserSelfRet

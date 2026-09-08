@@ -139,7 +139,7 @@ IsrCommon:
     add rsp, 16
     iretq
 
-/* 内核任务首次进入：rdi=INT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16） */
+/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16） */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */
@@ -152,7 +152,7 @@ KernelEnter:
 SchedulerEnter:
     jmp KernelEnter
 
-/* 用户态首次进入：rdi=INT_FRAME*，构造 iretq 帧 */
+/* 用户态首次进入：rdi=HAL_INTERRUPT_FRAME*，构造 iretq 帧 */
 .global UserEnter
 UserEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */

@@ -38,7 +38,7 @@ typedef enum {
 } FILES_PROMPT_KIND;
 
 static char gCwd[FILES_PATH_MAX];
-static FAT_DIR_ENT gEnts[FAT_LIST_MAX];
+static FAT_DIRECTORY_ENTRY gEnts[FAT_LIST_MAX];
 static int gCount;
 static int gSelected;
 static int gScroll;
@@ -371,7 +371,7 @@ static int IsMostlyText(const char *Buf, UINTN Len) {
 }
 
 static void UpdatePreview(void) {
-    FAT_DIR_ENT *E;
+    FAT_DIRECTORY_ENTRY *E;
     char Path[FILES_PATH_MAX];
 
     gViewLen = 0;
@@ -600,7 +600,7 @@ static void PaintList(void) {
 
         RowY = gListTop;
         for (i = 0; i < Visible && gScroll + i < gCount; i++) {
-            const FAT_DIR_ENT *E = &gEnts[gScroll + i];
+            const FAT_DIRECTORY_ENTRY *E = &gEnts[gScroll + i];
             int Idx = gScroll + i;
             int k = 0;
             int j;
@@ -880,7 +880,7 @@ static void Paint(void) {
 }
 
 static void OpenSelected(void) {
-    FAT_DIR_ENT *E;
+    FAT_DIRECTORY_ENTRY *E;
     char Path[FILES_PATH_MAX];
 
     if (gMode != FILES_MODE_LIST || gSelected < 0 || gSelected >= gCount) {

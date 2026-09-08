@@ -15,8 +15,8 @@ static volatile int gProbeSeen;
 
 static volatile int gUserSelfTest;
 static UINT64 gUserSelfRoot;
-static VM_ADDR_SPACE *gUserSelfSpace;
-static HAL_FRAME gUserSelfFrame;
+static VIRTUAL_ADDRESS_SPACE *gUserSelfSpace;
+static HAL_INTERRUPT_FRAME gUserSelfFrame;
 static UINT8 gUserSelfKStack[8192] __attribute__((aligned(16)));
 
 void HalExceptionVectorsInstall(void) {
@@ -80,7 +80,7 @@ UINT64 HalExceptionSync(UINT64 Esr, UINT64 Far, UINT64 Elr) {
 /*
  * Lower EL：SVC → SyscallDispatch；缺页 → VMM；自测 exit → 回内核。
  */
-UINT64 HalExceptionLower(HAL_FRAME *Frame) {
+UINT64 HalExceptionLower(HAL_INTERRUPT_FRAME *Frame) {
     UINT64 Esr;
     UINT32 Ec;
     UINT64 Far;
@@ -194,10 +194,10 @@ static void BuildUserStub(UINT8 *Page, UINT64 CodeVa) {
     }
 }
 
-extern void HalUserSelfTestEnter(UINT64 Ksp, HAL_FRAME *Frame);
+extern void HalUserSelfTestEnter(UINT64 Ksp, HAL_INTERRUPT_FRAME *Frame);
 
 void HalUserSelfTest(void) {
-    VM_ADDR_SPACE *Space;
+    VIRTUAL_ADDRESS_SPACE *Space;
     void *CodePage;
     void *StackPage;
     UINT64 CodeVa;

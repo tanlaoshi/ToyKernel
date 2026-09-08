@@ -1,7 +1,7 @@
 /*
  * TrapVec.S — PR-A10 缺页 + PR-A11 U-mode ecall
  *
- * HAL_FRAME（HalPort.h）：X[0..31]@0, Vec@256, Err@264, InstructionPointer@272, Cs@280,
+ * HAL_INTERRUPT_FRAME（HalPort.h）：X[0..31]@0, Vec@256, Err@264, InstructionPointer@272, Cs@280,
  *   Rflags@288, StackPointer@296, Ss@304；压栈 320 字节。
  *
  * sscratch 约定：U 态 = 内核栈顶；S 态 = 0。
@@ -136,7 +136,7 @@ HalTrapVector:
     .global HalUserEnter
     .type HalUserEnter, @function
 HalUserEnter:
-    /* a0 = HAL_FRAME*；sscratch 已由 SelfTestEnter 设为内核栈 */
+    /* a0 = HAL_INTERRUPT_FRAME*；sscratch 已由 SelfTestEnter 设为内核栈 */
     ld      t1, 272(a0)
     csrw    sepc, t1
     ld      t1, 288(a0)

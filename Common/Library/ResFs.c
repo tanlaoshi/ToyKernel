@@ -93,7 +93,7 @@ static int ResListDir(const char *Path) {
     return FAT_OK;
 }
 
-static int ResListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+static int ResListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount) {
     int i;
     int N;
 

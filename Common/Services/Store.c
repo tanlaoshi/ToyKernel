@@ -568,7 +568,7 @@ static int TryCopy(const char *Src, const char *Dst, int Check) {
     }
     Size = St.Size;
     if (Size < 4 || Size > STORE_COPY_MAX) {
-        return FAT_ERR_FBIG;
+        return FAT_ERR_FILE_TOO_BIG;
     }
     Pages = (UINT32)((Size + 4095u) / 4096u);
     if (Pages == 0) {

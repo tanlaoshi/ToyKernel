@@ -15,8 +15,8 @@ static volatile int gProbeSeen;
 
 static volatile int gUserSelfTest;
 static UINT64 gUserSelfRoot;
-static VM_ADDR_SPACE *gUserSelfSpace;
-static HAL_FRAME gUserSelfFrame;
+static VIRTUAL_ADDRESS_SPACE *gUserSelfSpace;
+static HAL_INTERRUPT_FRAME gUserSelfFrame;
 static UINT8 gUserSelfKStack[8192] __attribute__((aligned(16)));
 
 #define SSTATUS_SPIE (1ULL << 5)
@@ -77,7 +77,7 @@ static UINT64 HalTrapKernelSync(UINT64 Cause, UINT64 Stval, UINT64 Sepc) {
  * 统一陷阱分发：内核缺页 / 用户 ecall / 用户缺页。
  * 返回值同 x86：0=恢复本帧；非 0=调度标签|新帧。
  */
-UINT64 HalTrapDispatch(HAL_FRAME *Frame) {
+UINT64 HalTrapDispatch(HAL_INTERRUPT_FRAME *Frame) {
     UINT64 Cause;
     UINT64 Stval;
     UINT64 Status;
@@ -216,10 +216,10 @@ static void BuildUserStub(UINT8 *Page, UINT64 CodeVa) {
     }
 }
 
-extern void HalUserSelfTestEnter(UINT64 Ksp, HAL_FRAME *Frame);
+extern void HalUserSelfTestEnter(UINT64 Ksp, HAL_INTERRUPT_FRAME *Frame);
 
 void HalUserSelfTest(void) {
-    VM_ADDR_SPACE *Space;
+    VIRTUAL_ADDRESS_SPACE *Space;
     void *CodePage;
     void *StackPage;
     UINT64 CodeVa;

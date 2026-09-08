@@ -135,7 +135,7 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
 int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
     int Slot;
     UINT32 Pages;
-    FAT_DIR_ENT *Buf;
+    FAT_DIRECTORY_ENTRY *Buf;
     FAT_FILE_STAT St;
     int Count = 0;
     int Err;
@@ -156,11 +156,11 @@ int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
     if (Slot < 0) {
         return -1;
     }
-    Pages = (UINT32)((sizeof(FAT_DIR_ENT) * (UINTN)FAT_LIST_MAX + PAGE_SIZE - 1) / PAGE_SIZE);
+    Pages = (UINT32)((sizeof(FAT_DIRECTORY_ENTRY) * (UINTN)FAT_LIST_MAX + PAGE_SIZE - 1) / PAGE_SIZE);
     if (Pages == 0) {
         Pages = 1;
     }
-    Buf = (FAT_DIR_ENT *)PhysicalMemoryAllocatePages(Pages);
+    Buf = (FAT_DIRECTORY_ENTRY *)PhysicalMemoryAllocatePages(Pages);
     if (!Buf) {
         return -1;
     }
@@ -181,7 +181,7 @@ int SchedulerFdOpenDirectory(TASK *T, const char *Path) {
     return Slot;
 }
 
-int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIR_ENT *Out) {
+int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIRECTORY_ENTRY *Out) {
     TASK_FD *F;
 
     if (!T || !Out || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
@@ -194,7 +194,7 @@ int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIR_ENT *Out) {
     if (F->Pos >= F->Size) {
         return 0;
     }
-    *Out = ((FAT_DIR_ENT *)(UINTN)F->Data)[F->Pos];
+    *Out = ((FAT_DIRECTORY_ENTRY *)(UINTN)F->Data)[F->Pos];
     F->Pos++;
     return 1;
 }

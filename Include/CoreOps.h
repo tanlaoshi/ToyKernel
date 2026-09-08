@@ -26,14 +26,14 @@ int WindowAddButton(int Wid, int ButtonId, const char *Label);
 typedef struct {
     int (*ReadFile)(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
     int (*WriteFile)(const char *Path, const void *Buffer, UINTN Size);
-    int (*ListEntries)(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+    int (*ListEntries)(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
     int (*FileStat)(const char *Path, FAT_FILE_STAT *Out);
 } VFS_SERVICE_OPS;
 
 void VfsServiceOpsRegister(const VFS_SERVICE_OPS *Ops);
 int VfsServiceReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int VfsServiceWriteFile(const char *Path, const void *Buffer, UINTN Size);
-int VfsServiceListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+int VfsServiceListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int VfsServiceFileStat(const char *Path, FAT_FILE_STAT *Out);
 
 #endif

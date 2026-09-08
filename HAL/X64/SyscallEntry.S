@@ -1,7 +1,7 @@
 /*
  * SyscallEntry.S — SYSCALL/SYSRET 快速路径（与 int 0x80 / Isr128 解耦）
  *
- * 入口：用户态 syscall → 本桩 → 组装与 IsrCommon 相同的 HAL_FRAME → SyscallDispatch
+ * 入口：用户态 syscall → 本桩 → 组装与 IsrCommon 相同的 HAL_INTERRUPT_FRAME → SyscallDispatch
  * 返回：同任务 SYSRET；任务切换则走 iretq / KernelEnter（与 Isr.S 语义对齐）
  *
  * 依赖：ArchSyscallMsrInit 已设 LSTAR/STAR/SFMASK/EFER.SCE，

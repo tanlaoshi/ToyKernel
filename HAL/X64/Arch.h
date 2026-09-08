@@ -19,9 +19,9 @@ void ArchSti(void);
 void ArchCli(void);
 void LapicEoi(void);
 void TimerStart(void);
-UINT64 InterruptDispatch(HAL_FRAME *Frame);
-void SchedulerEnter(HAL_FRAME *Frame);
-void KernelEnter(HAL_FRAME *Frame);
-void UserEnter(HAL_FRAME *Frame);
+UINT64 InterruptDispatch(HAL_INTERRUPT_FRAME *Frame);
+void SchedulerEnter(HAL_INTERRUPT_FRAME *Frame);
+void KernelEnter(HAL_INTERRUPT_FRAME *Frame);
+void UserEnter(HAL_INTERRUPT_FRAME *Frame);
 
 #endif

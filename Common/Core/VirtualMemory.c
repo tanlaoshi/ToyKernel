@@ -16,7 +16,7 @@ static void VirtualMemoryZero(void *Ptr, UINTN Size) {
     }
 }
 
-void *VirtualMemorySpaceAllocateAndTrack(VM_ADDR_SPACE *Space) {
+void *VirtualMemorySpaceAllocateAndTrack(VIRTUAL_ADDRESS_SPACE *Space) {
     void *Page = PhysicalMemoryAllocatePage();
     if (!Page || !Space) {
         return 0;
@@ -43,8 +43,8 @@ int VirtualMemoryMapRange(UINT64 Virt, UINT64 Phys, UINTN Bytes, UINT64 Flags) {
     return 0;
 }
 
-VM_ADDR_SPACE *VirtualMemorySpaceCreate(void) {
-    VM_ADDR_SPACE *Space = (VM_ADDR_SPACE *)PhysicalMemoryAllocatePage();
+VIRTUAL_ADDRESS_SPACE *VirtualMemorySpaceCreate(void) {
+    VIRTUAL_ADDRESS_SPACE *Space = (VIRTUAL_ADDRESS_SPACE *)PhysicalMemoryAllocatePage();
     if (!Space) {
         return 0;
     }
@@ -68,14 +68,14 @@ VM_ADDR_SPACE *VirtualMemorySpaceCreate(void) {
     return Space;
 }
 
-UINT64 VirtualMemorySpaceRoot(const VM_ADDR_SPACE *Space) {
+UINT64 VirtualMemorySpaceRoot(const VIRTUAL_ADDRESS_SPACE *Space) {
     if (!Space) {
         return 0;
     }
     return Space->Root;
 }
 
-int VirtualMemorySpaceMapPage(VM_ADDR_SPACE *Space, UINT64 Virt, UINT64 Phys, UINT64 Flags) {
+int VirtualMemorySpaceMapPage(VIRTUAL_ADDRESS_SPACE *Space, UINT64 Virt, UINT64 Phys, UINT64 Flags) {
     if (!Space) {
         return -1;
     }
@@ -83,7 +83,7 @@ int VirtualMemorySpaceMapPage(VM_ADDR_SPACE *Space, UINT64 Virt, UINT64 Phys, UI
                       (HalPageAllocateFunction)VirtualMemorySpaceAllocateAndTrack, Space);
 }
 
-void VirtualMemorySpaceDestroy(VM_ADDR_SPACE *Space) {
+void VirtualMemorySpaceDestroy(VIRTUAL_ADDRESS_SPACE *Space) {
     UINT64 Va;
 
     if (!Space) {
@@ -164,7 +164,7 @@ int VirtualMemoryCopyToUser(UINT64 UserDst, const void *Src, UINTN Len) {
     return (int)Len;
 }
 
-int VirtualMemoryCopyToSpace(VM_ADDR_SPACE *Space, UINT64 UserDst, const void *Src,
+int VirtualMemoryCopyToSpace(VIRTUAL_ADDRESS_SPACE *Space, UINT64 UserDst, const void *Src,
                              UINTN Len) {
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
@@ -204,8 +204,8 @@ int VirtualMemoryCopyToSpace(VM_ADDR_SPACE *Space, UINT64 UserDst, const void *S
  * COW fork：共享用户物理页；原可写页双方去掉 W、打上 COW（HalPageMarkCopyOnWrite）。
  * 页表仍私有（SpaceCreate 已 HalPagePrepareUserRoot）。
  */
-VM_ADDR_SPACE *VirtualMemorySpaceClone(VM_ADDR_SPACE *Src) {
-    VM_ADDR_SPACE *Dst;
+VIRTUAL_ADDRESS_SPACE *VirtualMemorySpaceClone(VIRTUAL_ADDRESS_SPACE *Src) {
+    VIRTUAL_ADDRESS_SPACE *Dst;
     UINT64 Va;
 
     if (!Src || Src->Root == 0) {

@@ -70,7 +70,7 @@ int VfsServiceWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     return gVfsServiceOps.WriteFile(Path, Buffer, Size);
 }
 
-int VfsServiceListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+int VfsServiceListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount) {
     if (!gVfsServiceOps.ListEntries) {
         return FAT_ERR_IO;
     }

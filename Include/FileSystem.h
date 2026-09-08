@@ -33,7 +33,7 @@ int FileSystemActivate(int VolIdx);
 /* 带前缀的路径操作（内部 Resolve+Activate+Vfs*；写操作拒只读卷） */
 int FileSystemListDirectory(const char *Path);
 /* PR-FB1：结构化目录枚举（供文件浏览器） */
-int FileSystemListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+int FileSystemListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int FileSystemReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int FileSystemWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int FileSystemDeleteFile(const char *Path);

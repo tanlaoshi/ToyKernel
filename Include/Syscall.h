@@ -59,6 +59,6 @@
  */
 
 void SyscallInit(void);
-UINT64 SyscallDispatch(HAL_FRAME *Frame); /* int 0x80 与 SYSCALL 共用 */
+UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame); /* int 0x80 与 SYSCALL 共用 */
 
 #endif

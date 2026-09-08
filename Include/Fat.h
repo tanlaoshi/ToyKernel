@@ -19,10 +19,10 @@
 #define FAT_ERR_EXIST      (-7)   /* 已存在 */
 #define FAT_ERR_INVAL      (-8)   /* 非法参数/路径 */
 #define FAT_ERR_NAMETOOLONG (-9)  /* 名过长 */
-#define FAT_ERR_FBIG       (-10)  /* 超过写大小上限 */
+#define FAT_ERR_FILE_TOO_BIG       (-10)  /* 超过写大小上限 */
 #define FAT_ERR_ROFS       (-11)  /* 只读卷或只读目录项（PR-FS2 / PR-F2） */
 
-/* PR-FS3：单次 FatWriteFile 上限（须有顶）；超过 → FAT_ERR_FBIG */
+/* PR-FS3：单次 FatWriteFile 上限（须有顶）；超过 → FAT_ERR_FILE_TOO_BIG */
 #define FAT_WRITE_MAX      (8u * 1024u * 1024u)
 
 #define FAT_ATTR_RO         0x01
@@ -34,7 +34,7 @@ typedef struct {
     char   Name[FAT_ENT_NAME_MAX];
     UINT8  Attr;
     UINT32 Size;
-} FAT_DIR_ENT;
+} FAT_DIRECTORY_ENTRY;
 
 /* PR-F2：路径上的文件/目录状态（教学用，非完整 POSIX struct stat） */
 typedef struct {
@@ -49,7 +49,7 @@ int FatInit(UINT32 StartLba);
 int FatListRoot(void);
 int FatListDir(const char *Path);
 /* 枚举目录项到 Out[0..*OutCount)；成功 FAT_OK；Max<=0 或 Out 空 → INVAL */
-int FatListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+int FatListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int FatReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int FatWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int FatDeleteFile(const char *Path);

@@ -140,14 +140,14 @@ void HalUserSelfTest(void) {
     /* x86 用户路径由 FAT ELF / runuser 覆盖；无需内嵌自测 */
 }
 
-static void FrameZero(HAL_FRAME *F) {
+static void FrameZero(HAL_INTERRUPT_FRAME *F) {
     UINTN j;
-    for (j = 0; j < sizeof(HAL_FRAME); j++) {
+    for (j = 0; j < sizeof(HAL_INTERRUPT_FRAME); j++) {
         ((UINT8 *)F)[j] = 0;
     }
 }
 
-void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
+void HalFrameSetKernelEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 StackTop) {
     if (!F) {
         return;
     }
@@ -161,7 +161,7 @@ void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop) {
     F->ErrorCode = 0;
 }
 
-void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserStackTop) {
+void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStackTop) {
     if (!F) {
         return;
     }
@@ -175,62 +175,62 @@ void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserStackTop) {
     F->ErrorCode = 0;
 }
 
-void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src) {
+void HalFrameCopy(HAL_INTERRUPT_FRAME *Dst, const HAL_INTERRUPT_FRAME *Src) {
     UINTN j;
     if (!Dst || !Src) {
         return;
     }
-    for (j = 0; j < sizeof(HAL_FRAME); j++) {
+    for (j = 0; j < sizeof(HAL_INTERRUPT_FRAME); j++) {
         ((UINT8 *)Dst)[j] = ((const UINT8 *)Src)[j];
     }
 }
 
-UINT64 HalFrameGetInstructionPointer(const HAL_FRAME *F) {
+UINT64 HalFrameGetInstructionPointer(const HAL_INTERRUPT_FRAME *F) {
     return F ? F->InstructionPointer : 0;
 }
 
-UINT64 HalFrameSyscallNum(const HAL_FRAME *F) {
+UINT64 HalFrameSyscallNum(const HAL_INTERRUPT_FRAME *F) {
     return F ? F->Rax : 0;
 }
 
-UINT64 HalFrameGetArgument0(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument0(const HAL_INTERRUPT_FRAME *F) {
     return F ? F->Rdi : 0;
 }
 
-UINT64 HalFrameGetArgument1(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument1(const HAL_INTERRUPT_FRAME *F) {
     return F ? F->Rsi : 0;
 }
 
-UINT64 HalFrameGetArgument2(const HAL_FRAME *F) {
+UINT64 HalFrameGetArgument2(const HAL_INTERRUPT_FRAME *F) {
     return F ? F->Rdx : 0;
 }
 
-void HalFrameSetReturn(HAL_FRAME *F, UINT64 Value) {
+void HalFrameSetReturn(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
     if (F) {
         F->Rax = Value;
     }
 }
 
-void HalFrameSetReturn2(HAL_FRAME *F, UINT64 A, UINT64 B) {
+void HalFrameSetReturn2(HAL_INTERRUPT_FRAME *F, UINT64 A, UINT64 B) {
     if (F) {
         F->Rax = A;
         F->Rdx = B;
     }
 }
 
-UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame) {
+UINT64 HalInterruptDispatch(struct HAL_INTERRUPT_FRAME *Frame) {
     return InterruptDispatch(Frame);
 }
 
-void HalSchedulerEnter(struct HAL_FRAME *Frame) {
+void HalSchedulerEnter(struct HAL_INTERRUPT_FRAME *Frame) {
     SchedulerEnter(Frame);
 }
 
-void HalUserEnter(struct HAL_FRAME *Frame) {
+void HalUserEnter(struct HAL_INTERRUPT_FRAME *Frame) {
     UserEnter(Frame);
 }
 
-void HalUserCoopEnter(UINT64 Ksp, struct HAL_FRAME *Frame) {
+void HalUserCoopEnter(UINT64 Ksp, struct HAL_INTERRUPT_FRAME *Frame) {
     (void)Ksp;
     (void)Frame;
 }

@@ -20,7 +20,7 @@
 extern char _binary_User_hello_elf_start[];
 extern char _binary_User_hello_elf_end[];
 
-static int ProcessStartElf(VM_ADDR_SPACE *Space, const ELF_LOAD_RESULT *Info,
+static int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,
                            const char *Name) {
     if (SchedulerCreateUser(Name, Info->Entry, Info->StackTop,
                         VirtualMemorySpaceRoot(Space), Space, Info->BrkBase) < 0) {
@@ -37,7 +37,7 @@ static int ProcessStartElf(VM_ADDR_SPACE *Space, const ELF_LOAD_RESULT *Info,
     return 0;
 }
 
-static int ProcessLoadNeeded(VM_ADDR_SPACE *Space, const void *MainImage,
+static int ProcessLoadNeeded(VIRTUAL_ADDRESS_SPACE *Space, const void *MainImage,
                              UINTN MainSize, ELF_SO_INFO *Sos, int *SoCount) {
     char Needed[ELF_MAX_NEEDED][16];
     int N;
@@ -110,12 +110,12 @@ static void ProcessFreeSos(ELF_SO_INFO *Sos, int SoCount) {
 }
 
 /* 读盘并装载 ELF（含 DT_NEEDED）；成功时 *OutSpace 归属调用方 */
-static int ProcessLoadPath(const char *Path, VM_ADDR_SPACE **OutSpace,
+static int ProcessLoadPath(const char *Path, VIRTUAL_ADDRESS_SPACE **OutSpace,
                            ELF_LOAD_RESULT *OutInfo) {
     UINT32 Pages;
     void *Buf;
     UINTN Size = 0;
-    VM_ADDR_SPACE *Space;
+    VIRTUAL_ADDRESS_SPACE *Space;
     ELF_SO_INFO Sos[ELF_MAX_SO];
     int SoCount = 0;
     int i;
@@ -241,7 +241,7 @@ static void CopyPathName(char *Dst, int Max, const char *Path) {
  * 在新用户栈顶构造：argc | argv[] | NULL | envp NULL | 字符串区
  * 返回新 rsp（指向 argc；16 字节对齐，供 AAPCS64 / SysV CRT）
  */
-static int ProcessSetupArgvStack(VM_ADDR_SPACE *Space, UINT64 StackTop,
+static int ProcessSetupArgvStack(VIRTUAL_ADDRESS_SPACE *Space, UINT64 StackTop,
                                  char ArgBuf[][EXEC_ARG_LEN], int Argc,
                                  UINT64 *OutRsp) {
     UINT64 Sp = StackTop;
@@ -309,7 +309,7 @@ static UINT64 AlignUpPage(UINT64 V) {
  */
 UINT64 ProcessBrk(UINT64 NewBrk) {
     TASK *T;
-    VM_ADDR_SPACE *Space;
+    VIRTUAL_ADDRESS_SPACE *Space;
     UINT64 Old;
     UINT64 From;
     UINT64 To;
@@ -377,7 +377,7 @@ UINT64 ProcessBrk(UINT64 NewBrk) {
 }
 
 int ProcessExec(const char *Path) {
-    VM_ADDR_SPACE *Space;
+    VIRTUAL_ADDRESS_SPACE *Space;
     ELF_LOAD_RESULT Info;
     UINT64 NewRsp;
     char Dummy[1][EXEC_ARG_LEN];
@@ -413,11 +413,11 @@ int ProcessExec(const char *Path) {
  * 替换当前用户任务映像。成功：改写 Frame，不返回用户态旧点；
  * 失败：返回 -1（Frame 原样，可写 rax=-1）。
  */
-int ProcessExecve(HAL_FRAME *Frame, const char *Path, UINT64 UserArgv,
+int ProcessExecve(HAL_INTERRUPT_FRAME *Frame, const char *Path, UINT64 UserArgv,
                   UINT64 UserEnvp) {
     TASK *T;
-    VM_ADDR_SPACE *OldSpace;
-    VM_ADDR_SPACE *NewSpace;
+    VIRTUAL_ADDRESS_SPACE *OldSpace;
+    VIRTUAL_ADDRESS_SPACE *NewSpace;
     ELF_LOAD_RESULT Info;
     char ArgBuf[EXEC_ARGV_MAX][EXEC_ARG_LEN];
     int Argc = 0;
@@ -502,7 +502,7 @@ int ProcessRunDemo(void) {
         return -1;
     }
 
-    VM_ADDR_SPACE *Space = VirtualMemorySpaceCreate();
+    VIRTUAL_ADDRESS_SPACE *Space = VirtualMemorySpaceCreate();
     if (!Space) {
         ConsoleWrite("user: address space failed\n");
         return -1;

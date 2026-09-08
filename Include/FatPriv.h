@@ -53,7 +53,7 @@ extern UINT32 gFatType;
 extern UINT32 gMaxCluster;
 
 /* 目录枚举输出（定义于 FatDir.c） */
-extern FAT_DIR_ENT *gListOut;
+extern FAT_DIRECTORY_ENTRY *gListOut;
 extern int gListMax;
 extern int gListCount;
 

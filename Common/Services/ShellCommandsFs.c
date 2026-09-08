@@ -111,7 +111,7 @@ static void CommandWrbig(int Argc, char **Argv) {
         }
     }
     if ((UINT64)SizeKb * 1024u > (UINT64)FAT_WRITE_MAX) {
-        FatReport("wrbig", FAT_ERR_FBIG);
+        FatReport("wrbig", FAT_ERR_FILE_TOO_BIG);
         return;
     }
     Size = (UINTN)SizeKb * 1024u;

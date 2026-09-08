@@ -49,7 +49,7 @@ static UINT64 ElfAlignUp(UINT64 Value, UINT64 Align) {
     return (Value + Align - 1) & ~(Align - 1);
 }
 
-static int ElfMapSegment(VM_ADDR_SPACE *Space, const UINT8 *Image,
+static int ElfMapSegment(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Image,
                          const Elf64_Phdr *Ph, UINT64 Bias) {
     UINT64 Vaddr = Ph->p_vaddr + Bias;
     UINT64 MapStart = Vaddr & ~(UINT64)(PAGE_SIZE - 1);
@@ -91,7 +91,7 @@ static int ElfMapSegment(VM_ADDR_SPACE *Space, const UINT8 *Image,
     return 0;
 }
 
-static int ElfMapStack(VM_ADDR_SPACE *Space) {
+static int ElfMapStack(VIRTUAL_ADDRESS_SPACE *Space) {
     UINT64 Flags = PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     for (UINT64 Virt = USER_STACK_VIRT;
          Virt < USER_STACK_VIRT + USER_STACK_SIZE;
@@ -319,7 +319,7 @@ static int ElfFillSoSyms(ELF_SO_INFO *Info, const Elf64_Phdr *Ph, UINT16 Pn) {
     return 0;
 }
 
-int ElfLoadShared(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
+int ElfLoadShared(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
                   UINT64 Base, ELF_SO_INFO *Info) {
     const UINT8 *Bytes = (const UINT8 *)Image;
     const Elf64_Ehdr *Hdr = (const Elf64_Ehdr *)Image;
@@ -394,7 +394,7 @@ static UINT64 ElfLookupSymbol(const ELF_SO_INFO *Sos, int SoCount,
     return 0;
 }
 
-static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Size,
+static int ElfApplyRelaTable(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Bytes, UINTN Size,
                              const Elf64_Phdr *Ph, UINT16 Pn, UINT64 Bias,
                              UINT64 RelaVa, UINT64 RelaSz, UINT64 RelaEnt,
                              UINT64 SymVa, UINT64 StrVa, UINT64 SymEnt,
@@ -494,7 +494,7 @@ static int ElfApplyRelaTable(VM_ADDR_SPACE *Space, const UINT8 *Bytes, UINTN Siz
     return 0;
 }
 
-int ElfRelocateProgram(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
+int ElfRelocateProgram(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
                        const ELF_SO_INFO *Sos, int SoCount) {
     const UINT8 *Bytes = (const UINT8 *)Image;
     const Elf64_Ehdr *Hdr = (const Elf64_Ehdr *)Image;
@@ -572,7 +572,7 @@ int ElfRelocateProgram(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
     return 0;
 }
 
-int ElfLoadFromMemory(VM_ADDR_SPACE *Space, const void *Image, UINTN Size,
+int ElfLoadFromMemory(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
                       ELF_LOAD_RESULT *Out) {
     const UINT8 *Bytes = (const UINT8 *)Image;
     const Elf64_Ehdr *Hdr = (const Elf64_Ehdr *)Image;

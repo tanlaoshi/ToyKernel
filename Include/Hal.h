@@ -68,21 +68,21 @@ void HalUserSelfTest(void);
  * Common 用这些 API，不直接写 Cs/Ss/Rax 或 GDT 选择子字面量；
  * 指令指针 / 栈指针走 InstructionPointer / StackPointer 中立名。
  */
-void HalFrameSetKernelEntry(HAL_FRAME *F, UINT64 Entry, UINT64 StackTop);
-void HalFrameSetUserEntry(HAL_FRAME *F, UINT64 Entry, UINT64 UserStackTop);
-void HalFrameCopy(HAL_FRAME *Dst, const HAL_FRAME *Src);
-UINT64 HalFrameGetInstructionPointer(const HAL_FRAME *F);
-UINT64 HalFrameSyscallNum(const HAL_FRAME *F);
-UINT64 HalFrameGetArgument0(const HAL_FRAME *F);
-UINT64 HalFrameGetArgument1(const HAL_FRAME *F);
-UINT64 HalFrameGetArgument2(const HAL_FRAME *F);
-void HalFrameSetReturn(HAL_FRAME *F, UINT64 Value);
-void HalFrameSetReturn2(HAL_FRAME *F, UINT64 A, UINT64 B);
+void HalFrameSetKernelEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 StackTop);
+void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStackTop);
+void HalFrameCopy(HAL_INTERRUPT_FRAME *Dst, const HAL_INTERRUPT_FRAME *Src);
+UINT64 HalFrameGetInstructionPointer(const HAL_INTERRUPT_FRAME *F);
+UINT64 HalFrameSyscallNum(const HAL_INTERRUPT_FRAME *F);
+UINT64 HalFrameGetArgument0(const HAL_INTERRUPT_FRAME *F);
+UINT64 HalFrameGetArgument1(const HAL_INTERRUPT_FRAME *F);
+UINT64 HalFrameGetArgument2(const HAL_INTERRUPT_FRAME *F);
+void HalFrameSetReturn(HAL_INTERRUPT_FRAME *F, UINT64 Value);
+void HalFrameSetReturn2(HAL_INTERRUPT_FRAME *F, UINT64 A, UINT64 B);
 
-struct HAL_FRAME;
-UINT64 HalInterruptDispatch(struct HAL_FRAME *Frame);
-void HalSchedulerEnter(struct HAL_FRAME *Frame);
-void HalUserEnter(struct HAL_FRAME *Frame);
+struct HAL_INTERRUPT_FRAME;
+UINT64 HalInterruptDispatch(struct HAL_INTERRUPT_FRAME *Frame);
+void HalSchedulerEnter(struct HAL_INTERRUPT_FRAME *Frame);
+void HalUserEnter(struct HAL_INTERRUPT_FRAME *Frame);
 
 /* 端口 / 早期 I/O（x86 为 in/out；其它架构可为空操作或 MMIO 映射） */
 UINT8  HalIoRead8(UINT16 Port);
@@ -142,7 +142,7 @@ void HalSyncICache(void *Addr, UINTN Size);
  * PR-A12：virt 无抢占时，从内核任务协作进入用户帧并在 exit 时返回。
  * 实现复用 SelfTestEnter/Return（Arm/RiscV）；x86 不调用。
  */
-void HalUserCoopEnter(UINT64 Ksp, struct HAL_FRAME *Frame);
+void HalUserCoopEnter(UINT64 Ksp, struct HAL_INTERRUPT_FRAME *Frame);
 void HalUserCoopReturn(void);
 
 const char *HalArchName(void);

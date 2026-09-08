@@ -6,7 +6,7 @@
 #include "Block.h"
 #include "LibWrite.h"
 
-FAT_DIR_ENT *gListOut;
+FAT_DIRECTORY_ENTRY *gListOut;
 int gListMax;
 int gListCount;
 
@@ -717,7 +717,7 @@ int FatListDir(const char *Path) {
     return FAT_OK;
 }
 
-int FatListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+int FatListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount) {
     FAT_DIR_CTX Dir;
 
     if (!Out || !OutCount || Max <= 0) {

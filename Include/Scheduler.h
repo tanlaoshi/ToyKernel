@@ -16,7 +16,7 @@
 #define FD_KIND_FILE   0
 #define FD_KIND_SOCKET 1
 #define FD_KIND_PIPE   2
-#define FD_KIND_DIR    3  /* PR-F4：目录快照（Data=FAT_DIR_ENT[]） */
+#define FD_KIND_DIR    3  /* PR-F4：目录快照（Data=FAT_DIRECTORY_ENTRY[]） */
 
 #define PIPE_END_READ  0
 #define PIPE_END_WRITE 1
@@ -43,7 +43,7 @@ typedef struct {
 
 typedef struct TASK {
     UINT8                  Stack[8192] __attribute__((aligned(16)));
-    HAL_FRAME             *Frame;
+    HAL_INTERRUPT_FRAME             *Frame;
     TASK_STATE             State;
     UINT32                 Id;
     UINT32                 Ticks;
@@ -51,7 +51,7 @@ typedef struct TASK {
     UINT64                 PageRoot;   /* 页表根物理地址（x86 曾称 CR3） */
     int                    IsUser;
     int                    Started;
-    VM_ADDR_SPACE         *UserSpace;
+    VIRTUAL_ADDRESS_SPACE         *UserSpace;
     INT32                  ParentId;   /* -1 = 无父进程 */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
@@ -68,15 +68,15 @@ typedef struct TASK {
 void SchedulerInit(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
-                    VM_ADDR_SPACE *Space, UINT64 BrkBase);
+                    VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);
-UINT64 SchedulerOnTimer(HAL_FRAME *Frame);
-UINT64 SchedulerExitUser(HAL_FRAME *Frame);
-UINT64 SchedulerFork(HAL_FRAME *Frame);
-UINT64 SchedulerWait(HAL_FRAME *Frame);
-UINT64 SchedulerYield(HAL_FRAME *Frame);
+UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerWait(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerYield(HAL_INTERRUPT_FRAME *Frame);
 /* PR-P4：rdi=pid rsi=sig；杀内核/idle 失败。非当前任务返回 0；杀自身则切走 */
-UINT64 SchedulerKill(HAL_FRAME *Frame);
+UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame);
 /* Shell：pid=槽位+1；默认终止用户任务。成功 0，失败 -1 */
 int SchedulerKillPid(INT32 Pid, INT32 Sig);
 void SchedulerStart(void);
@@ -89,7 +89,7 @@ int SchedulerFdOpen(TASK *T, const char *Path);
 /* PR-F4：打开目录并快照枚举；成功返回 dirfd */
 int SchedulerFdOpenDirectory(TASK *T, const char *Path);
 /* PR-F4：拷贝下一项到 Out；1=有项，0=结束，-1=失败 */
-int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIR_ENT *Out);
+int SchedulerFdReadDirectory(TASK *T, int Fd, FAT_DIRECTORY_ENTRY *Out);
 int SchedulerFdFileStat(TASK *T, const char *Path, FAT_FILE_STAT *Out);
 int SchedulerFdSocket(TASK *T, int Domain, int Type, int Protocol);
 int SchedulerFdBind(TASK *T, int Fd, UINT32 Ip, UINT16 Port);

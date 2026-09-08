@@ -15,7 +15,7 @@ typedef struct FS_OPS {
     /* 挂载：Block 后端以 StartLba 为卷起点；合成卷可忽略 StartLba */
     int (*Mount)(UINT32 StartLba);
     int (*ListDir)(const char *Path);
-    int (*ListEntries)(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+    int (*ListEntries)(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
     int (*ReadFile)(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
     int (*WriteFile)(const char *Path, const void *Buffer, UINTN Size);
     int (*DeleteFile)(const char *Path);
@@ -40,7 +40,7 @@ const FS_OPS *VfsOps(void);
 /* 直接经表调用（已 Activate 的相对路径）；无后端 → FAT_ERR_IO */
 int VfsMount(UINT32 StartLba);
 int VfsListDir(const char *Path);
-int VfsListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount);
+int VfsListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int VfsReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int VfsWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int VfsDeleteFile(const char *Path);

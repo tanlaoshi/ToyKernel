@@ -202,7 +202,7 @@ int FileSystemListDirectory(const char *Path) {
     return VfsListDir(Rel && Rel[0] ? Rel : 0);
 }
 
-int FileSystemListEntries(const char *Path, FAT_DIR_ENT *Out, int Max, int *OutCount) {
+int FileSystemListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount) {
     const char *Rel;
     int Err = FileSystemPreparePath(Path ? Path : "", &Rel, 0);
     if (Err != FAT_OK) {
