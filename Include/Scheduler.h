@@ -59,17 +59,24 @@ typedef struct TASK {
     INT32                  Affinity;   /* -1=任意 CPU；否则逻辑 CpuId */
     INT32                  OnCpu;      /* 正在跑的逻辑 CPU；未跑为 -1 */
     INT32                  HomeCpu;    /* 首选运行队列（PR-S4） */
+    INT32                  Priority;   /* PR-S-lock：越大越优先；默认 0；idle 最低 */
     int                    InRunq;     /* 已在某核 READY 队列中 */
     UINT64                 BrkBase;    /* 映像数据/BSS 末；不可低于此（PR-P3） */
     UINT64                 Brk;        /* 当前 program break */
     TASK_FD                Fds[MAX_FDS];
 } TASK;
 
+#define SCHED_PRIORITY_DEFAULT  0
+#define SCHED_PRIORITY_SHELL    8   /* shell / gui：交互偏高 */
+#define SCHED_PRIORITY_IDLE   (-128)
+
 void SchedulerInit(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);
+/* PR-S-lock：pid=槽位+1（与 kill/ps 一致）；成功 0，失败 -1 */
+int SchedulerSetPriority(INT32 Pid, INT32 Priority);
 UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame);
 UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame);
 UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame);

@@ -151,6 +151,13 @@ static void CommandPs(int Argc, char **Argv) {
         ConsoleWriteHex32((UINT32)T->OnCpu);
         ConsoleWrite(" home=");
         ConsoleWriteHex32((UINT32)T->HomeCpu);
+        ConsoleWrite(" prio=");
+        if (T->Priority < 0) {
+            ConsoleWrite("-");
+            ConsoleWriteHex32((UINT32)(-T->Priority));
+        } else {
+            ConsoleWriteHex32((UINT32)T->Priority);
+        }
         if (SchedulerCurrent() == T) {
             ConsoleWrite(" *");
         }
@@ -167,8 +174,16 @@ static void CommandPs(int Argc, char **Argv) {
 
 static int ParseDecInt(const char *S, INT32 *Out) {
     INT32 V = 0;
+    int Neg = 0;
     if (!S || !S[0] || !Out) {
         return -1;
+    }
+    if (*S == '-') {
+        Neg = 1;
+        S++;
+        if (!*S) {
+            return -1;
+        }
     }
     for (; *S; S++) {
         if (*S < '0' || *S > '9') {
@@ -176,8 +191,42 @@ static int ParseDecInt(const char *S, INT32 *Out) {
         }
         V = V * 10 + (*S - '0');
     }
-    *Out = V;
+    *Out = Neg ? -V : V;
     return 0;
+}
+
+/* PR-S-lock：set priority <pid> <prio>；pid 与 list tasks 一致 */
+static void CommandSetPriority(int Argc, char **Argv) {
+    INT32 Pid = 0;
+    INT32 Priority = 0;
+
+    if (Argc < 3) {
+        ConsoleWrite("usage: set priority <pid> <prio>\n");
+        ConsoleWrite("  prio: -128..127 (higher runs sooner; shell/gui default 8)\n");
+        return;
+    }
+    if (ParseDecInt(Argv[1], &Pid) != 0 || Pid <= 0) {
+        ConsoleWrite("set priority: bad pid\n");
+        return;
+    }
+    if (ParseDecInt(Argv[2], &Priority) != 0) {
+        ConsoleWrite("set priority: bad prio\n");
+        return;
+    }
+    if (SchedulerSetPriority(Pid, Priority) != 0) {
+        ConsoleWrite("set priority: fail\n");
+        return;
+    }
+    ConsoleWrite("set priority: pid=");
+    ConsoleWriteHex32((UINT32)Pid);
+    ConsoleWrite(" prio=");
+    if (Priority < 0) {
+        ConsoleWrite("-");
+        ConsoleWriteHex32((UINT32)(-Priority));
+    } else {
+        ConsoleWriteHex32((UINT32)Priority);
+    }
+    ConsoleWrite("\n");
 }
 
 /* PR-P4：kill <pid> [sig]；pid 与 ps / fork 一致（槽位+1）；默认 SIGTERM */
@@ -1240,8 +1289,10 @@ void ShellCommandsRegister(void) {
     ConsoleRegisterAliasLine("runuser", "run", "user");
 
     ConsoleRegister2("set", "language", "set language en|zh|reload", CommandLang);
+    ConsoleRegister2("set", "priority", "set priority <pid> <prio>", CommandSetPriority);
     ConsoleRegisterAliasLine("lang", "set", "language");
     ConsoleRegisterAliasLine("language", "set", "language");
+    ConsoleRegisterAliasLine("nice", "set", "priority");
 
     ConsoleRegister("execute", "load ELF (TOYOS:FILE / A:FILE)", CommandExec);
     ConsoleRegisterAlias("execute", "exec");
