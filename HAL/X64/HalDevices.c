@@ -40,6 +40,10 @@ void HalInputPoll(void) {
     ToyDriverInputPoll();
 }
 
+void HalInputDiagFormat(char *Buf, int Max) {
+    XhciDiagFormat(Buf, Max);
+}
+
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     return ToyDriverInputKeyboardDequeue(Report);
 }

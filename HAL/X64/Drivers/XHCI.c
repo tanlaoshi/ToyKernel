@@ -113,6 +113,8 @@ static UINT16 gEp0Mps;
 static UINT8  gKbdIface;
 static UINT8  gUseGetReport;
 static UINT8  gUseIrq;
+/* 真机默认 POLL；DUAL/IRQ 见 XhciTryEnterDual（占位） */
+static XHCI_IRQ_MODE gIrqMode = XHCI_IRQ_MODE_POLL;
 /* 键盘 Slot 的路由/TT，Configure Endpoint 必须带回，否则 hub 子设备 cfg 失败 */
 static UINT32 gKbdRoute;
 static UINT8  gKbdHubSlot;
@@ -133,6 +135,21 @@ static XHCI_TRB gMouseIntrRing[RING_SIZE];
 static RING_STATE gMouseIntr;
 static UINT8  gMouseDevCtx[2048];
 static volatile UINT32 gMouseIntrDone;
+static volatile UINT32 gIntrReportReady;
+static volatile UINT32 gMouseReportReady;
+/* poll 诊断：PHOTO/桌面可看完成与推送是否在涨 */
+static volatile UINT32 gStatIntrEvt;
+static volatile UINT32 gStatMouseEvt;
+static volatile UINT32 gStatKbdPush;
+static volatile UINT32 gStatMousePush;
+static volatile UINT32 gStatLastCc;
+static volatile UINT32 gStatDrain;
+static volatile UINT32 gStatXferAny;   /* 任意 Transfer Event */
+static volatile UINT32 gStatEvtRing;   /* 事件环弹出次数（含命令完成） */
+static volatile UINT32 gStatLastSlot;
+static volatile UINT32 gStatLastEp;
+static volatile UINT32 gStatUnmatched; /* Transfer 且未匹配键鼠 DCI */
+static UINT32 gDiagXferLogged;        /* 限制串口/屏日志条数 */
 
 #define MOUSE_Q 32
 static USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
@@ -349,10 +366,13 @@ static void ProcessEvents(void) {
 
     for (;;) {
         XHCI_TRB *Evt = &gEvtRing[gEvtDeq];
+        /* 真机：先 invalidate，再读 Cycle，避免缓存挡住完成事件 */
+        FlushDma(Evt, sizeof(*Evt));
         if ((Evt->Control & TRB_C) != gEvtCcs) {
             break;
         }
         Progress = 1;
+        gStatEvtRing++;
 
         UINT32 Type = TrbType(Evt->Control);
         UINT32 Code = (Evt->Status >> 24) & 0xFF;
@@ -365,18 +385,65 @@ static void ProcessEvents(void) {
         } else if (Type == TRB_TRANSFER_EVENT) {
             UINT32 Ep = (Evt->Control >> 16) & 0x1F;
             UINT32 EvtSlot = (Evt->Control >> 24) & 0xFF;
-            gXferCode = Code;
-            gXferRemain = Evt->Status & 0xFFFFFF;
-            gXferDone = 1;
-            if (EvtSlot == gSlotId &&
-                (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) &&
-                (Ep == gIntrDci || Ep == 1 || Ep == 2)) {
+            int Matched = 0;
+
+            gStatXferAny++;
+            gStatLastCc = Code;
+            gStatLastSlot = EvtSlot;
+            gStatLastEp = Ep;
+
+            /* EP0(DCI=1) 才唤醒 WaitTransfer，避免 HID IN 误完成 EP0 等待 */
+            if (EvtSlot == gXferSlot && Ep == 1) {
+                gXferCode = Code;
+                gXferRemain = Evt->Status & 0xFFFFFF;
+                gXferDone = 1;
+            }
+            /*
+             * 中断 EP：成功则有报告可推；任意完成码都置 Done 以便重新 QueueIntr，
+             * 避免一次 Stall/错误后永久不再门铃。
+             */
+            if (gSlotId && EvtSlot == gSlotId && Ep == gIntrDci) {
+                gStatIntrEvt++;
+                Matched = 1;
+                if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
+                    gIntrReportReady = 1;
+                }
                 gIntrDone = 1;
             }
-            if (gMouseSlotId && EvtSlot == gMouseSlotId &&
-                (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) &&
-                (Ep == gMouseIntrDci || Ep == 3 || Ep == 4 || Ep == 5)) {
+            if (gMouseSlotId && EvtSlot == gMouseSlotId && Ep == gMouseIntrDci) {
+                gStatMouseEvt++;
+                Matched = 1;
+                if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
+                    gMouseReportReady = 1;
+                }
                 gMouseIntrDone = 1;
+            }
+            if (!Matched) {
+                gStatUnmatched++;
+                if (gDiagXferLogged < 8) {
+                    char Line[72];
+                    int n = 0;
+                    const char *P = "boot: xhci xfer s=";
+                    while (*P && n < 24) {
+                        Line[n++] = *P++;
+                    }
+                    Line[n++] = (char)('0' + ((EvtSlot / 10) % 10));
+                    Line[n++] = (char)('0' + (EvtSlot % 10));
+                    Line[n++] = ' ';
+                    Line[n++] = 'e';
+                    Line[n++] = '=';
+                    Line[n++] = (char)('0' + ((Ep / 10) % 10));
+                    Line[n++] = (char)('0' + (Ep % 10));
+                    Line[n++] = ' ';
+                    Line[n++] = 'c';
+                    Line[n++] = '=';
+                    Line[n++] = (char)('0' + ((Code / 10) % 10));
+                    Line[n++] = (char)('0' + (Code % 10));
+                    Line[n++] = '\n';
+                    Line[n] = 0;
+                    HalSerialWrite(Line);
+                    gDiagXferLogged++;
+                }
             }
         }
 
@@ -395,10 +462,17 @@ static void ProcessEvents(void) {
     }
 }
 
+static void QueueIntr(void);
+static void QueueMouseIntr(void);
+static void KbdPush(void);
+static void MousePush(void);
+static void ServiceHidCompletions(void);
+
 /* 等待命令环完成事件 */
 static int WaitCommand(int Timeout) {
     while (Timeout--) {
         ProcessEvents();
+        ServiceHidCompletions();
         if (gCmdDone) {
             return (gCmdCode == CC_SUCCESS) ? 0 : -1;
         }
@@ -406,13 +480,41 @@ static int WaitCommand(int Timeout) {
     return -1;
 }
 
-/* 等待传输环完成事件 */
+/* 枚举期 Wait* 也会进 ProcessEvents；必须顺带再投递中断 IN，否则 TRB 耗尽后永久无完成 */
+static void ServiceHidCompletions(void) {
+    if (gIntrDone) {
+        gIntrDone = 0;
+        if (gIntrReportReady) {
+            gIntrReportReady = 0;
+            FlushDma(gReportBuf, sizeof(gReportBuf));
+            KbdPush();
+            gStatKbdPush++;
+        }
+        if (gSlotId != 0 && gIntrDci != 0) {
+            QueueIntr();
+        }
+    }
+    if (gMouseIntrDone) {
+        gMouseIntrDone = 0;
+        if (gMouseReportReady) {
+            gMouseReportReady = 0;
+            FlushDma(gMouseBuf, sizeof(gMouseBuf));
+            MousePush();
+            gStatMousePush++;
+        }
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+            QueueMouseIntr();
+        }
+    }
+}
+
 static int WaitTransfer(int Timeout) {
     if (!HalCpuIsHypervisor() && Timeout > 200000) {
         Timeout = 200000;
     }
     while (Timeout--) {
         ProcessEvents();
+        ServiceHidCompletions();
         if (gXferDone) {
             return (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0 : -1;
         }
@@ -1129,6 +1231,8 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed)
 /* 提交中断 IN 传输 TRB */
 static void QueueIntr(void) {
     gIntrDone = 0;
+    gIntrReportReady = 0;
+    FlushDma(gReportBuf, sizeof(gReportBuf));
     Enqueue(gIntrRing, &gIntr, PointerToPhysical(gReportBuf), 8, TRB_TYPE(TRB_NORMAL) | TRB_IOC);
     RingDoorbell(gSlotId, gIntrDci);
 }
@@ -1279,6 +1383,9 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
     Ep[3] = (UINT32)(Deq >> 32);
     Ep[4] = Mps;
 
+    FlushDma(gInCtx, sizeof(gInCtx));
+    FlushDma(gMouseIntrRing, sizeof(gMouseIntrRing));
+
     if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) < 0) {
         DebugWrite("XHCI: mouse endpoint failed\n");
         return 0;
@@ -1288,6 +1395,8 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
 
 static void QueueMouseIntr(void) {
     gMouseIntrDone = 0;
+    gMouseReportReady = 0;
+    FlushDma(gMouseBuf, sizeof(gMouseBuf));
     Enqueue(gMouseIntrRing, &gMouseIntr, PointerToPhysical(gMouseBuf), gMouseReportLen,
             TRB_TYPE(TRB_NORMAL) | TRB_IOC);
     RingDoorbell(gMouseSlotId, gMouseIntrDci);
@@ -1584,7 +1693,7 @@ static int InitMouseOnPort(UINT32 Port1) {
         return 0;
     }
 
-    if (!SetupHidDevice(gMouseSlotId, gMouseDevCtx, Speed, ParseConfigMouse, 0)) {
+    if (!SetupHidDevice(gMouseSlotId, gMouseDevCtx, Speed, ParseConfigMouse, 1)) {
         DebugWrite("XHCI: mouse config failed\n");
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
@@ -2061,14 +2170,22 @@ void XhciIrq(void) {
     ProcessEvents();
     if (gIntrDone) {
         gIntrDone = 0;
-        FlushDma(gReportBuf, sizeof(gReportBuf));
-        KbdPush();
+        if (gIntrReportReady) {
+            gIntrReportReady = 0;
+            FlushDma(gReportBuf, sizeof(gReportBuf));
+            KbdPush();
+            gStatKbdPush++;
+        }
         QueueIntr();
     }
     if (gMouseIntrDone) {
         gMouseIntrDone = 0;
-        FlushDma(gMouseBuf, sizeof(gMouseBuf));
-        MousePush();
+        if (gMouseReportReady) {
+            gMouseReportReady = 0;
+            FlushDma(gMouseBuf, sizeof(gMouseBuf));
+            MousePush();
+            gStatMousePush++;
+        }
         QueueMouseIntr();
     }
     if (gRuntimeBase != 0) {
@@ -2091,28 +2208,37 @@ static void EnableHostInterrupts(void) {
 }
 
 /*
- * 排空事件环。始终 ProcessEvents，不依赖 IMAN.IP。
+ * 排空事件环。POLL 与 DUAL 都必须盲 ProcessEvents（backup）。
+ * 仅将来 XHCI_IRQ_MODE_IRQ 才可考虑减弱 Drain（PR-H-xhci-irq）。
  *
- * 真机证据：把键盘误配成鼠标时，poll 排空能把键码送进 GUI（屏顶十字）。
- * 开 MSI 后若只认 IP / 只靠 XhciIrq，NUC 上 MSI 往往到不了 LAPIC，
- * 完成 TRB 堆在事件环 → 不再 QueueIntr → 键鼠全死。MSI ISR 仍走 XhciIrq。
+ * 真机证据：把键盘误配成鼠标时，poll 排空能把键码送进 GUI。
+ * 开 MSI 后若关掉盲 Drain，NUC 上完成 TRB 会堆死。
  */
 void XhciDrainEvents(void) {
     int i;
 
+    gStatDrain++;
     SpinLockAcquire(&gHidQueueLock);
     for (i = 0; i < 32; i++) {
         ProcessEvents();
         if (gIntrDone) {
             gIntrDone = 0;
-            FlushDma(gReportBuf, sizeof(gReportBuf));
-            KbdPush();
+            if (gIntrReportReady) {
+                gIntrReportReady = 0;
+                FlushDma(gReportBuf, sizeof(gReportBuf));
+                KbdPush();
+                gStatKbdPush++;
+            }
             QueueIntr();
         }
         if (gMouseIntrDone) {
             gMouseIntrDone = 0;
-            FlushDma(gMouseBuf, sizeof(gMouseBuf));
-            MousePush();
+            if (gMouseReportReady) {
+                gMouseReportReady = 0;
+                FlushDma(gMouseBuf, sizeof(gMouseBuf));
+                MousePush();
+                gStatMousePush++;
+            }
             QueueMouseIntr();
         }
     }
@@ -2122,9 +2248,143 @@ void XhciDrainEvents(void) {
     SpinLockRelease(&gHidQueueLock);
 }
 
+/* dual/irq → 切回 poll 备份（关 host IE；不拆 PCI MSI 表亦可，避免半残状态） */
+void XhciFallbackToPoll(const char *Why) {
+    UINT32 Cmd;
+
+    gUseIrq = 0;
+    gIrqMode = XHCI_IRQ_MODE_POLL;
+    if (gOperationalBase != 0) {
+        Cmd = ReadMmio32(gOperationalBase);
+        WriteMmio32(gOperationalBase, (Cmd | USBCMD_RS) & ~USBCMD_INTE);
+    }
+    if (gRuntimeBase != 0) {
+        WriteMmio32(gRuntimeBase + 0x20, 0); /* clear IE */
+    }
+    HalSerialWrite("boot: xhci irq=poll (fallback)");
+    if (Why && Why[0]) {
+        HalSerialWrite(" ");
+        HalSerialWrite(Why);
+    }
+    HalSerialWrite("\n");
+    XhciDrainEvents();
+}
+
 /*
- * MSI/MSI-X → IOAPIC INTx → poll。
- * 真机须补 USBCMD.INTE（Start 时未开，否则 irq=msi 也不出站）。
+ * PR-H-xhci-dual 占位：真机 base 未通前不武装 MSI-X。
+ * 实现时应：PciEnableMsi → EnableHostInterrupts → gIrqMode=DUAL、gUseIrq=1，
+ * 且 Drain 仍盲排空；探针失败则 XhciFallbackToPoll。
+ */
+int XhciTryEnterDual(USB_CONTROLLER *Device) {
+    (void)Device;
+    if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
+        return 1;
+    }
+    /* 占位：保持 POLL，供路线图/日后开刀接线 */
+    HalSerialWrite("boot: xhci dual=stub (hold poll base)\n");
+    gIrqMode = XHCI_IRQ_MODE_POLL;
+    gUseIrq = 0;
+    return 0;
+}
+
+XHCI_IRQ_MODE XhciIrqMode(void) {
+    return gIrqMode;
+}
+
+/* PHOTO：t=任意xfer i=键鼠匹配 k/m=推送 u=未匹配 se=最近slot.ep c=cc r=环事件 d=drain */
+void XhciDiagFormat(char *Buf, int Max) {
+    char Dig[12];
+    int N = 0;
+    UINT32 V[8];
+    int vi;
+    const char *Tags = "tikmucrd"; /* 紧凑标签；se 单独拼 */
+
+    if (!Buf || Max < 8) {
+        return;
+    }
+    V[0] = gStatXferAny;
+    V[1] = gStatIntrEvt + gStatMouseEvt;
+    V[2] = gStatKbdPush;
+    V[3] = gStatMousePush;
+    V[4] = gStatUnmatched;
+    V[5] = gStatLastCc;
+    V[6] = gStatEvtRing;
+    V[7] = gStatDrain;
+    Buf[0] = 0;
+    for (vi = 0; vi < 8 && N + 14 < Max; vi++) {
+        int t = 0;
+        UINT32 X = V[vi];
+        /* c 与 se 之间插入 se=；c 在 Tags[5] */
+        if (vi == 5 && N + 16 < Max) {
+            Buf[N++] = ' ';
+            Buf[N++] = 's';
+            Buf[N++] = '=';
+            {
+                UINT32 S = gStatLastSlot;
+                if (S >= 100) {
+                    S = 99;
+                }
+                Buf[N++] = (char)('0' + (S / 10));
+                Buf[N++] = (char)('0' + (S % 10));
+            }
+            Buf[N++] = '.';
+            {
+                UINT32 E = gStatLastEp;
+                if (E >= 100) {
+                    E = 99;
+                }
+                Buf[N++] = (char)('0' + (E / 10));
+                Buf[N++] = (char)('0' + (E % 10));
+            }
+        }
+        Buf[N++] = ' ';
+        Buf[N++] = Tags[vi];
+        Buf[N++] = '=';
+        if (X == 0) {
+            Buf[N++] = '0';
+            Buf[N] = 0;
+            continue;
+        }
+        while (X && t < 10) {
+            Dig[t++] = (char)('0' + (X % 10));
+            X /= 10;
+        }
+        while (t > 0 && N + 1 < Max) {
+            Buf[N++] = Dig[--t];
+        }
+        Buf[N] = 0;
+    }
+}
+
+/* Arm 后打一枪：期望的键鼠 slot/DCI，便于对照 s=. */
+void XhciDiagLogArms(void) {
+    char Line[96];
+    int n = 0;
+    const char *P = "boot: xhci arms kbd=";
+    while (*P && n < 28) {
+        Line[n++] = *P++;
+    }
+    Line[n++] = (char)('0' + ((gSlotId / 10) % 10));
+    Line[n++] = (char)('0' + (gSlotId % 10));
+    Line[n++] = '/';
+    Line[n++] = (char)('0' + ((gIntrDci / 10) % 10));
+    Line[n++] = (char)('0' + (gIntrDci % 10));
+    P = " mouse=";
+    while (*P && n < 48) {
+        Line[n++] = *P++;
+    }
+    Line[n++] = (char)('0' + ((gMouseSlotId / 10) % 10));
+    Line[n++] = (char)('0' + (gMouseSlotId % 10));
+    Line[n++] = '/';
+    Line[n++] = (char)('0' + ((gMouseIntrDci / 10) % 10));
+    Line[n++] = (char)('0' + (gMouseIntrDci % 10));
+    Line[n++] = '\n';
+    Line[n] = 0;
+    HalSerialWrite(Line);
+}
+
+/*
+ * QEMU：可开 MSI。真机：只进 POLL（base）；dual 走 XhciTryEnterDual。
  */
 int XhciEnableIrq(USB_CONTROLLER *Device) {
     UINT8 Dest;
@@ -2132,17 +2392,25 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
     if (gUseGetReport || (gSlotId == 0 && gMouseSlotId == 0)) {
         DebugWrite("XHCI: no interrupt EP, IRQ unused\n");
         gUseIrq = 0;
+        gIrqMode = XHCI_IRQ_MODE_POLL;
         HalSerialWrite("boot: xhci irq=none\n");
         return 0;
     }
-    /*
-     * PR-H-xhci-dual 阶段 1：真机未配 VT-d 中断重映射前，开 MSI/MSI-X 会被芯片组拦截导致
-     * xHCI 控制器挂起、DMA 传输通道被硬件锁死。真机阶段 1 强制走安全轮询保活底座，
-     * 确保物理按键能敲字、物理鼠标能平滑移动；MSI 攻克留给阶段 3。QEMU 继续开 MSI 冒烟。
-     */
+    /* 真机：H-xhci-base — 零 MSI，留下 dual 占位入口 */
     if (!HalCpuIsHypervisor()) {
         gUseIrq = 0;
-        HalSerialWrite("boot: xhci irq=poll (dual-guard)\n");
+        gIrqMode = XHCI_IRQ_MODE_POLL;
+        HalSerialWrite("boot: xhci irq=poll (base)\n");
+        (void)XhciTryEnterDual(Device); /* stub：打 dual=stub 行，不改模式 */
+        XhciDiagLogArms();
+        /* 枚举期可能已把中断 TRB 耗光且未再投递；Arm 时强制再门铃 */
+        if (gSlotId != 0 && gIntrDci != 0) {
+            QueueIntr();
+        }
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+            QueueMouseIntr();
+        }
+        HalSerialWrite("boot: xhci rearm intr\n");
         XhciDrainEvents();
         return 0;
     }
@@ -2151,6 +2419,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gUseIrq = 0;
         XhciDrainEvents();
         gUseIrq = 1;
+        gIrqMode = XHCI_IRQ_MODE_DUAL; /* QEMU：中断+Drain 同形，视为 dual 课堂形 */
         HalSerialWrite("boot: xhci irq=msi\n");
         return 1;
     }
@@ -2160,17 +2429,16 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gUseIrq = 0;
         XhciDrainEvents();
         gUseIrq = 1;
+        gIrqMode = XHCI_IRQ_MODE_DUAL;
         HalSerialWrite("boot: xhci irq=ioapic\n");
         return 1;
     }
     DebugWrite("XHCI: MSI/IOAPIC failed; poll drain\n");
-    gUseIrq = 0;
-    HalSerialWrite("boot: xhci irq=poll\n");
-    XhciDrainEvents();
+    XhciFallbackToPoll("no-msi");
     return 0;
 }
 
-/* 返回是否使用 MSI-X 中断模式（否则为 GET_REPORT 轮询） */
+/* 返回是否武装了设备中断（DUAL/IRQ）；POLL 时仍靠 Drain */
 int XhciUsesIrq(void) {
     return gUseIrq != 0;
 }

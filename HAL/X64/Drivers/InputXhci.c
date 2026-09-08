@@ -285,15 +285,19 @@ int InputXhciInit(void) {
     return ToyDriverInputReady() ? 0 : -1;
 }
 
-/* 真机 PHOTO 之后再开 MSI-X/IE；失败则仍靠 HalInputPoll→DrainEvents */
+/* 真机：Arm 走 base（EnableIrq→poll）；dual 占位在 XhciTryEnterDual */
 void InputXhciArmIrq(void) {
     if (!gXhciReady) {
         return;
     }
-    if (XhciUsesIrq()) {
+    if (!(XhciHidKeyboardReady() || XhciMousePresent())) {
         return;
     }
-    if (!(XhciHidKeyboardReady() || XhciMousePresent())) {
+    if (XhciIrqMode() == XHCI_IRQ_MODE_POLL && !HalCpuIsHypervisor()) {
+        (void)XhciEnableIrq(&gXhciDev); /* base + dual stub 日志 */
+        return;
+    }
+    if (XhciUsesIrq()) {
         return;
     }
     (void)XhciEnableIrq(&gXhciDev);

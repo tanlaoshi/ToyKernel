@@ -7,6 +7,7 @@
  */
 #include "HalSerial.h"
 #include "HalVideo.h"
+#include "HalDevices.h"
 #include "Serial.h"
 #include "Font.h"
 
@@ -279,22 +280,30 @@ static UINT64 ReadTsc(void) {
 }
 
 static void PhotoMarkLeft(UINT32 Left) {
-    char Msg[40];
-    const char *P = "boot: PHOTO hold ";
+    char Msg[120];
+    char Diag[80];
+    const char *P = "PHOTO ";
     int N = 0;
     UINT32 W;
     UINT32 H;
     UINT32 LineH;
     UINT32 Y;
 
-    while (*P && N < 24) {
+    while (*P && N < 8) {
         Msg[N++] = *P++;
     }
     Msg[N++] = (char)('0' + ((Left / 10) % 10));
     Msg[N++] = (char)('0' + (Left % 10));
     Msg[N++] = 's';
+    Diag[0] = 0;
+    HalInputDiagFormat(Diag, (int)sizeof(Diag));
+    {
+        int i = 0;
+        while (Diag[i] && N + 1 < (int)sizeof(Msg)) {
+            Msg[N++] = Diag[i++];
+        }
+    }
     Msg[N] = 0;
-    /* 读秒写屏底一行，不进 ring；整行清宽，避免与 PHOTO 提示残字叠在一起 */
     if (!gVideoUp) {
         return;
     }
@@ -392,7 +401,31 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     if (Start && *Start) {
         GopWrite(Start);
     }
-    GopWrite("\n*** PHOTO: shoot xhci / input lines now ***\n");
+    GopWrite("\n*** PHOTO: press keys/move mouse; watch t= i= u= s= ***\n");
+    {
+        char Res[48];
+        UINT32 W = 0;
+        UINT32 H = 0;
+        int n = 0;
+        const char *P = "boot: video ";
+        HalVideoGetSize(&W, &H);
+        while (*P && n < 16) {
+            Res[n++] = *P++;
+        }
+        Res[n++] = (char)('0' + ((W / 1000) % 10));
+        Res[n++] = (char)('0' + ((W / 100) % 10));
+        Res[n++] = (char)('0' + ((W / 10) % 10));
+        Res[n++] = (char)('0' + (W % 10));
+        Res[n++] = 'x';
+        Res[n++] = (char)('0' + ((H / 1000) % 10));
+        Res[n++] = (char)('0' + ((H / 100) % 10));
+        Res[n++] = (char)('0' + ((H / 10) % 10));
+        Res[n++] = (char)('0' + (H % 10));
+        Res[n++] = '\n';
+        Res[n] = 0;
+        GopWrite(Res);
+        HalSerialWrite(Res);
+    }
     gGopBatch = 0;
     HalVideoPresent();
 
@@ -402,6 +435,7 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
         PhotoMarkLeft(Left);
         T0 = ReadTsc();
         do {
+            HalInputPoll(); /* 读秒期间也排空，便于看 i=/k= 是否涨 */
             __asm__ volatile ("pause");
             Now = ReadTsc();
         } while (Now - T0 < OneSec);

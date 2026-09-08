@@ -88,19 +88,15 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H2：真机键盘
 
-> **2026-09-08 推送说明（家用参考）**：**真机桌面键鼠暂时不通**。本树是 NUC 调试检查点：枚举已见 `xhci-hid mouse/keyboard`，QEMU smoke 可过；**勿当输入已可用**。下一刀 **PR-H-xhci-base**（真机零 MSI / poll 基线）。路线图 §1.2.0 有回归结论。
+> **2026-09-08**：真机键鼠暂不通。计划：**base poll（默认+备份）→ hub → stat → dual（MSI-X，不通回 poll）→ 可选 irq**。代码已留 `XHCI_IRQ_MODE` / `XhciTryEnterDual` 占位。
 
-- **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`；多控制器逐个试 BAR
-- **PR-H-xhci-base 🔧（JX）**：先回退到「曾通」的真机 **poll 基线**（零 MSI / 不写 INTE·IE）；键→`KbdPush`、鼠→`MousePush`；验收 Shell 打字+鼠标移动
-- **PR-H-xhci-dual ⬜**：基线通后才试 MSI；`DrainEvents` 仍盲排空，失败回 poll
-- **PR-H-xhci-stat ⬜**：IRQ/Poll 计数探针；Shell 可查命中率
-- **PR-H-xhci-irq ⬜**：VT-d/投递攻坚；拔掉 poll 纯靠 `XhciIrq`
-- **回归笔记（2026-09-08）**：曾有版本按键驱动光标（证明 poll+DMA 通，仅解析错）；加真机 `irq=msi` 后桌面零输入。枚举已见 mouse/keyboard，缺的是基线保活而非再扫端口
-- **PS/2 fallback**：`InputPs2.c`（`ps2-kbd`），仅当 Input 类尚未绑定时 Probe；`lsdev` 可见 `xhci-hid` 或 `ps2-kbd`
-- 串口期望（`TOY_DEBUG=0` 也可见）：`boot: xhci-hid keyboard` 或 `boot: ps2-kbd keyboard`；cpu 模块后见 `boot: ioapic base=…`
-- **未做**：EHCI/UHCI、方向键全集、IRQ remapping / 多 IOAPIC、嵌套 hub / 多 TT / SS hub
-- **PR-H-ioapic**：`IoApicInit`；MSI 失败时 INTx → `VEC_XHCI`
-- **PR-H-hub 🔧**：真机走完整 Start+枚举；一层 Class 9 hub；课堂 `TOY_USB_HUB=1`；**枚举已在 NUC 见到键鼠**；打字/移动验收改挂 **H-xhci-base**
+- **PR-H-xhci-base 🔧（JX）**：真机 poll 基线；键/鼠分队列；**兼作 dual 失败备份**
+- **PR-H-xhci-dual ⬜**：base 通后；MSI-X + Drain 盲排空；`XhciFallbackToPoll`
+- **PR-H-xhci-stat ⬜**：完成 TRB / Poll / IRQ 计数
+- **PR-H-xhci-irq ⬜（可选）**：dual 证明后再减 poll
+- **回归笔记**：曾通 poll；裸 `irq=msi` 后桌面死；枚举已见键鼠
+- **PR-H-hub 🔧**：NUC 已见键鼠；打字挂 base
+- **PS/2 fallback** / **H-ioapic**：见 H2 其余条目；未做 EHCI/嵌套 hub 等
 
 ### H3：无 COM1 → GOP 控制台
 

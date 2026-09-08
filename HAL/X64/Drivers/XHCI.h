@@ -52,9 +52,28 @@ typedef struct {
     UINT8  Absolute;
 } USB_MOUSE_REPORT;
 
+/*
+ * 真机输入模式（PR-H-xhci-base → dual → irq）
+ * POLL：零 MSI，Drain 盲排空（产品默认 + dual 失败备份）
+ * DUAL：MSI-X 已武装，但 Drain 仍盲排空作 backup；不通则 FallbackToPoll
+ * IRQ ：纯中断（可选，dual 证明后再开）
+ */
+typedef enum {
+    XHCI_IRQ_MODE_POLL = 0,
+    XHCI_IRQ_MODE_DUAL = 1,
+    XHCI_IRQ_MODE_IRQ = 2
+} XHCI_IRQ_MODE;
+
 int XhciInit(UINT64 BaseAddress);
 int XhciHidKeyboardReady(void); /* 已 Address+Configure 键盘 */
 int XhciEnableIrq(USB_CONTROLLER *Device);
+/* PR-H-xhci-dual 占位：试进 DUAL；当前真机 stub，仍留 POLL */
+int XhciTryEnterDual(USB_CONTROLLER *Device);
+/* dual/irq 失败时切回 poll 备份 */
+void XhciFallbackToPoll(const char *Why);
+XHCI_IRQ_MODE XhciIrqMode(void);
+void XhciDiagFormat(char *Buf, int Max); /* PHOTO：t/i/k/m/u/s/c/r/d */
+void XhciDiagLogArms(void);              /* slot/DCI 期望值 */
 void XhciIrq(void);
 void XhciDrainEvents(void);
 int XhciDequeueKeyboard(USB_KEYBOARD_REPORT *Report);
