@@ -120,6 +120,10 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 |------|------|----------|------|-----|------|
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 
+**冒烟勾选表**（上电→Boot→桌面/串口；xHCI/盘/网；交作业用一页总表）：
+
+→ [`../../Documents/真机冒烟清单.md`](../../Documents/真机冒烟清单.md)（**PR-PC-smoke**）
+
 ---
 
 ## 5. 与代码边界
