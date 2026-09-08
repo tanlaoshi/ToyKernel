@@ -9,6 +9,7 @@
 #include "Debug.h"
 #include "InputPs2.h"
 #include "VirtualMemory.h"
+#include "SpinLock.h"
 
 #define PS2_DATA   0x60
 #define PS2_STATUS 0x64
@@ -26,6 +27,7 @@ static HAL_KEYBOARD_REPORT gQ[KBD_Q];
 static volatile UINT32 gRd;
 static volatile UINT32 gWr;
 static UINT8 gDown[256];
+static SPIN_LOCK gPs2Lock; /* PR-S-ap */
 
 static int Ps2StatusLooksDead(UINT8 St) {
     /* 无经典 8042 时端口常浮空为 0xFF */
@@ -224,6 +226,7 @@ static void OnBreak(UINT8 Sc) {
 static void Ps2Poll(void) {
     int Guard = 64;
 
+    SpinLockAcquire(&gPs2Lock);
     while (Guard-- > 0 && (HalIoRead8(PS2_STATUS) & STATUS_OBF)) {
         UINT8 B = HalIoRead8(PS2_DATA);
         if (B == 0xE0) {
@@ -244,18 +247,20 @@ static void Ps2Poll(void) {
             OnMake(B);
         }
     }
+    SpinLockRelease(&gPs2Lock);
 }
 
 static int Ps2KeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
-    if (!Report || !gPs2Ready) {
-        return 0;
+    int Ok = 0;
+
+    SpinLockAcquire(&gPs2Lock);
+    if (Report && gPs2Ready && gRd != gWr) {
+        *Report = gQ[gRd];
+        gRd = (gRd + 1) % KBD_Q;
+        Ok = 1;
     }
-    if (gRd == gWr) {
-        return 0;
-    }
-    *Report = gQ[gRd];
-    gRd = (gRd + 1) % KBD_Q;
-    return 1;
+    SpinLockRelease(&gPs2Lock);
+    return Ok;
 }
 
 static int Ps2MousePresent(void) {

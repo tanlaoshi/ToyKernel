@@ -12,6 +12,7 @@
 #include "Driver.h"
 #include "DriverInput.h"
 #include "HalDevices.h"
+#include "SpinLock.h"
 
 #define EV_SYN 0x00
 #define EV_KEY 0x01
@@ -47,6 +48,7 @@ static VIRTIO_MMIO_DEV gKbd;
 static VIRTIO_MMIO_DEV gTab;
 static int gKbdOn;
 static int gTabOn;
+static SPIN_LOCK gVirtioInputLock; /* PR-S-ap */
 
 static HAL_KEYBOARD_REPORT gKbdQ[KBD_Q_SIZE];
 static UINT32 gKbdHead;
@@ -368,21 +370,27 @@ static void InScanCb(UINT64 Base, UINT32 DeviceId, void *Ctx) {
 }
 
 static void VirtioInputPoll(void) {
+    SpinLockAcquire(&gVirtioInputLock);
     if (gKbdOn) {
         DrainDev(&gKbd, gKbdEvBuf, 0);
     }
     if (gTabOn) {
         DrainDev(&gTab, gTabEvBuf, 1);
     }
+    SpinLockRelease(&gVirtioInputLock);
 }
 
 static int VirtioInputKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
-    if (!Report || gKbdTail == gKbdHead) {
-        return 0;
+    int Ok = 0;
+
+    SpinLockAcquire(&gVirtioInputLock);
+    if (Report && gKbdTail != gKbdHead) {
+        *Report = gKbdQ[gKbdTail];
+        gKbdTail = (gKbdTail + 1) % KBD_Q_SIZE;
+        Ok = 1;
     }
-    *Report = gKbdQ[gKbdTail];
-    gKbdTail = (gKbdTail + 1) % KBD_Q_SIZE;
-    return 1;
+    SpinLockRelease(&gVirtioInputLock);
+    return Ok;
 }
 
 static int VirtioInputMousePresent(void) {
@@ -390,12 +398,16 @@ static int VirtioInputMousePresent(void) {
 }
 
 static int VirtioInputMouseDequeue(HAL_MOUSE_REPORT *Report) {
-    if (!Report || gMouseTail == gMouseHead) {
-        return 0;
+    int Ok = 0;
+
+    SpinLockAcquire(&gVirtioInputLock);
+    if (Report && gMouseTail != gMouseHead) {
+        *Report = gMouseQ[gMouseTail];
+        gMouseTail = (gMouseTail + 1) % MOUSE_Q_SIZE;
+        Ok = 1;
     }
-    *Report = gMouseQ[gMouseTail];
-    gMouseTail = (gMouseTail + 1) % MOUSE_Q_SIZE;
-    return 1;
+    SpinLockRelease(&gVirtioInputLock);
+    return Ok;
 }
 
 static const INPUT_BACKEND gInputBackend = {

@@ -1185,22 +1185,28 @@ void SchedulerStart(void) {
     }
 
     /*
-     * shell/gui 仍绑 BSP（Console/帧缓冲无大锁）；
-     * 交互任务 Priority 偏高；worker / 用户态 Affinity=-1，靠每核队列 + 偷任务上 AP。
+     * PR-S-ap：多核时 shell/gui 同钉 AP（逻辑 CPU1），BSP 留给 idle0 / 中断 / 偷任务；
+     * 单核仍钉 0。交互 Priority 偏高；worker Affinity=-1。
      */
-    for (i = 0; i < MAX_TASKS; i++) {
-        if (gTasks[i].State == TASK_UNUSED) {
-            continue;
-        }
-        if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||
-            (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u')) {
-            RunqRemove(&gTasks[i]);
-            gTasks[i].Affinity = 0;
-            gTasks[i].Priority = SCHED_PRIORITY_SHELL;
-            RunqEnqueue(0, &gTasks[i]);
+    {
+        UINT32 InteractiveCpu = (Cpus > 1) ? 1u : 0u;
+
+        for (i = 0; i < MAX_TASKS; i++) {
+            if (gTasks[i].State == TASK_UNUSED) {
+                continue;
+            }
+            if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||
+                (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u')) {
+                RunqRemove(&gTasks[i]);
+                gTasks[i].Affinity = (INT32)InteractiveCpu;
+                gTasks[i].HomeCpu = (INT32)InteractiveCpu;
+                gTasks[i].Priority = SCHED_PRIORITY_SHELL;
+                RunqEnqueue(InteractiveCpu, &gTasks[i]);
+            }
         }
     }
 
+    First = 0;
     for (i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State != TASK_READY) {
             continue;
@@ -1208,8 +1214,15 @@ void SchedulerStart(void) {
         if (gIdleTask[0] && &gTasks[i] == gIdleTask[0]) {
             continue;
         }
+        /* BSP 勿直接切入钉在 AP 上的任务 */
+        if (gTasks[i].Affinity >= 0 && gTasks[i].Affinity != 0) {
+            continue;
+        }
         First = &gTasks[i];
         break;
+    }
+    if (!First) {
+        First = gIdleTask[0];
     }
     if (!First) {
         ConsoleWrite("sched: no tasks\n");

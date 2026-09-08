@@ -24,6 +24,7 @@
 #include "Debug.h"
 #include "AcpiMadt.h"
 #include "Platform.h"
+#include "SpinLock.h"
 
 #define RING_SIZE           32
 #define EVT_SIZE            32
@@ -131,6 +132,7 @@ static volatile UINT32 gMouseIntrDone;
 static USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
 static volatile UINT32 gMouseWriteIndex;
 static volatile UINT32 gMouseReadIndex;
+static SPIN_LOCK gHidQueueLock; /* PR-S-ap：IRQ 入队 vs AP 出队 */
 
 static XHCI_TRB gCmdRing[RING_SIZE] __attribute__((aligned(64)));
 static XHCI_TRB gEp0Ring[RING_SIZE] __attribute__((aligned(64)));
@@ -1544,8 +1546,8 @@ static void ImClearPending(void) {
     WriteMmio32(gRuntimeBase + 0x20, Im | 1u);
 }
 
-/* XHCI MSI-X 中断处理：处理事件、重新排队中断传输 */
-void XhciIrq(void) {
+/* 持 gHidQueueLock：处理事件环并推键盘/鼠标报告 */
+static void XhciServiceHidLocked(void) {
     ProcessEvents();
     ImClearPending();
     if (gIntrDone) {
@@ -1560,33 +1562,41 @@ void XhciIrq(void) {
     }
 }
 
-/* 排空事件环：轮询不依赖 IMAN；IRQ 模式仍走 XhciIrq */
+/* XHCI MSI-X 中断处理：处理事件、重新排队中断传输 */
+void XhciIrq(void) {
+    SpinLockAcquire(&gHidQueueLock);
+    XhciServiceHidLocked();
+    SpinLockRelease(&gHidQueueLock);
+}
+
+/* 排空事件环：轮询不依赖 IMAN；IRQ 模式仍走服务路径（勿重入 XhciIrq 以免嵌套锁） */
 void XhciDrainEvents(void) {
     int i;
 
+    SpinLockAcquire(&gHidQueueLock);
     if (gUseIrq) {
         for (i = 0; i < 8; i++) {
             if (!(ReadMmio32(gRuntimeBase + 0x20) & 1u)) {
                 break;
             }
-            XhciIrq();
+            XhciServiceHidLocked();
         }
-        return;
+    } else {
+        for (i = 0; i < 32; i++) {
+            ProcessEvents();
+            if (gIntrDone) {
+                gIntrDone = 0;
+                KbdPush();
+                QueueIntr();
+            }
+            if (gMouseIntrDone) {
+                gMouseIntrDone = 0;
+                MousePush();
+                QueueMouseIntr();
+            }
+        }
     }
-
-    for (i = 0; i < 32; i++) {
-        ProcessEvents();
-        if (gIntrDone) {
-            gIntrDone = 0;
-            KbdPush();
-            QueueIntr();
-        }
-        if (gMouseIntrDone) {
-            gMouseIntrDone = 0;
-            MousePush();
-            QueueMouseIntr();
-        }
-    }
+    SpinLockRelease(&gHidQueueLock);
 }
 
 /* 通过 PciEnableMsi 绑定中断向量；失败仍可 Poll 排空事件环（PR-H2） */
@@ -1624,16 +1634,20 @@ int XhciKeyboardSetLeds(UINT8 Leds) {
 
 /* 从键盘报告队列取一条，有数据返回 1，空队列返回 0 */
 int XhciDequeueKeyboard(USB_KEYBOARD_REPORT *Report) {
-    if (gKeyboardReadIndex == gKeyboardWriteIndex) {
-        return 0;
+    int Ok = 0;
+
+    SpinLockAcquire(&gHidQueueLock);
+    if (gKeyboardReadIndex != gKeyboardWriteIndex) {
+        UINT8 *Src = (UINT8 *)&gKbdQ[gKeyboardReadIndex];
+        UINT8 *Dst = (UINT8 *)Report;
+        for (int i = 0; i < 8; i++) {
+            Dst[i] = Src[i];
+        }
+        gKeyboardReadIndex = (gKeyboardReadIndex + 1) % KBD_Q;
+        Ok = 1;
     }
-    UINT8 *Src = (UINT8 *)&gKbdQ[gKeyboardReadIndex];
-    UINT8 *Dst = (UINT8 *)Report;
-    for (int i = 0; i < 8; i++) {
-        Dst[i] = Src[i];
-    }
-    gKeyboardReadIndex = (gKeyboardReadIndex + 1) % KBD_Q;
-    return 1;
+    SpinLockRelease(&gHidQueueLock);
+    return Ok;
 }
 
 int XhciMousePresent(void) {
@@ -1641,10 +1655,14 @@ int XhciMousePresent(void) {
 }
 
 int XhciDequeueMouse(USB_MOUSE_REPORT *Report) {
-    if (gMouseReadIndex == gMouseWriteIndex) {
-        return 0;
+    int Ok = 0;
+
+    SpinLockAcquire(&gHidQueueLock);
+    if (gMouseReadIndex != gMouseWriteIndex) {
+        *Report = gMouseQ[gMouseReadIndex];
+        gMouseReadIndex = (gMouseReadIndex + 1) % MOUSE_Q;
+        Ok = 1;
     }
-    *Report = gMouseQ[gMouseReadIndex];
-    gMouseReadIndex = (gMouseReadIndex + 1) % MOUSE_Q;
-    return 1;
+    SpinLockRelease(&gHidQueueLock);
+    return Ok;
 }
