@@ -86,6 +86,8 @@ static void GopBannerOnce(void) {
     HalVideoPresent();
 }
 
+static int gGopBatch; /* PhotoHold：凑齐再 Present，且禁止卷屏清掉枚举日志 */
+
 static void GopFlushLine(void) {
     UINT32 W;
     UINT32 H;
@@ -105,13 +107,20 @@ static void GopFlushLine(void) {
     /* 整行字形必须在 Limit 之上；宁可提前卷屏也不出半截字 */
     Limit = (H > LineH + BOOT_LOG_MARGIN) ? (H - LineH - BOOT_LOG_MARGIN) : BootLogBodyY(LineH);
     if (gBootLogY > Limit) {
+        if (gGopBatch) {
+            /* 拍照模式：停笔，保留已画的枚举行，避免「白字闪过后只剩读秒」 */
+            gLineLen = 0;
+            return;
+        }
         BootLogClearBody(W, H, LineH);
         HalVideoPresent();
     }
     HalVideoDrawStringAt(BOOT_LOG_X, gBootLogY, gLine, 0x00FFFFFFu);
     gBootLogY += LineH;
     gLineLen = 0;
-    HalVideoPresent();
+    if (!gGopBatch) {
+        HalVideoPresent();
+    }
 }
 
 static void GopWrite(const char *Text) {
@@ -259,4 +268,143 @@ void HalSerialBootLogRewind(void) {
     LineH = BootLogLineH();
     gBootLogY = BootLogBodyY(LineH);
     gLineLen = 0;
+}
+
+static UINT64 ReadTsc(void) {
+    UINT32 Lo;
+    UINT32 Hi;
+
+    __asm__ volatile ("rdtsc" : "=a"(Lo), "=d"(Hi));
+    return ((UINT64)Hi << 32) | Lo;
+}
+
+static void PhotoMarkLeft(UINT32 Left) {
+    char Msg[40];
+    const char *P = "boot: PHOTO hold ";
+    int N = 0;
+    UINT32 W;
+    UINT32 H;
+    UINT32 LineH;
+    UINT32 Y;
+
+    while (*P && N < 24) {
+        Msg[N++] = *P++;
+    }
+    Msg[N++] = (char)('0' + ((Left / 10) % 10));
+    Msg[N++] = (char)('0' + (Left % 10));
+    Msg[N++] = 's';
+    Msg[N] = 0;
+    /* 读秒写屏底一行，不进 ring；整行清宽，避免与 PHOTO 提示残字叠在一起 */
+    if (!gVideoUp) {
+        return;
+    }
+    HalVideoGetSize(&W, &H);
+    LineH = BootLogLineH();
+    if (H > LineH + 8) {
+        Y = H - LineH - 8;
+    } else {
+        Y = BootLogBodyY(LineH);
+    }
+    if (W == 0) {
+        W = 1024;
+    }
+    HalVideoDrawBeginFront();
+    HalVideoFillRect(0, Y, W, LineH + 2, 0x00000000u);
+    HalVideoDrawStringAt(BOOT_LOG_X, Y, Msg, 0x00FFFF00u);
+    HalVideoDrawEndFront();
+}
+
+/*
+ * 真机 xHCI 期间 GOP mute，枚举行只进 ring；GuiInit 又会立刻铺桌面。
+ * unmute 后画 ring「尾部」（一屏能装下的最后若干行），禁止卷屏清空，
+ * 再停 Seconds 秒拍照。读秒只改屏底，不碰枚举区。
+ */
+void HalSerialGopPhotoHold(UINT32 Seconds) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 LineH;
+    UINT32 Left;
+    UINT32 MaxLines;
+    UINT32 LineCount;
+    UINT32 Skip;
+    UINT32 i;
+    UINT64 T0;
+    UINT64 Now;
+    UINT64 OneSec;
+    const char *Log;
+    const char *Start;
+
+    if (Seconds == 0) {
+        return;
+    }
+    HalSerialGopMute(0);
+    if (!gVideoUp) {
+        return;
+    }
+    HalVideoGetSize(&W, &H);
+    LineH = BootLogLineH();
+    if (H == 0) {
+        H = 768;
+    }
+    MaxLines = 20;
+    if (LineH > 0 && H > BootLogBodyY(LineH) + LineH * 3) {
+        /* 预留屏底一行给读秒，避免与 *** PHOTO *** 叠字 */
+        MaxLines = (H - BootLogBodyY(LineH) - LineH * 3) / LineH;
+        if (MaxLines < 8) {
+            MaxLines = 8;
+        }
+        if (MaxLines > 40) {
+            MaxLines = 40;
+        }
+    }
+
+    gGopBanner = 0;
+    GopBannerOnce();
+    BootLogClearBody(W, H, LineH);
+
+    Log = HalSerialLogText();
+    Start = Log ? Log : "";
+    LineCount = 0;
+    for (i = 0; Start[i]; i++) {
+        if (Start[i] == '\n') {
+            LineCount++;
+        }
+    }
+    Skip = 0;
+    if (LineCount > MaxLines) {
+        Skip = LineCount - MaxLines;
+        LineCount = 0;
+        for (i = 0; Start[i]; i++) {
+            if (Start[i] == '\n') {
+                LineCount++;
+                if (LineCount == Skip) {
+                    Start = Start + i + 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    gGopBatch = 1;
+    if (Skip > 0) {
+        GopWrite("(boot log tail — earlier lines omitted)\n");
+    }
+    if (Start && *Start) {
+        GopWrite(Start);
+    }
+    GopWrite("\n*** PHOTO: shoot xhci / input lines now ***\n");
+    gGopBatch = 0;
+    HalVideoPresent();
+
+    /* ~2GHz 估 1s；偏短的机器仍有一整屏尾部日志可拍 */
+    OneSec = 2000000000ULL;
+    for (Left = Seconds; Left > 0; Left--) {
+        PhotoMarkLeft(Left);
+        T0 = ReadTsc();
+        do {
+            __asm__ volatile ("pause");
+            Now = ReadTsc();
+        } while (Now - T0 < OneSec);
+    }
+    HalSerialBootMark("boot: PHOTO done, desktop next\n");
 }

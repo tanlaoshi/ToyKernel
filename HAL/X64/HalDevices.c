@@ -32,6 +32,10 @@ int HalUsbInit(void) {
     return InputXhciInit();
 }
 
+void HalInputArmIrq(void) {
+    InputXhciArmIrq();
+}
+
 void HalInputPoll(void) {
     ToyDriverInputPoll();
 }

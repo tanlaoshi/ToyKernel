@@ -25,6 +25,9 @@ int HalUsbInit(void) {
     return VirtioInputInit();
 }
 
+void HalInputArmIrq(void) {
+}
+
 void HalInputPoll(void) {
     ToyDriverInputPoll();
 }

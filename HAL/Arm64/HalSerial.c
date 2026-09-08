@@ -71,3 +71,7 @@ void HalSerialGopMute(int Mute) {
 void HalSerialBootMark(const char *Text) {
     HalSerialWrite(Text);
 }
+
+void HalSerialGopPhotoHold(UINT32 Seconds) {
+    (void)Seconds;
+}

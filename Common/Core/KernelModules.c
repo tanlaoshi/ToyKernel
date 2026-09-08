@@ -106,6 +106,12 @@ static int InitializeUsb(void) {
     } else {
         HalSerialWrite("boot: input NONE (continue)\n");
     }
+    /* 真机：先 Arm MSI（写入 irq= 行），再 PHOTO 拍尾部日志（含 irq=msi）。 */
+    if (!HalCpuIsHypervisor()) {
+        HalSerialWrite("boot: xhci-Hhid photo-hold build\n");
+        HalInputArmIrq();
+        HalSerialGopPhotoHold(20);
+    }
     return 0; /* 无键盘也必须进 gui / 桌面 */
 }
 

@@ -18,6 +18,8 @@ void HalSerialBootLogRewind(void);
 void HalSerialGopMute(int Mute);
 /* 真机：直写帧缓冲一行进度（不 Present），并入环/串口 */
 void HalSerialBootMark(const char *Text);
+/* 真机进桌面前：把 ring 刷到 GOP 并停若干秒，方便拍照（QEMU 不要调用） */
+void HalSerialGopPhotoHold(UINT32 Seconds);
 int HalSerialDataReady(void);
 char HalSerialReadChar(void);
 void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits);

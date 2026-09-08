@@ -63,7 +63,7 @@ static void MapXhciBar(UINT64 Base) {
 }
 
 static void XhciInputPoll(void) {
-    if (gXhciReady && XhciHidKeyboardReady()) {
+    if (gXhciReady && (XhciHidKeyboardReady() || XhciMousePresent())) {
         XhciDrainEvents();
     }
 }
@@ -151,8 +151,11 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
         }
         return 0;
     }
-    /* PR-H-ioapic：MSI 优先；失败则 IOAPIC INTx；再失败 poll（H2） */
-    if (Dev && XhciHidKeyboardReady()) {
+    /*
+     * 课堂：立刻开 MSI。真机：枚举阶段保持 IE=0，PHOTO 后再 InputXhciArmIrq，
+     * 避免中断风暴把 boot 日志冲掉。
+     */
+    if (Dev && !RealPc && (XhciHidKeyboardReady() || XhciMousePresent())) {
         (void)XhciEnableIrq(Dev);
         if (!XhciUsesIrq()) {
             DebugWrite("XHCI: bound without IRQ (poll)\n");
@@ -204,9 +207,13 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         gXhciDev = Controllers[i];
         if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
             HalSerialWrite("boot: xhci init returned\n");
-            if (XhciHidKeyboardReady()) {
+            if (XhciHidKeyboardReady() || XhciMousePresent()) {
                 gXhciReady = 1;
-                HalSerialWrite("boot: xhci-hid keyboard\n");
+                if (XhciHidKeyboardReady()) {
+                    HalSerialWrite("boot: xhci-hid keyboard\n");
+                } else {
+                    HalSerialWrite("boot: xhci-hid mouse\n");
+                }
                 if (OutPriv) {
                     *OutPriv = 0;
                 }
@@ -276,4 +283,21 @@ void InputXhciRegister(void) {
 int InputXhciInit(void) {
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_INPUT);
     return ToyDriverInputReady() ? 0 : -1;
+}
+
+/* 真机 PHOTO 之后再开 MSI-X/IE；失败则仍靠 HalInputPoll→DrainEvents */
+void InputXhciArmIrq(void) {
+    if (!gXhciReady) {
+        return;
+    }
+    if (XhciUsesIrq()) {
+        return;
+    }
+    if (!(XhciHidKeyboardReady() || XhciMousePresent())) {
+        return;
+    }
+    (void)XhciEnableIrq(&gXhciDev);
+    if (!XhciUsesIrq()) {
+        HalSerialWrite("boot: xhci arm fallback poll\n");
+    }
 }

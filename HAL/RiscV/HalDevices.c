@@ -47,6 +47,9 @@ int HalUsbInit(void) {
 #endif
 }
 
+void HalInputArmIrq(void) {
+}
+
 void HalInputPoll(void) {
     ToyDriverInputPoll();
 }

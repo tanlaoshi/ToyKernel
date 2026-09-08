@@ -66,10 +66,11 @@ static const SETTINGS_COLOR gShellColors[] = {
 
 /* 与路线图 / ToyBoot QEMU 友好表对齐 */
 static const SETTINGS_MODE gModes[] = {
-    { "800x600",   800,  600 },
-    { "1024x768", 1024,  768 },
-    { "1280x720", 1280,  720 },
-    { "1600x900", 1600,  900 },
+    { "800x600",    800,  600 },
+    { "1024x768",  1024,  768 },
+    { "1280x720",  1280,  720 },
+    { "1600x900",  1600,  900 },
+    { "1920x1080", 1920, 1080 },
 };
 
 #define DESKTOP_COLOR_COUNT \

@@ -88,11 +88,17 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H2：真机键盘
 
-- **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`；多控制器逐个试 BAR；**MSI → IOAPIC INTx → poll**（`HalInputPoll` → `XhciDrainEvents`）
+- **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`；多控制器逐个试 BAR
+- **PR-H-xhci-base 🔧（JX）**：先回退到「曾通」的真机 **poll 基线**（零 MSI / 不写 INTE·IE）；键→`KbdPush`、鼠→`MousePush`；验收 Shell 打字+鼠标移动
+- **PR-H-xhci-dual ⬜**：基线通后才试 MSI；`DrainEvents` 仍盲排空，失败回 poll
+- **PR-H-xhci-stat ⬜**：IRQ/Poll 计数探针；Shell 可查命中率
+- **PR-H-xhci-irq ⬜**：VT-d/投递攻坚；拔掉 poll 纯靠 `XhciIrq`
+- **回归笔记（2026-09-08）**：曾有版本按键驱动光标（证明 poll+DMA 通，仅解析错）；加真机 `irq=msi` 后桌面零输入。枚举已见 mouse/keyboard，缺的是基线保活而非再扫端口
 - **PS/2 fallback**：`InputPs2.c`（`ps2-kbd`），仅当 Input 类尚未绑定时 Probe；`lsdev` 可见 `xhci-hid` 或 `ps2-kbd`
 - 串口期望（`TOY_DEBUG=0` 也可见）：`boot: xhci-hid keyboard` 或 `boot: ps2-kbd keyboard`；cpu 模块后见 `boot: ioapic base=…`
-- **未做**：USB hub、EHCI/UHCI、方向键全集、IRQ remapping / 多 IOAPIC
-- **PR-H-ioapic**：`IoApicInit`（MADT Type1/2）；MSI 失败时 XHCI 经 IOAPIC INTx → `VEC_XHCI`；SMP>1 时 dest=AP1
+- **未做**：EHCI/UHCI、方向键全集、IRQ remapping / 多 IOAPIC、嵌套 hub / 多 TT / SS hub
+- **PR-H-ioapic**：`IoApicInit`；MSI 失败时 INTx → `VEC_XHCI`
+- **PR-H-hub 🔧**：真机走完整 Start+枚举；一层 Class 9 hub；课堂 `TOY_USB_HUB=1`；**枚举已在 NUC 见到键鼠**；打字/移动验收改挂 **H-xhci-base**
 
 ### H3：无 COM1 → GOP 控制台
 
@@ -122,6 +128,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
+| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。下一刀：零 MSI 的 `irq=poll (base)` 恢复打字 |
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 
 **冒烟勾选表**（上电→Boot→桌面/串口；xHCI/盘/网；交作业用一页总表）：
