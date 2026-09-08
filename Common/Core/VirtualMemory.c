@@ -100,8 +100,7 @@ void VirtualMemorySpaceDestroy(VIRTUAL_ADDRESS_SPACE *Space) {
             Phys = Pte & ~0xFFFULL;
             PhysicalMemoryReleasePage((void *)(UINTN)Phys);
         }
-        HalPageUnmapRange(Space->Root, USER_CODE_VIRT,
-                          USER_STACK_VIRT + USER_STACK_SIZE);
+        HalPageUnmapRange(Space->Root, USER_CODE_VIRT, USER_VIRT_END);
     }
     for (int i = 0; i < Space->PageCount; i++) {
         PhysicalMemoryFreePage(Space->Pages[i]);

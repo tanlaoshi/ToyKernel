@@ -33,6 +33,8 @@
 #define SYS_FILE_STAT     22
 #define SYS_OPEN_DIRECTORY 23
 #define SYS_READ_DIRECTORY 24
+#define SYS_MMAP          25
+#define SYS_MUNMAP        26
 
 #define WNOHANG 1
 
@@ -121,6 +123,14 @@ static inline long toy_open_directory(const char *path) {
 
 static inline long toy_read_directory(long dirfd, void *out) {
     return toy_syscall(SYS_READ_DIRECTORY, dirfd, (long)out, 0);
+}
+
+static inline long toy_mmap(long len, long prot, long flags) {
+    return toy_syscall(SYS_MMAP, len, prot, flags);
+}
+
+static inline long toy_munmap(long addr, long len) {
+    return toy_syscall(SYS_MUNMAP, addr, len, 0);
 }
 
 static inline long toy_socket(long domain, long type, long protocol) {

@@ -19,6 +19,8 @@
 #define USER_VIRT_END   HalUserVirtEnd()
 /* 堆向上长到 SO 基址之前，避免盖住 USER_SO_BASE（PR-P3） */
 #define USER_BRK_MAX    HalUserBrkMax()
+#define USER_MMAP_BASE  HalUserMmapBase()
+#define USER_MMAP_END   HalUserMmapEnd()
 
 #define VM_SPACE_MAX_PAGES 128
 

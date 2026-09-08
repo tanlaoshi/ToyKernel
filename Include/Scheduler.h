@@ -63,6 +63,7 @@ typedef struct TASK {
     int                    InRunq;     /* 已在某核 READY 队列中 */
     UINT64                 BrkBase;    /* 映像数据/BSS 末；不可低于此（PR-P3） */
     UINT64                 Brk;        /* 当前 program break */
+    UINT64                 MmapNext;   /* PR-U-mmap：下一匿名映射 VA */
     TASK_FD                Fds[MAX_FDS];
 } TASK;
 

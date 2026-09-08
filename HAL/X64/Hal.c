@@ -133,8 +133,14 @@ UINT64 HalUserBrkMax(void) {
 UINT64 HalUserSoBase(void) {
     return 0x40080000ULL;
 }
+UINT64 HalUserMmapBase(void) {
+    return 0x40200000ULL;
+}
+UINT64 HalUserMmapEnd(void) {
+    return 0x40400000ULL; /* 2MiB 教学匿名区 */
+}
 UINT64 HalUserVirtEnd(void) {
-    return HalUserStackVirt() + HalUserStackSize();
+    return HalUserMmapEnd();
 }
 void HalUserSelfTest(void) {
     /* x86 用户路径由 FAT ELF / runuser 覆盖；无需内嵌自测 */

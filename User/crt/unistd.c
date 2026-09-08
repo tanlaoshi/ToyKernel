@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <toyos/syscall.h>
 
 int open(const char *path, int flags) {
@@ -140,6 +141,46 @@ void *brk(void *addr) {
         return (void *)(long)-1;
     }
     return (void *)r;
+}
+
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+    long r;
+
+    (void)fd;
+    (void)offset;
+    if (addr != 0 || length == 0) {
+        errno = EINVAL;
+        return MAP_FAILED;
+    }
+    if ((flags & MAP_ANONYMOUS) == 0) {
+        errno = EINVAL;
+        return MAP_FAILED;
+    }
+    if ((prot & (PROT_READ | PROT_WRITE)) == 0) {
+        errno = EINVAL;
+        return MAP_FAILED;
+    }
+    r = toy_mmap((long)length, (long)prot, (long)flags);
+    if (r < 0) {
+        errno = ENOMEM;
+        return MAP_FAILED;
+    }
+    return (void *)r;
+}
+
+int munmap(void *addr, size_t length) {
+    long r;
+
+    if (!addr || length == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    r = toy_munmap((long)addr, (long)length);
+    if (r < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
 }
 
 int kill(pid_t pid, int sig) {

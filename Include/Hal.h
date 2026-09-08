@@ -60,6 +60,9 @@ UINT64 HalUserStackSize(void);
 UINT64 HalUserBrkMax(void);
 UINT64 HalUserSoBase(void);
 UINT64 HalUserVirtEnd(void);
+/* PR-U-mmap：匿名映射区 [MmapBase, MmapEnd)；含于 VirtEnd */
+UINT64 HalUserMmapBase(void);
+UINT64 HalUserMmapEnd(void);
 /* 内嵌极小用户映像：进 EL0/U + write/exit（x86 空；virt 冒烟） */
 void HalUserSelfTest(void);
 

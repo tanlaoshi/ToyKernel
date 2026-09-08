@@ -218,8 +218,14 @@ UINT64 HalUserBrkMax(void) {
 UINT64 HalUserSoBase(void) {
     return 0x100080000ULL;
 }
+UINT64 HalUserMmapBase(void) {
+    return 0x100200000ULL;
+}
+UINT64 HalUserMmapEnd(void) {
+    return 0x100400000ULL;
+}
 UINT64 HalUserVirtEnd(void) {
-    return HalUserStackVirt() + HalUserStackSize();
+    return HalUserMmapEnd();
 }
 
 static void FrameZero(HAL_INTERRUPT_FRAME *F) {

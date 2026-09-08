@@ -77,6 +77,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     cp User/execdemo.elf ../ToyImage/EXECDEMO.ELF
     cp User/pipedemo.elf ../ToyImage/PIPEDEMO.ELF
     cp User/brkdemo.elf ../ToyImage/BRKDEMO.ELF
+    cp User/mmapdemo.elf ../ToyImage/MMAPDEMO.ELF
     cp User/killdemo.elf ../ToyImage/KILLDEMO.ELF
     cp User/windemo.elf ../ToyImage/WINDEMO.ELF
     cp User/guidemo.elf ../ToyImage/GUIDEMO.ELF
@@ -99,6 +100,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
         cp -f ../ToyImage/EXECDEMO.ELF ../ToyImage/rootfs/EXECDEMO.ELF
         cp -f ../ToyImage/PIPEDEMO.ELF ../ToyImage/rootfs/PIPEDEMO.ELF
         cp -f ../ToyImage/BRKDEMO.ELF ../ToyImage/rootfs/BRKDEMO.ELF
+        cp -f ../ToyImage/MMAPDEMO.ELF ../ToyImage/rootfs/MMAPDEMO.ELF
         cp -f ../ToyImage/KILLDEMO.ELF ../ToyImage/rootfs/KILLDEMO.ELF
         cp -f ../ToyImage/WINDEMO.ELF ../ToyImage/rootfs/WINDEMO.ELF
         cp -f ../ToyImage/GUIDEMO.ELF ../ToyImage/rootfs/GUIDEMO.ELF

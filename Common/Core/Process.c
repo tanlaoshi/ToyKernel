@@ -376,6 +376,142 @@ UINT64 ProcessBrk(UINT64 NewBrk) {
     return NewBrk;
 }
 
+/* PROT_* / MAP_* 与 User/include/sys/mman.h 一致（教学子集） */
+#define TOY_PROT_READ  0x1
+#define TOY_PROT_WRITE 0x2
+#define TOY_MAP_PRIVATE   0x02
+#define TOY_MAP_ANONYMOUS 0x20
+#define TOY_MMAP_MAX_LEN  (256u * 1024u)
+
+/*
+ * PR-U-mmap：匿名私有映射。Addr 固定由内核分配（CRT 传 addr=NULL）。
+ * 仅 MAP_ANONYMOUS；Len 向上页对齐，单次 ≤256KiB，落在 [USER_MMAP_BASE, END)。
+ */
+UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
+    TASK *T;
+    VIRTUAL_ADDRESS_SPACE *Space;
+    UINT64 Need;
+    UINT64 Base;
+    UINT64 Va;
+    UINT64 FlagsPte;
+
+    T = SchedulerCurrent();
+    if (!T || !T->IsUser || !T->UserSpace) {
+        return (UINT64)(INT64)-1;
+    }
+    if (Len == 0 || Len > TOY_MMAP_MAX_LEN) {
+        return (UINT64)(INT64)-1;
+    }
+    if ((Flags & TOY_MAP_ANONYMOUS) == 0) {
+        return (UINT64)(INT64)-1;
+    }
+    if ((Prot & (TOY_PROT_READ | TOY_PROT_WRITE)) == 0) {
+        return (UINT64)(INT64)-1;
+    }
+
+    Need = AlignUpPage(Len);
+    if (T->MmapNext < USER_MMAP_BASE) {
+        T->MmapNext = USER_MMAP_BASE;
+    }
+    Base = AlignUpPage(T->MmapNext);
+    if (Base < USER_MMAP_BASE || Base > USER_MMAP_END ||
+        Base + Need < Base || Base + Need > USER_MMAP_END) {
+        return (UINT64)(INT64)-1;
+    }
+
+    Space = T->UserSpace;
+    FlagsPte = PTE_PRESENT | PTE_USER;
+    if (Prot & TOY_PROT_WRITE) {
+        FlagsPte |= PTE_WRITABLE;
+    }
+
+    for (Va = Base; Va < Base + Need; Va += PAGE_SIZE) {
+        UINT64 Pte = HalPageGetEntry(Space->Root, Va);
+        void *Page;
+
+        if ((Pte & HAL_PAGE_PRESENT) && (Pte & HAL_PAGE_USER)) {
+            return (UINT64)(INT64)-1;
+        }
+            Page = PhysicalMemoryAllocatePage();
+            if (!Page) {
+                /* 回滚已映射页 */
+                {
+                    UINT64 Rb;
+                    for (Rb = Base; Rb < Va; Rb += PAGE_SIZE) {
+                        UINT64 P = HalPageGetEntry(Space->Root, Rb);
+                        if ((P & HAL_PAGE_PRESENT) && (P & HAL_PAGE_USER)) {
+                            HalPageUnmapRange(Space->Root, Rb, Rb + PAGE_SIZE);
+                            PhysicalMemoryReleasePage((void *)(UINTN)(P & ~0xFFFULL));
+                        }
+                    }
+                }
+                return (UINT64)(INT64)-1;
+            }
+        {
+            UINT8 *B = (UINT8 *)Page;
+            UINTN i;
+            for (i = 0; i < PAGE_SIZE; i++) {
+                B[i] = 0;
+            }
+        }
+        if (VirtualMemorySpaceMapPage(Space, Va, (UINT64)(UINTN)Page, FlagsPte) != 0) {
+            PhysicalMemoryFreePage(Page);
+            {
+                UINT64 Rb;
+                for (Rb = Base; Rb < Va; Rb += PAGE_SIZE) {
+                    UINT64 P = HalPageGetEntry(Space->Root, Rb);
+                    if ((P & HAL_PAGE_PRESENT) && (P & HAL_PAGE_USER)) {
+                        HalPageUnmapRange(Space->Root, Rb, Rb + PAGE_SIZE);
+                        PhysicalMemoryReleasePage((void *)(UINTN)(P & ~0xFFFULL));
+                    }
+                }
+            }
+            return (UINT64)(INT64)-1;
+        }
+    }
+
+    T->MmapNext = Base + Need;
+    return Base;
+}
+
+UINT64 ProcessMunmap(UINT64 Addr, UINT64 Len) {
+    TASK *T;
+    VIRTUAL_ADDRESS_SPACE *Space;
+    UINT64 From;
+    UINT64 To;
+    UINT64 Va;
+
+    T = SchedulerCurrent();
+    if (!T || !T->IsUser || !T->UserSpace) {
+        return (UINT64)(INT64)-1;
+    }
+    if (Len == 0 || (Addr & ((UINT64)PAGE_SIZE - 1)) != 0) {
+        return (UINT64)(INT64)-1;
+    }
+    if (Addr < USER_MMAP_BASE || Addr >= USER_MMAP_END) {
+        return (UINT64)(INT64)-1;
+    }
+    From = Addr;
+    To = AlignUpPage(Addr + Len);
+    if (To < From || To > USER_MMAP_END) {
+        return (UINT64)(INT64)-1;
+    }
+
+    Space = T->UserSpace;
+    for (Va = From; Va < To; Va += PAGE_SIZE) {
+        UINT64 Pte = HalPageGetEntry(Space->Root, Va);
+        UINT64 Phys;
+
+        if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
+            continue;
+        }
+        Phys = Pte & ~0xFFFULL;
+        HalPageUnmapRange(Space->Root, Va, Va + PAGE_SIZE);
+        PhysicalMemoryReleasePage((void *)(UINTN)Phys);
+    }
+    return 0;
+}
+
 int ProcessExec(const char *Path) {
     VIRTUAL_ADDRESS_SPACE *Space;
     ELF_LOAD_RESULT Info;
@@ -478,6 +614,7 @@ int ProcessExecve(HAL_INTERRUPT_FRAME *Frame, const char *Path, UINT64 UserArgv,
     T->Waiting = 0;
     T->BrkBase = Info.BrkBase;
     T->Brk = Info.BrkBase;
+    T->MmapNext = USER_MMAP_BASE;
     /* 保留 Fds / ParentId / Id；映像已换 */
     HalFrameSetUserEntry(Frame, Info.Entry, NewRsp);
     T->Frame = Frame;

@@ -29,6 +29,8 @@
 #define SYS_FILE_STAT     22  /* PR-F4：FileStat */
 #define SYS_OPEN_DIRECTORY 23 /* PR-F4：OpenDirectory → dirfd */
 #define SYS_READ_DIRECTORY 24 /* PR-F4：ReadDirectory */
+#define SYS_MMAP           25 /* PR-U-mmap：匿名映射 */
+#define SYS_MUNMAP         26
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1
@@ -50,6 +52,8 @@
 /* SYS_FILE_STAT：rdi=path rsi=TOY_FILE_STAT* → 0；失败 -1（PR-F4） */
 /* SYS_OPEN_DIRECTORY：rdi=path → dirfd；失败 -1（PR-F4） */
 /* SYS_READ_DIRECTORY：rdi=dirfd rsi=TOY_DIR_ENT* → 1 有项 / 0 结束 / -1 失败 */
+/* SYS_MMAP：rdi=len rsi=prot rdx=flags → VA；仅 MAP_ANONYMOUS；失败 -1（PR-U-mmap） */
+/* SYS_MUNMAP：rdi=addr rsi=len → 0；失败 -1 */
 /* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type(SOCK_STREAM=1) rdx=protocol
  * SYS_CONNECT：rdi=fd rsi=ip(host-order u32) rdx=port
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port

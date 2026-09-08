@@ -483,6 +483,15 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         HalFrameSetReturn(Frame, (UINT64)(long)SysReadDirectory(
             (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
         break;
+    case SYS_MMAP:
+        HalFrameSetReturn(Frame, ProcessMmap(
+            HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
+            HalFrameGetArgument2(Frame)));
+        break;
+    case SYS_MUNMAP:
+        HalFrameSetReturn(Frame, ProcessMunmap(
+            HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
+        break;
     default:
         ConsoleWrite("syscall: unknown ");
         ConsoleWriteHex64(HalFrameSyscallNum(Frame));
