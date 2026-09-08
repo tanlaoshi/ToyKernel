@@ -88,6 +88,8 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H2：真机键盘
 
+> **2026-09-08 推送说明（家用参考）**：**真机桌面键鼠暂时不通**。本树是 NUC 调试检查点：枚举已见 `xhci-hid mouse/keyboard`，QEMU smoke 可过；**勿当输入已可用**。下一刀 **PR-H-xhci-base**（真机零 MSI / poll 基线）。路线图 §1.2.0 有回归结论。
+
 - **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`；多控制器逐个试 BAR
 - **PR-H-xhci-base 🔧（JX）**：先回退到「曾通」的真机 **poll 基线**（零 MSI / 不写 INTE·IE）；键→`KbdPush`、鼠→`MousePush`；验收 Shell 打字+鼠标移动
 - **PR-H-xhci-dual ⬜**：基线通后才试 MSI；`DrainEvents` 仍盲排空，失败回 poll
