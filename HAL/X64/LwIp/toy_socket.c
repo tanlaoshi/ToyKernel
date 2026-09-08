@@ -10,10 +10,44 @@
 #include "toy_ip.h"
 #include "Hal.h"
 #include "LwIp.h"
+#include "Errno.h"
 #include "lwip/tcp.h"
 #include "lwip/pbuf.h"
 
 #define SOCK_RX_MAX 2048
+
+/* PR-N-dns：lwIP err_t → -(POSIX errno)；供 CRT 置 errno */
+static int SockNegErrno(err_t Err) {
+    switch (Err) {
+    case ERR_OK:
+        return 0;
+    case ERR_RST:
+        return -TOY_ECONNREFUSED;
+    case ERR_ABRT:
+    case ERR_CLSD:
+        return -TOY_ECONNRESET;
+    case ERR_RTE:
+        return -TOY_ENETUNREACH;
+    case ERR_TIMEOUT:
+        return -TOY_ETIMEDOUT;
+    case ERR_CONN:
+        return -TOY_ENOTCONN;
+    case ERR_USE:
+        return -TOY_EEXIST;
+    case ERR_VAL:
+    case ERR_ARG:
+        return -TOY_EINVAL;
+    case ERR_MEM:
+    case ERR_BUF:
+        return -TOY_ENOMEM;
+    case ERR_WOULDBLOCK:
+        return -TOY_EAGAIN;
+    case ERR_INPROGRESS:
+        return -TOY_EINPROGRESS;
+    default:
+        return -TOY_EIO;
+    }
+}
 
 /* Phase: 0 idle/connecting, 1 connected, 2 peer-closed, 3 bound, 4 listening, -1 error */
 typedef struct {
@@ -182,12 +216,12 @@ int ToySocketBind(int Sock, UINT32 Ip, UINT16 Port) {
     err_t Err;
 
     if (S == NULL || S->Phase == 1 || S->Phase == 4 || Port == 0) {
-        return -1;
+        return -TOY_EINVAL;
     }
     if (S->Pcb == NULL) {
         Pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
         if (Pcb == NULL) {
-            return -1;
+            return -TOY_ENOMEM;
         }
         S->Pcb = Pcb;
     } else {
@@ -204,7 +238,7 @@ int ToySocketBind(int Sock, UINT32 Ip, UINT16 Port) {
         Err = tcp_bind(Pcb, &Addr, Port);
     }
     if (Err != ERR_OK) {
-        return -1;
+        return SockNegErrno(Err);
     }
     S->Phase = 3;
     return 0;
@@ -269,9 +303,10 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
     ip4_addr_t Remote;
     err_t Err;
     int Tries;
+    int Neg;
 
     if (S == NULL || S->Phase == 1 || S->Phase == 4 || S->IsListen) {
-        return -1;
+        return -TOY_EINVAL;
     }
     {
         UINT64 IrqFlags = HalIrqSave();
@@ -280,7 +315,7 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
             Pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
             if (Pcb == NULL) {
                 HalIrqRestore(IrqFlags);
-                return -1;
+                return -TOY_ENOMEM;
             }
             S->Pcb = Pcb;
         } else {
@@ -297,7 +332,7 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
     if (Err != ERR_OK) {
         SockAbortPcb(S);
         S->Phase = -1;
-        return -1;
+        return SockNegErrno(Err);
     }
     Tries = TimeoutMs > 0 ? TimeoutMs : 8000;
     while (S->Phase == 0 && Tries-- > 0) {
@@ -314,9 +349,15 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
         } else {
             HalDebugWrite("\n");
         }
+        Neg = (S->Phase == 0 && S->Err == ERR_OK)
+                  ? -TOY_ETIMEDOUT
+                  : SockNegErrno(S->Err);
+        if (Neg == -TOY_EIO && S->Phase == 0) {
+            Neg = -TOY_ETIMEDOUT;
+        }
         SockAbortPcb(S);
         S->Phase = -1;
-        return -1;
+        return Neg;
     }
     return 0;
 }
@@ -327,8 +368,11 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
     UINTN Sent = 0;
     int Tries = 2000;
 
-    if (S == NULL || S->Phase != 1 || S->Pcb == NULL || Data == NULL) {
-        return -1;
+    if (S == NULL || Data == NULL) {
+        return -TOY_EINVAL;
+    }
+    if (S->Phase != 1 || S->Pcb == NULL) {
+        return -TOY_ENOTCONN;
     }
     while (Sent < Len && Tries-- > 0) {
         UINTN Chunk = Len - Sent;
@@ -353,7 +397,7 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
             continue;
         }
         if (Err != ERR_OK) {
-            return Sent > 0 ? (int)Sent : -1;
+            return Sent > 0 ? (int)Sent : SockNegErrno(Err);
         }
         (void)tcp_output(S->Pcb);
         Sent += Chunk;
@@ -362,7 +406,13 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
             break;
         }
     }
-    return Sent > 0 ? (int)Sent : -1;
+    if (Sent > 0) {
+        return (int)Sent;
+    }
+    if (S->Phase != 1) {
+        return -TOY_EPIPE;
+    }
+    return -TOY_EAGAIN;
 }
 
 int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
@@ -372,7 +422,7 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
     int Tries;
 
     if (S == NULL || Buf == NULL || Len == 0) {
-        return -1;
+        return -TOY_EINVAL;
     }
     Tries = TimeoutMs > 0 ? TimeoutMs : 1;
     while (S->RxLen == 0 && S->Phase == 1 && Tries-- > 0) {
@@ -381,10 +431,10 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
     }
     if (S->RxLen == 0) {
         if (S->Phase == 2) {
-            return -2;
+            return -2; /* EOF：调度层 → 0 */
         }
         if (S->Phase < 0) {
-            return -1;
+            return SockNegErrno(S->Err == ERR_OK ? ERR_CLSD : S->Err);
         }
         return 0;
     }

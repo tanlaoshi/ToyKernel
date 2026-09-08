@@ -31,7 +31,8 @@ ssize_t read(int fd, void *buf, size_t count) {
     }
     r = (long)toy_read(fd, buf, count);
     if (r < 0) {
-        errno = EIO;
+        int E = (int)(-r);
+        errno = (E >= 1 && E < 256) ? E : EIO;
         return -1;
     }
     return (ssize_t)r;
@@ -46,7 +47,8 @@ ssize_t write(int fd, const void *buf, size_t count) {
     }
     r = (long)toy_write(fd, buf, count);
     if (r < 0) {
-        errno = EIO;
+        int E = (int)(-r);
+        errno = (E >= 1 && E < 256) ? E : EIO;
         return -1;
     }
     return (ssize_t)r;

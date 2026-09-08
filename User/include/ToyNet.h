@@ -12,9 +12,9 @@
 #include <sys/types.h>
 
 #define TOY_NET_ABI_VERSION_MAJOR 1
-#define TOY_NET_ABI_VERSION_MINOR 0
+#define TOY_NET_ABI_VERSION_MINOR 1
 #define TOY_NET_ABI_VERSION_PATCH 0
-#define TOY_NET_ABI_VERSION_STRING "1.0.0"
+#define TOY_NET_ABI_VERSION_STRING "1.1.0"
 
 /* 与 Include/Socket.h 一致 */
 #define AF_INET     2
@@ -34,5 +34,7 @@ int accept(int fd);
 /* send/recv：socket fd 上即 write/read */
 ssize_t send(int fd, const void *buf, size_t len, int flags);
 ssize_t recv(int fd, void *buf, size_t len, int flags);
+/* PR-N-dns：点分 IPv4 / localhost；域名请用 Shell `dns`（lwIP DNS） */
+int ToyNetResolve(const char *Name, unsigned *OutIp);
 
 #endif

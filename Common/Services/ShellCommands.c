@@ -289,6 +289,51 @@ static void CommandPing(int Argc, char **Argv) {
     }
 }
 
+#ifdef TOY_LWIP
+/* PR-N-dns：dns <name|ip> → A / 字面量 */
+static void CommandDns(int Argc, char **Argv) {
+    UINT32 Ip;
+    UINT32 LiteralIp;
+    int Rc;
+    int IsLiteral;
+    char IpBuf[16];
+
+    if (Argc < 2) {
+        ConsoleWrite("usage: dns <name|ip>\n");
+        return;
+    }
+    if (!HalNetReady()) {
+        ConsoleWrite("dns: net not available\n");
+        return;
+    }
+    IsLiteral = (HalNetParseIp(Argv[1], &LiteralIp) == 0);
+    if (!LwIpActive()) {
+        if (IsLiteral) {
+            HalNetFormatIp(LiteralIp, IpBuf, (int)sizeof(IpBuf));
+            ConsoleWrite(Argv[1]);
+            ConsoleWrite(" -> ");
+            ConsoleWrite(IpBuf);
+            ConsoleWrite(" (literal; lwip on for names)\n");
+            return;
+        }
+        ConsoleWrite("dns: run lwip on for name lookup\n");
+        return;
+    }
+    Rc = LwIpDnsLookup(Argv[1], &Ip, 5000);
+    if (Rc != 0) {
+        ConsoleWrite("dns: fail errno=");
+        ConsoleWriteHex32((UINT32)(-Rc));
+        ConsoleWrite("\n");
+        return;
+    }
+    HalNetFormatIp(Ip, IpBuf, (int)sizeof(IpBuf));
+    ConsoleWrite(Argv[1]);
+    ConsoleWrite(" -> ");
+    ConsoleWrite(IpBuf);
+    ConsoleWrite(IsLiteral ? " (literal)\n" : " (A)\n");
+}
+#endif
+
 static void CommandUdpListen(int Argc, char **Argv) {
     UINT32 Port = 0;
     if (Argc < 2) {
@@ -1212,6 +1257,9 @@ void ShellCommandsRegister(void) {
     ConsoleRegisterAlias("halt", "exit");
     ConsoleRegisterAlias("halt", "quit");
     ConsoleRegister("ping", "ICMP echo", CommandPing);
+#ifdef TOY_LWIP
+    ConsoleRegister("dns", "DNS A / IPv4 literal (PR-N-dns)", CommandDns);
+#endif
 
     ConsoleRegister2("udp", "listen", "bind UDP port", CommandUdpListen);
     ConsoleRegister2("udp", "send", "send UDP datagram", CommandUdpSend);

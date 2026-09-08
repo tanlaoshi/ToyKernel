@@ -31,4 +31,7 @@ typedef uintptr_t mem_ptr_t;
 
 #define LWIP_PLATFORM_DIAG(x) do { (void)(x); } while (0)
 
+/* freestanding：不用宿主 ctype / rand */
+#define LWIP_NO_CTYPE_H 1
+
 #endif

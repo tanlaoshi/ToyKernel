@@ -22,7 +22,7 @@
 #define MEMP_NUM_TCP_PCB            8
 #define MEMP_NUM_TCP_PCB_LISTEN     4
 #define MEMP_NUM_TCP_SEG            16
-#define MEMP_NUM_SYS_TIMEOUT        8
+#define MEMP_NUM_SYS_TIMEOUT        16
 #define MEMP_NUM_NETBUF             0
 #define MEMP_NUM_NETCONN            0
 #define MEMP_NUM_TCPIP_MSG_API      0
@@ -37,7 +37,7 @@
 #define LWIP_RAW                    1
 #define LWIP_DHCP                   0
 #define LWIP_AUTOIP                 0
-#define LWIP_DNS                    0
+#define LWIP_DNS                    1
 #define LWIP_IGMP                   0
 #define LWIP_SNMP                   0
 #define LWIP_STATS                  0
@@ -61,5 +61,8 @@
 #define LWIP_NUM_NETIF_CLIENT_DATA  0
 
 #define LWIP_PLATFORM_ASSERT(x)     do { (void)(x); } while (0)
+
+/* DNS TXID：展开于已含 sys_now 声明的编译单元 */
+#define LWIP_RAND()                 ((u32_t)(sys_now() ^ 0xA5A5A5A5u))
 
 #endif

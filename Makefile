@@ -117,6 +117,7 @@ LWIPCORE = \
 	$(LWIPDIR)/core/tcp_out.c \
 	$(LWIPDIR)/core/timeouts.c \
 	$(LWIPDIR)/core/udp.c \
+	$(LWIPDIR)/core/dns.c \
 	$(LWIPDIR)/core/ipv4/etharp.c \
 	$(LWIPDIR)/core/ipv4/icmp.c \
 	$(LWIPDIR)/core/ipv4/ip4.c \
