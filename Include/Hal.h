@@ -11,7 +11,7 @@
 #include "HalConsole.h"
 #include "HalDevices.h"
 
-/* 页表权限（架构无关语义，x86 位布局见 Page.c） */
+/* 页表权限（架构无关语义，x86 位布局见 PageTable.c） */
 #define HAL_PAGE_PRESENT  (1ULL << 0)
 #define HAL_PAGE_WRITABLE (1ULL << 1)
 #define HAL_PAGE_USER     (1ULL << 2)

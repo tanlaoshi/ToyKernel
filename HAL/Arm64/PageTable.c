@@ -1,5 +1,5 @@
 /*
- * HAL/Arm64/Page.c — PR-A10：真 MMU（TTBR0 / TCR / SCTLR）+ 4K 四级页表
+ * HAL/Arm64/PageTable.c — PR-A10：真 MMU（TTBR0 / TCR / SCTLR）+ 4K 四级页表
  * Common 仍见 HAL_PAGE_*；HalPageGetEntry 返回规范化 PTE（phys|HAL flags|COW）。
  */
 #include "Hal.h"

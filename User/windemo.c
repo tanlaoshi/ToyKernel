@@ -4,7 +4,7 @@
  */
 #include "stdio.h"
 #include "unistd.h"
-#include "toy_syscall.h"
+#include "ToySyscall.h"
 
 int main(void) {
     int Wid;

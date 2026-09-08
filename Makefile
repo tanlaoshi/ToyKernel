@@ -456,18 +456,18 @@ $(USER_KILLDEMO_ELF): $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_WINDEMO_OBJ): User/windemo.c User/include/stdio.h User/include/unistd.h \
-		User/include/toy_syscall.h
+		User/include/ToySyscall.h
 	$(CC) $(USER_CFLAGS) -c User/windemo.c -o $@
 
 $(USER_WINDEMO_ELF): $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
 	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_LIB_TOY_GFX_OBJ): User/Library/ToyGfx/ToyGfx.c User/include/ToyGfx.h \
-		User/include/unistd.h User/include/toy_syscall.h
+		User/include/unistd.h User/include/ToySyscall.h
 	$(CC) $(USER_CFLAGS) -c User/Library/ToyGfx/ToyGfx.c -o $@
 
 $(USER_LIB_TOY_UI_OBJ): User/Library/ToyUi/ToyUi.c User/include/ToyUi.h \
-		User/include/ToyGfx.h User/include/unistd.h User/include/toy_syscall.h
+		User/include/ToyGfx.h User/include/unistd.h User/include/ToySyscall.h
 	$(CC) $(USER_CFLAGS) -c User/Library/ToyUi/ToyUi.c -o $@
 
 $(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)

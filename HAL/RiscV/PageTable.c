@@ -1,5 +1,5 @@
 /*
- * HAL/RiscV/Page.c — PR-A10：真 MMU（Sv39 satp）+ 缺页陷阱
+ * HAL/RiscV/PageTable.c — PR-A10：真 MMU（Sv39 satp）+ 缺页陷阱
  * Common 仍见 HAL_PAGE_*；GetEntry 返回规范化 PTE。
  */
 #include "Hal.h"

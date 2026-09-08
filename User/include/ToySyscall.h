@@ -1,5 +1,5 @@
 /*
- * toy_syscall.h — 兼容入口（PR-L1）
+ * ToySyscall.h — 兼容入口（PR-L1）
  * 新代码请 #include <toyos/syscall.h>。
  */
 #ifndef TOY_SYSCALL_H

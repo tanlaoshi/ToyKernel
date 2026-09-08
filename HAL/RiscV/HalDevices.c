@@ -10,7 +10,7 @@
 #include "DriverInput.h"
 #include "DriverNet.h"
 #if TOY_BOARD_HAS_BLOCK
-#include "VirtioBlk.h"
+#include "VirtioBlock.h"
 #endif
 #if TOY_BOARD_HAS_FRAMEBUFFER
 #include "VirtioInput.h"
@@ -21,7 +21,7 @@
 
 void HalDriverRegister(void) {
 #if TOY_BOARD_HAS_BLOCK
-    VirtioBlkRegister();
+    VirtioBlockRegister();
 #endif
 #if TOY_BOARD_HAS_FRAMEBUFFER
     VirtioInputRegister();
@@ -33,7 +33,7 @@ void HalDriverRegister(void) {
 
 int HalBlockInit(void) {
 #if TOY_BOARD_HAS_BLOCK
-    return VirtioBlkInit();
+    return VirtioBlockInit();
 #else
     return 0;
 #endif

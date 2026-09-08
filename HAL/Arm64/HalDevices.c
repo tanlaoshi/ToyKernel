@@ -7,18 +7,18 @@
 #include "Driver.h"
 #include "DriverInput.h"
 #include "DriverNet.h"
-#include "VirtioBlk.h"
+#include "VirtioBlock.h"
 #include "VirtioInput.h"
 #include "VirtioNet.h"
 
 void HalDriverRegister(void) {
-    VirtioBlkRegister();
+    VirtioBlockRegister();
     VirtioInputRegister();
     VirtioNetRegister();
 }
 
 int HalBlockInit(void) {
-    return VirtioBlkInit();
+    return VirtioBlockInit();
 }
 
 int HalUsbInit(void) {

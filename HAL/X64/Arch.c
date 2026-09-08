@@ -2,7 +2,7 @@
  * Arch.c — x86-64 架构初始化与中断分发
  *
  * 职责：加载 GDT/IDT、屏蔽 8259 PIC、启用 LAPIC、配置周期定时器。
- * 中断入口在 Isr.S；本文件实现 InterruptDispatch 与各设备 IRQ 处理逻辑。
+ * 中断入口在 Interrupt.S；本文件实现 InterruptDispatch 与各设备 IRQ 处理逻辑。
  */
 #include "Arch.h"
 #include "Hal.h"
@@ -343,7 +343,7 @@ static void ExceptionHalt(HAL_INTERRUPT_FRAME *F) {
 static volatile UINT32 gIrqCount;
 
 /*
- * 中断 C 分发入口（由 Isr.S 调用）
+ * 中断 C 分发入口（由 Interrupt.S 调用）
  * 返回值：0 表示不切换任务；非 0 为新任务 HAL_INTERRUPT_FRAME 指针（切换 RSP）
  */
 UINT64 InterruptDispatch(HAL_INTERRUPT_FRAME *F) {

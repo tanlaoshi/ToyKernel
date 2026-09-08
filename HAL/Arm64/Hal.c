@@ -321,7 +321,7 @@ void HalSchedulerEnter(struct HAL_INTERRUPT_FRAME *Frame) {
 }
 /* HalUserEnter 在 Vectors.S */
 
-/* 分页实现见 Page.c（PR-A7） */
+/* 分页实现见 PageTable.c（PR-A7） */
 
 const char *HalArchName(void) { return "aarch64"; }
 const char *HalCpuInfo(void) { return "ARM64 (virt A14)"; }
