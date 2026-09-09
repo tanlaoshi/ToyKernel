@@ -16,6 +16,7 @@ void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
 void E1000DriverRegister(void);
+void XhciDiagFormat(char *Buf, int Max);
 
 void HalDriverRegister(void) {
     /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
