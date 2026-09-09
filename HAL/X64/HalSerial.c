@@ -22,6 +22,7 @@ static UINTN gRingLen;
 static int gVideoUp;
 static int gGopBanner;
 static int gGopMute;
+static int gPhotoHold; /* 读秒：禁 Gop 卷屏/禁 BootMark 盖白字 */
 static UINT32 gBootLogY;
 static char gLine[160];
 static UINTN gLineLen;
@@ -108,8 +109,8 @@ static void GopFlushLine(void) {
     /* 整行字形必须在 Limit 之上；宁可提前卷屏也不出半截字 */
     Limit = (H > LineH + BOOT_LOG_MARGIN) ? (H - LineH - BOOT_LOG_MARGIN) : BootLogBodyY(LineH);
     if (gBootLogY > Limit) {
-        if (gGopBatch) {
-            /* 拍照模式：停笔，保留已画的枚举行，避免「白字闪过后只剩读秒」 */
+        if (gGopBatch || gPhotoHold) {
+            /* 拍照/读秒：停笔，保留已画白字（勿 ClearBody） */
             gLineLen = 0;
             return;
         }
@@ -144,12 +145,20 @@ static void GopWrite(const char *Text) {
 }
 
 void HalSerialInit(void) {
+    int KeepGop = gVideoUp;
+
     SerialInit();
     gRingLen = 0;
-    gVideoUp = 0;
-    gGopBanner = 0;
-    gBootLogY = BOOT_LOG_TITLE_Y + 24;
     gLineLen = 0;
+    /*
+     * KernelMain 可能已 HalSerialGopEnable（H0 清屏后要看 [mod]）。
+     * 若此处无条件 gVideoUp=0，真机屏会永远停在第一条 [mod] serial。
+     */
+    if (!KeepGop) {
+        gVideoUp = 0;
+        gGopBanner = 0;
+        gBootLogY = BOOT_LOG_TITLE_Y + 24;
+    }
     if (!SerialPresent()) {
         RingAppend("boot: no COM1; on-screen log only\n");
     } else {
@@ -188,8 +197,8 @@ void HalSerialWrite(const char *Text) {
         return;
     }
     RingAppend(Text);
-    /* 先刷屏：COM1 若阻塞，至少还能在真机上看见进度 */
-    if (gVideoUp && !gGopMute) {
+    /* 读秒中勿再 GopWrite：否则触底 ClearBody 会把白字尾部清掉 */
+    if (gVideoUp && !gGopMute && !gPhotoHold) {
         GopWrite(Text);
     }
     if (SerialPresent()) {
@@ -221,7 +230,8 @@ void HalSerialBootMark(const char *Text) {
     if (SerialPresent()) {
         SerialWrite(Text);
     }
-    if (!gVideoUp) {
+    /* 读秒：BootMark 画在白字第一行位置，会盖掉 ring 尾部；只留底栏 PHOTO */
+    if (!gVideoUp || gPhotoHold) {
         return;
     }
     N = 0;
@@ -350,6 +360,7 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     if (!gVideoUp) {
         return;
     }
+    gPhotoHold = 1;
     HalVideoGetSize(&W, &H);
     LineH = BootLogLineH();
     if (H == 0) {
@@ -440,5 +451,6 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
             Now = ReadTsc();
         } while (Now - T0 < OneSec);
     }
+    gPhotoHold = 0;
     HalSerialBootMark("boot: PHOTO done, desktop next\n");
 }

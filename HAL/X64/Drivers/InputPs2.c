@@ -280,21 +280,26 @@ static const INPUT_BACKEND gPs2Backend = {
     .MouseDequeue = Ps2MouseDequeue,
 };
 
+static void DrainOb(int Max) {
+    int i;
+    for (i = 0; i < Max; i++) {
+        if ((HalIoRead8(PS2_STATUS) & STATUS_OBF) == 0) {
+            return;
+        }
+        (void)HalIoRead8(PS2_DATA);
+    }
+}
+
 static int Ps2InitHw(void) {
     UINT8 Ack = 0;
     UINT8 St;
 
-    HalSerialWrite("boot: ps2-kbd probe...\n");
-    St = HalIoRead8(PS2_STATUS);
-    if (Ps2StatusLooksDead(St)) {
-        HalSerialWrite("boot: ps2-kbd no 8042\n");
-        return 0;
-    }
+    /* 排空杂字节（须有上限：无 8042 时 STATUS 常为 0xFF，OBF 永真） */
+    DrainOb(256);
 
-    FlushObBounded();
-    CtrlCmd(0xAD);
-    CtrlCmd(0xA7);
-    FlushObBounded();
+    CtrlCmd(0xAD); /* disable kbd */
+    CtrlCmd(0xA7); /* disable mouse */
+    DrainOb(256);
 
     CtrlCmd(0xAA);
     if (!KbdRead(&Ack) || Ack != 0x55) {
