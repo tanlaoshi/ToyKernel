@@ -3,6 +3,7 @@
  */
 #include "Module.h"
 #include "Hal.h"
+#include "HalDevices.h"
 #include "Debug.h"
 
 static void ModLog(const char *Name, const char *Suffix) {
@@ -21,6 +22,13 @@ int ModulesRun(const MODULE *List, int Count) {
         if (List[i].Init == 0 || List[i].Init() != 0) {
             ModLog(List[i].Name, " failed\n");
             return -1;
+        }
+        /*
+         * 真机 poll-USB：usb/PHOTO 之后 gui/console 初始化期间若无人 Drain，
+         * 中断 IN 完成会塞满事件环 → 桌面后键鼠假死（PHOTO 时 k= 仍涨）。
+         */
+        if (!HalCpuIsHypervisor()) {
+            HalInputPoll();
         }
     }
     return 0;

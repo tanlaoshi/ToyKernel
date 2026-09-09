@@ -22,6 +22,7 @@
 #include "Locale.h"
 #include "Driver.h"
 #include "DriverInput.h"
+#include "HalDevices.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
@@ -114,6 +115,18 @@ static int InitializeUsb(void) {
         HalSerialWrite("boot: xhci-Hhid photo-hold build\n");
         HalInputArmIrq();
         HalSerialGopPhotoHold(20);
+        /* PHOTO→gui 空窗：多 Drain 几轮，降低事件环溢满概率 */
+        {
+            int n;
+            HAL_KEYBOARD_REPORT Dump;
+
+            for (n = 0; n < 64; n++) {
+                HalInputPoll();
+            }
+            /* 读秒残留键勿带进桌面（易开空壳/吞首键） */
+            while (HalKeyboardDequeue(&Dump)) {
+            }
+        }
     }
     return 0; /* 无键盘也必须进 gui / 桌面 */
 }
@@ -123,11 +136,23 @@ static int InitializeFileSystem(void) {
 }
 
 static int InitializeGui(void) {
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     (void)DbInit();
     (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     (void)ThemeLoad();
     LocaleInit();
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     GuiInit();
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     return 0;
 }
 

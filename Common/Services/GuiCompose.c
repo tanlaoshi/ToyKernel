@@ -48,6 +48,19 @@ void GfxPresent(void) {
     HalVideoPresent();
 }
 
+void GuiPresentDeferPush(void) {
+    gDeferPresent++;
+}
+
+void GuiPresentDeferPop(void) {
+    if (gDeferPresent > 0) {
+        gDeferPresent--;
+    }
+    if (gDeferPresent == 0) {
+        HalVideoPresent();
+    }
+}
+
 
 UINT32 TitleBarColor(int Idx) {
     if (Idx == gFocusWin && gWins[Idx].Active) {

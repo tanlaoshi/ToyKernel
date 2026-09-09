@@ -3,6 +3,7 @@
  */
 #include "Tasks.h"
 #include "Hal.h"
+#include "HalVideo.h"
 #include "HIDKeyboard.h"
 #include "Console.h"
 #include "Gui.h"
@@ -16,9 +17,35 @@
 #include "ShellCommands.h"
 
 static volatile UINT32 gWorkerCount;
+/* CoolTerm 常发 CR+LF：两次 Enter → 双 toyos>；吞掉紧跟 CR 的 LF */
+static int gSerialSkipLf;
 
 UINT32 WorkerLoopCount(void) {
     return gWorkerCount;
+}
+
+static int SerialIsEnter(char C) {
+    if (C == '\r') {
+        gSerialSkipLf = 1;
+        return 1;
+    }
+    if (C == '\n') {
+        if (gSerialSkipLf) {
+            gSerialSkipLf = 0;
+            return 0;
+        }
+        return 1;
+    }
+    gSerialSkipLf = 0;
+    return 0;
+}
+
+/*
+ * 真机 poll-USB：Shell/Gui 循环里已 HalInputPoll；此处只 Halt 把 CPU 还给定时器。
+ * 勿在此连打 Drain：易与持锁路径叠加重入；电源键软关也依赖能进 hlt。
+ */
+static void YieldForPollInput(void) {
+    HalCpuHalt();
 }
 
 static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
@@ -177,7 +204,7 @@ void GuiTask(void) {
     for (;;) {
         HalInputPoll();
         GuiPollMouse();
-        HalCpuHalt();
+        YieldForPollInput();
     }
 }
 
@@ -186,64 +213,75 @@ void ShellTask(void) {
     HAL_KEYBOARD_REPORT Previous = {0};
     DebugWrite("shell task running (preemptive)\n");
     for (;;) {
-        while (HalSerialDataReady()) {
-            char C = HalSerialReadChar();
-            if (SettingsUiIsFocused()) {
-                if (C == 0x1B) {
-                    SettingsUiOnEscape();
-                } else if (C >= '0' && C <= '9') {
-                    SettingsUiOnDigit(C);
-                }
-                continue;
-            }
-            if (FilesUiIsFocused()) {
-                if (C == 0x1B) {
-                    FilesUiOnEscape();
-                } else if (C == '\r' || C == '\n') {
-                    FilesUiOnEnter();
-                } else if (C == '\b' || C == 127) {
-                    FilesUiOnBackspace();
-                } else if (C >= 32 && C <= 126) {
-                    FilesUiOnChar(C);
-                }
-                continue;
-            }
-            if (EditUiIsFocused()) {
-                if (C == 0x1B) {
-                    EditUiOnEscape();
-                } else if (C == '\r' || C == '\n') {
-                    EditUiOnEnter();
-                } else if (C == '\b' || C == 127) {
-                    EditUiOnBackspace();
-                } else if (C == 19) {
-                    /* Ctrl+S */
-                    EditUiSave();
-                } else if (C >= 32 && C <= 126) {
-                    EditUiOnChar(C);
-                }
-                continue;
-            }
-            if (C == '\r' || C == '\n') {
-                ConsoleOnEnter();
-            } else if (C == 3) {
-                ShellOnInterrupt();
-            } else if (C == '\b' || C == 127) {
-                ConsoleOnBackspace();
-            } else if (C >= 32 && C <= 126) {
-                ConsoleOnChar(C);
-            }
-        }
-        HalCpuHalt();
-        /* 主动排空 XHCI 事件：不单靠 MSI 窗口，减少「桌面假死」 */
+        /*
+         * 真机 xHCI 为 poll（无 MSI）：必须先 Drain/取键再 hlt。
+         * 旧序先 Halt → 仅靠定时器偶发唤醒，事件环易在 gui 启动后溢满假死。
+         */
         HalInputPoll();
-        /* PR-V5 virt：无抢占，GuiTask 饿死；在 shell 循环里顺带刷鼠标 */
-        if (HalPlatformVirtConsole()) {
-            GuiPollMouse();
-            HalVideoPresent();
-        }
         while (HalKeyboardDequeue(&Report)) {
             FeedHid(&Report, &Previous);
             Previous = Report;
+        }
+        GuiPollMouse();
+        /* 真机也要刷脏区：Console 字经 FrameBufferEnd→Present；
+         * 若上次 Present 半途保留了 gDirty，这里续传。virt 原路径保留。 */
+        HalVideoPresent();
+
+        /*
+         * COM1 RX → Shell（CoolTerm 遥控打字）；TX 仍是调试旁路。
+         * 每轮最多收 N 字节，然后继续 Net/Halt——勿 while 抽干，
+         * 否则对端狂发/噪声时永不 hlt → USB 键失效、短按电源无效。
+         */
+        {
+            int n = 0;
+            int MaxRx = HalCpuIsHypervisor() ? 256 : 32;
+            while (HalSerialDataReady() && n < MaxRx) {
+                char C = HalSerialReadChar();
+                n++;
+                if (SettingsUiIsFocused()) {
+                    if (C == 0x1B) {
+                        SettingsUiOnEscape();
+                    } else if (C >= '0' && C <= '9') {
+                        SettingsUiOnDigit(C);
+                    }
+                    continue;
+                }
+                if (FilesUiIsFocused()) {
+                    if (C == 0x1B) {
+                        FilesUiOnEscape();
+                    } else if (SerialIsEnter(C)) {
+                        FilesUiOnEnter();
+                    } else if (C == '\b' || C == 127) {
+                        FilesUiOnBackspace();
+                    } else if (C >= 32 && C <= 126) {
+                        FilesUiOnChar(C);
+                    }
+                    continue;
+                }
+                if (EditUiIsFocused()) {
+                    if (C == 0x1B) {
+                        EditUiOnEscape();
+                    } else if (SerialIsEnter(C)) {
+                        EditUiOnEnter();
+                    } else if (C == '\b' || C == 127) {
+                        EditUiOnBackspace();
+                    } else if (C == 19) {
+                        EditUiSave();
+                    } else if (C >= 32 && C <= 126) {
+                        EditUiOnChar(C);
+                    }
+                    continue;
+                }
+                if (SerialIsEnter(C)) {
+                    ConsoleOnEnter();
+                } else if (C == 3) {
+                    ShellOnInterrupt();
+                } else if (C == '\b' || C == 127) {
+                    ConsoleOnBackspace();
+                } else if (C >= 32 && C <= 126) {
+                    ConsoleOnChar(C);
+                }
+            }
         }
 #ifdef TOY_LWIP
         if (LwIpActive()) {
@@ -282,7 +320,7 @@ void ShellTask(void) {
                 ConsoleWrite("\n");
             }
         }
-        GuiPollMouse();
+        YieldForPollInput();
     }
 }
 
