@@ -63,14 +63,20 @@ static int InitializeVirtualMemory(void) {
 static int InitializeVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
+    UINT32 W;
+    UINT32 H;
 
     FontInit();
     ThemeInit();
     HalVideoSet(&V);
     HalVideoInitBackbuffer();
     HalVideoClearScreen(ThemeDesktopBackground());
+    /* 再清一遍顶带，去掉固件/进度条残留色块 */
+    HalVideoGetSize(&W, &H);
+    if (W > 0) {
+        HalVideoFillRect(0, 0, W, 64, ThemeDesktopBackground());
+    }
     HalVideoPresent();
-    /* PR-H3：无 COM1 时把串口缓冲刷到帧缓冲文字 */
     HalSerialGopEnable();
     return 0;
 }
@@ -81,8 +87,10 @@ static int InitializeCpu(void) {
     }
     HalTimerInit();
     HalSyscallInit();
-    /* PR-V3：virtio-input；失败可无头继续（仍有串口） */
-    (void)HalUsbInit();
+    /* virt：仍在此挂 virtio-input；x86 真机延后到 gui 后的 usb 模块（与 main 一致） */
+    if (HalPlatformVirtConsole()) {
+        (void)HalUsbInit();
+    }
     return 0;
 }
 
@@ -133,9 +141,17 @@ static int InitializeNetwork(void) {
 }
 
 static int InitializeDriver(void) {
-    /* PR-D2：先注册平台驱动；ProbeAll 可早绑 ATA；virtio-blk 待 VMM 后由 HalBlockInit 再 Probe */
+    /*
+     * PR-D2：只早 Probe Block（ATA PIO 无需 MMIO）。
+     * 勿 ProbeAll：VMM 前 xHCI/AHCI/NVMe/Net 本会跳过，但 ps2-kbd 会跑 Ps2InitHw；
+     * 真机无经典 8042 时 STATUS 常浮空 0xFF（OBF 永真）→ 排空 while 死循环，屏停 [mod] driver。
+     * Input / Net 仍由后续 usb / network 模块 Probe。
+     */
     HalDriverRegister();
-    return ToyDriverProbeAll();
+    HalSerialWrite("boot: driver register ok\n");
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_BLOCK);
+    HalSerialWrite("boot: driver block probe done\n");
+    return 0;
 }
 
 static int InitializeScheduler(void) {
@@ -156,7 +172,7 @@ static int InitializeConsole(void) {
     return 0;
 }
 
-/* x86 全量桌面路径 */
+/* x86 全量：usb 在 gui 前，便于桌面叠画探测结果（与 main 一致） */
 static const MODULE gModulesFull[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
@@ -166,8 +182,8 @@ static const MODULE gModulesFull[] = {
     { "cpu",     InitializeCpu },
     { "smp",     InitializeSmp },
     { "file-system",      InitializeFileSystem },
-    { "usb",     InitializeUsb },
     { "network",     InitializeNetwork },
+    { "usb",     InitializeUsb },
     { "gui",     InitializeGui },
     { "scheduler",   InitializeScheduler },
     { "console", InitializeConsole },

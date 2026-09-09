@@ -7,6 +7,7 @@
 #include "KernelModules.h"
 #include "Tasks.h"
 #include "Console.h"
+#include "Font.h"
 
 void KernelMain(void) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -14,6 +15,14 @@ void KernelMain(void) {
 
     /* 尽早挂上帧缓冲，避免 mem 等模块 ConsoleWrite 时 Width=0 死循环 */
     HalVideoSet(&V);
+    /* H0：进核即改像素（在开分页 / 驱动 Probe 之前），真机卡死时可区分 Boot vs Kernel */
+    if (Info && Info->FrameBufferSize != 0) {
+        FontInit(); /* GOP 日志/DrawString 依赖字体表；video 模块里会再 Init 一次 */
+        HalVideoClearScreen(0x00204060u);
+        HalVideoPresent();
+        HalSerialGopEnable();
+        HalSerialWrite("boot: KernelMain live\n");
+    }
 
     if (KernelModulesRun() != 0) {
         for (;;) {

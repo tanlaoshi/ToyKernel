@@ -253,19 +253,25 @@ static const INPUT_BACKEND gPs2Backend = {
     .MouseDequeue = Ps2MouseDequeue,
 };
 
+static void DrainOb(int Max) {
+    int i;
+    for (i = 0; i < Max; i++) {
+        if ((HalIoRead8(PS2_STATUS) & STATUS_OBF) == 0) {
+            return;
+        }
+        (void)HalIoRead8(PS2_DATA);
+    }
+}
+
 static int Ps2InitHw(void) {
     UINT8 Ack = 0;
 
-    /* 排空杂字节 */
-    while (HalIoRead8(PS2_STATUS) & STATUS_OBF) {
-        (void)HalIoRead8(PS2_DATA);
-    }
+    /* 排空杂字节（须有上限：无 8042 时 STATUS 常为 0xFF，OBF 永真） */
+    DrainOb(256);
 
     CtrlCmd(0xAD); /* disable kbd */
     CtrlCmd(0xA7); /* disable mouse */
-    while (HalIoRead8(PS2_STATUS) & STATUS_OBF) {
-        (void)HalIoRead8(PS2_DATA);
-    }
+    DrainOb(256);
 
     CtrlCmd(0xAA); /* self-test */
     if (!KbdRead(&Ack) || Ack != 0x55) {

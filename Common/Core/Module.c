@@ -16,14 +16,8 @@ int ModulesRun(const MODULE *List, int Count) {
     int i;
 
     for (i = 0; i < Count; i++) {
-        /* virt：串口始终打 [mod]；x86 仍可用 DEBUG=1 看 DebugWrite */
-        if (HalPlatformVirtConsole()) {
-            ModLog(List[i].Name, "\n");
-        } else if (i > 0) {
-            DebugWrite("[mod] ");
-            DebugWrite(List[i].Name);
-            DebugWrite("\n");
-        }
+        /* 真机无 COM1 时也要走 HalSerial→GOP，才能看见卡在哪个模块 */
+        ModLog(List[i].Name, "\n");
         if (List[i].Init == 0 || List[i].Init() != 0) {
             ModLog(List[i].Name, " failed\n");
             return -1;
