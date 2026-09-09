@@ -81,6 +81,18 @@ UINT64 HalFrameGetArgument1(const HAL_INTERRUPT_FRAME *F);
 UINT64 HalFrameGetArgument2(const HAL_INTERRUPT_FRAME *F);
 void HalFrameSetReturn(HAL_INTERRUPT_FRAME *F, UINT64 Value);
 void HalFrameSetReturn2(HAL_INTERRUPT_FRAME *F, UINT64 A, UINT64 B);
+/*
+ * PR-U-sig：把用户帧改成进入 handler(sig)。
+ * 返回 1：调用方须把 *OutResumeIp 写入用户地址 *OutPushSp（再 HalFrameSetStackPointer）；
+ * 返回 0：链路寄存器已保存返回点（Arm/RiscV），无需压栈；
+ * 返回 -1：失败。
+ */
+int HalFrameSignalSetup(HAL_INTERRUPT_FRAME *F, UINT64 Handler, UINT64 Sig,
+                        UINT64 *OutResumeIp, UINT64 *OutPushSp);
+void HalFrameSetStackPointer(HAL_INTERRUPT_FRAME *F, UINT64 Sp);
+void HalFrameSetArgument0(HAL_INTERRUPT_FRAME *F, UINT64 Value);
+UINT64 HalFrameGetStackPointer(const HAL_INTERRUPT_FRAME *F);
+void HalFrameSetInstructionPointer(HAL_INTERRUPT_FRAME *F, UINT64 Ip);
 
 struct HAL_INTERRUPT_FRAME;
 UINT64 HalInterruptDispatch(struct HAL_INTERRUPT_FRAME *Frame);

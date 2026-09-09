@@ -492,6 +492,9 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         HalFrameSetReturn(Frame, ProcessMunmap(
             HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
         break;
+    case SYS_SIGNAL:
+        Ret = SchedulerSignal(Frame);
+        break;
     default:
         ConsoleWrite("syscall: unknown ");
         ConsoleWriteHex64(HalFrameSyscallNum(Frame));

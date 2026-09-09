@@ -31,6 +31,7 @@
 #define SYS_READ_DIRECTORY 24 /* PR-F4：ReadDirectory */
 #define SYS_MMAP           25 /* PR-U-mmap：匿名映射 */
 #define SYS_MUNMAP         26
+#define SYS_SIGNAL         27 /* PR-U-sig：注册 handler */
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1

@@ -338,6 +338,42 @@ void HalFrameSetReturn2(HAL_INTERRUPT_FRAME *F, UINT64 A, UINT64 B) {
     }
 }
 
+UINT64 HalFrameGetStackPointer(const HAL_INTERRUPT_FRAME *F) {
+    return F ? F->StackPointer : 0;
+}
+
+void HalFrameSetStackPointer(HAL_INTERRUPT_FRAME *F, UINT64 Sp) {
+    if (F) {
+        F->StackPointer = Sp;
+    }
+}
+
+void HalFrameSetInstructionPointer(HAL_INTERRUPT_FRAME *F, UINT64 Ip) {
+    if (F) {
+        F->InstructionPointer = Ip;
+    }
+}
+
+void HalFrameSetArgument0(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
+    if (F) {
+        F->X[10] = Value;
+    }
+}
+
+/* RiscV：a0=sig，ra=返回点，sepc=handler */
+int HalFrameSignalSetup(HAL_INTERRUPT_FRAME *F, UINT64 Handler, UINT64 Sig,
+                        UINT64 *OutResumeIp, UINT64 *OutPushSp) {
+    if (!F || Handler < 2) {
+        return -1;
+    }
+    (void)OutResumeIp;
+    (void)OutPushSp;
+    F->X[1] = F->InstructionPointer;
+    F->X[10] = Sig;
+    F->InstructionPointer = Handler;
+    return 0;
+}
+
 UINT64 HalInterruptDispatch(struct HAL_INTERRUPT_FRAME *Frame) {
     (void)Frame;
     return 0;

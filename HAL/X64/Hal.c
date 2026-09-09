@@ -224,6 +224,48 @@ void HalFrameSetReturn2(HAL_INTERRUPT_FRAME *F, UINT64 A, UINT64 B) {
     }
 }
 
+UINT64 HalFrameGetStackPointer(const HAL_INTERRUPT_FRAME *F) {
+    return F ? F->StackPointer : 0;
+}
+
+void HalFrameSetStackPointer(HAL_INTERRUPT_FRAME *F, UINT64 Sp) {
+    if (F) {
+        F->StackPointer = Sp;
+    }
+}
+
+void HalFrameSetInstructionPointer(HAL_INTERRUPT_FRAME *F, UINT64 Ip) {
+    if (F) {
+        F->InstructionPointer = Ip;
+    }
+}
+
+void HalFrameSetArgument0(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
+    if (F) {
+        F->Rdi = Value;
+    }
+}
+
+/* x86：压返回地址到用户栈，形如 call；入口 RSP≡8 (mod 16) */
+int HalFrameSignalSetup(HAL_INTERRUPT_FRAME *F, UINT64 Handler, UINT64 Sig,
+                        UINT64 *OutResumeIp, UINT64 *OutPushSp) {
+    UINT64 OldIp;
+    UINT64 Sp;
+    UINT64 NewSp;
+
+    if (!F || Handler < 2 || !OutResumeIp || !OutPushSp) {
+        return -1;
+    }
+    OldIp = F->InstructionPointer;
+    Sp = F->StackPointer;
+    NewSp = (Sp & ~0xFULL) - 8;
+    F->InstructionPointer = Handler;
+    F->Rdi = Sig;
+    *OutResumeIp = OldIp;
+    *OutPushSp = NewSp;
+    return 1;
+}
+
 UINT64 HalInterruptDispatch(struct HAL_INTERRUPT_FRAME *Frame) {
     return InterruptDispatch(Frame);
 }

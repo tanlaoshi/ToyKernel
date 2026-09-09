@@ -254,6 +254,8 @@ void SchedulerInit(void) {
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].PendingKill = 0;
+        gTasks[i].SigHandlerInt = 0;
+        gTasks[i].SigHandlerTerm = 0;
         gTasks[i].Affinity = -1;
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
@@ -303,6 +305,8 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].PendingKill = 0;
+        gTasks[i].SigHandlerInt = 0;
+        gTasks[i].SigHandlerTerm = 0;
         gTasks[i].Affinity = -1;
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
@@ -347,6 +351,8 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].PendingKill = 0;
+        gTasks[i].SigHandlerInt = 0;
+        gTasks[i].SigHandlerTerm = 0;
         gTasks[i].Affinity = 0; /* Console/串口非 SMP 安全；用户先钉 BSP */
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
@@ -663,11 +669,74 @@ static int SignalDefaultTerminates(INT32 Sig) {
     return Sig == SIGKILL || Sig == SIGTERM || Sig == SIGINT;
 }
 
-/* 持锁：对用户任务投递默认终止。返回：0 成功且勿切；1 成功且须切走；-1 失败 */
+#define SIG_HANDLER_DFL 0ULL
+#define SIG_HANDLER_IGN 1ULL
+
+static UINT64 *SignalHandlerSlot(TASK *T, INT32 Sig) {
+    if (!T) {
+        return 0;
+    }
+    if (Sig == SIGINT) {
+        return &T->SigHandlerInt;
+    }
+    if (Sig == SIGTERM) {
+        return &T->SigHandlerTerm;
+    }
+    return 0;
+}
+
+static UINT64 SignalHandlerGet(TASK *T, INT32 Sig) {
+    UINT64 *Slot = SignalHandlerSlot(T, Sig);
+    return Slot ? *Slot : SIG_HANDLER_DFL;
+}
+
+/* 把用户帧改成进入 handler；成功 0 */
+static int DeliverToHandlerFrame(TASK *T, HAL_INTERRUPT_FRAME *F, UINT64 Handler,
+                                 INT32 Sig) {
+    UINT64 ResumeIp = 0;
+    UINT64 PushSp = 0;
+    int NeedPush;
+    UINT64 SavedRoot = 0;
+    int Switched = 0;
+
+    if (!T || !F || !T->IsUser || Handler < 2) {
+        return -1;
+    }
+    NeedPush = HalFrameSignalSetup(F, Handler, (UINT64)(UINT32)Sig, &ResumeIp, &PushSp);
+    if (NeedPush < 0) {
+        return -1;
+    }
+    if (NeedPush == 1) {
+        /* 压栈须在目标用户页表下（含 fork COW 拆页） */
+        if (T != CurrentTask() && T->PageRoot != 0) {
+            SavedRoot = HalGetCurrentPageTable();
+            VirtualMemoryLoadPageTable(T->PageRoot);
+            Switched = 1;
+        }
+        if (VirtualMemoryCopyToUser(PushSp, &ResumeIp, sizeof(ResumeIp)) < 0) {
+            if (Switched) {
+                VirtualMemoryLoadPageTable(SavedRoot);
+            }
+            return -1;
+        }
+        if (Switched) {
+            VirtualMemoryLoadPageTable(SavedRoot);
+        }
+        HalFrameSetStackPointer(F, PushSp);
+    }
+    return 0;
+}
+
+/*
+ * 持锁：投递信号。返回：0 成功且勿切；1 成功且须切走；-1 失败。
+ * LiveFrame：本核当前中断帧（可为 0）；用于立即改写当前用户任务。
+ */
 static int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt,
-                             VIRTUAL_ADDRESS_SPACE **OutSpace) {
+                             VIRTUAL_ADDRESS_SPACE **OutSpace,
+                             HAL_INTERRUPT_FRAME *LiveFrame) {
     INT32 Code;
     UINT32 CurCpu;
+    UINT64 Handler;
 
     if (!T || !T->IsUser || !SignalDefaultTerminates(Sig)) {
         return -1;
@@ -676,10 +745,33 @@ static int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt,
         return -1;
     }
 
+    Handler = SignalHandlerGet(T, Sig);
+    if (Sig != SIGKILL && Handler == SIG_HANDLER_IGN) {
+        return 0;
+    }
+    if (Sig != SIGKILL && Handler > SIG_HANDLER_IGN) {
+        CurCpu = HalGetCpuId();
+        if (T->State == TASK_RUNNING && T->OnCpu >= 0 &&
+            (UINT32)T->OnCpu != CurCpu && T != CurrentTask()) {
+            T->PendingKill = Sig;
+            return 0;
+        }
+        {
+            HAL_INTERRUPT_FRAME *F = (T == CurrentTask() && LiveFrame) ? LiveFrame : T->Frame;
+            if (!F || DeliverToHandlerFrame(T, F, Handler, Sig) != 0) {
+                return -1;
+            }
+            if (T == CurrentTask() && LiveFrame) {
+                T->Frame = LiveFrame;
+            }
+        }
+        return 0;
+    }
+
     Code = 128 + Sig;
     CurCpu = HalGetCpuId();
 
-    /* 他核 RUNNING：挂起，待该核 timer/syscall 入口完成终止（避免拆用户页表竞态） */
+    /* 他核 RUNNING：挂起，待该核 timer/syscall 入口完成终止 */
     if (T->State == TASK_RUNNING && T->OnCpu >= 0 &&
         (UINT32)T->OnCpu != CurCpu && T != CurrentTask()) {
         T->PendingKill = Sig;
@@ -708,12 +800,24 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
     Cur->Frame = Frame;
     Cur->Ticks++;
 
-    /* 跨核 PendingKill：终止路径仍走任务大锁（锁序：大锁 → runq） */
+    /* 跨核 PendingKill：终止或 handler（锁序：大锁 → runq） */
     if (Cur->IsUser && Cur->PendingKill > 0) {
         INT32 Sig = Cur->PendingKill;
+        UINT64 Handler;
         Cur->PendingKill = 0;
         SpinLockAcquire(&gSchedulerLock);
-        if (TerminateUserLocked(Cur, 128 + Sig, &ShowPrompt, &Detached)) {
+        Handler = SignalHandlerGet(Cur, Sig);
+        if (Sig != SIGKILL && Handler == SIG_HANDLER_IGN) {
+            SpinLockRelease(&gSchedulerLock);
+        } else if (Sig != SIGKILL && Handler > SIG_HANDLER_IGN) {
+            if (DeliverToHandlerFrame(Cur, Frame, Handler, Sig) != 0) {
+                SpinLockRelease(&gSchedulerLock);
+            } else {
+                Cur->Frame = Frame;
+                SpinLockRelease(&gSchedulerLock);
+                return 0;
+            }
+        } else if (TerminateUserLocked(Cur, 128 + Sig, &ShowPrompt, &Detached)) {
             Next = FindRunnable(Cpu);
             if (!Next) {
                 SpinLockRelease(&gSchedulerLock);
@@ -731,9 +835,10 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
                 ConsoleShowPrompt();
             }
             return Ret;
+        } else {
+            SpinLockRelease(&gSchedulerLock);
+            SchedDestroyDetached(Detached);
         }
-        SpinLockRelease(&gSchedulerLock);
-        SchedDestroyDetached(Detached);
     }
 
     /* PR-S-runq：普通抢占只持每核 runq 锁，两核可并行 PickNext */
@@ -930,6 +1035,8 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
     gTasks[Child].PendingKill = 0;
+    gTasks[Child].SigHandlerInt = Parent->SigHandlerInt;
+    gTasks[Child].SigHandlerTerm = Parent->SigHandlerTerm;
     gTasks[Child].Affinity = 0; /* 与 CreateUser 一致：Console 钉 BSP */
     gTasks[Child].OnCpu = -1;
     gTasks[Child].HomeCpu = 0;
@@ -1048,7 +1155,7 @@ UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
     T = &gTasks[Slot];
-    Deliver = DeliverKillLocked(T, Sig, &ShowPrompt, &Detached);
+    Deliver = DeliverKillLocked(T, Sig, &ShowPrompt, &Detached, Frame);
     if (Deliver < 0) {
         HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
         SpinLockRelease(&gSchedulerLock);
@@ -1082,6 +1189,45 @@ UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame) {
     return Ret;
 }
 
+UINT64 SchedulerSignal(HAL_INTERRUPT_FRAME *Frame) {
+    TASK *T;
+    INT32 Sig;
+    UINT64 Handler;
+    UINT64 *Slot;
+    UINT64 Old;
+
+    SpinLockAcquire(&gSchedulerLock);
+    T = CurrentTask();
+    if (!T || !T->IsUser) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedulerLock);
+        return 0;
+    }
+    Sig = (INT32)HalFrameGetArgument0(Frame);
+    Handler = HalFrameGetArgument1(Frame);
+    if (Sig == SIGKILL) {
+        if (Handler != SIG_HANDLER_DFL) {
+            HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+            SpinLockRelease(&gSchedulerLock);
+            return 0;
+        }
+        HalFrameSetReturn(Frame, SIG_HANDLER_DFL);
+        SpinLockRelease(&gSchedulerLock);
+        return 0;
+    }
+    Slot = SignalHandlerSlot(T, Sig);
+    if (!Slot) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedulerLock);
+        return 0;
+    }
+    Old = *Slot;
+    *Slot = Handler;
+    HalFrameSetReturn(Frame, Old);
+    SpinLockRelease(&gSchedulerLock);
+    return 0;
+}
+
 int SchedulerKillPid(INT32 Pid, INT32 Sig) {
     INT32 Slot;
     TASK *T;
@@ -1104,7 +1250,8 @@ int SchedulerKillPid(INT32 Pid, INT32 Sig) {
     SpinLockAcquire(&gSchedulerLock);
     T = &gTasks[Slot];
     Cur = CurrentTask();
-    Deliver = DeliverKillLocked(T, Sig, &ShowPrompt, &Detached);
+    Deliver = DeliverKillLocked(T, Sig, &ShowPrompt, &Detached,
+                                (T == Cur && Cur) ? Cur->Frame : 0);
     if (Deliver < 0) {
         SpinLockRelease(&gSchedulerLock);
         return -1;

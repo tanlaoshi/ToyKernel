@@ -35,6 +35,7 @@
 #define SYS_READ_DIRECTORY 24
 #define SYS_MMAP          25
 #define SYS_MUNMAP        26
+#define SYS_SIGNAL        27
 
 #define WNOHANG 1
 
@@ -131,6 +132,10 @@ static inline long toy_mmap(long len, long prot, long flags) {
 
 static inline long toy_munmap(long addr, long len) {
     return toy_syscall(SYS_MUNMAP, addr, len, 0);
+}
+
+static inline long toy_signal(long sig, long handler) {
+    return toy_syscall(SYS_SIGNAL, sig, handler, 0);
 }
 
 static inline long toy_socket(long domain, long type, long protocol) {

@@ -649,6 +649,9 @@ int ProcessExecve(HAL_INTERRUPT_FRAME *Frame, const char *Path, UINT64 UserArgv,
     T->BrkBase = Info.BrkBase;
     T->Brk = Info.BrkBase;
     T->MmapNext = USER_MMAP_BASE;
+    T->SigHandlerInt = 0;
+    T->SigHandlerTerm = 0;
+    T->PendingKill = 0;
     /* 保留 Fds / ParentId / Id；映像已换 */
     HalFrameSetUserEntry(Frame, Info.Entry, NewRsp);
     T->Frame = Frame;
