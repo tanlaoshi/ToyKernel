@@ -47,26 +47,6 @@ void HalVideoInitBackbuffer(void) {
     VideoSetBackbuffer(Buf, Pages);
 }
 
-int HalVideoCanHotSetMode(void) {
-    return VideoBochsAvailable();
-}
-
-int HalVideoSetMode(UINT32 Width, UINT32 Height) {
-    if (VideoBochsSetMode(Width, Height) != 0) {
-        return -1;
-    }
-    HalVideoInitBackbuffer();
-    return 0;
-}
-
-UINT64 HalVideoFrameBufferBase(void) {
-    return VideoFrameBufferBase();
-}
-
-UINT64 HalVideoFrameBufferSize(void) {
-    return VideoFrameBufferSize();
-}
-
 void HalVideoPresent(void) {
     VideoPresent();
 }

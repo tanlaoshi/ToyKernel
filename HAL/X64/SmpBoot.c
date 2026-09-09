@@ -73,48 +73,17 @@ static void DelayLoops(volatile UINT32 N) {
 #define SMP_SIPI_GAP_LOOPS    100000u
 #define SMP_READY_POLL_MAX   2000000u
 
-/* CPUID.1 ECX.31：Hypervisor Present（QEMU/KVM 等）；真机一般为 0 */
-static int RunningUnderHypervisor(void) {
-    UINT32 Eax;
-    UINT32 Ebx;
-    UINT32 Ecx;
-    UINT32 Edx;
-
-    __asm__ volatile("cpuid"
-                     : "=a"(Eax), "=b"(Ebx), "=c"(Ecx), "=d"(Edx)
-                     : "a"(1)
-                     : "memory");
-    (void)Eax;
-    (void)Ebx;
-    (void)Edx;
-    return (Ecx & (1u << 31)) != 0;
-}
-
-static int LapicMmioUsable(void) {
-    UINT32 Id = LapicRead(LAPIC_ID);
-    UINT32 Ver = LapicRead(0x30);
-    /* x2APIC 下 MMIO 常读全 1；未映射同理 — 勿死等 ICR */
-    if (Id == 0xFFFFFFFFu || Ver == 0xFFFFFFFFu) {
-        return 0;
-    }
-    return 1;
-}
-
-static int LapicWaitIcr(void) {
-    int Tries = 1000000;
-    while ((LapicRead(LAPIC_ICR_LO) & (1u << 12)) && Tries-- > 0) {
+static void LapicWaitIcr(void) {
+    while (LapicRead(LAPIC_ICR_LO) & (1u << 12)) {
         __asm__ volatile ("pause");
     }
-    return Tries > 0;
 }
 
 static void LapicSendIpi(UINT8 ApicId, UINT32 Lo) {
-    if (!LapicWaitIcr()) {
-        return;
-    }
+    LapicWaitIcr();
     LapicWrite(LAPIC_ICR_HI, ((UINT32)ApicId) << 24);
     LapicWrite(LAPIC_ICR_LO, Lo);
-    (void)LapicWaitIcr();
+    LapicWaitIcr();
 }
 
 /* 超时后把跳板改成 cli;hlt，迟到 SIPI 也只会停住 */
@@ -138,7 +107,7 @@ static void ParkAp(UINT8 ApicId) {
     LapicSendIpi(ApicId, 0x00008500u);
 }
 
-static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
+static void MemCopy(void *Dst, const void *Src, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
@@ -147,7 +116,7 @@ static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
     }
 }
 
-static void ZeroMemory(void *Dst, UINTN Len) {
+static void MemZero(void *Dst, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     UINTN i;
     for (i = 0; i < Len; i++) {
@@ -214,7 +183,7 @@ static void SetupTrampolineGdt(void) {
     UINT64 *Gdt = (UINT64 *)(UINTN)SMP_GDT_PHYS;
     UINT16 *Gdtr = (UINT16 *)(UINTN)SMP_GDTR_PHYS;
 
-    ZeroMemory(Gdt, 8 * sizeof(UINT64));
+    MemZero(Gdt, 8 * sizeof(UINT64));
     Gdt[0] = 0;
     /* 0x08: 32-bit code */
     Gdt[1] = 0x00CF9A000000FFFFULL;
@@ -245,7 +214,7 @@ static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
         return -1;
     }
 
-    CopyMemory((void *)(UINTN)SMP_TRAMP_PHYS, _binary_SmpTramp_bin_start, TrampSize);
+    MemCopy((void *)(UINTN)SMP_TRAMP_PHYS, _binary_SmpTramp_bin_start, TrampSize);
     SetupTrampolineGdt();
 
     __asm__ volatile ("mov %%cr3, %0" : "=r"(Cr3));
@@ -346,24 +315,6 @@ int HalSmpStartApplicationProcessors(void) {
     for (i = 0; i < HAL_MAX_CPUS; i++) {
         gCpuTicks[i] = 0;
     }
-
-    if (!LapicMmioUsable()) {
-        SmpLog("smp: LAPIC MMIO unusable (x2APIC?); single CPU\n");
-        return 0;
-    }
-
-    /*
-     * 真机多核（IOAPIC / x2APIC / 中断路由）路线图仍后置（5.5 / NOTES H2）。
-     * QEMU 有 Hypervisor 位 → 继续 INIT/SIPI 演示；裸机只保 BSP，勿挡 H0 亮屏。
-     */
-    if (!RunningUnderHypervisor()) {
-        BspId = LapicGetId();
-        gBspApicId = BspId;
-        gApicIds[0] = BspId;
-        SmpLog("smp: real PC — skip AP bringup (IOAPIC later)\n");
-        return 0;
-    }
-
     BspId = LapicGetId();
     gBspApicId = BspId;
     gApicIds[0] = BspId;

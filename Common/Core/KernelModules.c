@@ -106,7 +106,10 @@ static int InitializeUsb(void) {
     } else {
         HalSerialWrite("boot: input NONE (continue)\n");
     }
-    /* 真机：先 Arm MSI（写入 irq= 行），再 PHOTO 拍尾部日志（含 irq=msi）。 */
+    /*
+     * 真机：Arm 保持 irq=poll (base)（XhciEnableIrq 零 MSI + dual stub），
+     * 再 PHOTO 拍尾部日志。QEMU 不走 PhotoHold。
+     */
     if (!HalCpuIsHypervisor()) {
         HalSerialWrite("boot: xhci-Hhid photo-hold build\n");
         HalInputArmIrq();

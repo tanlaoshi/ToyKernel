@@ -14,15 +14,6 @@ void HalVideoDrawBeginFront(void);
 void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height);
-/* PR-G-hotres：QEMU/Bochs VGA 可热切则 1；真机/无 DISPI 为 0 */
-int HalVideoCanHotSetMode(void);
-/*
- * PR-G-hotres：运行中改分辨率（Bochs DISPI）。成功 0。
- * 调用方先 VirtualMemoryMapRange 覆盖足够大的 LFB。
- */
-int HalVideoSetMode(UINT32 Width, UINT32 Height);
-UINT64 HalVideoFrameBufferBase(void);
-UINT64 HalVideoFrameBufferSize(void);
 
 void HalVideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略客户区 clip（鼠标光标） */
