@@ -89,7 +89,7 @@ static int InitializeCpu(void) {
     HalTimerInit();
     HalSyscallInit();
     /* virt：仍在此挂 virtio-input；x86 真机延后到 gui 后的 usb 模块（与 main 一致） */
-    if (HalPlatformVirtConsole()) {
+    if (HalPlatformIsVirtSerialConsole()) {
         (void)HalUsbInit();
     }
     return 0;

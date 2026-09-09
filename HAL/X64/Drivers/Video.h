@@ -26,6 +26,11 @@ int VideoBackbufferEnabled(void);
 UINT32 VideoBackbufferPages(void);
 /* 脏矩形 blit 到 GOP；无后缓冲时为空操作 */
 void VideoPresent(void);
+/* PR-G-hotres：Bochs/QEMU VGA DISPI；成功 0，无 Bochs/失败 -1 */
+int VideoBochsSetMode(UINT32 Width, UINT32 Height);
+int VideoBochsAvailable(void);
+UINT64 VideoFrameBufferBase(void);
+UINT64 VideoFrameBufferSize(void);
 /* 直写 scanout（boot 进度，勿与 Present 混用长路径） */
 void VideoDrawBeginFront(void);
 void VideoDrawEndFront(void);
