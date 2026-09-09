@@ -550,6 +550,23 @@ void VideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color) {
     DirtyUnion(X, Y, 1, 1);
 }
 
+/* 光标 XOR：再异或一次即擦除，无需 save-under/ReadPixel */
+void VideoXorPixelRaw(UINT32 X, UINT32 Y, UINT32 Mask) {
+    UINT32 *Fb;
+    UINT32 Pitch;
+
+    if (X >= gScreen.Width || Y >= gScreen.Height) {
+        return;
+    }
+    Fb = DrawBase();
+    Pitch = DrawPitch();
+    if (!Fb || Pitch == 0) {
+        return;
+    }
+    Fb[Y * Pitch + X] ^= Mask;
+    DirtyUnion(X, Y, 1, 1);
+}
+
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {
     if (gClipOn) {
         if (X < gClipX || Y < gClipY ||

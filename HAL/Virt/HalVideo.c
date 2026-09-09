@@ -87,6 +87,10 @@ void HalVideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color) {
     VideoDrawPixelRaw(X, Y, Color);
 }
 
+void HalVideoXorPixelRaw(UINT32 X, UINT32 Y, UINT32 Mask) {
+    VideoXorPixelRaw(X, Y, Mask);
+}
+
 UINT32 HalVideoReadPixel(UINT32 X, UINT32 Y) {
     return VideoReadPixel(X, Y);
 }

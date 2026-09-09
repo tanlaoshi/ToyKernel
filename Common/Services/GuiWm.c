@@ -981,6 +981,12 @@ void GuiPollMouse(void) {
     UINT32 Sw;
     UINT32 Sh;
     GUI_MOUSE_STATE M;
+    UINT32 LastX;
+    UINT32 LastY;
+    UINT8 LastBtn;
+    INT8 WheelSum;
+    int Any;
+    int NeedMove;
 
     if (!HalMousePresent()) {
         return;
@@ -1004,14 +1010,21 @@ void GuiPollMouse(void) {
         return;
     }
 
+    /*
+     * 真机：队列里常积几十份报告。逐条 CursorMove+Present → 光标极卡。
+     * Defer Present，并合并位移；按键边沿/滚轮仍按每份报告处理。
+     */
+    LastX = gCursorX;
+    LastY = gCursorY;
+    LastBtn = gMousePrevBtn;
+    WheelSum = 0;
+    Any = 0;
+    NeedMove = 0;
+    GuiPresentDeferPush();
     while (HalMouseDequeue(&Raw)) {
         UINT32 X;
         UINT32 Y;
 
-        /*
-         * usb-tablet：X/Y 恒为 0..32767。旧启发式「>屏宽才缩放」在
-         * 1024/1280/1600 下会把左侧绝对坐标当成像素 → 热切后误点其它档。
-         */
         if (Raw.Absolute || Raw.X > 4096u || Raw.Y > 4096u) {
             X = (UINT32)((UINT64)Raw.X * (UINT64)Sw / 32767ull);
             Y = (UINT32)((UINT64)Raw.Y * (UINT64)Sh / 32767ull);
@@ -1026,11 +1039,51 @@ void GuiPollMouse(void) {
             Y = Sh > 0 ? Sh - 1 : 0;
         }
 
-        M.X = X;
-        M.Y = Y;
-        M.Buttons = Raw.Buttons;
-        M.Wheel = Raw.Wheel;
-        GuiOnMouse(&M);
+        LastX = X;
+        LastY = Y;
+        NeedMove = 1;
+        Any = 1;
+        gCursorBtn = Raw.Buttons;
+        if (Raw.Wheel != 0) {
+            WheelSum = (INT8)(WheelSum + Raw.Wheel);
+        }
+
+        /* 按下/抬起边沿：必须逐包看；拖动位移合并到队尾再 Update */
+        if ((Raw.Buttons & 1) && !(LastBtn & 1)) {
+            GuiHandleClick(X, Y);
+        }
+        if (!(Raw.Buttons & 1) && (LastBtn & 1)) {
+            GuiDragEnd();
+        }
+        if ((Raw.Buttons & 2) && !(LastBtn & 2)) {
+            GuiRightClickPlaceholder(X, Y);
+        }
+        LastBtn = Raw.Buttons;
     }
+    if (NeedMove) {
+        if ((LastBtn & 1) && gDragWin >= 0) {
+            gCursorX = LastX;
+            gCursorY = LastY;
+            GuiDragUpdate(LastX, LastY);
+        } else {
+            GuiPointerMove(LastX, LastY);
+        }
+    }
+    if (WheelSum != 0) {
+        M.X = LastX;
+        M.Y = LastY;
+        M.Buttons = LastBtn;
+        M.Wheel = WheelSum;
+        if (GuiFocusKind() == GUI_WIN_FILES) {
+            FilesUiOnWheel(M.Wheel);
+        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+            ConsoleOnWheel(M.Wheel);
+        }
+    }
+    if (Any) {
+        gMousePrevBtn = LastBtn;
+        gCursorBtn = LastBtn;
+    }
+    GuiPresentDeferPop();
 }
 

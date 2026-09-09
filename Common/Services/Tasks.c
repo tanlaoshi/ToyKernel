@@ -41,10 +41,22 @@ static int SerialIsEnter(char C) {
 }
 
 /*
- * 真机 poll-USB：Shell/Gui 循环里已 HalInputPoll；此处只 Halt 把 CPU 还给定时器。
- * 勿在此连打 Drain：易与持锁路径叠加重入；电源键软关也依赖能进 hlt。
+ * 真机 poll-USB：纯 hlt 要等 PIT/HPET tick 才醒 → 光标更新锁在 ~10ms+，体感极卡。
+ * 多数轮次短自旋；偶发 hlt 仍给定时器/短按电源窗口。
  */
 static void YieldForPollInput(void) {
+    static UINT32 SpinGen;
+
+    if (!HalCpuIsHypervisor()) {
+        UINT32 i;
+        for (i = 0; i < 800; i++) {
+            __asm__ volatile ("pause");
+        }
+        SpinGen++;
+        if ((SpinGen & 15u) != 0) {
+            return;
+        }
+    }
     HalCpuHalt();
 }
 

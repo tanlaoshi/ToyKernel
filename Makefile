@@ -87,10 +87,12 @@ endif
 INCLUDES_HAL += -I$(BOARD_DIR)
 endif
 
+XHCI_DIAG_VERBOSE ?= 0
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
               -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
               -DTOY_NO_COM1=$(NO_COM1) \
+              -DXHCI_DIAG_VERBOSE=$(XHCI_DIAG_VERBOSE) \
               -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
               $(ARCH_CFLAGS)
 

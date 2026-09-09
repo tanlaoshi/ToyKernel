@@ -34,17 +34,6 @@ static int Ps2StatusLooksDead(UINT8 St) {
     return St == 0xFF;
 }
 
-static void FlushObBounded(void) {
-    int i;
-    for (i = 0; i < 10000; i++) {
-        UINT8 St = HalIoRead8(PS2_STATUS);
-        if (Ps2StatusLooksDead(St) || (St & STATUS_OBF) == 0) {
-            return;
-        }
-        (void)HalIoRead8(PS2_DATA);
-    }
-}
-
 static void WaitIbFree(void) {
     for (int i = 0; i < 8000; i++) {
         UINT8 St = HalIoRead8(PS2_STATUS);
@@ -292,7 +281,6 @@ static void DrainOb(int Max) {
 
 static int Ps2InitHw(void) {
     UINT8 Ack = 0;
-    UINT8 St;
 
     /* 排空杂字节（须有上限：无 8042 时 STATUS 常为 0xFF，OBF 永真） */
     DrainOb(256);

@@ -112,7 +112,6 @@ static int InitializeUsb(void) {
      * 再 PHOTO 拍尾部日志。QEMU 不走 PhotoHold。
      */
     if (!HalCpuIsHypervisor()) {
-        HalSerialWrite("boot: xhci-Hhid photo-hold build\n");
         HalInputArmIrq();
         HalSerialGopPhotoHold(20);
         /* PHOTO→gui 空窗：多 Drain 几轮，降低事件环溢满概率 */

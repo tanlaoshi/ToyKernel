@@ -1,11 +1,16 @@
 /*
- * GuiCursor.c — PR-R2：鼠标光标 save-under
+ * GuiCursor.c — PR-R2：鼠标光标（XOR，无 save-under）
+ *
+ * 真机跟手：旧 save-under 每移一次 ReadPixel 一整框 + Present，极卡。
+ * XOR 再画一次即擦除；与 GuiFrameBufferBegin/End 仍配合（先擦再绘再画上）。
  */
 #include "GuiPriv.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "UI.h"
 #include "FilesUi.h"
+
+#define CURSOR_XOR_MASK 0x00FFFFFFu
 
 void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
                       UINT32 *Sw, UINT32 *Sh) {
@@ -23,61 +28,49 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     *Sh = Ey - *Sy;
 }
 
-
-void DrawCursorAt(UINT32 X, UINT32 Y) {
+/* 横条含中心，竖条跳过中心，避免中心被异或两次变回原色 */
+static void XorCursorAt(UINT32 X, UINT32 Y) {
     int i;
 
-    /* 必须 Raw：客户区 clip 开启时普通 DrawPixel 会让窗外光标消失 */
     for (i = -CURSOR_HALF; i <= CURSOR_HALF; i++) {
         int Px = (int)X + i;
-        int Py = (int)Y + i;
         if (Px >= 0 && (UINT32)Px < gScreenWidth) {
-            HalVideoDrawPixelRaw((UINT32)Px, Y, COLOR_WHITE);
-        }
-        if (Py >= 0 && (UINT32)Py < gScreenHeight) {
-            HalVideoDrawPixelRaw(X, (UINT32)Py, COLOR_WHITE);
+            HalVideoXorPixelRaw((UINT32)Px, Y, CURSOR_XOR_MASK);
         }
     }
-    HalVideoDrawPixelRaw(X, Y, COLOR_RED);
+    for (i = -CURSOR_HALF; i <= CURSOR_HALF; i++) {
+        int Py;
+        if (i == 0) {
+            continue;
+        }
+        Py = (int)Y + i;
+        if (Py >= 0 && (UINT32)Py < gScreenHeight) {
+            HalVideoXorPixelRaw(X, (UINT32)Py, CURSOR_XOR_MASK);
+        }
+    }
 }
 
+void DrawCursorAt(UINT32 X, UINT32 Y) {
+    XorCursorAt(X, Y);
+}
 
 void CursorRestore(void) {
-    UINT32 Dy;
-    UINT32 Dx;
-
     if (!gCursorVisible) {
         return;
     }
-    for (Dy = 0; Dy < gSaveH; Dy++) {
-        for (Dx = 0; Dx < gSaveW; Dx++) {
-            HalVideoDrawPixelRaw(gSaveX + Dx, gSaveY + Dy,
-                                 gUnder[Dy * gSaveW + Dx]);
-        }
-    }
+    XorCursorAt(gCursorX, gCursorY);
     gCursorVisible = 0;
 }
 
-
 void CursorPaint(void) {
-    UINT32 Dy;
-    UINT32 Dx;
-
-    /* 已可见时禁止直接再画：否则 gUnder 会采到十字，Restore 后留下印记 */
     if (gCursorVisible) {
         CursorRestore();
     }
-    CursorBox(gCursorX, gCursorY, &gSaveX, &gSaveY, &gSaveW, &gSaveH);
-    for (Dy = 0; Dy < gSaveH; Dy++) {
-        for (Dx = 0; Dx < gSaveW; Dx++) {
-            gUnder[Dy * gSaveW + Dx] =
-                HalVideoReadPixel(gSaveX + Dx, gSaveY + Dy);
-        }
-    }
-    DrawCursorAt(gCursorX, gCursorY);
+    XorCursorAt(gCursorX, gCursorY);
     gCursorVisible = 1;
+    /* gSave* 仍更新，供调试/兼容；XOR 路径不再读 gUnder */
+    CursorBox(gCursorX, gCursorY, &gSaveX, &gSaveY, &gSaveW, &gSaveH);
 }
-
 
 void CursorMove(UINT32 X, UINT32 Y) {
     if (X >= gScreenWidth) {
@@ -90,12 +83,11 @@ void CursorMove(UINT32 X, UINT32 Y) {
         return;
     }
 
-    /* 拖动时只跟踪坐标；若光标仍可见则先擦掉，避免十字残影 */
     if (gDragWin >= 0) {
         if (gCursorVisible) {
             GfxIrqEnter();
             CursorRestore();
-            HalVideoPresent();
+            GfxPresent();
             GfxIrqLeave();
         }
         gCursorX = X;
@@ -108,36 +100,29 @@ void CursorMove(UINT32 X, UINT32 Y) {
     gCursorX = X;
     gCursorY = Y;
     CursorPaint();
-    HalVideoPresent();
+    GfxPresent();
     GfxIrqLeave();
 }
-
 
 void GuiPointerMove(UINT32 X, UINT32 Y) {
     CursorMove(X, Y);
     if (gDragWin >= 0 && (gCursorBtn & 1)) {
         GuiDragUpdate(X, Y);
     } else if (GuiFocusKind() == GUI_WIN_FILES) {
-        /* PR-G11：列表悬停行（不拖动时） */
         FilesUiOnHover(X, Y);
     }
 }
 
-
-/* 帧缓冲绘制前：关中断并擦掉光标（避免 save-under 采到十字像素） */
 void GuiFrameBufferBegin(void) {
     GfxIrqEnter();
     CursorRestore();
 }
 
-
-/* 帧缓冲绘制后：重画光标、Present；仅恢复进入 Begin 前已开启的中断 */
 void GuiFrameBufferEnd(void) {
     CursorPaint();
     GfxPresent();
     GfxIrqLeave();
 }
-
 
 void GuiCursorPaint(void) {
     GfxIrqEnter();
@@ -147,7 +132,6 @@ void GuiCursorPaint(void) {
     GfxIrqLeave();
 }
 
-
 void GuiCursorHide(void) {
     GfxIrqEnter();
     CursorRestore();
@@ -155,11 +139,9 @@ void GuiCursorHide(void) {
     GfxIrqLeave();
 }
 
-
 void GuiCursorShow(void) {
     GfxIrqEnter();
     CursorPaint();
     GfxPresent();
     GfxIrqLeave();
 }
-

@@ -501,13 +501,41 @@ static int MountAllVolumes(void) {
     } else {
         int i;
         int FatVol = -1;
+        int PrefVol = -1;
+        int MarkerVol = -1;
+
         for (i = 0; i < gVolCount; i++) {
-            if (!gVols[i].Ops || !gVols[i].Ops->Synthetic) {
+            if (!gVols[i].Ops || gVols[i].Ops->Synthetic) {
+                continue;
+            }
+            if (FatVol < 0) {
                 FatVol = i;
-                break;
+            }
+            /* 无 TOYOS.ID 时优先非 ESP（可写数据分区） */
+            if (!gVols[i].ReadOnly && PrefVol < 0) {
+                PrefVol = i;
+            }
+            if (MarkerVol < 0 && FileSystemActivate(i) == FAT_OK) {
+                if (VfsReadFile("HELLO.ELF", Tmp, sizeof(Tmp), &Sz) == FAT_OK ||
+                    VfsReadFile("Kernel.elf", Tmp, sizeof(Tmp), &Sz) == FAT_OK ||
+                    VfsReadFile("TOYOS.DB", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
+                    MarkerVol = i;
+                }
             }
         }
-        gDefaultVol = (FatVol >= 0) ? FatVol : 0;
+        if (MarkerVol >= 0) {
+            gDefaultVol = MarkerVol;
+        } else if (PrefVol >= 0) {
+            gDefaultVol = PrefVol;
+        } else {
+            gDefaultVol = (FatVol >= 0) ? FatVol : 0;
+        }
+        if (gDefaultVol >= 0 && gDefaultVol < gVolCount &&
+            gVols[gDefaultVol].Name[0] == 'E' && gVols[gDefaultVol].Name[1] == 'S' &&
+            gVols[gDefaultVol].Name[2] == 'P') {
+            HalConsoleWriteSerial(
+                "fs: default=ESP (no TOYOS.ID; put rootfs on a FAT with TOYOS.ID)\n");
+        }
     }
     if (FileSystemActivate(gDefaultVol) != FAT_OK) {
         return 0;

@@ -151,8 +151,14 @@ static volatile UINT32 gKeyboardReadIndex;
 
 static UINT32 gMouseSlotId;
 static UINT32 gMousePort;
+static UINT32 gMouseRoute;   /* hub 子设备 Route String；根口设备为 0 */
+static UINT8  gMouseHubSlot; /* TT：父 hub slot；根口为 0 */
+static UINT8  gMouseTtPort;
 static UINT32 gMouseIntrDci;
 static UINT8  gMouseIface;
+static UINT8  gMouseIfaceProto; /* bInterfaceProtocol：2=boot 相对；0=tablet 等绝对 */
+static UINT8  gMouseParseScore; /* ParseConfigMouse 评分：3=boot鼠 2=boot子类 1=其它HID */
+static UINT8  gMouseAbsolute;   /* 1：报告为绝对坐标（QEMU usb-tablet） */
 static UINT8  gMouseEpAddr;
 static UINT8  gMouseReportLen;
 static UINT8  gMouseBuf[8] __attribute__((aligned(64)));
@@ -178,6 +184,19 @@ static UINT32 gDiagXferLogged;        /* 限制串口/屏日志条数 */
 static UINT32 gDiagQuiet;             /* GET_REPORT poll：勿 DiagChk 刷屏/盖白字 */
 static UINT32 gDiagIntrCcLogged;
 
+/*
+ * 串口日志级别（默认安静）：
+ *   make XHCI_DIAG_VERBOSE=1  → 全量 OK DiagChk + 逐步 BootMark
+ *   默认 0                    → 只打 FAIL + 键鼠/hub 里程碑（好抄 PHOTO）
+ */
+#ifndef XHCI_DIAG_VERBOSE
+#define XHCI_DIAG_VERBOSE 0
+#endif
+
+static int DiagVerbose(void) {
+    return XHCI_DIAG_VERBOSE != 0;
+}
+
 #define MOUSE_Q 32
 static USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
 static volatile UINT32 gMouseWriteIndex;
@@ -186,6 +205,8 @@ static SPIN_LOCK gHidQueueLock; /* PR-S-ap：IRQ 入队 vs AP 出队 */
 
 static XHCI_TRB gCmdRing[RING_SIZE] __attribute__((aligned(64)));
 static XHCI_TRB gEp0Ring[RING_SIZE] __attribute__((aligned(64)));
+static XHCI_TRB gHubEp0Ring[RING_SIZE] __attribute__((aligned(64)));   /* hub 专用：勿与键鼠共环 */
+static XHCI_TRB gMouseEp0Ring[RING_SIZE] __attribute__((aligned(64))); /* 独立鼠/子设备专用 */
 static XHCI_TRB gIntrRing[RING_SIZE] __attribute__((aligned(64)));
 static XHCI_TRB gEvtRing[EVT_SIZE] __attribute__((aligned(64)));
 /* 真机可指向固件环（IOMMU 已映射）；QEMU 用上面静态缓冲 */
@@ -195,6 +216,8 @@ static UINT32 gEvtRingSize = EVT_SIZE;
 
 static RING_STATE gCmd;
 static RING_STATE gEp0;
+static RING_STATE gHubEp0;
+static RING_STATE gMouseEp0;
 static RING_STATE gIntr;
 static UINT32 gEvtDeq;
 static UINT32 gEvtCcs;
@@ -233,13 +256,16 @@ static UINT8  gHubDevCtx[2048] __attribute__((aligned(64))); /* PR-H-hub */
 static UINT8  gInCtx[2048] __attribute__((aligned(64)));
 static UINT8  gCtrlBuf[256] __attribute__((aligned(64)));
 static UINT8  gReportBuf[8] __attribute__((aligned(64)));
-static UINT8  gGetReportBuf[8] __attribute__((aligned(64))); /* 与中断 IN 缓冲分离 */
 static UINT8  gErst[16] __attribute__((aligned(64)));
 
 static UINT32 gHubSlotId;
 static UINT32 gHubRootPort;
 static UINT8  gHubNumPorts;
 static UINT8  gHubSpeed;
+static UINT8  gHubMtt; /* bDeviceProtocol==2 才置 MTT；误置单 TT hub 会导致子设备中断永不完成 */
+static UINT8  gHubTtt; /* Hub Desc wHubCharacteristics[6:5] → Slot TT Think Time */
+static UINT32 gPortNoHid; /* 键盘 pass 已判非 HID 的根口（如前面 U 盘） */
+static UINT32 gPortNeedForcePr; /* 本轮已 Address+Disable，再扫须强制 PR */
 
 static volatile UINT32 gCmdDone;
 static UINT32 gCmdCode;
@@ -418,12 +444,30 @@ static void BootLogHex(const char *Prefix, UINT64 Value, int Digits) {
     BootLog(Msg);
 }
 
+static void BootLogV(const char *Text) {
+    if (DiagVerbose()) {
+        BootLog(Text);
+    }
+}
+
+static void BootLogHexV(const char *Prefix, UINT64 Value, int Digits) {
+    if (DiagVerbose()) {
+        BootLogHex(Prefix, Value, Digits);
+    }
+}
+
+static void BootMarkV(const char *Text) {
+    if (DiagVerbose()) {
+        HalSerialBootMark(Text);
+    }
+}
+
 static void EnumWhy(const char *Why) {
     gEnumWhy = Why;
     BootLog(Why);
 }
 
-/* 期望 vs 实际：xhci OK|FAIL <step> want=<期望> got=<实际> */
+/* 期望 vs 实际：默认只打 FAIL；VERBOSE=1 时 OK 也打 */
 static void DiagAppend(char *Msg, int *N, int Cap, const char *S) {
     while (S && *S && *N < Cap - 1) {
         Msg[(*N)++] = *S++;
@@ -435,7 +479,8 @@ static void DiagChk(const char *Step, int Ok, const char *Want, UINT64 Got, int 
     char Hex[20];
     int n = 0;
 
-    if (gDiagQuiet) {
+    /* 安静模式：DiagChk 全关；要 OK/FAIL 逐步诊断用 XHCI_DIAG_VERBOSE=1 */
+    if (gDiagQuiet || !DiagVerbose()) {
         return;
     }
     DiagAppend(Msg, &n, (int)sizeof(Msg), Ok ? "xhci OK " : "xhci FAIL ");
@@ -456,6 +501,9 @@ static void DiagChkStr(const char *Step, int Ok, const char *Want, const char *G
     char Msg[88];
     int n = 0;
 
+    if (gDiagQuiet || !DiagVerbose()) {
+        return;
+    }
     DiagAppend(Msg, &n, (int)sizeof(Msg), Ok ? "xhci OK " : "xhci FAIL ");
     DiagAppend(Msg, &n, (int)sizeof(Msg), Step);
     DiagAppend(Msg, &n, (int)sizeof(Msg), " want=");
@@ -857,8 +905,24 @@ static void ServiceHidCompletions(void) {
 }
 
 static int WaitTransfer(int Timeout) {
-    if (!HalCpuIsHypervisor() && Timeout > 200000) {
-        Timeout = 200000;
+    /*
+     * 真机：按 TSC 限时（默认 ~80ms）。旧版固定 20 万次 ProcessEvents，
+     * 多口 ControlXfer 超时会空转数十秒 → 短按电源无效、只能长按硬关。
+     */
+    if (!HalCpuIsHypervisor()) {
+        UINT64 T0 = ReadTsc();
+        UINT64 Need = 150ULL * 3000000ULL; /* ~150ms：真机 cfg 描述符偶发慢 */
+        for (;;) {
+            ProcessEvents();
+            ServiceHidCompletions();
+            if (gXferDone) {
+                return (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0 : -1;
+            }
+            if (ReadTsc() - T0 >= Need) {
+                return -1;
+            }
+            __asm__ volatile ("pause");
+        }
     }
     while (Timeout--) {
         ProcessEvents();
@@ -1021,7 +1085,10 @@ static void TakeLegacy(void) {
         }
         Ptr = gCapabilityBase + (UINT64)Next * 4;
     }
-    DiagChkStr("TakeLegacy", 0, "USBLEGSUP id=1", "not found");
+    /* 真机常见无 USBLEGSUP：安静模式不刷 FAIL */
+    if (DiagVerbose()) {
+        DiagChkStr("TakeLegacy", 0, "USBLEGSUP id=1", "not found");
+    }
 }
 
 /* 真机：BootMark 直写帧缓冲（不 Present）；QEMU 正常串口/GOP */
@@ -1082,11 +1149,14 @@ static int HaltOnly(void) {
     return 1;
 }
 
-/* 真机：分阶 set RS 黄字 */
+/* 真机：分阶 set RS 黄字（仅 VERBOSE） */
 static void BootMarkRs(char Kind, char Stage) {
     char Msg[32];
     int n = 0;
     const char *P = "boot: xhci ";
+    if (!DiagVerbose()) {
+        return;
+    }
     while (*P) {
         Msg[n++] = *P++;
     }
@@ -1149,12 +1219,10 @@ static int StartController(UINT32 MaxSlots) {
         }
         DcbaaFlush();
         WriteMmio64(gOperationalBase + 0x30, FwDcbaap);
-        HalSerialBootMark("boot: xhci use fw DCBAAP\n");
+        BootMarkV("boot: xhci use fw DCBAAP\n");
 
         /*
          * 真机：DCBAAP 必须固件（否则 RS 挂）；命令/事件环改私有。
-         * 固件事件环多次同步失败：EnableSlot 超时 USBSTS=0x18(EINT|PCD)
-         * 却吃不到 CMD_COMPLETION（Cycle/dequeue 失步）。
          */
         (void)gFwCrcrSave;
         (void)gFwErstbaSave;
@@ -1184,7 +1252,6 @@ static int StartController(UINT32 MaxSlots) {
         WriteMmio32(gRuntimeBase + 0x2C, 0);
         WriteMmio64(gRuntimeBase + 0x30, PointerToPhysical(gErst));
         WriteMmio64(gRuntimeBase + 0x38, PointerToPhysical(gEvtRing) | (1ULL << 3));
-        HalSerialBootMark("boot: xhci priv rings\n");
 
         Fence();
         BootMarkRs('b', 'R');
@@ -1197,12 +1264,14 @@ static int StartController(UINT32 MaxSlots) {
             return 0;
         }
         if (!WaitSet(gOperationalBase + 0x18, CRCR_CRR, 100000)) {
-            DiagChk("StartController.CRR", 0, "CRR=1", ReadMmio32(gOperationalBase + 0x18), 8);
-            HalSerialBootMark("boot: xhci CRR TO\n");
+            if (DiagVerbose()) {
+                DiagChk("StartController.CRR", 0, "CRR=1", ReadMmio32(gOperationalBase + 0x18), 8);
+                HalSerialBootMark("boot: xhci CRR TO\n");
+            }
         } else {
             DiagChk("StartController.fwRS", 1, "HCH=0+CRR", ReadMmio32(gOperationalBase + 4), 8);
         }
-        HalSerialBootMark("boot: xhci RS running\n");
+        BootMarkV("boot: xhci RS running\n");
         return 1;
     }
 
@@ -1344,7 +1413,11 @@ static void PowerConnectedPorts(void) {
  * USB3：WPR。
  * 真机：已 PED 勿再 PR；成功后不清变更（sticky PRC）；仅 PED=0 时可清 sticky。
  */
-static int ResetPort(UINT32 Port1) {
+/*
+ * Force=0：真机已 PED+CCS 则跳过 PR（同 pass 内二次 PR 易打坏口）。
+ * Force=1：鼠标等二次枚举须 PR（DisableSlot 后设备仍 PED，不重置会 cc=0x04）。
+ */
+static int ResetPortEx(UINT32 Port1, int Force) {
     UINT64 Ps = gOperationalBase + PortReg(Port1);
     UINT32 Val = ReadMmio32(Ps);
     UINT32 SpeedHint = PortSpeed(Val);
@@ -1356,12 +1429,14 @@ static int ResetPort(UINT32 Port1) {
 
     DiagChk("ResetPort.enter", 1, "PORTSC", Val, 8);
 
-    /* 真机：已使能则跳过 PR（二次 PR 会把 0x00200E03 打成 0x002006E1） */
-    if (RealPc && (Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
+    if (RealPc && !Force && (Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
         DiagChk("ResetPort.already", 1, "PED+CCS skip PR", Val, 8);
         Speed = PortSpeed(Val);
         DiagChk("ResetPort.done", 1, "enabled", Speed, 2);
         return 1;
+    }
+    if (RealPc && Force && (Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
+        BootLogHexV("boot: xhci port PR force=", Port1, 2);
     }
 
     /* 端口上电（勿在已连接时清 PED） */
@@ -1482,6 +1557,10 @@ static int ResetPort(UINT32 Port1) {
     return 0;
 }
 
+static int ResetPort(UINT32 Port1) {
+    return ResetPortEx(Port1, 0);
+}
+
 static UINT16 SpeedMps(UINT8 Speed) {
     if (Speed == 4) {
         return 512;
@@ -1492,11 +1571,44 @@ static UINT16 SpeedMps(UINT8 Speed) {
     return 8;
 }
 
+/*
+ * 键 / hub / 独立鼠 各用独立 EP0 环。
+ * 真机证据：Address 子设备时 InitRing(共享 gEp0Ring) 会毁掉 hub EP0 dequeue，
+ * hub Slot 仍 Hub=1 且鼠 epst=Running，但 TT 中断 IN 永不完成 → PHOTO m=0。
+ */
+static void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut) {
+    if (SlotId != 0 && SlotId == gHubSlotId) {
+        *RingOut = gHubEp0Ring;
+        *StOut = &gHubEp0;
+    } else if (SlotId != 0 && SlotId == gMouseSlotId && SlotId != gSlotId) {
+        *RingOut = gMouseEp0Ring;
+        *StOut = &gMouseEp0;
+    } else {
+        *RingOut = gEp0Ring;
+        *StOut = &gEp0;
+    }
+}
+
+static void Ep0RingForSlotOut(UINT32 *SlotOut, XHCI_TRB **RingOut, RING_STATE **StOut) {
+    if (SlotOut == &gHubSlotId) {
+        *RingOut = gHubEp0Ring;
+        *StOut = &gHubEp0;
+    } else if (SlotOut == &gMouseSlotId) {
+        *RingOut = gMouseEp0Ring;
+        *StOut = &gMouseEp0;
+    } else {
+        *RingOut = gEp0Ring;
+        *StOut = &gEp0;
+    }
+}
+
 static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
                                UINT8 *DevCtx, UINT32 RouteString,
                                UINT8 ParentHubSlot, UINT8 TtPort,
                                int HubDevice, UINT8 HubNumPorts) {
     int Ok;
+    XHCI_TRB *Ep0Ring;
+    RING_STATE *Ep0St;
 
     gXferSlot = 0;
     if (SlotOut) {
@@ -1524,11 +1636,19 @@ static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
         gKbdHubSlot = ParentHubSlot;
         gKbdTtPort = TtPort;
     }
+    if (SlotOut == &gMouseSlotId) {
+        gMouseRoute = RouteString & 0xFFFFFu;
+        gMouseHubSlot = ParentHubSlot;
+        gMouseTtPort = TtPort;
+    }
 
     UINT32 *Slot = (UINT32 *)(void *)InSlot();
     Slot[0] = (1u << 27) | ((UINT32)Speed << 20) | (RouteString & 0xFFFFFu);
     if (HubDevice) {
-        Slot[0] |= (1u << 26);
+        Slot[0] |= (1u << 26); /* USB2 hub only; SS hub must stay Hub=0 */
+        if (gHubMtt) {
+            Slot[0] |= (1u << 25); /* 仅 Multi-TT hub */
+        }
     }
     Slot[1] = ((UINT32)RootPort << 16);
     if (HubDevice && HubNumPorts != 0) {
@@ -1538,11 +1658,12 @@ static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
         Slot[2] = (UINT32)ParentHubSlot | ((UINT32)TtPort << 8);
     }
 
-    InitRing(gEp0Ring, &gEp0, RING_SIZE);
+    Ep0RingForSlotOut(SlotOut, &Ep0Ring, &Ep0St);
+    InitRing(Ep0Ring, Ep0St, RING_SIZE);
     UINT32 *Ep0 = (UINT32 *)(void *)InEp(1);
     gEp0Mps = SpeedMps(Speed);
     Ep0[1] = (3u << 1) | (4u << 3) | ((UINT32)gEp0Mps << 16);
-    UINT64 Deq = PointerToPhysical(gEp0Ring) | 1;
+    UINT64 Deq = PointerToPhysical(Ep0Ring) | 1;
     Ep0[2] = (UINT32)Deq;
     Ep0[3] = (UINT32)(Deq >> 32);
     Ep0[4] = 8;
@@ -1550,7 +1671,7 @@ static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
     FlushDma(gInCtx, sizeof(gInCtx));
     FlushDma(DevCtx, 2048);
     DcbaaFlush();
-    FlushDma(gEp0Ring, sizeof(gEp0Ring));
+    FlushDma(Ep0Ring, RING_SIZE * sizeof(XHCI_TRB));
 
     Ok = Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_ADDRESS_DEV) | TRB_SLOT(*SlotOut), 0) == 0;
     DiagChk("AddressDev", Ok, "AddressDev cc=1", gCmdCode, 2);
@@ -1588,8 +1709,36 @@ static void DisableSlot(UINT32 SlotId) {
     }
 }
 
+/* ControlXfer 超时后 EP0 环与 HC 失步，须 Reset+SetTrDeq 才能继续枚举 */
+static void RecoverEp0(UINT32 SlotId) {
+    XHCI_TRB *Ring;
+    RING_STATE *St;
+    UINT64 Deq;
+    UINT32 EpField = (1u << 16);
+    UINT32 QuietSave;
+
+    if (SlotId == 0) {
+        return;
+    }
+    QuietSave = gDiagQuiet;
+    gDiagQuiet = 1; /* 恢复过程中的 Stop/ResetEP 勿刷 FAIL */
+    (void)Command(0, TRB_TYPE(TRB_STOP_EP) | TRB_SLOT(SlotId) | EpField, 0);
+    ProcessEvents();
+    (void)Command(0, TRB_TYPE(TRB_RESET_EP) | TRB_SLOT(SlotId) | EpField, 0);
+    ProcessEvents();
+    Ep0RingForSlot(SlotId, &Ring, &St);
+    InitRing(Ring, St, RING_SIZE);
+    FlushDma(Ring, RING_SIZE * sizeof(XHCI_TRB));
+    Deq = PointerToPhysical(Ring) | 1;
+    (void)Command(Deq, TRB_TYPE(TRB_SET_TR_DEQ) | TRB_SLOT(SlotId) | EpField, 0);
+    ProcessEvents();
+    gDiagQuiet = QuietSave;
+}
+
 /* EP0 控制传输（SETUP-DATA-STATUS） */
 static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
+    XHCI_TRB *Ring;
+    RING_STATE *St;
     UINT64 SetupParam = 0;
     UINT8 *Raw = (UINT8 *)Setup;
     for (int i = 0; i < 8; i++) {
@@ -1601,19 +1750,36 @@ static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
         Trt = (Setup->bmRequestType & 0x80) ? TRB_TRT_IN : TRB_TRT_OUT;
     }
 
+    Ep0RingForSlot(gXferSlot, &Ring, &St);
+
+    /* 清完成码：超时后若仍显示上一笔 cc=1，会误报 FAIL want=cc=1|13 got=0x01 */
     gXferDone = 0;
-    Enqueue(gEp0Ring, &gEp0, SetupParam, 8, TRB_TYPE(TRB_SETUP) | TRB_IDT | Trt);
+    gXferCode = 0;
+    Enqueue(Ring, St, SetupParam, 8, TRB_TYPE(TRB_SETUP) | TRB_IDT | Trt);
 
     if (Setup->wLength && Data) {
         UINT32 Dir = (Setup->bmRequestType & 0x80) ? TRB_DIR_IN : 0;
-        Enqueue(gEp0Ring, &gEp0, PointerToPhysical(Data), Setup->wLength, TRB_TYPE(TRB_DATA) | Dir);
+        Enqueue(Ring, St, PointerToPhysical(Data), Setup->wLength, TRB_TYPE(TRB_DATA) | Dir);
     }
 
     UINT32 StatusDir = (Setup->wLength && (Setup->bmRequestType & 0x80)) ? 0 : TRB_DIR_IN;
-    Enqueue(gEp0Ring, &gEp0, 0, 0, TRB_TYPE(TRB_STATUS) | TRB_IOC | StatusDir);
+    Enqueue(Ring, St, 0, 0, TRB_TYPE(TRB_STATUS) | TRB_IOC | StatusDir);
     RingDoorbell(gXferSlot, 1);
     if (WaitTransfer(150000) < 0) {
-        DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
+        ProcessEvents();
+        ServiceHidCompletions();
+        if (gXferDone && (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET)) {
+            DiagChk("ControlXfer", 1, "cc=1|13", gXferCode, 2);
+            return 0;
+        }
+        if (!gXferDone) {
+            if (DiagVerbose()) {
+                DiagChkStr("ControlXfer", 0, "xfer done", "timeout");
+            }
+        } else {
+            DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
+        }
+        RecoverEp0(gXferSlot);
         return -1;
     }
     DiagChk("ControlXfer", gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET,
@@ -1639,15 +1805,77 @@ static int GetDesc(UINT16 TypeIndex, UINT16 Index, UINT16 Length, void *Buf) {
     return 0;
 }
 
+/* USB2 hub：对齐 EDK2 XhcConfigHubContext —— 从 Output Slot 拷贝后 ConfigEP，写入 Hub/TTT/MTT/端口数。
+ * 仅 Evaluate 且不带 TTT 时，真机常见 EP0 经 TT 成功、中断 IN 永不完成（PHOTO m=0）。 */
+static int EvaluateHubSlot(UINT32 SlotId, UINT32 RootPort, UINT8 Speed, UINT8 NumPorts) {
+    UINT32 *InSlotCtx;
+    UINT32 *OutSlotCtx;
+    UINT32 i;
+    UINT32 Words;
+
+    if (Speed >= 4 || NumPorts == 0 || SlotId == 0) {
+        return 0;
+    }
+    ZeroMemory(gInCtx, sizeof(gInCtx));
+    *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0); /* Add A0 */
+    InSlotCtx = (UINT32 *)(void *)InSlot();
+    FlushDma(gHubDevCtx, 2048);
+    OutSlotCtx = (UINT32 *)(void *)gHubDevCtx;
+    Words = gCtxSize / 4u;
+    if (Words > 16) {
+        Words = 16;
+    }
+    for (i = 0; i < Words; i++) {
+        InSlotCtx[i] = OutSlotCtx[i];
+    }
+    /* Context Entries 至少 1；Hub + 可选 MTT + TTT */
+    if (((InSlotCtx[0] >> 27) & 0x1Fu) < 1u) {
+        InSlotCtx[0] = (InSlotCtx[0] & ~(0x1Fu << 27)) | (1u << 27);
+    }
+    InSlotCtx[0] |= (1u << 26);
+    if (gHubMtt) {
+        InSlotCtx[0] |= (1u << 25);
+    } else {
+        InSlotCtx[0] &= ~(1u << 25);
+    }
+    InSlotCtx[0] = (InSlotCtx[0] & ~(3u << 16)) | (((UINT32)gHubTtt & 3u) << 16);
+    if (Speed != 0) {
+        InSlotCtx[0] = (InSlotCtx[0] & ~(0xFu << 20)) | ((UINT32)Speed << 20);
+    }
+    InSlotCtx[1] = (InSlotCtx[1] & 0x0000FFFFu) |
+                   ((UINT32)RootPort << 16) | ((UINT32)NumPorts << 24);
+    FlushDma(gInCtx, sizeof(gInCtx));
+    FlushDma(gHubDevCtx, 2048);
+    /* EDK2 走 Configure Endpoint（非 Evaluate）更新 hub Slot */
+    if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) != 0) {
+        BootLogHex("boot: xhci hub cfg cc=", gCmdCode, 2);
+        return 0;
+    }
+    BootLogHex("boot: xhci hub mtt=", gHubMtt, 1);
+    BootLogHex("boot: xhci hub ttt=", gHubTtt, 1);
+    return 1;
+}
+
+/* Device Desc 仍在 gCtrlBuf：HS Multi-TT hub 的 bDeviceProtocol==2 */
+static void HubNoteMttFromDevDesc(UINT8 Speed) {
+    gHubMtt = 0;
+    if (Speed == 3 && gCtrlBuf[4] == 0x09 && gCtrlBuf[7] == 2) {
+        gHubMtt = 1;
+    }
+}
+
 static int EvaluateEp0(UINT32 SlotId, UINT16 Mps) {
+    XHCI_TRB *Ring;
+    RING_STATE *St;
     UINT64 Deq;
 
+    Ep0RingForSlot(SlotId, &Ring, &St);
     ZeroMemory(gInCtx, sizeof(gInCtx));
     *(UINT32 *)(void *)(gInCtx + 4) = (1u << 1);
     {
         UINT32 *Ep0 = (UINT32 *)(void *)InEp(1);
         Ep0[1] = (3u << 1) | (4u << 3) | ((UINT32)Mps << 16);
-        Deq = PointerToPhysical(&gEp0Ring[gEp0.Enq]) | (UINT64)(gEp0.Pcs & 1);
+        Deq = PointerToPhysical(&Ring[St->Enq]) | (UINT64)(St->Pcs & 1);
         Ep0[2] = (UINT32)Deq;
         Ep0[3] = (UINT32)(Deq >> 32);
     }
@@ -1662,7 +1890,9 @@ static int GetDeviceDesc(void) {
     int Ok;
 
     Ok = GetDesc(0x0100, 0, 8, gCtrlBuf) == 0;
-    DiagChk("GetDesc8", Ok, "xfer ok", Ok ? gCtrlBuf[7] : gXferCode, 2);
+    if (DiagVerbose()) {
+        DiagChk("GetDesc8", Ok, "xfer ok", Ok ? gCtrlBuf[7] : gXferCode, 2);
+    }
     if (!Ok) {
         EnumWhy("boot: why=desc8\n");
         return -1;
@@ -1675,7 +1905,9 @@ static int GetDeviceDesc(void) {
         (void)EvaluateEp0(gXferSlot, Mps);
     }
     Ok = GetDesc(0x0100, 0, 18, gCtrlBuf) == 0;
-    DiagChk("GetDesc18", Ok, "len>=18 class", Ok ? gCtrlBuf[4] : gXferCode, 2);
+    if (DiagVerbose()) {
+        DiagChk("GetDesc18", Ok, "len>=18 class", Ok ? gCtrlBuf[4] : gXferCode, 2);
+    }
     if (!Ok) {
         EnumWhy("boot: why=desc18\n");
         return -1;
@@ -1731,33 +1963,7 @@ static int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
     return ControlXfer(&Setup, Data);
 }
 
-/* HID GET_REPORT(Input)：中断 IN 不来时真机 poll 兜底（独立缓冲，勿占 gReportBuf） */
-static int HidGetInputReport(UINT32 Slot, UINT8 Iface, void *Buf, UINT16 Length) {
-    USB_SETUP_PACKET Setup = {
-        .bmRequestType = 0xA1,
-        .bRequest = 0x01,
-        .wValue = 0x0100,
-        .wIndex = Iface,
-        .wLength = Length
-    };
-    UINT32 QuietSave;
-
-    if (Slot == 0 || Length == 0 || !Buf) {
-        return -1;
-    }
-    gXferSlot = Slot;
-    ZeroMemory(Buf, Length);
-    FlushDma(Buf, Length);
-    QuietSave = gDiagQuiet;
-    gDiagQuiet = 1; /* 读秒时勿刷 ControlXfer OK 盖白字 */
-    if (ControlXfer(&Setup, Buf) < 0) {
-        gDiagQuiet = QuietSave;
-        return -1;
-    }
-    gDiagQuiet = QuietSave;
-    FlushDma(Buf, Length);
-    return 0;
-}
+/* HID GET_REPORT 曾作 poll 兜底；持 gHidQueueLock 时调用会死锁，故已从 Drain 移除。 */
 
 static UINT8 FsInterval(UINT8 BInterval) {
     if (BInterval == 0) {
@@ -1920,12 +2126,15 @@ static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
                             UINT8 *Iface, UINT8 *EpAddr, UINT16 *Mps, UINT8 *Interval) {
     UINT16 Off = 0;
     UINT8 FoundIface = 0;
-    UINT8 BestProto = 0xFF;
+    UINT8 BestScore = 0;
     UINT8 BestIface = 0;
     UINT8 BestEp = 0;
     UINT16 BestMps = 8;
     UINT8 BestInterval = 10;
+    UINT8 BestProto = 0xFF;
     UINT8 CurProto = 0;
+    UINT8 CurSub = 0;
+    UINT8 CurScore = 0;
 
     *Iface = 0;
     *EpAddr = 0;
@@ -1933,9 +2142,8 @@ static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
     *Interval = 10;
 
     /*
-     * 只要 HID Class=3 且不是 boot keyboard（Protocol=1）。
-     * 优先 boot mouse Protocol=2，避免把键盘接口配成「鼠标」后
-     * 键码被 MousePush 当成绝对坐标（NUC：按键光标乱跳、真鼠标不动）。
+     * 评分：boot mouse (3/1/2)=3；boot 子类 Proto0 (3/1/0)=2；其它 HID 非键盘=1。
+     * 真机曾把 Proto=0 的附加 HID（媒体键等）当成鼠标 → EP 无报告 m=0。
      */
     while (Off + 2 <= Total) {
         UINT8 Len = Cfg[Off];
@@ -1945,30 +2153,32 @@ static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
         }
         if (Type == 4 && Len >= 9) {
             UINT8 Class = Cfg[Off + 5];
-            UINT8 Proto = Cfg[Off + 7];
-            CurProto = Proto;
-            if (Class == 3 && Proto != 1) {
+            CurSub = Cfg[Off + 6];
+            CurProto = Cfg[Off + 7];
+            CurScore = 0;
+            FoundIface = 0;
+            if (Class == 3 && CurProto != 1) {
                 FoundIface = 1;
                 *Iface = Cfg[Off + 2];
-            } else {
-                FoundIface = 0;
+                if (CurSub == 1 && CurProto == 2) {
+                    CurScore = 3;
+                } else if (CurSub == 1) {
+                    CurScore = 2;
+                } else {
+                    CurScore = 1;
+                }
             }
-        } else if (Type == 5 && Len >= 7 && FoundIface) {
+        } else if (Type == 5 && Len >= 7 && FoundIface && CurScore != 0) {
             UINT8 Addr = Cfg[Off + 2];
             UINT8 Attr = Cfg[Off + 3];
-            if ((Addr & 0x80) && ((Attr & 0x03) == 0x03)) {
-                UINT16 ThisMps = (UINT16)(Cfg[Off + 4] | (Cfg[Off + 5] << 8));
-                UINT8 ThisIv = Cfg[Off + 6];
-                /* Protocol 2（boot mouse）最优；否则接受第一个非键盘 HID */
-                if (CurProto == 2 || BestProto == 0xFF ||
-                    (BestProto != 2 && CurProto < BestProto)) {
-                    BestProto = CurProto;
-                    BestIface = *Iface;
-                    BestEp = Addr;
-                    BestMps = ThisMps;
-                    BestInterval = ThisIv;
-                }
-                if (CurProto == 2) {
+            if ((Addr & 0x80) && ((Attr & 0x03) == 0x03) && CurScore > BestScore) {
+                BestScore = CurScore;
+                BestProto = CurProto;
+                BestIface = *Iface;
+                BestEp = Addr;
+                BestMps = (UINT16)(Cfg[Off + 4] | (Cfg[Off + 5] << 8));
+                BestInterval = Cfg[Off + 6];
+                if (BestScore == 3) {
                     break;
                 }
             }
@@ -1976,13 +2186,16 @@ static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
         Off = (UINT16)(Off + Len);
     }
     (void)Speed;
-    if (BestProto == 0xFF) {
+    if (BestScore == 0) {
         return 0;
     }
     *Iface = BestIface;
     *EpAddr = BestEp;
     *Mps = BestMps;
     *Interval = BestInterval;
+    gMouseIfaceProto = BestProto;
+    gMouseParseScore = BestScore;
+    gMouseAbsolute = (BestProto != 2 && HalCpuIsHypervisor()) ? 1 : 0;
     return 1;
 }
 
@@ -1990,16 +2203,94 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
                               UINT8 Speed) {
     UINT8 EpNum = EpAddr & 0x0F;
     UINT8 In = (EpAddr & 0x80) ? 1 : 0;
+    UINT32 CtxEntries;
+    UINT32 Route = 0;
+    UINT32 RootPort;
+    UINT8 HubSlot = 0;
+    UINT8 TtPort = 0;
+    int Composite;
+
     gMouseIntrDci = (UINT32)EpNum * 2 + In;
     gMouseEpAddr = EpAddr;
+    if (Mps == 0 || Mps > 64) {
+        Mps = 8;
+    }
+    /* 与键盘一致：TRB 长度用 8+ISP；gMouseReportLen 仅作解析上限 */
     gMouseReportLen = (UINT8)(Mps > 8 ? 8 : Mps);
+    if (gMouseReportLen < 3) {
+        gMouseReportLen = 3;
+    }
+
+    CtxEntries = gMouseIntrDci;
+    RootPort = gMousePort;
+    Composite = (SlotId == gSlotId && gSlotId != 0);
+
+    /*
+     * 复合设备：在已有键盘 slot 上追加鼠标 EP。
+     * Context Entries 须覆盖 kbd+mouse DCI；Route/TT 与键盘一致。
+     * 真机证据：键盘 EP Running 时只 Add 鼠标 → ConfigEP cc=1 但 m= 永不涨；
+     * 须先 Stop 键盘，再 Drop+Add 两端点一次配齐。
+     */
+    if (Composite) {
+        UINT32 EpField;
+
+        if (gIntrDci > CtxEntries) {
+            CtxEntries = gIntrDci;
+        }
+        Route = gKbdRoute & 0xFFFFFu;
+        RootPort = gPort1;
+        HubSlot = gKbdHubSlot;
+        TtPort = gKbdTtPort;
+        Speed = gSpeed;
+
+        if (gIntrDci != 0) {
+            EpField = (gIntrDci & 0x1Fu) << 16;
+            (void)Command(0, TRB_TYPE(TRB_STOP_EP) | TRB_SLOT(SlotId) | EpField, 0);
+            ProcessEvents();
+            if (!HalCpuIsHypervisor()) {
+                ProcessEventsRealPc();
+            }
+        }
+    } else {
+        /* 独立鼠标（含 hub 子口）：ConfigEP 必须带回 Address 时的 Route/TT */
+        Route = gMouseRoute & 0xFFFFFu;
+        HubSlot = gMouseHubSlot;
+        TtPort = gMouseTtPort;
+    }
 
     ZeroMemory(gInCtx, sizeof(gInCtx));
-    *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0) | (1u << gMouseIntrDci);
+    if (Composite && gIntrDci != 0) {
+        *(UINT32 *)(void *)(gInCtx + 0) = (1u << gIntrDci) | (1u << gMouseIntrDci);
+        *(UINT32 *)(void *)(gInCtx + 4) =
+            (1u << 0) | (1u << gIntrDci) | (1u << gMouseIntrDci);
+    } else {
+        /* 独立鼠标设备：只 Add slot + 鼠标 DCI */
+        *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0) | (1u << gMouseIntrDci);
+    }
 
     UINT32 *Slot = (UINT32 *)(void *)InSlot();
-    Slot[0] = ((UINT32)gMouseIntrDci << 27) | ((UINT32)Speed << 20);
-    Slot[1] = (UINT32)gMousePort << 16;
+    Slot[0] = (CtxEntries << 27) | ((UINT32)Speed << 20) | Route;
+    Slot[1] = (UINT32)RootPort << 16;
+    if (HubSlot != 0 && Speed < 3) {
+        Slot[2] = (UINT32)HubSlot | ((UINT32)TtPort << 8);
+    }
+
+    if (Composite && gIntrDci != 0) {
+        UINT32 *KbdEp = (UINT32 *)(void *)InEp(gIntrDci);
+        UINT8 KbdIv;
+        UINT64 KbdDeq;
+
+        InitRing(gIntrRing, &gIntr, RING_SIZE);
+        /* 键盘 Interval 已在首次 ConfigureIntr 算过；用保守 10ms 档重填 */
+        KbdIv = (Speed >= 3) ? 3 : FsInterval(10);
+        KbdEp[0] = (UINT32)KbdIv << 16;
+        KbdEp[1] = (3u << 1) | (7u << 3) | (8u << 16);
+        KbdDeq = PointerToPhysical(gIntrRing) | 1;
+        KbdEp[2] = (UINT32)KbdDeq;
+        KbdEp[3] = (UINT32)(KbdDeq >> 32);
+        KbdEp[4] = 8u | (8u << 16);
+        FlushDma(gIntrRing, sizeof(gIntrRing));
+    }
 
     InitRing(gMouseIntrRing, &gMouseIntr, RING_SIZE);
     UINT32 *Ep = (UINT32 *)(void *)InEp(gMouseIntrDci);
@@ -2023,10 +2314,20 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
 }
 
 static void QueueMouseIntr(void) {
+    UINT32 Len;
+
     gMouseIntrDone = 0;
     gMouseReportReady = 0;
     FlushDma(gMouseBuf, sizeof(gMouseBuf));
-    Enqueue(gMouseIntrRing, &gMouseIntr, PointerToPhysical(gMouseBuf), gMouseReportLen,
+    /*
+     * TRB 长度不得超过 EP MPS。真机 composite 鼠 mps=4 时曾固定 enqueue 8，
+     * HC 不调度完成 → PHOTO m=0 而键盘正常。
+     */
+    Len = gMouseReportLen;
+    if (Len == 0 || Len > 8) {
+        Len = 8;
+    }
+    Enqueue(gMouseIntrRing, &gMouseIntr, PointerToPhysical(gMouseBuf), Len,
             TRB_TYPE(TRB_NORMAL) | TRB_IOC | TRB_ISP);
     RingDoorbell(gMouseSlotId, gMouseIntrDci);
 }
@@ -2038,10 +2339,14 @@ static int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
     gXferSlot = SlotId;
     (void)DevCtx;
 
-    for (volatile int d = 0; d < 500000; d++) {
+    if (!HalCpuIsHypervisor()) {
+        StallMs(10);
+    } else {
+        for (volatile int d = 0; d < 500000; d++) {
+        }
     }
 
-    InitRing(gEp0Ring, &gEp0, RING_SIZE);
+    /* Address 已建好本 slot 的 EP0 环；勿 InitRing/SetTrDeq 打断 Running EP0 */
 
     if (GetDeviceDesc() < 0) {
         return 0;
@@ -2066,14 +2371,38 @@ static int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
 
     UINT8 Iface = 0, EpAddr = 0, Interval = 10;
     UINT16 Mps = 8;
+    UINT8 IfaceProto = 0xFF;
     int HaveIntr = ParseFn(gCtrlBuf, Total, Speed, &Iface, &EpAddr, &Mps, &Interval);
     if (SetConfig(ConfigVal) < 0) {
         return 0;
     }
+    /*
+     * SET_PROTOCOL(Boot) 仅对 Boot 接口（kbd Proto=1 / mouse Proto=2）。
+     * QEMU usb-tablet 为 Proto=0：发 SET_PROTOCOL 会 Stall(cc=6)，EP0 随后
+     * GetDesc 全失败 → 鼠标 DisableSlot，日志只有 keyboard 没有 mouse。
+     */
     if (UseBootProto) {
-        SetProtocolBoot(Iface);
+        UINT16 Off = 0;
+        while (Off + 9 <= Total) {
+            UINT8 Len = gCtrlBuf[Off];
+            UINT8 Type = gCtrlBuf[Off + 1];
+            if (Len < 2 || Off + Len > Total) {
+                break;
+            }
+            if (Type == 4 && Len >= 9 && gCtrlBuf[Off + 2] == Iface) {
+                IfaceProto = gCtrlBuf[Off + 7];
+                break;
+            }
+            Off = (UINT16)(Off + Len);
+        }
+        if (IfaceProto == 1 || IfaceProto == 2) {
+            SetProtocolBoot(Iface);
+        }
     }
-    SetIdle(Iface);
+    /* SET_IDLE(0)：部分 boot 鼠无此则中断 IN 不吐报告；与共享 EP0 环问题正交 */
+    if (IfaceProto == 1 || IfaceProto == 2 || IfaceProto == 0xFF) {
+        SetIdle(Iface);
+    }
     return HaveIntr;
 }
 
@@ -2087,6 +2416,7 @@ static int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
 #define HUB_C_PORT_RESET      (1u << 20)
 #define HUB_FEAT_PORT_RESET   4
 #define HUB_FEAT_PORT_POWER   8
+#define HUB_FEAT_C_PORT_CONNECTION 16
 #define HUB_FEAT_C_PORT_RESET 20
 
 static int HubCtrl(UINT8 BmReq, UINT8 Req, UINT16 Value, UINT16 Index,
@@ -2100,6 +2430,37 @@ static int HubCtrl(UINT8 BmReq, UINT8 Req, UINT16 Value, UINT16 Index,
     };
     gXferSlot = gHubSlotId;
     return ControlXfer(&Setup, Data);
+}
+
+static int FinishHubSetup(UINT8 *OutNumPorts) {
+    UINT8 HubDesc[16];
+    UINT8 Nports = 4;
+    UINT8 ConfigVal = 1;
+
+    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+        return 0;
+    }
+    ConfigVal = gCtrlBuf[5] ? gCtrlBuf[5] : 1;
+    if (SetConfig(ConfigVal) < 0) {
+        return 0;
+    }
+    ZeroMemory(HubDesc, sizeof(HubDesc));
+    gHubTtt = 0;
+    if (HubCtrl(0xA0, 0x06, 0x2900, 0, sizeof(HubDesc), HubDesc) == 0 &&
+        HubDesc[2] != 0) {
+        Nports = HubDesc[2];
+        if (Nports > 15) {
+            Nports = 15;
+        }
+        /* USB2 Hub Desc：wHubCharacteristics bit5-6 = TT Think Time */
+        gHubTtt = (UINT8)((HubDesc[3] >> 5) & 3u);
+    }
+    if (OutNumPorts) {
+        *OutNumPorts = Nports;
+    }
+    gHubNumPorts = Nports;
+    BootLogV("boot: xhci hub ports ok\n");
+    return 1;
 }
 
 static int HubGetPortStatus(UINT8 Port, UINT32 *OutSt) {
@@ -2186,6 +2547,24 @@ static int IsHubDeviceDesc(void) {
     return 0;
 }
 
+/* 配置描述符中是否有 Hub Interface（bDeviceClass=0 的常见 hub） */
+static int ConfigHasHubIface(UINT8 *Cfg, UINT16 Total) {
+    UINT16 Off = 0;
+
+    while (Off + 9 <= Total) {
+        UINT8 Len = Cfg[Off];
+        UINT8 Type = Cfg[Off + 1];
+        if (Len < 2 || Off + Len > Total) {
+            break;
+        }
+        if (Type == 4 && Len >= 9 && Cfg[Off + 5] == 0x09) {
+            return 1;
+        }
+        Off = (UINT16)(Off + Len);
+    }
+    return 0;
+}
+
 static int EnumHubChildrenForKeyboard(void) {
     UINT8 Port;
     UINT8 MaxP = gHubNumPorts;
@@ -2230,7 +2609,21 @@ static int EnumHubChildrenForKeyboard(void) {
                 StallMs(5);
             }
         }
-        if (!(St & HUB_PORT_ENABLE) && !(St & HUB_PORT_CONNECTION)) {
+        for (t = 0; t < (HalCpuIsHypervisor() ? 20000 : 40); t++) {
+            if (HubGetPortStatus(Port, &St) < 0) {
+                break;
+            }
+            if (St & HUB_C_PORT_CONNECTION) {
+                (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_CONNECTION);
+            }
+            if (St & HUB_PORT_ENABLE) {
+                break;
+            }
+            if (!HalCpuIsHypervisor()) {
+                StallMs(5);
+            }
+        }
+        if (!(St & HUB_PORT_ENABLE)) {
             continue;
         }
         Speed = HubPortSpeed(St);
@@ -2260,73 +2653,540 @@ static int EnumHubChildrenForKeyboard(void) {
     return 0;
 }
 
-/* 根口已 Address 且 device desc 在 gCtrlBuf：若是 hub 则枚举子口找键盘 */
-static int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed) {
-    UINT8 HubDesc[16];
-    UINT8 Nports = 4;
-    UINT8 ConfigVal = 1;
+/* hub 子口找独立鼠标（根口 composite 弱 HID 被跳过时） */
+static int EnumHubChildrenForMouse(void) {
+    UINT8 Port;
+    UINT8 MaxP = gHubNumPorts;
 
-    if (!IsHubDeviceDesc()) {
+    if (gHubSlotId == 0 || gMouseSlotId != 0) {
         return 0;
     }
-    BootLog("boot: xhci hub on root\n");
-    /* 重新 Address 为 Hub 设备（带 Hub 位） */
-    DisableSlot(gSlotId);
+    if (MaxP == 0 || MaxP > 15) {
+        MaxP = 8;
+    }
+    for (Port = 1; Port <= MaxP; Port++) {
+        UINT32 St = 0;
+        UINT8 Speed;
+        volatile int D;
+
+        (void)HubSetPortFeat(Port, HUB_FEAT_PORT_POWER);
+        if (!HalCpuIsHypervisor()) {
+            StallMs(100);
+        } else {
+            for (D = 0; D < 80000; D++) {
+            }
+        }
+        if (HubGetPortStatus(Port, &St) < 0) {
+            continue;
+        }
+        if (!(St & HUB_PORT_CONNECTION)) {
+            continue;
+        }
+        BootLogV("boot: xhci hub mouse port\n");
+        /* 跳过已占用为键盘的子口（同 route） */
+        if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
+            continue;
+        }
+        if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
+            continue;
+        }
+        {
+            int t;
+            for (t = 0; t < (HalCpuIsHypervisor() ? 50000 : 40); t++) {
+                if (HubGetPortStatus(Port, &St) < 0) {
+                    break;
+                }
+                if (St & HUB_C_PORT_RESET) {
+                    (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_RESET);
+                    break;
+                }
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(5);
+                }
+            }
+            /* 复位完成后须等 PORT_ENABLE，否则 Address 后中断 IN 永不完成 → m=0 */
+            for (t = 0; t < (HalCpuIsHypervisor() ? 20000 : 40); t++) {
+                if (HubGetPortStatus(Port, &St) < 0) {
+                    break;
+                }
+                if (St & HUB_C_PORT_CONNECTION) {
+                    (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_CONNECTION);
+                }
+                if (St & HUB_PORT_ENABLE) {
+                    break;
+                }
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(5);
+                }
+            }
+        }
+        if (!(St & HUB_PORT_ENABLE)) {
+            BootLogV("boot: xhci hub mouse not PED\n");
+            continue;
+        }
+        Speed = HubPortSpeed(St);
+        if (!AddressDeviceOnPort(gHubRootPort, Speed, &gMouseSlotId, gMouseDevCtx,
+                                 (UINT32)Port, (UINT8)gHubSlotId, Port, 0, 0)) {
+            gMouseSlotId = 0;
+            continue;
+        }
+        if (!SetupHidDevice(gMouseSlotId, gMouseDevCtx, Speed, ParseConfigMouse, 1)) {
+            DisableSlot(gMouseSlotId);
+            gMouseSlotId = 0;
+            continue;
+        }
+        {
+            UINT8 EpAddr = 0, Interval = 10, Iface = 0;
+            UINT16 Mps = 8;
+            UINT16 Total;
+            if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+                DisableSlot(gMouseSlotId);
+                gMouseSlotId = 0;
+                continue;
+            }
+            Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+            if (Total < 9) {
+                Total = 9;
+            }
+            if (Total > sizeof(gCtrlBuf)) {
+                Total = (UINT16)sizeof(gCtrlBuf);
+            }
+            if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0 ||
+                !ParseConfigMouse(gCtrlBuf, Total, Speed, &Iface, &EpAddr, &Mps, &Interval)) {
+                DisableSlot(gMouseSlotId);
+                gMouseSlotId = 0;
+                continue;
+            }
+            /*
+             * 真机：拒绝弱 HID（score<2）。hub 上 U 盘/无线棒旁常有 vendor HID，
+             * 误绑 → arms mouse=xx 但 PHOTO m=0；真鼠多在其它根口。
+             */
+            if (!HalCpuIsHypervisor() && gMouseParseScore < 2) {
+                BootLogHexV("boot: xhci hub skip weak mouse score=", gMouseParseScore, 2);
+                DisableSlot(gMouseSlotId);
+                gMouseSlotId = 0;
+                continue;
+            }
+            gMousePort = gHubRootPort;
+            gMouseIface = Iface;
+            BootLogHex("boot: xhci mouse hub ep=", EpAddr, 2);
+            BootLogHex("boot: xhci mouse hub mps=", Mps, 2);
+            BootLogHex("boot: xhci mouse hub iv=", Interval, 2);
+            BootLogHex("boot: xhci mouse hub spd=", Speed, 1);
+            BootLogHex("boot: xhci mouse hub score=", gMouseParseScore, 1);
+            BootLogHex("boot: xhci mouse hub tt=",
+                       ((UINT32)gMouseHubSlot << 8) | gMouseTtPort, 4);
+            BootLogHex("boot: xhci mouse hub route=", gMouseRoute, 2);
+            if (!ConfigureMouseIntr(gMouseSlotId, EpAddr, Mps, Interval, Speed)) {
+                DisableSlot(gMouseSlotId);
+                gMouseSlotId = 0;
+                continue;
+            }
+            {
+                UINT32 *EpOut = (UINT32 *)(void *)(gMouseDevCtx + gCtxSize * gMouseIntrDci);
+                FlushDma(EpOut, gCtxSize);
+                BootLogHex("boot: xhci mouse epst=", EpOut[0] & 7u, 1);
+            }
+            ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
+            QueueMouseIntr();
+            BootLog("boot: xhci-hid mouse via hub\n");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * 认领根口 hub：SetConfig + hub desc；USB2 再 Evaluate Hub/MTT。
+ * ExistingSlot：InitMouseOnPort 已 Address 的 hub，保留 slot 勿 Disable+重 Address
+ * （重 Address 带 Hub 位常 cc=0x11；USB3 hub 亦不可设 Hub 位）。
+ * 不碰 gSlotId（键盘已绑定时可安全认领另一根口上的 hub）。
+ */
+static int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
+    UINT8 Nports = 4;
+    int Usb2Hub = (Speed < 4);
+
+    if (gHubSlotId != 0) {
+        if (ExistingSlot != 0 && ExistingSlot != gHubSlotId) {
+            DisableSlot(ExistingSlot);
+        }
+        return 1;
+    }
+    BootLogV("boot: xhci claim hub\n");
     gHubRootPort = RootPort;
     gHubSpeed = Speed;
+    /* Device Desc 多已在 gCtrlBuf；没有则补读再判 MTT */
+    if (gCtrlBuf[4] != 0x09) {
+        gXferSlot = ExistingSlot ? ExistingSlot : 0;
+        if (ExistingSlot != 0) {
+            gEp0Mps = SpeedMps(Speed);
+            (void)GetDeviceDesc();
+        }
+    }
+    HubNoteMttFromDevDesc(Speed);
+
+    if (ExistingSlot != 0) {
+        BootLogV("boot: xhci hub adopt slot\n");
+        gHubSlotId = ExistingSlot;
+        gXferSlot = ExistingSlot;
+        gEp0Mps = SpeedMps(Speed);
+        /* 该 slot 先前按 mouse 环 Address；迁到 hub 专用环，避免后续鼠 Address 踩坏 TT */
+        RecoverEp0(gHubSlotId);
+        if (!FinishHubSetup(&Nports)) {
+            DisableSlot(gHubSlotId);
+            gHubSlotId = 0;
+            EnumWhy("boot: why=hub cfg\n");
+            return 0;
+        }
+        if (Usb2Hub && !EvaluateHubSlot(gHubSlotId, RootPort, Speed, Nports)) {
+            DisableSlot(gHubSlotId);
+            gHubSlotId = 0;
+            EnumWhy("boot: why=hub eval\n");
+            return 0;
+        }
+        BootLogHex("boot: xhci hub spd=", Speed, 1);
+        BootLog("boot: xhci ep0=split\n");
+        return 1;
+    }
+
     gEp0Mps = SpeedMps(Speed);
     if (!AddressDeviceOnPort(RootPort, Speed, &gHubSlotId, gHubDevCtx,
-                             0, 0, 0, 1, 8)) {
+                             0, 0, 0, Usb2Hub ? 1 : 0, Usb2Hub ? 4 : 0)) {
         gHubSlotId = 0;
         EnumWhy("boot: why=hub addr\n");
         return 0;
     }
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+    /* Address 后才有 Device Desc → 再定 MTT，随后 Evaluate 写入 */
+    if (GetDeviceDesc() == 0) {
+        HubNoteMttFromDevDesc(Speed);
+    }
+    if (!FinishHubSetup(&Nports)) {
         DisableSlot(gHubSlotId);
+        gHubSlotId = 0;
         return 0;
     }
-    ConfigVal = gCtrlBuf[5] ? gCtrlBuf[5] : 1;
-    if (SetConfig(ConfigVal) < 0) {
-        DisableSlot(gHubSlotId);
+    if (Usb2Hub && !EvaluateHubSlot(gHubSlotId, RootPort, Speed, Nports)) {
+        BootLog("boot: xhci hub eval skip\n");
+    }
+    return 1;
+}
+
+/* 根口已 Address：device class=9 或配置含 hub iface → 枚举子口找键盘 */
+static int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed) {
+    BootLog("boot: xhci hub on root\n");
+    /* 重新 Address 为 Hub 设备（带 Hub 位）；此时 gSlotId 是误 Address 的非 hub */
+    DisableSlot(gSlotId);
+    gSlotId = 0;
+    if (!ClaimHubOnRootPort(RootPort, Speed, 0)) {
         return 0;
     }
-    ZeroMemory(HubDesc, sizeof(HubDesc));
-    if (HubCtrl(0xA0, 0x06, 0x2900, 0, sizeof(HubDesc), HubDesc) == 0 &&
-        HubDesc[2] != 0) {
-        Nports = HubDesc[2];
-        if (Nports > 15) {
-            Nports = 15;
-        }
-    }
-    gHubNumPorts = Nports;
-    BootLog("boot: xhci hub ports ok\n");
     if (EnumHubChildrenForKeyboard()) {
         return 1;
     }
     return 0;
 }
 
+/* HID SET_INTERFACE：激活指定 Alternate（复合键鼠偶见鼠标在 alt>0） */
+static int SetInterface(UINT8 Iface, UINT8 Alt) {
+    USB_SETUP_PACKET Setup = {
+        .bmRequestType = 0x01,
+        .bRequest = 0x0B,
+        .wValue = Alt,
+        .wIndex = Iface,
+        .wLength = 0
+    };
+    return ControlXfer(&Setup, 0);
+}
+
+/*
+ * 真机常见：USB 键鼠复合设备（同一 slot 上键盘 Proto=1 + 鼠标 Proto=2）。
+ * 旧逻辑只扫「其它根口」，同口第二接口永远绑不上 → arms mouse=00/00。
+ */
+static int InitMouseOnKeyboardSlot(void) {
+    UINT8 EpAddr = 0, Interval = 10, Iface = 0;
+    UINT16 Mps = 8;
+    UINT16 Total;
+    UINT8 CurAlt = 0;
+    UINT8 BestAlt = 0;
+    UINT16 Off;
+
+    if (gSlotId == 0 || gMouseSlotId != 0) {
+        return 0;
+    }
+
+    gXferSlot = gSlotId;
+    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+        return 0;
+    }
+    Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+    if (Total < 9) {
+        Total = 9;
+    }
+    if (Total > sizeof(gCtrlBuf)) {
+        Total = (UINT16)sizeof(gCtrlBuf);
+    }
+    if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+        return 0;
+    }
+    if (!ParseConfigMouse(gCtrlBuf, Total, gSpeed, &Iface, &EpAddr, &Mps, &Interval)) {
+        return 0;
+    }
+    /*
+     * 真机：拒绝弱评分（多为键盘上的 media/vendor HID，proto=0 且永不报指针）。
+     * QEMU tablet 走独立口 InitMouseOnPort，不受此限。
+     */
+    if (!HalCpuIsHypervisor() && gMouseParseScore < 2) {
+        BootLogHexV("boot: xhci skip weak composite score=", gMouseParseScore, 2);
+        return 0;
+    }
+    if (Iface == gKbdIface) {
+        return 0;
+    }
+    if ((EpAddr & 0x0F) == (gKbdEpAddr & 0x0F) && ((EpAddr ^ gKbdEpAddr) & 0x80) == 0) {
+        return 0;
+    }
+
+    /* 找回该 iface 的 bAlternateSetting（Parse 未导出） */
+    Off = 0;
+    while (Off + 9 <= Total) {
+        UINT8 Len = gCtrlBuf[Off];
+        UINT8 Type = gCtrlBuf[Off + 1];
+        if (Len < 2 || Off + Len > Total) {
+            break;
+        }
+        if (Type == 4 && Len >= 9) {
+            CurAlt = gCtrlBuf[Off + 3];
+            if (gCtrlBuf[Off + 2] == Iface && gCtrlBuf[Off + 5] == 3 &&
+                gCtrlBuf[Off + 7] != 1) {
+                BestAlt = CurAlt;
+            }
+        }
+        Off = (UINT16)(Off + Len);
+    }
+
+    gMousePort = gPort1;
+    gMouseIface = Iface;
+    (void)SetInterface(Iface, BestAlt);
+    if (gMouseIfaceProto == 1 || gMouseIfaceProto == 2) {
+        (void)SetProtocolBoot(Iface);
+    }
+    (void)SetIdle(Iface);
+
+    BootLogHexV("boot: xhci mouse iface=", Iface, 2);
+    BootLogHexV("boot: xhci mouse proto=", gMouseIfaceProto, 2);
+    BootLogHexV("boot: xhci mouse ep=", EpAddr, 2);
+    BootLogHexV("boot: xhci mouse mps=", Mps, 2);
+    /* 单行汇总：串口好抄 */
+    {
+        char Line[72];
+        char Hex[12];
+        int n = 0;
+        const char *P = "boot: xhci mouse cfg i=";
+        while (*P && n < 28) {
+            Line[n++] = *P++;
+        }
+        HalSerialFormatHex(Hex, Iface, 2);
+        P = Hex;
+        while (*P && n < 40) {
+            Line[n++] = *P++;
+        }
+        P = " p=";
+        while (*P && n < 44) {
+            Line[n++] = *P++;
+        }
+        HalSerialFormatHex(Hex, gMouseIfaceProto, 2);
+        P = Hex;
+        while (*P && n < 48) {
+            Line[n++] = *P++;
+        }
+        P = " ep=";
+        while (*P && n < 54) {
+            Line[n++] = *P++;
+        }
+        HalSerialFormatHex(Hex, EpAddr, 2);
+        P = Hex;
+        while (*P && n < 58) {
+            Line[n++] = *P++;
+        }
+        P = " mps=";
+        while (*P && n < 64) {
+            Line[n++] = *P++;
+        }
+        HalSerialFormatHex(Hex, Mps, 2);
+        P = Hex;
+        while (*P && n < 68) {
+            Line[n++] = *P++;
+        }
+        Line[n++] = '\n';
+        Line[n] = 0;
+        BootLog(Line); /* 真机 BootMark → COM1 + 屏 */
+    }
+
+    if (!ConfigureMouseIntr(gSlotId, EpAddr, Mps, Interval, gSpeed)) {
+        BootLog("boot: xhci composite mouse ep fail\n");
+        gMouseIntrDci = 0;
+        gMouseEpAddr = 0;
+        return 0;
+    }
+
+    gMouseSlotId = gSlotId;
+    ZeroMemory(gReportBuf, 8);
+    ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
+    /* Drop+Add 重建了键盘环，须立刻再投递 */
+    QueueIntr();
+    QueueMouseIntr();
+    if (gMouseAbsolute) {
+        BootLog("boot: xhci-hid mouse (composite abs)\n");
+    } else {
+        BootLog("boot: xhci-hid mouse (composite)\n");
+    }
+    return 1;
+}
+
 static int InitMouseOnPort(UINT32 Port1) {
     UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(Port1));
+    UINT16 Total;
+    UINT32 WasSlot;
+    int Force;
+    UINT8 Speed;
+    UINT8 DevClass;
+
+    if (gPortNoHid & (1u << Port1)) {
+        BootLogHexV("boot: xhci mouse skip port=", Port1, 2);
+        return 0;
+    }
+    BootLogHexV("boot: xhci mouse try port=", Port1, 2);
     if (!(Ps & PORTSC_CCS)) {
         return 0;
     }
-    if (!ResetPort(Port1)) {
+    /*
+     * 仅对「本轮已 Address 再 Disable」的口强制 PR（否则 cc=0x04）。
+     * 全口 Force PR + 长超时会空转很久，短按电源失效。
+     */
+    Force = (gPortNeedForcePr & (1u << Port1)) ? 1 : 0;
+    if (!ResetPortEx(Port1, Force)) {
         return 0;
     }
-    UINT8 Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(Port1)));
+    if (Force && !HalCpuIsHypervisor()) {
+        StallMs(20);
+    }
+    Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(Port1)));
     gMousePort = Port1;
+    gMouseRoute = 0;
+    gMouseHubSlot = 0;
+    gMouseTtPort = 0;
+    gMouseAbsolute = 0;
+    gMouseIfaceProto = 0;
 
     if (!AddressDeviceOnPort(Port1, Speed, &gMouseSlotId, gMouseDevCtx, 0, 0, 0, 0, 0)) {
         gMouseSlotId = 0;
+        /* 未强制过且 Address 失败：再 Force PR 试一次（真鼠口常见） */
+        if (!Force && (gCmdCode == 4 || gCmdCode == 0x11)) {
+            if (!ResetPortEx(Port1, 1)) {
+                return 0;
+            }
+            if (!HalCpuIsHypervisor()) {
+                StallMs(20);
+            }
+            Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(Port1)));
+            if (!AddressDeviceOnPort(Port1, Speed, &gMouseSlotId, gMouseDevCtx, 0, 0, 0, 0, 0)) {
+                gMouseSlotId = 0;
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     * 键盘已绑定时，其它根口上的 hub 不会再走 TryHubOnRootPort。
+     * 勿把 hub 当 HID（SetConfig/SetIdle → Stall cc=6）；认领 hub 后扫子口鼠标。
+     */
+    gXferSlot = gMouseSlotId;
+    if (GetDeviceDesc() < 0) {
+        gPortNeedForcePr |= (1u << Port1);
+        DisableSlot(gMouseSlotId);
+        gMouseSlotId = 0;
         return 0;
+    }
+    DevClass = gCtrlBuf[4];
+    /* Mass Storage / Wireless：非鼠标，快跳过，避免 SetupHid 超时拖死启动 */
+    if (DevClass == 0x08 || DevClass == 0xE0) {
+        BootLogHex("boot: xhci mouse skip class=", DevClass, 2);
+        gPortNoHid |= (1u << Port1);
+        DisableSlot(gMouseSlotId);
+        gMouseSlotId = 0;
+        return 0;
+    }
+    if (IsHubDeviceDesc()) {
+        WasSlot = gMouseSlotId;
+        gMouseSlotId = 0;
+        BootLogV("boot: xhci mouse-scan hub (class 9)\n");
+        if (ClaimHubOnRootPort(Port1, Speed, WasSlot)) {
+            return EnumHubChildrenForMouse();
+        }
+        return 0;
+    }
+    if (GetDesc(0x0200, 0, 9, gCtrlBuf) == 0) {
+        Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+        if (Total < 9) {
+            Total = 9;
+        }
+        if (Total > sizeof(gCtrlBuf)) {
+            Total = (UINT16)sizeof(gCtrlBuf);
+        }
+        /*
+         * 完整配置描述符：真机部分设备大包会超时；失败则 RecoverEp0 后仍走
+         * SetupHidDevice（其内部会再取描述符）。勿在 EP0 失步时直接放弃。
+         */
+        if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+            BootLog("boot: xhci mouse cfg desc retry\n");
+            RecoverEp0(gMouseSlotId);
+            gXferSlot = gMouseSlotId;
+        } else if (ConfigHasHubIface(gCtrlBuf, Total)) {
+            WasSlot = gMouseSlotId;
+            gMouseSlotId = 0;
+            BootLog("boot: xhci mouse-scan hub (iface 9)\n");
+            if (ClaimHubOnRootPort(Port1, Speed, WasSlot)) {
+                return EnumHubChildrenForMouse();
+            }
+            return 0;
+        }
     }
 
     if (!SetupHidDevice(gMouseSlotId, gMouseDevCtx, Speed, ParseConfigMouse, 1)) {
         DebugWrite("XHCI: mouse config failed\n");
-        DisableSlot(gMouseSlotId);
-        gMouseSlotId = 0;
-        return 0;
+        /* 再 Force PR + 重 Address 一次（port4 真鼠曾卡在 cfg） */
+        if (!HalCpuIsHypervisor()) {
+            UINT32 Old = gMouseSlotId;
+            BootLogV("boot: xhci mouse root retry\n");
+            DisableSlot(Old);
+            gMouseSlotId = 0;
+            if (ResetPortEx(Port1, 1)) {
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(20);
+                }
+                Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(Port1)));
+                if (AddressDeviceOnPort(Port1, Speed, &gMouseSlotId, gMouseDevCtx,
+                                        0, 0, 0, 0, 0) &&
+                    SetupHidDevice(gMouseSlotId, gMouseDevCtx, Speed, ParseConfigMouse, 1)) {
+                    /* fall through to EP setup below */
+                } else {
+                    if (gMouseSlotId) {
+                        DisableSlot(gMouseSlotId);
+                    }
+                    gMouseSlotId = 0;
+                    return 0;
+                }
+            } else {
+                return 0;
+            }
+        } else {
+            gPortNeedForcePr |= (1u << Port1);
+            DisableSlot(gMouseSlotId);
+            gMouseSlotId = 0;
+            return 0;
+        }
     }
 
     UINT8 EpAddr = 0, Interval = 10;
@@ -2337,7 +3197,7 @@ static int InitMouseOnPort(UINT32 Port1) {
         gMouseSlotId = 0;
         return 0;
     }
-    UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+    Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
     if (Total < 9) {
         Total = 9;
     }
@@ -2345,9 +3205,13 @@ static int InitMouseOnPort(UINT32 Port1) {
         Total = (UINT16)sizeof(gCtrlBuf);
     }
     if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
-        DisableSlot(gMouseSlotId);
-        gMouseSlotId = 0;
-        return 0;
+        RecoverEp0(gMouseSlotId);
+        gXferSlot = gMouseSlotId;
+        if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+            DisableSlot(gMouseSlotId);
+            gMouseSlotId = 0;
+            return 0;
+        }
     }
     if (!ParseConfigMouse(gCtrlBuf, Total, Speed, &Iface, &EpAddr, &Mps, &Interval)) {
         DebugWrite("XHCI: mouse no interrupt EP\n");
@@ -2356,7 +3220,14 @@ static int InitMouseOnPort(UINT32 Port1) {
         gMouseSlotId = 0;
         return 0;
     }
+    if (!HalCpuIsHypervisor() && gMouseParseScore < 2) {
+                BootLogHexV("boot: xhci skip weak root mouse score=", gMouseParseScore, 2);
+        DisableSlot(gMouseSlotId);
+        gMouseSlotId = 0;
+        return 0;
+    }
     gMouseIface = Iface;
+    BootLogHexV("boot: xhci mouse root score=", gMouseParseScore, 2);
     if (!ConfigureMouseIntr(gMouseSlotId, EpAddr, Mps, Interval, Speed)) {
         DebugWrite("XHCI: mouse endpoint failed\n");
         DisableSlot(gMouseSlotId);
@@ -2366,7 +3237,11 @@ static int InitMouseOnPort(UINT32 Port1) {
     ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
     QueueMouseIntr();
     DebugWrite("XHCI: mouse ready\n");
-    BootLog("boot: xhci-hid mouse\n");
+    if (gMouseAbsolute) {
+        BootLog("boot: xhci-hid mouse (abs)\n");
+    } else {
+        BootLog("boot: xhci-hid mouse\n");
+    }
     return 1;
 }
 
@@ -2375,7 +3250,7 @@ int XhciInit(UINT64 BaseAddress) {
     int RealPc = !HalCpuIsHypervisor();
     char B[12];
 
-    BootLog("xhci diag: OK|FAIL step want=期望 got=实际\n");
+    BootLog(DiagVerbose() ? "xhci diag: VERBOSE\n" : "xhci diag: quiet\n");
 
     /*
      * 实测：白字最后停在 ports=0x12 且无 B10 黄字 → Present 在该行可能不返回。
@@ -2393,25 +3268,25 @@ int XhciInit(UINT64 BaseAddress) {
             if (Rsdp == 0) {
                 HalSerialBootMark("boot: xhci RSDP=0\n");
             } else {
-                HalSerialBootMark("boot: xhci RSDP ok\n");
+                BootMarkV("boot: xhci RSDP ok\n");
                 Dmar = AcpiTablePresent(Rsdp, "DMAR");
                 gXhciDmar = Dmar;
                 if (Dmar > 0) {
-                    HalSerialBootMark("boot: xhci DMAR=yes\n");
-                    HalSerialBootMark("boot: xhci TE off...\n");
+                    BootMarkV("boot: xhci DMAR=yes\n");
+                    BootMarkV("boot: xhci TE off...\n");
                     Te = AcpiDmarDisableTranslation(Rsdp);
                     gXhciTe = Te;
                     if (Te == 2) {
-                        HalSerialBootMark("boot: xhci TE was ON->off\n");
+                        BootMarkV("boot: xhci TE was ON->off\n");
                     } else if (Te == 1) {
-                        HalSerialBootMark("boot: xhci TE already off\n");
+                        BootMarkV("boot: xhci TE already off\n");
                     } else if (Te == 0) {
-                        HalSerialBootMark("boot: xhci TE no DRHD\n");
+                        BootMarkV("boot: xhci TE no DRHD\n");
                     } else {
                         HalSerialBootMark("boot: xhci TE off fail\n");
                     }
                 } else if (Dmar == 0) {
-                    HalSerialBootMark("boot: xhci DMAR=no\n");
+                    BootMarkV("boot: xhci DMAR=no\n");
                     gXhciTe = -2;
                 } else {
                     HalSerialBootMark("boot: xhci DMAR=bad\n");
@@ -2480,9 +3355,9 @@ int XhciInit(UINT64 BaseAddress) {
             }
         }
         if (gFwCrcrSave == 0 || gFwErstbaSave == 0) {
-            HalSerialBootMark("boot: xhci snap ring=0\n");
+            BootMarkV("boot: xhci snap ring=0\n");
         } else {
-            HalSerialBootMark("boot: xhci snap rings ok\n");
+            BootMarkV("boot: xhci snap rings ok\n");
         }
     }
 
@@ -2497,34 +3372,36 @@ int XhciInit(UINT64 BaseAddress) {
     }
 
     HalSerialFormatHex(B, gMaxPorts, 2);
-    if (RealPc) {
-        char Msg[40];
-        int n = 0;
-        const char *P = "boot: xhci ports=";
-        while (*P && n < 28) {
-            Msg[n++] = *P++;
+    if (DiagVerbose()) {
+        if (RealPc) {
+            char Msg[40];
+            int n = 0;
+            const char *P = "boot: xhci ports=";
+            while (*P && n < 28) {
+                Msg[n++] = *P++;
+            }
+            Msg[n++] = B[0];
+            Msg[n++] = B[1];
+            Msg[n++] = '\n';
+            Msg[n] = 0;
+            HalSerialBootMark(Msg);
+        } else {
+            HalSerialWrite("boot: xhci ports=");
+            HalSerialWrite(B);
+            HalSerialWrite("\n");
         }
-        Msg[n++] = B[0];
-        Msg[n++] = B[1];
-        Msg[n++] = '\n';
-        Msg[n] = 0;
-        HalSerialBootMark(Msg);
-    } else {
-        HalSerialWrite("boot: xhci ports=");
-        HalSerialWrite(B);
-        HalSerialWrite("\n");
     }
 
     /*
      * PR-H-hub：真机不再 B14 裸 RS 后 return；HaltOnly（避免 HCRST）→ Start → 枚举。
      * 失败则 unmute，让 PS/2 有机会 Probe。
      */
-    BootLog("boot: xhci take legacy...\n");
+    BootLogV("boot: xhci take legacy...\n");
     TakeLegacy();
-    BootLog("boot: xhci after legacy\n");
+    BootLogV("boot: xhci after legacy\n");
 
     if (RealPc) {
-        HalSerialBootMark("boot: xhci-Hhid halt\n");
+        BootMarkV("boot: xhci-Hhid halt\n");
         if (!HaltOnly()) {
             HalSerialBootMark("boot: xhci halt fail\n");
             HalSerialGopMute(0);
@@ -2543,7 +3420,6 @@ int XhciInit(UINT64 BaseAddress) {
             return 0;
         }
     }
-    DiagChkStr("XhciInit.run", 1, "controller running", "yes");
     HalSerialWrite("boot: xhci controller running\n");
     DebugWrite("XHCI: controller running\n");
     PowerConnectedPorts();
@@ -2562,10 +3438,6 @@ int XhciInit(UINT64 BaseAddress) {
             }
         }
         {
-            HalSerialWrite("boot: xhci CCS ports=");
-            HalSerialFormatHex(B, Surveyed, 2);
-            HalSerialWrite(B);
-            HalSerialWrite("\n");
             BootLogHex("boot: xhci CCS ports=", Surveyed, 2);
             if (Surveyed == 0) {
                 EnumWhy("boot: why=no CCS\n");
@@ -2580,28 +3452,26 @@ int XhciInit(UINT64 BaseAddress) {
     UINT8 ConfigVal = 1;
     int HaveIntr = 0;
 
+    gPortNoHid = 0;
+    gPortNeedForcePr = 0;
     {
         int PassMax = 3;
         for (int Wait = 0; Wait < PassMax && Port1 == 0; Wait++) {
-            HalSerialWrite("boot: xhci enum pass=");
-            {
-                char B[12];
-                HalSerialFormatHex(B, (UINT64)(UINT32)(Wait + 1), 2);
-                HalSerialWrite(B);
-                HalSerialWrite("\n");
+            if (DiagVerbose()) {
+                HalSerialWrite("boot: xhci enum pass=");
+                {
+                    char B[12];
+                    HalSerialFormatHex(B, (UINT64)(UINT32)(Wait + 1), 2);
+                    HalSerialWrite(B);
+                    HalSerialWrite("\n");
+                }
             }
             for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
                 UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(p));
                 if (!(Ps & PORTSC_CCS)) {
                     continue;
                 }
-                HalSerialWrite("boot: xhci try port=");
-                {
-                    char B[12];
-                    HalSerialFormatHex(B, p, 2);
-                    HalSerialWrite(B);
-                    HalSerialWrite("\n");
-                }
+                BootLogHexV("boot: xhci try port=", p, 2);
                 if (!ResetPort(p)) {
                     continue;
                 }
@@ -2610,23 +3480,25 @@ int XhciInit(UINT64 BaseAddress) {
                 gPort1 = p;
                 gSpeed = Speed;
 
-                HalSerialBootMark("boot: xhci address...\n");
+                BootMarkV("boot: xhci address...\n");
                 if (!AddressDevice(p, Speed)) {
                     HalSerialBootMark("boot: xhci addr fail\n");
+                    gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
                 }
-                HalSerialBootMark("boot: xhci address ok\n");
+                BootMarkV("boot: xhci address ok\n");
 
-                HalSerialBootMark("boot: xhci get desc\n");
+                BootMarkV("boot: xhci get desc\n");
                 if (GetDeviceDesc() < 0) {
                     HalSerialBootMark("boot: xhci desc fail\n");
+                    gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
                 }
-                /* PR-H-hub：根口 hub → 子口找键盘 */
+                /* PR-H-hub：根口 hub（device class 9）→ 子口找键盘 */
                 if (IsHubDeviceDesc()) {
-                    HalSerialBootMark("boot: xhci hub root\n");
+                    BootLog("boot: xhci hub root\n");
                     if (TryHubOnRootPort(p, Speed)) {
                         Port1 = gPort1;
                         break;
@@ -2653,6 +3525,20 @@ int XhciInit(UINT64 BaseAddress) {
                         DisableSlot(gSlotId);
                         continue;
                     }
+                    /*
+                     * bDeviceClass=0 的 hub：配置里 Interface Class=9。
+                     * 家侧 port3「no hid ep」即此类；不进 hub 则真鼠标可能在 hub 后。
+                     */
+                    if (ConfigHasHubIface(gCtrlBuf, Total)) {
+                        BootLog("boot: xhci hub (iface class 9)\n");
+                        if (TryHubOnRootPort(p, Speed)) {
+                            Port1 = gPort1;
+                            break;
+                        }
+                        EnumWhy("boot: why=hub iface fail\n");
+                        DisableSlot(gHubSlotId);
+                        continue;
+                    }
                     ConfigVal = gCtrlBuf[5];
                     if (ConfigVal == 0) {
                         ConfigVal = 1;
@@ -2662,6 +3548,8 @@ int XhciInit(UINT64 BaseAddress) {
                 }
                 if (!HaveIntr) {
                     EnumWhy("boot: why=no hid ep\n");
+                    gPortNoHid |= (1u << p);
+                    gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
                 }
@@ -2717,13 +3605,26 @@ int XhciInit(UINT64 BaseAddress) {
     /* 与 mouse 同走 BootLog：真机屏上先 keyboard 再 mouse，再由 Probe 打 init returned */
     BootLog("boot: xhci-hid keyboard\n");
 
-    for (UINT32 p = 1; p <= gMaxPorts; p++) {
-        if (p == gPort1) {
-            continue;
+    /* 先绑同设备复合鼠标，再扫其它根口（QEMU tablet / 独立 USB 鼠标） */
+    if (gMouseSlotId == 0) {
+        (void)InitMouseOnKeyboardSlot();
+    }
+    if (gMouseSlotId == 0 && gHubSlotId != 0) {
+        (void)EnumHubChildrenForMouse();
+    }
+    if (gMouseSlotId == 0) {
+        for (UINT32 p = 1; p <= gMaxPorts; p++) {
+            if (p == gPort1) {
+                continue;
+            }
+            if (InitMouseOnPort(p)) {
+                break;
+            }
         }
-        if (InitMouseOnPort(p)) {
-            break;
-        }
+    }
+    /* 鼠标扫描过程中可能刚认领到 hub，再扫一次子口 */
+    if (gMouseSlotId == 0 && gHubSlotId != 0) {
+        (void)EnumHubChildrenForMouse();
     }
 
     return 1;
@@ -2766,17 +3667,25 @@ static void MousePush(void) {
     Y1 = (UINT32)(gMouseBuf[4] | (gMouseBuf[5] << 8));
 
     /*
-     * 绝对坐标启发式曾把 boot 键盘报告（[mod,0,keycode,0…]）当成平板：
-     * 键码落在 X 高字节 → 光标乱跳。仅当 16-bit X/Y 的高字节都非 0
-     * （真平板常见），才走绝对路径；否则一律相对 boot 鼠标。
+     * 枚举时已标 gMouseAbsolute（tablet Proto≠2）：始终按绝对报告解析，
+     * 勿用「高字节非 0」启发式——屏左上角 X/Y<256 时会误走相对路径乱跳。
+     * 未标绝对时仍用启发式，避免把误绑的键盘报告当平板。
      */
     UseAbsolute = 0;
-    if (gMouseReportLen >= 6 && X0 <= 32767 && Y0 <= 32767 &&
-        (gMouseBuf[2] != 0) && (gMouseBuf[4] != 0)) {
+    if (gMouseAbsolute && gMouseReportLen >= 5 && X0 <= 32767 && Y0 <= 32767) {
         UseAbsolute = 1;
-    } else if (gMouseReportLen >= 7 && X1 <= 32767 && Y1 <= 32767 &&
-               (gMouseBuf[3] != 0) && (gMouseBuf[5] != 0)) {
+    } else if (gMouseAbsolute && gMouseReportLen >= 6 &&
+               gMouseBuf[0] != 0 && X1 <= 32767 && Y1 <= 32767) {
+        /* 带 Report ID：id, buttons, X16, Y16 */
         UseAbsolute = 2;
+    } else if (!gMouseAbsolute) {
+        if (gMouseReportLen >= 6 && X0 <= 32767 && Y0 <= 32767 &&
+            (gMouseBuf[2] != 0) && (gMouseBuf[4] != 0)) {
+            UseAbsolute = 1;
+        } else if (gMouseReportLen >= 7 && X1 <= 32767 && Y1 <= 32767 &&
+                   (gMouseBuf[3] != 0) && (gMouseBuf[5] != 0)) {
+            UseAbsolute = 2;
+        }
     }
 
     if (UseAbsolute == 1) {
@@ -2925,10 +3834,10 @@ void XhciDrainEvents(void) {
      * PHOTO 已证明中断 IN 可完成；门铃轻推即可，勿走 EP0 兜底。
      */
     if (RealPc) {
-        if (gSlotId != 0 && gIntrDci != 0 && (gStatDrain & 0x3Fu) == 0) {
+        if (gSlotId != 0 && gIntrDci != 0 && (gStatDrain & 0xFu) == 0) {
             RingDoorbell(gSlotId, gIntrDci);
         }
-        if (gMouseSlotId != 0 && gMouseIntrDci != 0 && (gStatDrain & 0x3Fu) == 0) {
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0 && (gStatDrain & 0x7u) == 0) {
             RingDoorbell(gMouseSlotId, gMouseIntrDci);
         }
     }
@@ -2971,7 +3880,9 @@ int XhciTryEnterDual(USB_CONTROLLER *Device) {
         return 1;
     }
     /* 占位：保持 POLL，供路线图/日后开刀接线 */
-    HalSerialWrite("boot: xhci dual=stub (hold poll base)\n");
+    if (DiagVerbose()) {
+        HalSerialWrite("boot: xhci dual=stub (hold poll base)\n");
+    }
     gIrqMode = XHCI_IRQ_MODE_POLL;
     gUseIrq = 0;
     return 0;
@@ -3090,8 +4001,10 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
     if (!HalCpuIsHypervisor()) {
         gUseIrq = 0;
         gIrqMode = XHCI_IRQ_MODE_POLL;
-        HalSerialWrite("boot: xhci irq=poll (base)\n");
-        (void)XhciTryEnterDual(Device); /* stub：打 dual=stub 行，不改模式 */
+        if (DiagVerbose()) {
+            HalSerialWrite("boot: xhci irq=poll (base)\n");
+        }
+        (void)XhciTryEnterDual(Device); /* stub：VERBOSE 时打 dual=stub */
         /* PHOTO 只看 Arm 之后的计数 */
         gStatIntrEvt = 0;
         gStatMouseEvt = 0;
@@ -3110,14 +4023,18 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         /* 真机：先同步 EP dequeue，再投递；失败则仍尝试 Queue（枚举环可能仍可用） */
         if (gSlotId != 0 && gIntrDci != 0) {
             if (SyncIntrDequeue(gSlotId, gIntrDci, gIntrRing, &gIntr, sizeof(gIntrRing)) == 0) {
-                HalSerialWrite("boot: xhci sync kbd deq\n");
+                if (DiagVerbose()) {
+                    HalSerialWrite("boot: xhci sync kbd deq\n");
+                }
             }
             QueueIntr();
         }
         if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
             if (SyncIntrDequeue(gMouseSlotId, gMouseIntrDci, gMouseIntrRing, &gMouseIntr,
                                 sizeof(gMouseIntrRing)) == 0) {
-                HalSerialWrite("boot: xhci sync mouse deq\n");
+                if (DiagVerbose()) {
+                    HalSerialWrite("boot: xhci sync mouse deq\n");
+                }
             }
             QueueMouseIntr();
         }
@@ -3133,7 +4050,9 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gStatLastCc = 0;
         gStatLastSlot = 0;
         gStatLastEp = 0;
-        HalSerialWrite("boot: xhci rearm intr\n");
+        if (DiagVerbose()) {
+            HalSerialWrite("boot: xhci rearm intr\n");
+        }
         XhciDrainEvents();
         return 0;
     }

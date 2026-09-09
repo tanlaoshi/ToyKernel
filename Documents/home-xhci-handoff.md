@@ -36,7 +36,7 @@ cd ../ToyImage
 | `xhci OK` EnableSlot / Address / ConfigEP | 枚举 OK |
 | `irq=poll` + `sync kbd deq` + `rearm` | poll 武装 OK |
 | PHOTO `t/i/k` 随按键涨（如 `k=20`） | **中断 IN + 入队 OK** |
-| `arms kbd=09/03 mouse=00/00`、`m=0` | 本机可无鼠标槽 |
+| 键鼠均可；`m` 随动鼠涨 | **2026-09-10**：hub 子口鼠 + 根口鼠均已通 |
 | 无串口能打字；有串口又不能 + 电源长按 | Shell 曾 **无上限** 抽 COM1 RX；现每轮最多 32 字节再 Halt。CoolTerm→Shell **保留** |
 | 枚举 `FAIL ControlXfer got=0x06` | xHCI **Stall**；多为 hub/非 HID 探测失败后 `DisableSlot`，键盘仍可 `input backend ready` |
 | 曾见 `FAIL SetTrDeq got=0x13` + `kbd-intr cc=26` | 已改 Stop→排空→InitRing→SetTrDeq |
@@ -70,8 +70,23 @@ cd ../ToyImage
 
 若仍 `default=ESP`：串口有 `boot: nvme drives=` 而无第二盘时，运行时 Block 看不到 U 盘（尚无 USB MSC）——数据须在 NVMe 的 TOYOS 分区，或后续做 MSC。
 
+**QEMU 鼠标**：曾对 `usb-tablet`(Proto=0) 误发 `SET_PROTOCOL` → Stall → 无 `xhci-hid mouse`。现仅 Proto=1/2 发 SET_PROTOCOL；tablet 走 `mouse (abs)`。
+
+**真机鼠标**：旧逻辑只扫「其它根口」，复合键鼠（同 slot 第二 HID）永远 `mouse=00/00`。现 `InitMouseOnKeyboardSlot` 追加同设备鼠标 EP；期望 `boot: xhci-hid mouse (composite)` 且 `arms … mouse=NN/MM`。
+
+家侧日志已见 `mouse (composite)` + `arms kbd=08/03 mouse=08/05`，但 PHOTO **`m` 不涨**：键盘 EP Running 时只 Add 鼠标 EP，部分 HC 上鼠标中断假配置。已改：Stop 键盘 → Drop+Add 键鼠一次配齐 → 两端点重新 Queue；并打 `mouse iface/proto/ep/mps`。
+
+PHOTO 串口证据（2026-09-09）：`proto=0 mps=4`，`k` 涨、`m=0`、`u=0`、`s=08.03`（仅键盘完成）。根因候选：① TRB 长度曾固定 8>MPS=4 → 已改为 ≤MPS；② port3 `no hid ep` 可能是 **iface class 9 hub**（device class=0）→ 已认 hub iface；③ proto=0 可能是附加 HID 非指针 → 解析优先 boot mouse(3/1/2)。
+
+## 家侧 2026-09-10（TG）
+
+- **hub 鼠 `m=0`**：键/hub/鼠共用 EP0 环，Address 子设备 `InitRing` 踩坏 hub EP0 → TT 中断哑火。已拆分 EP0 环；hub 用 ConfigEP+TTT（对齐 EDK2）。
+- **光标卡**：真机 `hlt` 等 tick + save-under ReadPixel。已 busy-poll（偶发 hlt）+ XOR 光标 + 合并 Present/拖动。
+- 期望日志：`ep0=split` / `hub ttt=` / `xhci-hid mouse`（或 `via hub`）；PHOTO `m` 涨；桌面跟手。
+
 ## 建议下一刀（JX）
 
 1. 冷启动：`help` 真机应接近一次刷出；`vols`/`ls` 默认 TOYOS（U 盘双区且 Block 能见该盘时）
 2. CoolTerm `ls` 只一个 `toyos>`
 3. smoke PASS
+4. （可选）USB MSC / 真机 MSI dual，使 Block 看见 U 盘 TOYOS
