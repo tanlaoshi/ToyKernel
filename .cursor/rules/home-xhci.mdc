@@ -1,0 +1,12 @@
+---
+description: 真机 USB/xHCI 家里轨进展与 PR 切分（家↔公司交接）
+globs: HAL/X64/Drivers/XHCI.c,HAL/X64/Drivers/InputXhci.c,HAL/X64/HalSerial.c
+alwaysApply: false
+---
+
+# 真机 xHCI（家里轨）
+
+- 分支：`home/xhci-pr1-5-bundle`。计划：`Documents/real-pc-usb-pr-split.md`。交接：`Documents/home-xhci-handoff.md`。
+- 当前刀：**PR-H-xhci-base**（poll 真机打字）。PR1–4 真机已过；`k=`/`m=` 仍为 0 时优先查中断 IN / `SyncIntrDequeue`，不要重开枚举大改。
+- JX = 实现 + smoke，不 commit；TG = commit+push。公司 `smoke-boot.sh` 不得回归。
+- 开新会话先读上述两份 Documents，再动手。
