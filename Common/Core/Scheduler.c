@@ -350,7 +350,8 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].Affinity = 0; /* Console/串口非 SMP 安全；用户先钉 BSP */
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
-        gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
+        /* 继承创建者优先级，避免 shell/gui(prio=8) 在 UP 上饿死用户(0) */
+        gTasks[i].Priority = (Cur && !IsIdleTask(Cur)) ? Cur->Priority : SCHED_PRIORITY_DEFAULT;
         gTasks[i].InRunq = 0;
         gTasks[i].BrkBase = BrkBase;
         gTasks[i].Brk = BrkBase;

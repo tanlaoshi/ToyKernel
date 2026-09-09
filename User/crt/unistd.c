@@ -145,14 +145,9 @@ void *brk(void *addr) {
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
     long r;
+    long PackedFlags;
 
-    (void)fd;
-    (void)offset;
     if (addr != 0 || length == 0) {
-        errno = EINVAL;
-        return MAP_FAILED;
-    }
-    if ((flags & MAP_ANONYMOUS) == 0) {
         errno = EINVAL;
         return MAP_FAILED;
     }
@@ -160,7 +155,25 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
         errno = EINVAL;
         return MAP_FAILED;
     }
-    r = toy_mmap((long)length, (long)prot, (long)flags);
+    if (flags & MAP_SHARED) {
+        errno = EINVAL;
+        return MAP_FAILED;
+    }
+
+    if (flags & MAP_ANONYMOUS) {
+        PackedFlags = (long)(flags & 0xffff);
+        (void)fd;
+        (void)offset;
+    } else {
+        if ((flags & MAP_PRIVATE) == 0 || fd < 0 || offset != 0) {
+            errno = EINVAL;
+            return MAP_FAILED;
+        }
+        /* ABI：低 16=flags，高 16=fd（syscall 仅 3 参） */
+        PackedFlags = (long)((flags & 0xffff) | (((unsigned)fd & 0xffffu) << 16));
+    }
+
+    r = toy_mmap((long)length, (long)prot, PackedFlags);
     if (r < 0) {
         errno = ENOMEM;
         return MAP_FAILED;

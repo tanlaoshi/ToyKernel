@@ -1,5 +1,5 @@
 /*
- * sys/mman.h — 匿名 mmap / munmap（PR-U-mmap；非完整 POSIX）
+ * sys/mman.h — mmap / munmap（PR-U-mmap 匿名；PR-U-mmap2 文件私有）
  */
 #ifndef SYS_MMAN_H
 #define SYS_MMAN_H
@@ -19,8 +19,10 @@
 #define MAP_FAILED ((void *)(long)-1)
 
 /*
- * 教学子集：addr 必须为 NULL；仅 MAP_ANONYMOUS（可带 MAP_PRIVATE）；
- * fd/offset 忽略。内核在 [HalUserMmapBase, End) 分配。
+ * 教学子集：addr 必须为 NULL；单次长度由内核限制。
+ * - 匿名：MAP_ANONYMOUS（可带 MAP_PRIVATE）；fd/offset 忽略
+ * - 文件：MAP_PRIVATE + 合法文件 fd；offset 必须为 0；急切私有拷贝，不回写
+ * 不做 MAP_SHARED / MAP_FIXED / mprotect。
  */
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t length);

@@ -379,13 +379,36 @@ UINT64 ProcessBrk(UINT64 NewBrk) {
 /* PROT_* / MAP_* 与 User/include/sys/mman.h 一致（教学子集） */
 #define TOY_PROT_READ  0x1
 #define TOY_PROT_WRITE 0x2
+#define TOY_MAP_SHARED    0x01
 #define TOY_MAP_PRIVATE   0x02
 #define TOY_MAP_ANONYMOUS 0x20
 #define TOY_MMAP_MAX_LEN  (256u * 1024u)
 
+static void MmapRollbackPages(VIRTUAL_ADDRESS_SPACE *Space, UINT64 Base, UINT64 VaEnd) {
+    UINT64 Rb;
+    for (Rb = Base; Rb < VaEnd; Rb += PAGE_SIZE) {
+        UINT64 P = HalPageGetEntry(Space->Root, Rb);
+        if ((P & HAL_PAGE_PRESENT) && (P & HAL_PAGE_USER)) {
+            HalPageUnmapRange(Space->Root, Rb, Rb + PAGE_SIZE);
+            PhysicalMemoryReleasePage((void *)(UINTN)(P & ~0xFFFULL));
+        }
+    }
+}
+
+static void MmapZeroPage(void *Page) {
+    UINT8 *B = (UINT8 *)Page;
+    UINTN i;
+    for (i = 0; i < PAGE_SIZE; i++) {
+        B[i] = 0;
+    }
+}
+
 /*
- * PR-U-mmap：匿名私有映射。Addr 固定由内核分配（CRT 传 addr=NULL）。
- * 仅 MAP_ANONYMOUS；Len 向上页对齐，单次 ≤256KiB，落在 [USER_MMAP_BASE, END)。
+ * PR-U-mmap / PR-U-mmap2：
+ * - 匿名：MAP_ANONYMOUS（可带 MAP_PRIVATE）
+ * - 文件：MAP_PRIVATE + 已打开文件 fd；offset 固定 0（CRT 保证）
+ * Addr 由内核在 [USER_MMAP_BASE, END) 分配；单次 ≤256KiB。
+ * ABI：Flags 低 16=mmap flags；非匿名时高 16=fd。
  */
 UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
     TASK *T;
@@ -394,6 +417,10 @@ UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
     UINT64 Base;
     UINT64 Va;
     UINT64 FlagsPte;
+    UINT64 RealFlags;
+    INT32 Fd;
+    TASK_FD *FileFd;
+    UINTN FileOff;
 
     T = SchedulerCurrent();
     if (!T || !T->IsUser || !T->UserSpace) {
@@ -402,9 +429,27 @@ UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
     if (Len == 0 || Len > TOY_MMAP_MAX_LEN) {
         return (UINT64)(INT64)-1;
     }
-    if ((Flags & TOY_MAP_ANONYMOUS) == 0) {
+
+    RealFlags = Flags & 0xFFFFu;
+    Fd = -1;
+    FileFd = 0;
+    if ((RealFlags & TOY_MAP_ANONYMOUS) == 0) {
+        if (RealFlags & TOY_MAP_SHARED) {
+            return (UINT64)(INT64)-1;
+        }
+        if ((RealFlags & TOY_MAP_PRIVATE) == 0) {
+            return (UINT64)(INT64)-1;
+        }
+        Fd = (INT32)((Flags >> 16) & 0xFFFFu);
+        if (Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used ||
+            T->Fds[Fd].Kind != FD_KIND_FILE || !T->Fds[Fd].Data) {
+            return (UINT64)(INT64)-1;
+        }
+        FileFd = &T->Fds[Fd];
+    } else if (RealFlags & TOY_MAP_SHARED) {
         return (UINT64)(INT64)-1;
     }
+
     if ((Prot & (TOY_PROT_READ | TOY_PROT_WRITE)) == 0) {
         return (UINT64)(INT64)-1;
     }
@@ -425,6 +470,7 @@ UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
         FlagsPte |= PTE_WRITABLE;
     }
 
+    FileOff = 0;
     for (Va = Base; Va < Base + Need; Va += PAGE_SIZE) {
         UINT64 Pte = HalPageGetEntry(Space->Root, Va);
         void *Page;
@@ -432,40 +478,28 @@ UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
         if ((Pte & HAL_PAGE_PRESENT) && (Pte & HAL_PAGE_USER)) {
             return (UINT64)(INT64)-1;
         }
-            Page = PhysicalMemoryAllocatePage();
-            if (!Page) {
-                /* 回滚已映射页 */
-                {
-                    UINT64 Rb;
-                    for (Rb = Base; Rb < Va; Rb += PAGE_SIZE) {
-                        UINT64 P = HalPageGetEntry(Space->Root, Rb);
-                        if ((P & HAL_PAGE_PRESENT) && (P & HAL_PAGE_USER)) {
-                            HalPageUnmapRange(Space->Root, Rb, Rb + PAGE_SIZE);
-                            PhysicalMemoryReleasePage((void *)(UINTN)(P & ~0xFFFULL));
-                        }
-                    }
+        Page = PhysicalMemoryAllocatePage();
+        if (!Page) {
+            MmapRollbackPages(Space, Base, Va);
+            return (UINT64)(INT64)-1;
+        }
+        MmapZeroPage(Page);
+        if (FileFd) {
+            if (FileOff < FileFd->Size) {
+                UINTN N = FileFd->Size - FileOff;
+                UINTN i;
+                if (N > PAGE_SIZE) {
+                    N = PAGE_SIZE;
                 }
-                return (UINT64)(INT64)-1;
+                for (i = 0; i < N; i++) {
+                    ((UINT8 *)Page)[i] = FileFd->Data[FileOff + i];
+                }
             }
-        {
-            UINT8 *B = (UINT8 *)Page;
-            UINTN i;
-            for (i = 0; i < PAGE_SIZE; i++) {
-                B[i] = 0;
-            }
+            FileOff += PAGE_SIZE;
         }
         if (VirtualMemorySpaceMapPage(Space, Va, (UINT64)(UINTN)Page, FlagsPte) != 0) {
             PhysicalMemoryFreePage(Page);
-            {
-                UINT64 Rb;
-                for (Rb = Base; Rb < Va; Rb += PAGE_SIZE) {
-                    UINT64 P = HalPageGetEntry(Space->Root, Rb);
-                    if ((P & HAL_PAGE_PRESENT) && (P & HAL_PAGE_USER)) {
-                        HalPageUnmapRange(Space->Root, Rb, Rb + PAGE_SIZE);
-                        PhysicalMemoryReleasePage((void *)(UINTN)(P & ~0xFFFULL));
-                    }
-                }
-            }
+            MmapRollbackPages(Space, Base, Va);
             return (UINT64)(INT64)-1;
         }
     }
