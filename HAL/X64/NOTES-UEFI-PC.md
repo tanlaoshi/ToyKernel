@@ -36,7 +36,10 @@ ToyBoot **优先**从含 `TOYOS.ID` 的卷加载 `Kernel.elf`（启动盘仅兜�
 cd ToyKernel && ./build.sh
 cd ../ToyBoot && ./build.sh          # → ToyImage/EFI/BOOT/BOOTX64.EFI
 cd ../ToyImage && ./prepare-rootfs.sh
-# 将 EFI/ 与 rootfs/ 内容拷到 U 盘对应分区
+# 推荐脚本（ESP 256MiB + TOYOS 剩余）：
+./make-usb-stick.sh --device /dev/sdX --yes --sync   # 首次分区
+./sync-usb.sh                                       # 日常同步
+# 或手动：将 EFI/ 拷到 ESP，rootfs/ 拷到 TOYOS
 ```
 
 从固件 Boot Menu 选该 U 盘；成功时屏上应出现桌面（或至少 GOP 清屏 / 壁纸色），串口若有则见 `ToyOS ready`。
@@ -49,8 +52,11 @@ cd ../ToyImage && ./prepare-rootfs.sh
 |------|------|
 | 固件加载 `BOOTX64.EFI` | 无「Unsupported」类立刻退出 |
 | ToyBoot 找到 GOP + `Kernel.elf` | 失败类 `Print` 仍会打（即使 `TOY_BOOT_DEBUG=0`） |
-| 跳入 `KernelMain` | `HalVideoSet` 挂上 Boot 传入的帧缓冲 |
+| 跳入 `KernelMain` | 进核后先深蓝灰清屏，再走模块；`HalVideoSet` 挂帧缓冲 |
 | 屏 | **有像素变化**（清屏 / 桌面 / 图标）；即本刀过线 |
+
+真机若停在 `Kernel.elf from TOYOS volume` 且无后续 `loading`/`jump` 行：仍在 Boot。  
+若已 `jump` 但仍是 Boot 白字、从不换色：多为进核后缺页（旧 bug：UEFI 高栈 + 仅映射低 512MB）。现已在 `Startup.c` 切到 BSS 早期栈。
 
 QEMU 回归（无真机时）：
 
@@ -82,10 +88,18 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H2：真机键盘
 
-- **xHCI 普查**：`XHCI.c` 扫 CCS 口，优先 boot keyboard iface `3/1/1`（非“第一口即键盘”）；多控制器逐个试 BAR；映射所选 BAR；MSI 失败仍 Bind，`HalInputPoll` → `XhciDrainEvents`
-- **PS/2 fallback**：`InputPs2.c`（`ps2-kbd`），仅当 Input 类尚未绑定时 Probe；`lsdev` 可见 `xhci-hid` 或 `ps2-kbd`
-- 串口期望（`TOY_DEBUG=0` 也可见）：`boot: xhci-hid keyboard` 或 `boot: ps2-kbd keyboard`
-- **未做**：USB hub、EHCI/UHCI、方向键全集、真机 IOAPIC
+> **2026-09-09（家里轨 PR1–5）**：`home/xhci-retry-from-scratch` 已并入真机路径：**DiagChk**、**firmware-first 环**、**无 PED=0 禁用**、枚举 + CA 恢复、真机 **`irq=poll (base)`**（零 MSI；`XhciTryEnterDual` 占位）。课堂 QEMU 仍 MSI/dual。
+
+- **PR-H-xhci-obs/rs/port/enum/base ✅**（本分支一次落地；拆分见路线图家里轨）
+  - 观测：`xhci OK|FAIL step want=… got=…` + `HalSerialBootMark`
+  - 控制器：Halt-only 优先；固件 DCBAAP/CRCR/ERST；`RS running`
+  - 端口：USB2 `PR` / USB3 `WPR`；清变更强制带 `PP`；**禁止**复位前写 `PED=0`
+  - 枚举：EnableSlot / Address / Config；命令超时 CA 恢复一次
+  - 输入：真机 `boot: xhci irq=poll (base)` + Drain；PHOTO 后再 Arm（仍 poll）
+- **PR-H-hub ⬜（JX 可选）**：根口 hub 后键盘
+- **PR-H-xhci-dual / stat / irq ⬜**：base 通后再开；裸 `irq=msi` 曾致桌面死输入
+- **回归笔记**：曾通 poll；USB3 写 PED=0 → `PORTSC=0` / `why=PED clear TO`（已修）
+- **PS/2 fallback** / **H-ioapic**：见 H2 其余条目；未做 EHCI/嵌套 hub 等
 
 ### H3：无 COM1 → GOP 控制台
 
@@ -115,7 +129,13 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
+| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)` |
+| 工业 PC（家用靶） | ✅ | ✅ | 🔧 **poll base**（PR1–5 落地） | U 盘 FAT | 2026-09-09：`firmware-first` + 无 PED=0 + `irq=poll (base)`；验收看 `xhci OK|FAIL` / `RS running` / `xhci-hid keyboard` |
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
+
+**冒烟勾选表**（上电→Boot→桌面/串口；xHCI/盘/网；交作业用一页总表）：
+
+→ [`../../Documents/真机冒烟清单.md`](../../Documents/真机冒烟清单.md)（**PR-PC-smoke**）
 
 ---
 

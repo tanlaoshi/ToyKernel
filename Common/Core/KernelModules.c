@@ -21,6 +21,7 @@
 #include "Db.h"
 #include "Locale.h"
 #include "Driver.h"
+#include "DriverInput.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
@@ -90,7 +91,23 @@ static int InitializeSmp(void) {
 }
 
 static int InitializeUsb(void) {
-    return HalUsbInit();
+    HalSerialWrite("boot: input probe (USB then PS/2)\n");
+    (void)HalUsbInit();
+    if (ToyDriverInputReady()) {
+        HalSerialWrite("boot: input backend ready\n");
+    } else {
+        HalSerialWrite("boot: input NONE (continue)\n");
+    }
+    /*
+     * 真机：Arm 保持 irq=poll (base)（XhciEnableIrq 零 MSI + dual stub），
+     * 再 PHOTO 拍尾部日志。QEMU 不走 PhotoHold。
+     */
+    if (!HalCpuIsHypervisor()) {
+        HalSerialWrite("boot: xhci-Hhid photo-hold build\n");
+        HalInputArmIrq();
+        HalSerialGopPhotoHold(20);
+    }
+    return 0; /* 无键盘也必须进 gui / 桌面 */
 }
 
 static int InitializeFileSystem(void) {

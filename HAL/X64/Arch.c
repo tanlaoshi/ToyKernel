@@ -14,6 +14,7 @@
 #include "BootTypes.h"
 #include "Syscall.h"
 #include "VirtualMemory.h"
+#include "IoApic.h"
 
 extern void Isr128(void);
 
@@ -392,6 +393,7 @@ int ArchInit(void) {
     PicMaskAll();
     LapicEnable();
     IdtLoad();
+    (void)IoApicInit(); /* PR-H-ioapic：掩 RTE；设备路由在驱动里 */
     __asm__ volatile ("sti");
     LapicSelfIpi(VEC_XHCI);
     for (volatile int i = 0; i < 1000000; i++) {

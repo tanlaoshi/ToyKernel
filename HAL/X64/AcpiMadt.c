@@ -1,10 +1,16 @@
 /*
- * AcpiMadt.c — 从 RSDP 找到 MADT，枚举 Local APIC
+ * AcpiMadt.c — 从 RSDP 找到 MADT，枚举 Local APIC；查 DMAR 等表
+ *
+ * UEFI 真机：ACPI 表常在早期 identity 窗外，读前必须 MapRange。
  */
 #include "AcpiMadt.h"
 #include "Hal.h"
+#include "VirtualMemory.h"
 
 #define SmpLog(Text) HalDebugWrite(Text)
+#define ACPI_MAP_FLAGS (PTE_PRESENT | PTE_WRITABLE)
+#define ACPI_MAX_ROOT_ENTRIES 256u
+#define ACPI_MAX_TABLE_BYTES  (256u * 1024u)
 
 typedef struct {
     char   Signature[8];
@@ -46,6 +52,38 @@ static int MemEq(const char *A, const char *B, int N) {
     return 1;
 }
 
+/* UEFI ACPI 表常在 identity 窗外：读前按需映页，失败则跳过 */
+static int MapPhys(UINT64 Phys, UINTN Bytes) {
+    if (Phys == 0 || Bytes == 0 || Bytes > ACPI_MAX_TABLE_BYTES) {
+        return -1;
+    }
+    if (!VirtualMemoryEnabled()) {
+        return 0;
+    }
+    return VirtualMemoryMapRange(Phys, Phys, Bytes, ACPI_MAP_FLAGS);
+}
+
+static ACPI_SDT_HEADER *MapSdtHeader(UINT64 Phys) {
+    ACPI_SDT_HEADER *H;
+    UINT32 Len;
+
+    if (Phys == 0) {
+        return 0;
+    }
+    if (MapPhys(Phys, sizeof(ACPI_SDT_HEADER)) != 0) {
+        return 0;
+    }
+    H = (ACPI_SDT_HEADER *)(UINTN)Phys;
+    Len = H->Length;
+    if (Len < sizeof(ACPI_SDT_HEADER) || Len > ACPI_MAX_TABLE_BYTES) {
+        return 0;
+    }
+    if (MapPhys(Phys, Len) != 0) {
+        return 0;
+    }
+    return H;
+}
+
 static ACPI_SDT_HEADER *FindTableXsdt(ACPI_SDT_HEADER *Xsdt, const char *Sig) {
     UINT32 Entries;
     UINT32 i;
@@ -55,9 +93,12 @@ static ACPI_SDT_HEADER *FindTableXsdt(ACPI_SDT_HEADER *Xsdt, const char *Sig) {
         return 0;
     }
     Entries = (Xsdt->Length - sizeof(ACPI_SDT_HEADER)) / 8;
+    if (Entries > ACPI_MAX_ROOT_ENTRIES) {
+        Entries = ACPI_MAX_ROOT_ENTRIES;
+    }
     Ptr = (UINT64 *)(Xsdt + 1);
     for (i = 0; i < Entries; i++) {
-        ACPI_SDT_HEADER *H = (ACPI_SDT_HEADER *)(UINTN)Ptr[i];
+        ACPI_SDT_HEADER *H = MapSdtHeader(Ptr[i]);
         if (H && MemEq(H->Signature, Sig, 4)) {
             return H;
         }
@@ -74,9 +115,12 @@ static ACPI_SDT_HEADER *FindTableRsdt(ACPI_SDT_HEADER *Rsdt, const char *Sig) {
         return 0;
     }
     Entries = (Rsdt->Length - sizeof(ACPI_SDT_HEADER)) / 4;
+    if (Entries > ACPI_MAX_ROOT_ENTRIES) {
+        Entries = ACPI_MAX_ROOT_ENTRIES;
+    }
     Ptr = (UINT32 *)(Rsdt + 1);
     for (i = 0; i < Entries; i++) {
-        ACPI_SDT_HEADER *H = (ACPI_SDT_HEADER *)(UINTN)(UINT64)Ptr[i];
+        ACPI_SDT_HEADER *H = MapSdtHeader((UINT64)Ptr[i]);
         if (H && MemEq(H->Signature, Sig, 4)) {
             return H;
         }
@@ -99,6 +143,9 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
     if (RsdpPhys == 0 || ApicIds == 0 || MaxCpus <= 0) {
         return -1;
     }
+    if (MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return -1;
+    }
     Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
     if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
         SmpLog("smp: bad RSDP signature\n");
@@ -107,12 +154,16 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
 
     Madt = 0;
     if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
-        Root = (ACPI_SDT_HEADER *)(UINTN)Rsdp->XsdtAddress;
-        Madt = (ACPI_MADT *)FindTableXsdt(Root, "APIC");
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Madt = (ACPI_MADT *)FindTableXsdt(Root, "APIC");
+        }
     }
     if (Madt == 0 && Rsdp->RsdtAddress != 0) {
-        Root = (ACPI_SDT_HEADER *)(UINTN)(UINT64)Rsdp->RsdtAddress;
-        Madt = (ACPI_MADT *)FindTableRsdt(Root, "APIC");
+        Root = MapSdtHeader((UINT64)Rsdp->RsdtAddress);
+        if (Root) {
+            Madt = (ACPI_MADT *)FindTableRsdt(Root, "APIC");
+        }
     }
     if (Madt == 0) {
         SmpLog("smp: MADT not found\n");
@@ -157,4 +208,255 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
         *OutCount = Count;
     }
     return 0;
+}
+
+static ACPI_MADT *FindMadt(UINT64 RsdpPhys) {
+    ACPI_RSDP *Rsdp;
+    ACPI_SDT_HEADER *Root;
+    ACPI_MADT *Madt;
+
+    if (MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return 0;
+    }
+    Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
+    if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
+        return 0;
+    }
+    Madt = 0;
+    if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Madt = (ACPI_MADT *)FindTableXsdt(Root, "APIC");
+        }
+    }
+    if (Madt == 0 && Rsdp->RsdtAddress != 0) {
+        Root = MapSdtHeader((UINT64)Rsdp->RsdtAddress);
+        if (Root) {
+            Madt = (ACPI_MADT *)FindTableRsdt(Root, "APIC");
+        }
+    }
+    return Madt;
+}
+
+int AcpiMadtParseIo(UINT64 RsdpPhys,
+                    ACPI_IOAPIC_INFO *OutIo, int MaxIo, int *OutIoCount,
+                    ACPI_ISO_ENTRY *OutIso, int MaxIso, int *OutIsoCount) {
+    ACPI_MADT *Madt;
+    UINT8 *P;
+    UINT8 *End;
+    int IoCount = 0;
+    int IsoCount = 0;
+
+    if (OutIoCount) {
+        *OutIoCount = 0;
+    }
+    if (OutIsoCount) {
+        *OutIsoCount = 0;
+    }
+    if (RsdpPhys == 0) {
+        return -1;
+    }
+    Madt = FindMadt(RsdpPhys);
+    if (Madt == 0) {
+        return -1;
+    }
+
+    P = (UINT8 *)(Madt + 1);
+    End = (UINT8 *)Madt + Madt->Header.Length;
+    while (P + 2 <= End) {
+        UINT8 Type = P[0];
+        UINT8 Len = P[1];
+        if (Len < 2 || P + Len > End) {
+            break;
+        }
+        /* Type 1: I/O APIC */
+        if (Type == 1 && Len >= 12 && OutIo && IoCount < MaxIo) {
+            OutIo[IoCount].Id = P[2];
+            OutIo[IoCount].Address = (UINT64)(*(UINT32 *)(P + 4));
+            OutIo[IoCount].GsiBase = *(UINT32 *)(P + 8);
+            IoCount++;
+        }
+        /* Type 2: Interrupt Source Override */
+        if (Type == 2 && Len >= 10 && OutIso && IsoCount < MaxIso) {
+            OutIso[IsoCount].IsaIrq = P[3];
+            OutIso[IsoCount].Gsi = *(UINT32 *)(P + 4);
+            OutIso[IsoCount].Flags = *(UINT16 *)(P + 8);
+            IsoCount++;
+        }
+        P += Len;
+    }
+
+    if (OutIoCount) {
+        *OutIoCount = IoCount;
+    }
+    if (OutIsoCount) {
+        *OutIsoCount = IsoCount;
+    }
+    return 0;
+}
+
+int AcpiTablePresent(UINT64 RsdpPhys, const char *Sig4) {
+    ACPI_RSDP *Rsdp;
+    ACPI_SDT_HEADER *Root;
+    ACPI_SDT_HEADER *Tab;
+
+    if (RsdpPhys == 0 || Sig4 == 0) {
+        return -1;
+    }
+    if (MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return -1;
+    }
+    Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
+    if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
+        return -1;
+    }
+    Tab = 0;
+    if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Tab = FindTableXsdt(Root, Sig4);
+        }
+    }
+    if (Tab == 0 && Rsdp->RsdtAddress != 0) {
+        Root = MapSdtHeader((UINT64)Rsdp->RsdtAddress);
+        if (Root) {
+            Tab = FindTableRsdt(Root, Sig4);
+        }
+    }
+    return Tab ? 1 : 0;
+}
+
+#define DMAR_GCMD 0x18u
+#define DMAR_GSTS 0x1cu
+#define DMA_GCMD_TE  (1u << 31)
+#define DMA_GCMD_IRE (1u << 25)
+#define DMA_GCMD_QIE (1u << 26)
+#define DMA_GSTS_TES (1u << 31)
+#define DMA_GSTS_IRES (1u << 25)
+#define DMA_GSTS_QIES (1u << 26)
+#define PTE_MMIO_VTD (PTE_PRESENT | PTE_WRITABLE | (1ULL << 3) | (1ULL << 4))
+
+static ACPI_SDT_HEADER *FindDmar(UINT64 RsdpPhys) {
+    ACPI_RSDP *Rsdp;
+    ACPI_SDT_HEADER *Root;
+    ACPI_SDT_HEADER *Tab;
+
+    if (MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return 0;
+    }
+    Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
+    if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
+        return 0;
+    }
+    Tab = 0;
+    if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Tab = FindTableXsdt(Root, "DMAR");
+        }
+    }
+    if (Tab == 0 && Rsdp->RsdtAddress != 0) {
+        Root = MapSdtHeader((UINT64)Rsdp->RsdtAddress);
+        if (Root) {
+            Tab = FindTableRsdt(Root, "DMAR");
+        }
+    }
+    return Tab;
+}
+
+static int DrhdDisableTe(UINT64 RegBase) {
+    volatile UINT32 *Gsts;
+    volatile UINT32 *Gcmd;
+    UINT32 Sts;
+    UINT32 GcmdVal;
+    int Wait;
+
+    if (RegBase == 0) {
+        return -1;
+    }
+    if (!VirtualMemoryEnabled()) {
+        return -1;
+    }
+    if (VirtualMemoryMapRange(RegBase, RegBase, 0x1000, PTE_MMIO_VTD) != 0) {
+        return -1;
+    }
+    Gsts = (volatile UINT32 *)(UINTN)(RegBase + DMAR_GSTS);
+    Gcmd = (volatile UINT32 *)(UINTN)(RegBase + DMAR_GCMD);
+    Sts = *Gsts;
+    if (!(Sts & DMA_GSTS_TES)) {
+        return 1; /* TE already off */
+    }
+    /* 与 Linux 一致：用 GSTS 镜像出 GCMD 影子，再清 TE */
+    GcmdVal = 0;
+    if (Sts & DMA_GSTS_TES) {
+        GcmdVal |= DMA_GCMD_TE;
+    }
+    if (Sts & DMA_GSTS_IRES) {
+        GcmdVal |= DMA_GCMD_IRE;
+    }
+    if (Sts & DMA_GSTS_QIES) {
+        GcmdVal |= DMA_GCMD_QIE;
+    }
+    GcmdVal &= ~DMA_GCMD_TE;
+    *Gcmd = GcmdVal;
+    for (Wait = 0; Wait < 1000000; Wait++) {
+        if (!(*Gsts & DMA_GSTS_TES)) {
+            return 2; /* disabled */
+        }
+    }
+    return -1;
+}
+
+int AcpiDmarDisableTranslation(UINT64 RsdpPhys) {
+    ACPI_SDT_HEADER *Dmar;
+    UINT8 *P;
+    UINT8 *End;
+    int SawDrhd = 0;
+    int Disabled = 0;
+    int AlreadyOff = 0;
+
+    if (RsdpPhys == 0) {
+        return -1;
+    }
+    Dmar = FindDmar(RsdpPhys);
+    if (!Dmar) {
+        return 0;
+    }
+    /* DMAR body: HostAddressWidth(1)+Flags(1)+Reserved(10) then structures */
+    if (Dmar->Length < sizeof(ACPI_SDT_HEADER) + 12) {
+        return -1;
+    }
+    P = (UINT8 *)Dmar + sizeof(ACPI_SDT_HEADER) + 12;
+    End = (UINT8 *)Dmar + Dmar->Length;
+    while (P + 4 <= End) {
+        UINT16 Type = (UINT16)(P[0] | (P[1] << 8));
+        UINT16 Len = (UINT16)(P[2] | (P[3] << 8));
+        if (Len < 4 || P + Len > End) {
+            break;
+        }
+        /* Type 0 = DRHD */
+        if (Type == 0 && Len >= 16) {
+            UINT64 RegBase = *(UINT64 *)(P + 8);
+            int Rc = DrhdDisableTe(RegBase);
+            SawDrhd = 1;
+            if (Rc == 2) {
+                Disabled = 1;
+            } else if (Rc == 1) {
+                AlreadyOff = 1;
+            } else if (Rc < 0) {
+                return -1;
+            }
+        }
+        P += Len;
+    }
+    if (!SawDrhd) {
+        return 0;
+    }
+    if (Disabled) {
+        return 2;
+    }
+    if (AlreadyOff) {
+        return 1;
+    }
+    return 1;
 }

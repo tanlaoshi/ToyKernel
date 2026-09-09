@@ -164,12 +164,15 @@ int HalPlatformVirtConsole(void);
 void HalVirtIdleLoop(void);
 /* 轮询时钟（virt 无 IRQ 时由 IdleLoop 调用；x86 可为空） */
 void HalTimerPoll(void);
+/* CPUID.1 ECX.31：QEMU/KVM 等为 1，裸机多为 0 */
+int HalCpuIsHypervisor(void);
 
 /* SMP：Common 只依赖这些门面；x86=MADT/SIPI，virt Arm/RiscV=PSCI/HSM（A14） */
 #define HAL_MAX_CPUS 8
 
 int HalCpuCount(void);
 UINT32 HalGetCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
+UINT8 HalCpuApicId(UINT32 LogicalCpu); /* x86：LAPIC ID；其它 arch：0 */
 int HalCpuIsBsp(void);
 UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 timer 计数 */
 void HalCpuIncrementTicks(void);

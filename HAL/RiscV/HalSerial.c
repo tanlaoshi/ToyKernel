@@ -30,6 +30,10 @@ void HalSerialGopEnable(void) {
     /* x86 PR-H3 only */
 }
 
+const char *HalSerialLogText(void) {
+    return "";
+}
+
 void HalSerialWrite(const char *Text) {
     if (Text == 0) {
         return;
@@ -49,6 +53,21 @@ char HalSerialReadChar(void) {
     while (!HalSerialDataReady()) {
     }
     return (char)UART_THR;
+}
+
+void HalSerialBootLogRewind(void) {
+}
+
+void HalSerialGopMute(int Mute) {
+    (void)Mute;
+}
+
+void HalSerialBootMark(const char *Text) {
+    HalSerialWrite(Text);
+}
+
+void HalSerialGopPhotoHold(UINT32 Seconds) {
+    (void)Seconds;
 }
 
 void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits) {

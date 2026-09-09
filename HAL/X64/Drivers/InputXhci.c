@@ -9,27 +9,61 @@
 #include "Debug.h"
 #include "VirtualMemory.h"
 
+/* x86：MMIO 须 PCD|PWT，否则真机写 PORTSC/RS 易假死 */
+#ifndef PTE_PWT
+#define PTE_PWT (1ULL << 3)
+#define PTE_PCD (1ULL << 4)
+#endif
+#define PTE_MMIO (PTE_PRESENT | PTE_WRITABLE | PTE_PWT | PTE_PCD)
+
 static USB_CONTROLLER gXhciDev;
 static int gXhciReady;
 
 static void MapXhciBar(UINT64 Base) {
     UINT64 Start;
     UINT64 End;
+    UINT32 Cap;
+    UINT32 CapLength;
+    UINT64 Op;
+    UINT64 Db;
+    UINT64 Rt;
+    UINT64 Need;
 
     if (Base == 0) {
         return;
     }
     Start = Base & ~(UINT64)(4096 - 1);
-    End = Start + 0x1000000ULL;
+    /* 先映 1 页读 Cap，再按 RTSOFF/DBOFF 扩；避免无脑 64MiB×逐页 TLB flush 假死 */
+    VirtualMemoryMapPage(Start, Start, PTE_MMIO);
+    Cap = *(volatile UINT32 *)(UINTN)Start;
+    CapLength = Cap & 0xFF;
+    if (Cap == 0xFFFFFFFFu || CapLength < 0x20 || CapLength == 0xFF) {
+        End = Start + 0x100000ULL; /* 退化：1MiB */
+    } else {
+        Op = Start + CapLength;
+        Db = Start + (UINT64)((*(volatile UINT32 *)(UINTN)(Start + 0x14)) & ~0x3u);
+        Rt = Start + (UINT64)((*(volatile UINT32 *)(UINTN)(Start + 0x18)) & ~0x1Fu);
+        Need = Op + 0x800; /* 端口寄存器区 */
+        if (Db + 0x1000 > Need) {
+            Need = Db + 0x1000;
+        }
+        if (Rt + 0x1000 > Need) {
+            Need = Rt + 0x1000;
+        }
+        /* 上限 16MiB，防止异常偏移拖死 */
+        if (Need > Start + 0x1000000ULL) {
+            Need = Start + 0x1000000ULL;
+        }
+        End = (Need + 0xFFFULL) & ~0xFFFULL;
+    }
     while (Start < End) {
-        VirtualMemoryMapPage(Start, Start, PTE_PRESENT | PTE_WRITABLE);
+        VirtualMemoryMapPage(Start, Start, PTE_MMIO);
         Start += 4096;
     }
 }
 
 static void XhciInputPoll(void) {
-    if (gXhciReady) {
-        /* MSI 与否都排空；无 IRQ 时靠此收报告（PR-H2） */
+    if (gXhciReady && (XhciHidKeyboardReady() || XhciMousePresent())) {
         XhciDrainEvents();
     }
 }
@@ -75,6 +109,7 @@ static int XhciMouseDequeue(HAL_MOUSE_REPORT *Report) {
     Report->Y = Raw.Y;
     Report->Buttons = Raw.Buttons;
     Report->Wheel = Raw.Wheel;
+    Report->Absolute = Raw.Absolute;
     return 1;
 }
 
@@ -87,20 +122,43 @@ static const INPUT_BACKEND gXhciInputBackend = {
 };
 
 static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
+    char B[20];
+    int RealPc = !HalCpuIsHypervisor();
+
     if (Base == 0) {
         return 0;
     }
+    /* 真机：Map 前 mute，避免 try BAR= 的 Present 卡死进不了 Init */
+    if (RealPc) {
+        HalSerialGopMute(1);
+        HalSerialBootMark("boot: xhci-B10 map\n");
+    }
     MapXhciBar(Base);
+    if (RealPc) {
+        HalSerialBootMark("boot: xhci-B10 mapped\n");
+    } else {
+        HalSerialWrite("boot: xhci try BAR=");
+        HalSerialFormatHex(B, Base, 16);
+        HalSerialWrite(B);
+        HalSerialWrite("\n");
+    }
     DebugWrite("XHCI: try BAR ");
     DebugHex64(Base);
     DebugWrite("\n");
     if (!XhciInit(Base)) {
+        if (RealPc) {
+            HalSerialGopMute(0);
+        }
         return 0;
     }
-    if (Dev) {
+    /*
+     * 课堂：立刻开 MSI。真机：枚举阶段保持 IE=0，PHOTO 后再 InputXhciArmIrq，
+     * 避免中断风暴把 boot 日志冲掉。
+     */
+    if (Dev && !RealPc && (XhciHidKeyboardReady() || XhciMousePresent())) {
         (void)XhciEnableIrq(Dev);
         if (!XhciUsesIrq()) {
-            DebugWrite("XHCI: bound without MSI (poll)\n");
+            DebugWrite("XHCI: bound without IRQ (poll)\n");
         }
     }
     return 1;
@@ -125,6 +183,13 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     }
 
     Count = PciScanUSBControllers(Controllers, 8);
+    HalSerialWrite("boot: xHCI controllers=");
+    {
+        char B[12];
+        HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
+        HalSerialWrite(B);
+        HalSerialWrite("\n");
+    }
     DebugWrite("XHCI: controllers=");
     DebugHex32((UINT32)Count);
     DebugWrite("\n");
@@ -141,18 +206,36 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         DebugWrite("\n");
         gXhciDev = Controllers[i];
         if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
-            gXhciReady = 1;
-            HalSerialWrite("boot: xhci-hid keyboard\n");
-            if (OutPriv) {
-                *OutPriv = 0;
+            HalSerialWrite("boot: xhci init returned\n");
+            if (XhciHidKeyboardReady() || XhciMousePresent()) {
+                gXhciReady = 1;
+                if (XhciHidKeyboardReady()) {
+                    HalSerialWrite("boot: xhci-hid keyboard\n");
+                } else {
+                    HalSerialWrite("boot: xhci-hid mouse\n");
+                }
+                if (OutPriv) {
+                    *OutPriv = 0;
+                }
+                return 0; /* Bind USB HID */
             }
-            return 0;
+            /*
+             * 控制器已起但无键盘：勿 Bind，否则 ToyDriverInputReady
+             * 会挡住后面的 ps2-kbd。
+             */
+            HalSerialWrite("boot: xhci up (no HID), try PS/2\n");
+            break;
+        }
+        HalSerialWrite("boot: xhci init failed at BAR\n");
+        if (!HalCpuIsHypervisor()) {
+            break;
         }
     }
 
     {
         UINT64 Fallback = HalPlatformXhciFallback();
-        if (Fallback != 0) {
+        /* 真机勿二次 Init（同 BAR 再 reset 会挂） */
+        if (Fallback != 0 && HalCpuIsHypervisor()) {
             gXhciDev.Bus = 0;
             gXhciDev.Device = 0;
             gXhciDev.Function = 0;
@@ -167,8 +250,10 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
                 }
                 return 0;
             }
+            HalSerialWrite("boot: xhci fallback BAR failed\n");
         }
     }
+    /* 不在此处再打 “no boot keyboard”——交给 PS/2 Probe 与 usb 模块汇总 */
     return -1;
 }
 
@@ -198,4 +283,25 @@ void InputXhciRegister(void) {
 int InputXhciInit(void) {
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_INPUT);
     return ToyDriverInputReady() ? 0 : -1;
+}
+
+/* 真机：Arm 走 base（EnableIrq→poll）；dual 占位在 XhciTryEnterDual */
+void InputXhciArmIrq(void) {
+    if (!gXhciReady) {
+        return;
+    }
+    if (!(XhciHidKeyboardReady() || XhciMousePresent())) {
+        return;
+    }
+    if (XhciIrqMode() == XHCI_IRQ_MODE_POLL && !HalCpuIsHypervisor()) {
+        (void)XhciEnableIrq(&gXhciDev); /* base + dual stub 日志 */
+        return;
+    }
+    if (XhciUsesIrq()) {
+        return;
+    }
+    (void)XhciEnableIrq(&gXhciDev);
+    if (!XhciUsesIrq()) {
+        HalSerialWrite("boot: xhci arm fallback poll\n");
+    }
 }

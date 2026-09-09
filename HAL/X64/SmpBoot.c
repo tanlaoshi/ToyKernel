@@ -258,6 +258,16 @@ int HalCpuCount(void) {
     return gCpuCount > 0 ? gCpuCount : 1;
 }
 
+UINT8 HalCpuApicId(UINT32 LogicalCpu) {
+    if (gCpuCount <= 0) {
+        return gBspApicId;
+    }
+    if (LogicalCpu >= (UINT32)gCpuCount || LogicalCpu >= HAL_MAX_CPUS) {
+        return gApicIds[0];
+    }
+    return gApicIds[LogicalCpu];
+}
+
 UINT32 HalGetCpuId(void) {
     UINT8 Apic = LapicGetId();
     int i;

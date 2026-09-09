@@ -16,14 +16,15 @@ void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
 void E1000DriverRegister(void);
+void XhciDiagFormat(char *Buf, int Max);
 
 void HalDriverRegister(void) {
     /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
     AhciDriverRegister();
     AtaDriverRegister();
     NvmeDriverRegister();
-    InputXhciRegister();
-    InputPs2Register(); /* PR-H2：仅当 xhci-hid 未绑定时生效 */
+    InputXhciRegister(); /* 先 USB HID */
+    InputPs2Register();  /* 后 PS/2：仅当 xhci-hid 未绑 Input 时生效 */
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
 }
@@ -32,8 +33,16 @@ int HalUsbInit(void) {
     return InputXhciInit();
 }
 
+void HalInputArmIrq(void) {
+    InputXhciArmIrq();
+}
+
 void HalInputPoll(void) {
     ToyDriverInputPoll();
+}
+
+void HalInputDiagFormat(char *Buf, int Max) {
+    XhciDiagFormat(Buf, Max);
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

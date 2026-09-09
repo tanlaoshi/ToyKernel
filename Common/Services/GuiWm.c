@@ -909,9 +909,13 @@ void GuiPollMouse(void) {
         UINT32 X;
         UINT32 Y;
 
-        if (Raw.X > Sw || Raw.Y > Sh) {
-            X = Raw.X * Sw / 32767;
-            Y = Raw.Y * Sh / 32767;
+        /*
+         * usb-tablet：X/Y 恒为 0..32767。旧启发式「>屏宽才缩放」在
+         * 1024/1280/1600 下会把左侧绝对坐标当成像素 → 热切后误点其它档。
+         */
+        if (Raw.Absolute || Raw.X > 4096u || Raw.Y > 4096u) {
+            X = (UINT32)((UINT64)Raw.X * (UINT64)Sw / 32767ull);
+            Y = (UINT32)((UINT64)Raw.Y * (UINT64)Sh / 32767ull);
         } else {
             X = Raw.X;
             Y = Raw.Y;

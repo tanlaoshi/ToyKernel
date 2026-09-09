@@ -25,8 +25,17 @@ int HalUsbInit(void) {
     return VirtioInputInit();
 }
 
+void HalInputArmIrq(void) {
+}
+
 void HalInputPoll(void) {
     ToyDriverInputPoll();
+}
+
+void HalInputDiagFormat(char *Buf, int Max) {
+    if (Buf && Max > 0) {
+        Buf[0] = 0;
+    }
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

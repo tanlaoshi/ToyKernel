@@ -6,5 +6,6 @@
 
 void InputXhciRegister(void);
 int InputXhciInit(void);
+void InputXhciArmIrq(void);
 
 #endif

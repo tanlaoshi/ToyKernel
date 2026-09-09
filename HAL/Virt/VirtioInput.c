@@ -164,6 +164,7 @@ static void MousePush(void) {
     }
     R.Buttons = gButtons;
     R.Wheel = gWheelAcc;
+    R.Absolute = 0; /* 已换算为像素 */
     gWheelAcc = 0;
     if (gHaveAbs && gAbsMaxX > gAbsMinX && gAbsMaxY > gAbsMinY) {
         R.X = (UINT32)(((INT64)(gAbsX - gAbsMinX) * (INT64)(W - 1)) /

@@ -33,6 +33,7 @@ typedef struct {
     UINT32 Y;
     UINT8  Buttons;
     INT8   Wheel;
+    UINT8  Absolute; /* 1：X/Y 为 0..32767 平板坐标（QEMU usb-tablet） */
 } HAL_MOUSE_REPORT;
 
 int HalBlockInit(void);
@@ -40,7 +41,11 @@ int HalBlockInit(void);
 void HalDriverRegister(void);
 
 int HalUsbInit(void);
+/* 真机 PHOTO 后开 xHCI MSI-X；其它平台空操作 */
+void HalInputArmIrq(void);
 void HalInputPoll(void);
+/* PHOTO：t=任意xfer i=键鼠匹配 k/m推送 u未匹配 s=slot.ep c完成码 r环事件 d=Drain */
+void HalInputDiagFormat(char *Buf, int Max);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);

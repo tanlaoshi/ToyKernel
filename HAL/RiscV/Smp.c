@@ -94,6 +94,11 @@ int HalCpuCount(void) {
     return gCpuCount > 0 ? gCpuCount : 1;
 }
 
+UINT8 HalCpuApicId(UINT32 LogicalCpu) {
+    (void)LogicalCpu;
+    return 0;
+}
+
 UINT32 HalGetCpuId(void) {
     UINT64 V;
     __asm__ volatile("mv %0, tp" : "=r"(V));
