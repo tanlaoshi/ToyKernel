@@ -14,10 +14,12 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
 | [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
 | [`Documents/协作历程日志.md`](Documents/协作历程日志.md) | 人机协作复盘（可选读） |
+| [`Documents/home-xhci-handoff.md`](Documents/home-xhci-handoff.md) | 真机 xHCI 家↔公司交接（给 Cursor） |
+| [`Documents/real-pc-usb-pr-split.md`](Documents/real-pc-usb-pr-split.md) | Real-PC USB 小 PR 切分（原 Cursor plan 入库） |
 
 `Documents/` 正文以上表为准；课堂讲义见 [`教学内容/`](../教学内容/)。
 
-协作暗号（详见路线图）：**JX** = 按路线图下一刀；**TG** = 已验证，commit + push 同步。
+协作暗号（详见路线图）：**JX** = 按路线图下一刀；**TG** = 已验证，commit + push 同步。真机 USB 轨请先读 handoff。
 
 ---
 

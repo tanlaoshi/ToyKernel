@@ -47,20 +47,6 @@ char HalSerialReadChar(void) {
     return (char)(PL011_DR & 0xFFu);
 }
 
-void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits) {
-    static const char Hex[] = "0123456789abcdef";
-    int i;
-
-    if (Buf == 0 || Digits <= 0 || Digits > 16) {
-        return;
-    }
-    for (i = Digits - 1; i >= 0; i--) {
-        Buf[i] = Hex[Value & 0xFu];
-        Value >>= 4;
-    }
-    Buf[Digits] = 0;
-}
-
 void HalSerialBootLogRewind(void) {
 }
 
@@ -74,4 +60,18 @@ void HalSerialBootMark(const char *Text) {
 
 void HalSerialGopPhotoHold(UINT32 Seconds) {
     (void)Seconds;
+}
+
+void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits) {
+    static const char Hex[] = "0123456789abcdef";
+    int i;
+
+    if (Buf == 0 || Digits <= 0 || Digits > 16) {
+        return;
+    }
+    for (i = Digits - 1; i >= 0; i--) {
+        Buf[i] = Hex[Value & 0xFu];
+        Value >>= 4;
+    }
+    Buf[Digits] = 0;
 }

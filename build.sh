@@ -60,7 +60,8 @@ fi
 
 echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
-if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
+# CI 只 checkout ToyKernel，无 ../ToyImage；有则同步演示 ELF，无则跳过
+if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage ]; then
     cp "$ELF" ../ToyImage/
     cp User/hello.elf ../ToyImage/HELLO.ELF
     cp User/count.elf ../ToyImage/COUNT.ELF
@@ -112,6 +113,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
         echo "Synced Kernel/HELLO/.../DIRDEMO/NETLIB -> ../ToyImage/rootfs/"
     fi
     echo "Copied $ELF -> ../ToyImage/"
+elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
+    echo "note: no ../ToyImage (CI) — skip demo ELF copy"
 else
     echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
     if [ "$BRINGUP" = "0" ] && [ -f "$USER_HELLO" ]; then

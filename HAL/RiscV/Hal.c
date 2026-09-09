@@ -206,7 +206,7 @@ int HalCpuIsHypervisor(void) {
 #endif
 }
 
-void HalVirtPlatformIdleLoop(void) {
+void HalVirtIdleLoop(void) {
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
         HalCpuHalt();

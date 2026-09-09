@@ -35,7 +35,7 @@
 #define PTE_XHCI_DMA (PTE_PRESENT | PTE_WRITABLE | PTE_PWT | PTE_PCD)
 
 #define RING_SIZE           32
-#define EVT_SIZE            32
+#define EVT_SIZE            128 /* 真机 PHOTO→gui 空窗期需更大；原 32 易溢满导致桌面假死 */
 #define DCBAA_SLOTS         16
 #define PORTSC_CCS          (1u << 0)
 #define PORTSC_PED          (1u << 1)
@@ -66,12 +66,14 @@
 #define USBSTS_HSE          (1u << 1)
 #define USBSTS_EINT         (1u << 2)
 #define USBSTS_CNR          (1u << 6)
+#define CRCR_CA             (1u << 2)
 #define CRCR_CRR            (1u << 3)
 #define XHCI_FW_CMD_SIZE    256
 #define XHCI_FW_EVT_MAX     256
 
 #define TRB_C               (1u << 0)
 #define TRB_TC              (1u << 1)
+#define TRB_ISP             (1u << 2) /* 短包也要完成事件（鼠标常见） */
 #define TRB_IOC             (1u << 5)
 #define TRB_IDT             (1u << 6)
 #define TRB_TYPE(t)         ((UINT32)(t) << 10)
@@ -90,11 +92,18 @@
 #define TRB_ADDRESS_DEV    11
 #define TRB_CONFIG_EP       12
 #define TRB_EVALUATE_CTX   13
+#define TRB_RESET_EP       14
+#define TRB_STOP_EP        15
+#define TRB_SET_TR_DEQ     16
 #define TRB_TRANSFER_EVENT 32
 #define TRB_CMD_COMPLETION  33
 
 #define CC_SUCCESS          1
 #define CC_SHORT_PACKET     13
+#define CC_CONTEXT_STATE    19 /* SetTrDeq 常见：EP 状态不允许 */
+#define CC_STOPPED          26 /* Stop EP 取消挂起传输 */
+#define CC_STOPPED_LEN      27
+#define CC_STOPPED_SHORT    28
 
 typedef struct {
     UINT64 Parameter;
@@ -124,6 +133,7 @@ static UINT32 gXferSlot;
 static UINT32 gIntrDci;
 static UINT16 gEp0Mps;
 static UINT8  gKbdIface;
+static UINT8  gKbdEpAddr; /* 配置描述符 bEndpointAddress，匹配事件用 */
 static UINT8  gUseGetReport;
 static UINT8  gUseIrq;
 /* 真机默认 POLL；DUAL/IRQ 见 XhciTryEnterDual（占位） */
@@ -142,11 +152,13 @@ static volatile UINT32 gKeyboardReadIndex;
 static UINT32 gMouseSlotId;
 static UINT32 gMousePort;
 static UINT32 gMouseIntrDci;
+static UINT8  gMouseIface;
+static UINT8  gMouseEpAddr;
 static UINT8  gMouseReportLen;
-static UINT8  gMouseBuf[8];
-static XHCI_TRB gMouseIntrRing[RING_SIZE];
+static UINT8  gMouseBuf[8] __attribute__((aligned(64)));
+static XHCI_TRB gMouseIntrRing[RING_SIZE] __attribute__((aligned(64)));
 static RING_STATE gMouseIntr;
-static UINT8  gMouseDevCtx[2048];
+static UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
 static volatile UINT32 gMouseIntrDone;
 static volatile UINT32 gIntrReportReady;
 static volatile UINT32 gMouseReportReady;
@@ -163,6 +175,8 @@ static volatile UINT32 gStatLastSlot;
 static volatile UINT32 gStatLastEp;
 static volatile UINT32 gStatUnmatched; /* Transfer 且未匹配键鼠 DCI */
 static UINT32 gDiagXferLogged;        /* 限制串口/屏日志条数 */
+static UINT32 gDiagQuiet;             /* GET_REPORT poll：勿 DiagChk 刷屏/盖白字 */
+static UINT32 gDiagIntrCcLogged;
 
 #define MOUSE_Q 32
 static USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
@@ -203,6 +217,7 @@ static UINT32 gFwCrcrRcs;    /* CRCR.RCS，与 dequeue 配对 */
 static UINT64 gFwErstbaSave;
 static UINT64 gFwEvtSave;
 static UINT16 gFwEvtSegSave;
+static UINT64 gFwErdpSave;   /* 固件 ERDP：勿清环后强行改回基址 */
 /*
  * HCSPARAMS2 MaxScratchpadBufs（与 Linux HCS_MAX_SCRATCHPAD 一致）：
  *   bits 25:21 = Hi（高 5 位）
@@ -218,6 +233,7 @@ static UINT8  gHubDevCtx[2048] __attribute__((aligned(64))); /* PR-H-hub */
 static UINT8  gInCtx[2048] __attribute__((aligned(64)));
 static UINT8  gCtrlBuf[256] __attribute__((aligned(64)));
 static UINT8  gReportBuf[8] __attribute__((aligned(64)));
+static UINT8  gGetReportBuf[8] __attribute__((aligned(64))); /* 与中断 IN 缓冲分离 */
 static UINT8  gErst[16] __attribute__((aligned(64)));
 
 static UINT32 gHubSlotId;
@@ -366,6 +382,23 @@ static int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     }
 }
 
+static int WaitClearMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
+    UINT64 T0;
+    UINT64 Need;
+
+    Need = (UINT64)Ms * 3000000ULL;
+    T0 = ReadTsc();
+    for (;;) {
+        if (!(ReadMmio32(Addr) & Mask)) {
+            return 1;
+        }
+        if (ReadTsc() - T0 >= Need) {
+            return 0;
+        }
+        __asm__ volatile ("pause");
+    }
+}
+
 static void BootLogHex(const char *Prefix, UINT64 Value, int Digits) {
     char B[20];
     char Msg[56];
@@ -388,6 +421,75 @@ static void BootLogHex(const char *Prefix, UINT64 Value, int Digits) {
 static void EnumWhy(const char *Why) {
     gEnumWhy = Why;
     BootLog(Why);
+}
+
+/* 期望 vs 实际：xhci OK|FAIL <step> want=<期望> got=<实际> */
+static void DiagAppend(char *Msg, int *N, int Cap, const char *S) {
+    while (S && *S && *N < Cap - 1) {
+        Msg[(*N)++] = *S++;
+    }
+}
+
+static void DiagChk(const char *Step, int Ok, const char *Want, UINT64 Got, int Digits) {
+    char Msg[88];
+    char Hex[20];
+    int n = 0;
+
+    if (gDiagQuiet) {
+        return;
+    }
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Ok ? "xhci OK " : "xhci FAIL ");
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Step);
+    DiagAppend(Msg, &n, (int)sizeof(Msg), " want=");
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Want);
+    DiagAppend(Msg, &n, (int)sizeof(Msg), " got=");
+    HalSerialFormatHex(Hex, Got, Digits);
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Hex);
+    if (n < (int)sizeof(Msg) - 1) {
+        Msg[n++] = '\n';
+    }
+    Msg[n] = 0;
+    BootLog(Msg);
+}
+
+static void DiagChkStr(const char *Step, int Ok, const char *Want, const char *Got) {
+    char Msg[88];
+    int n = 0;
+
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Ok ? "xhci OK " : "xhci FAIL ");
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Step);
+    DiagAppend(Msg, &n, (int)sizeof(Msg), " want=");
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Want);
+    DiagAppend(Msg, &n, (int)sizeof(Msg), " got=");
+    DiagAppend(Msg, &n, (int)sizeof(Msg), Got);
+    if (n < (int)sizeof(Msg) - 1) {
+        Msg[n++] = '\n';
+    }
+    Msg[n] = 0;
+    BootLog(Msg);
+}
+
+static const char *CmdTrbName(UINT32 Control) {
+    switch ((Control >> 10) & 0x3F) {
+    case TRB_ENABLE_SLOT:
+        return "EnableSlot";
+    case TRB_DISABLE_SLOT:
+        return "DisableSlot";
+    case TRB_ADDRESS_DEV:
+        return "AddressDev";
+    case TRB_CONFIG_EP:
+        return "ConfigEP";
+    case TRB_EVALUATE_CTX:
+        return "EvalCtx";
+    case TRB_RESET_EP:
+        return "ResetEP";
+    case TRB_STOP_EP:
+        return "StopEP";
+    case TRB_SET_TR_DEQ:
+        return "SetTrDeq";
+    default:
+        return "Command";
+    }
 }
 
 /* 初始化 TRB 环状态 */
@@ -520,7 +622,14 @@ static void ProcessEvents(void) {
         } else if (Type == TRB_TRANSFER_EVENT) {
             UINT32 Ep = (Evt->Control >> 16) & 0x1F;
             UINT32 EvtSlot = (Evt->Control >> 24) & 0xFF;
+            UINT64 TrbPtr = Evt->Parameter & ~0xFULL;
+            UINT64 KbdLo = PointerToPhysical(gIntrRing);
+            UINT64 KbdHi = KbdLo + sizeof(gIntrRing);
+            UINT64 MouseLo = PointerToPhysical(gMouseIntrRing);
+            UINT64 MouseHi = MouseLo + sizeof(gMouseIntrRing);
             int Matched = 0;
+            int KbdHit = 0;
+            int MouseHit = 0;
 
             gStatXferAny++;
             gStatLastCc = Code;
@@ -532,31 +641,84 @@ static void ProcessEvents(void) {
                 gXferCode = Code;
                 gXferRemain = Evt->Status & 0xFFFFFF;
                 gXferDone = 1;
+                Matched = 1; /* GET_REPORT/控制传输：勿记入 unmatched 刷屏 */
             }
             /*
-             * 中断 EP：成功则有报告可推；任意完成码都置 Done 以便重新 QueueIntr，
-             * 避免一次 Stall/错误后永久不再门铃。
+             * 中断 EP：只认 slot+DCI，或完成 TRB 落在中断环内。
+             * 勿用 EpNum（易与 EP0 的 EndpointID=1 撞）或报告缓冲指针
+             * （GET_REPORT 数据 TRB 也指向报告区 → 假 i=、干扰推送）。
              */
-            if (gSlotId && EvtSlot == gSlotId && Ep == gIntrDci) {
-                gStatIntrEvt++;
-                Matched = 1;
-                if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
-                    gIntrReportReady = 1;
-                }
-                gIntrDone = 1;
+            {
+                KbdHit = (gSlotId != 0 && gIntrDci != 0 && Ep != 1 &&
+                          ((EvtSlot == gSlotId && Ep == gIntrDci) ||
+                           (TrbPtr >= KbdLo && TrbPtr < KbdHi)));
+                MouseHit = (gMouseSlotId != 0 && gMouseIntrDci != 0 && Ep != 1 &&
+                            ((EvtSlot == gMouseSlotId && Ep == gMouseIntrDci) ||
+                             (TrbPtr >= MouseLo && TrbPtr < MouseHi)));
             }
-            if (gMouseSlotId && EvtSlot == gMouseSlotId && Ep == gMouseIntrDci) {
-                gStatMouseEvt++;
+            if (KbdHit) {
                 Matched = 1;
                 if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
-                    gMouseReportReady = 1;
+                    gStatIntrEvt++;
+                    gIntrReportReady = 1;
+                    gIntrDone = 1;
+                } else if (Code == CC_STOPPED || Code == CC_STOPPED_LEN ||
+                           Code == CC_STOPPED_SHORT) {
+                    /*
+                     * Stop EP 的副作用：勿 gIntrDone/QueueIntr，否则 Arm 同步时
+                     * 会在 SetTrDeq 前再敲门铃 → Context State Error (0x13)。
+                     */
+                } else {
+                    gStatIntrEvt++;
+                    gIntrDone = 1; /* 其它错误：允许重投 */
+                    if (gDiagIntrCcLogged < 4) {
+                        char Line[64];
+                        int n = 0;
+                        const char *P = "boot: xhci kbd-intr cc=";
+                        while (*P && n < 28) {
+                            Line[n++] = *P++;
+                        }
+                        Line[n++] = (char)('0' + ((Code / 10) % 10));
+                        Line[n++] = (char)('0' + (Code % 10));
+                        Line[n++] = '\n';
+                        Line[n] = 0;
+                        HalSerialWrite(Line);
+                        gDiagIntrCcLogged++;
+                    }
                 }
-                gMouseIntrDone = 1;
+            }
+            if (MouseHit) {
+                Matched = 1;
+                if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
+                    gStatMouseEvt++;
+                    gMouseReportReady = 1;
+                    gMouseIntrDone = 1;
+                } else if (Code == CC_STOPPED || Code == CC_STOPPED_LEN ||
+                           Code == CC_STOPPED_SHORT) {
+                    /* 同上：Stop 取消，勿重投门铃 */
+                } else {
+                    gStatMouseEvt++;
+                    gMouseIntrDone = 1;
+                    if (gDiagIntrCcLogged < 4) {
+                        char Line[64];
+                        int n = 0;
+                        const char *P = "boot: xhci mouse-intr cc=";
+                        while (*P && n < 30) {
+                            Line[n++] = *P++;
+                        }
+                        Line[n++] = (char)('0' + ((Code / 10) % 10));
+                        Line[n++] = (char)('0' + (Code % 10));
+                        Line[n++] = '\n';
+                        Line[n] = 0;
+                        HalSerialWrite(Line);
+                        gDiagIntrCcLogged++;
+                    }
+                }
             }
             if (!Matched) {
                 gStatUnmatched++;
                 if (gDiagXferLogged < 8) {
-                    char Line[72];
+                    char Line[80];
                     int n = 0;
                     const char *P = "boot: xhci xfer s=";
                     while (*P && n < 24) {
@@ -597,6 +759,38 @@ static void ProcessEvents(void) {
     }
 }
 
+/*
+ * 真机：USBSTS.EINT 已置但 Cycle 对不上时，仅当环头 Cycle==~CCS 才翻一次。
+ * 旧逻辑见 EINT 就翻：PCD/粘住 EINT 会把 CCS 永久弄反 → 中断完成永远吃不到，
+ * 却仍可能靠碰巧/翻回来吃到部分 EP0（PHOTO：t>0 i=0）。
+ */
+static void ProcessEventsRealPc(void) {
+    UINT32 Sts;
+    XHCI_TRB *Evt;
+    UINT32 EvtSize = gEvtRingSize ? gEvtRingSize : EVT_SIZE;
+
+    ProcessEvents();
+    if (gCmdDone) {
+        return;
+    }
+    Sts = ReadMmio32(gOperationalBase + 4);
+    if (!(Sts & USBSTS_EINT)) {
+        return;
+    }
+    if (gEvtDeq >= EvtSize) {
+        return;
+    }
+    Evt = &gEvtRingLive[gEvtDeq];
+    FlushDma(Evt, sizeof(*Evt));
+    if ((Evt->Control & TRB_C) == ((gEvtCcs ^ 1u) & 1u)) {
+        gEvtCcs ^= 1u;
+        ProcessEvents();
+    } else {
+        /* 无待处理事件：清粘住的 EINT，勿翻 CCS */
+        WriteMmio32(gOperationalBase + 4, USBSTS_EINT);
+    }
+}
+
 static void QueueIntr(void);
 static void QueueMouseIntr(void);
 static void KbdPush(void);
@@ -611,7 +805,7 @@ static int WaitCommand(int Timeout) {
         UINT64 Mid = Need / 2;
         (void)Timeout;
         while (ReadTsc() - T0 < Need) {
-            ProcessEvents();
+            ProcessEventsRealPc();
             ServiceHidCompletions();
             if (gCmdDone) {
                 return (gCmdCode == CC_SUCCESS) ? 0 : -1;
@@ -682,61 +876,111 @@ static void RingDoorbell(UINT32 Slot, UINT32 Target) {
     WriteMmio32(gDoorbellBase + Slot * 4, Target & 0xFF);
 }
 
-/* 提交一条命令 TRB 并等待完成 */
+/*
+ * 命令超时恢复：CA 中止命令环，排空事件，再同步 enqueue。
+ * 私有环可 InitRing；固件环只按 CRCR dequeue 重解析，勿盲目清环/切软环。
+ */
+static void RecoverCommandRing(void) {
+    UINT64 Cr;
+    UINT64 Ptr;
+    UINT32 Rcs;
+    int i;
+    XHCI_TRB *Base;
+    UINT32 Size;
+    UINT32 Enq;
+    UINT32 Pcs;
+
+    HalSerialBootMark("boot: xhci cmd recover\n");
+    BootLog("boot: xhci command timeout, recovering...\n");
+
+    Cr = ReadMmio64(gOperationalBase + 0x18);
+    Ptr = Cr & ~0x3FULL;
+    Rcs = (UINT32)(Cr & 1u);
+    if (Ptr != 0) {
+        WriteMmio64(gOperationalBase + 0x18, Ptr | (UINT64)(Rcs & 1u) | CRCR_CA);
+        Fence();
+        if (!HalCpuIsHypervisor()) {
+            (void)WaitClearMs(gOperationalBase + 0x18, CRCR_CRR, 200);
+        } else {
+            (void)WaitClear(gOperationalBase + 0x18, CRCR_CRR, 100000);
+        }
+    }
+
+    for (i = 0; i < 64; i++) {
+        ProcessEvents();
+    }
+
+    Cr = ReadMmio64(gOperationalBase + 0x18);
+    Ptr = Cr & ~0x3FULL;
+    Rcs = (UINT32)(Cr & 1u);
+
+    if (gCmdRingLive == gCmdRing) {
+        InitRing(gCmdRing, &gCmd, RING_SIZE);
+        FlushDma(gCmdRing, RING_SIZE * sizeof(XHCI_TRB));
+        WriteMmio64(gOperationalBase + 0x18, PointerToPhysical(gCmdRing) | 1ULL);
+        Fence();
+    } else if (Ptr != 0) {
+        Base = 0;
+        Size = 0;
+        Enq = 0;
+        Pcs = 0;
+        if (ResolveFwCmdRing(Ptr, Rcs, &Base, &Size, &Enq, &Pcs) == 0) {
+            gCmdRingLive = Base;
+            gCmd.Enq = Enq;
+            gCmd.Pcs = Pcs;
+            gCmd.Size = Size;
+        } else {
+            /* 解析失败：跟 dequeue 对齐，勿切私有环再写回固件 Ptr（会踩 CRCR） */
+            gCmdRingLive = (XHCI_TRB *)(UINTN)Ptr;
+            gCmd.Enq = 0;
+            gCmd.Pcs = Rcs & 1u;
+        }
+        WriteMmio64(gOperationalBase + 0x18, Ptr | (UINT64)(Rcs & 1u));
+        Fence();
+    }
+
+    gCmdDone = 0;
+    HalSerialBootMark("boot: xhci cmd ring recovered\n");
+}
+
+/* 提交一条命令 TRB 并等待完成；超时则 CA 恢复并重试一次 */
 static int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
     int Wait = HalCpuIsHypervisor() ? 150000 : 200000;
     int RealPc = !HalCpuIsHypervisor();
+    int Attempt;
+    const char *Name = CmdTrbName(Control);
 
-    gCmdDone = 0;
-    Enqueue(gCmdRingLive, &gCmd, Param, 0, Control | TRB_IOC);
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci cmd doorbell\n");
-    }
-    RingDoorbell(0, 0);
-    Fence();
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci cmd wait\n");
-    }
-    if (WaitCommand(Wait) < 0) {
-        if (RealPc) {
-            char Msg[48];
-            char Hex[12];
-            int n = 0;
-            const char *P = "boot: xhci cmd TO s=";
-            UINT32 Sts = ReadMmio32(gOperationalBase + 4);
-            UINT32 EvCtl = 0;
-            while (*P && n < 22) {
-                Msg[n++] = *P++;
+    for (Attempt = 0; Attempt < 2; Attempt++) {
+        gCmdDone = 0;
+        Enqueue(gCmdRingLive, &gCmd, Param, 0, Control | TRB_IOC);
+        RingDoorbell(0, 0);
+        Fence();
+        if (WaitCommand(Wait) >= 0) {
+            if (SlotOut) {
+                *SlotOut = gCmdSlot;
             }
-            HalSerialFormatHex(Hex, Sts, 8);
-            Msg[n++] = Hex[0]; Msg[n++] = Hex[1]; Msg[n++] = Hex[2]; Msg[n++] = Hex[3];
-            Msg[n++] = Hex[4]; Msg[n++] = Hex[5]; Msg[n++] = Hex[6]; Msg[n++] = Hex[7];
-            if (gEvtRingLive) {
-                FlushDma(&gEvtRingLive[gEvtDeq], sizeof(XHCI_TRB));
-                EvCtl = gEvtRingLive[gEvtDeq].Control;
+            /* want cc=1(Success)；got=完成码；EnableSlot 另看 slot */
+            DiagChk(Name, 1, "cc=1", gCmdCode, 2);
+            if (SlotOut && ((Control >> 10) & 0x3F) == TRB_ENABLE_SLOT) {
+                DiagChk("EnableSlot.slot", *SlotOut != 0 && *SlotOut <= gDcbaaMaxSlot,
+                        "slot=1..N", *SlotOut, 2);
             }
-            Msg[n++] = ' ';
-            Msg[n++] = 'e';
-            Msg[n++] = '=';
-            HalSerialFormatHex(Hex, EvCtl, 8);
-            Msg[n++] = Hex[0]; Msg[n++] = Hex[1]; Msg[n++] = Hex[2]; Msg[n++] = Hex[3];
-            Msg[n++] = Hex[4]; Msg[n++] = Hex[5]; Msg[n++] = Hex[6]; Msg[n++] = Hex[7];
-            Msg[n++] = '\n';
-            Msg[n] = 0;
-            HalSerialBootMark(Msg);
+            return 0;
         }
-        DebugWrite("XHCI: command timeout/fail cc=");
-        DebugHex32(gCmdCode);
-        DebugWrite("\n");
-        return -1;
+
+        if (gCmdDone) {
+            DiagChk(Name, 0, "cc=1", gCmdCode, 2);
+            return -1;
+        }
+
+        DiagChk(Name, 0, "event+cc=1", RealPc ? ReadMmio32(gOperationalBase + 4) : 0, 8);
+        RecoverCommandRing();
+        if (Attempt == 0) {
+            BootLog("xhci retry after cmd recover\n");
+        }
     }
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci cmd ok\n");
-    }
-    if (SlotOut) {
-        *SlotOut = gCmdSlot;
-    }
-    return 0;
+    DiagChkStr(Name, 0, "ok after retry", "fail");
+    return -1;
 }
 
 static UINT8 *InSlot(void) {
@@ -752,9 +996,10 @@ static void TakeLegacy(void) {
     UINT32 Hcc1 = ReadMmio32(gCapabilityBase + 0x10);
     UINT32 Xecp = (Hcc1 >> 16) & 0xFFFF;
     int Wait;
+    UINT32 After;
 
     if (Xecp == 0) {
-        HalSerialWrite("boot: xhci no legacy cap\n");
+        DiagChkStr("TakeLegacy", 0, "xECP!=0", "xECP=0");
         return;
     }
     UINT64 Ptr = gCapabilityBase + (UINT64)Xecp * 4;
@@ -763,15 +1008,12 @@ static void TakeLegacy(void) {
         UINT8 Id = (UINT8)(Val & 0xFF);
         UINT8 Next = (UINT8)((Val >> 8) & 0xFF);
         if (Id == 1) {
-            HalSerialWrite("boot: xhci legacy claim\n");
-            WriteMmio32(Ptr, Val | (1u << 24));
-            /* 真机 BIOS 信号量可能永不清：短等后继续，勿死等 */
+            WriteMmio32(Ptr, Val | (1u << 24)); /* OS Owned */
             Wait = HalCpuIsHypervisor() ? 1000000 : 50000;
-            if (!WaitClear(Ptr, (1u << 16), Wait)) {
-                HalSerialWrite("boot: xhci legacy BIOS timeout (cont)\n");
-            } else {
-                HalSerialWrite("boot: xhci legacy ok\n");
-            }
+            (void)WaitClear(Ptr, (1u << 16), Wait); /* BIOS Owned */
+            After = ReadMmio32(Ptr);
+            /* want: BIOS Owned(bit16)=0；got=完整 USBLEGSUP */
+            DiagChk("TakeLegacy", !(After & (1u << 16)), "BIOS_OWN=0", After, 8);
             return;
         }
         if (Next == 0) {
@@ -779,7 +1021,7 @@ static void TakeLegacy(void) {
         }
         Ptr = gCapabilityBase + (UINT64)Next * 4;
     }
-    HalSerialWrite("boot: xhci legacy USBLEGSUP not found\n");
+    DiagChkStr("TakeLegacy", 0, "USBLEGSUP id=1", "not found");
 }
 
 /* 真机：BootMark 直写帧缓冲（不 Present）；QEMU 正常串口/GOP */
@@ -880,9 +1122,8 @@ static int StartController(UINT32 MaxSlots) {
         UINT32 Slot;
 
         /*
-         * 真机：固件 DMA 结构尽量不动。
-         * bRS R 挂 = 我们 InitRing/清事件环后再 RS 会踩死；
-         * 有快照则原样写回 CRCR/ERST/ERDP；无快照则完全不碰环（等同曾通过的 bRS 1）。
+         * 真机：固件 DCBAAP/scratch 保留（自建 DCBAAP 曾致 RS 挂）；
+         * 命令环+事件环用私有（固件事件环无法可靠吃到 EnableSlot 完成）。
          */
         (void)Scratch;
         (void)Hcc1;
@@ -910,107 +1151,40 @@ static int StartController(UINT32 MaxSlots) {
         WriteMmio64(gOperationalBase + 0x30, FwDcbaap);
         HalSerialBootMark("boot: xhci use fw DCBAAP\n");
 
-        if (gFwCrcrSave != 0 && gFwErstbaSave != 0 && gFwEvtSave != 0) {
-            UINT32 EvtSeg = gFwEvtSegSave;
-            UINT32 CmdSize = XHCI_FW_CMD_SIZE;
-            UINT32 Enq = 0;
-            UINT32 Pcs = gFwCrcrRcs & 1u;
-            UINT64 DeqPhys = gFwCrcrSave;
-            UINT32 Rcs = gFwCrcrRcs & 1u;
-            UINT64 CrcrNow;
-            UINT8 *Erst;
-            UINTN EvtBytes;
-            XHCI_TRB *CmdBase = 0;
-            char Mark[40];
-            int mn;
-            const char *mp;
+        /*
+         * 真机：DCBAAP 必须固件（否则 RS 挂）；命令/事件环改私有。
+         * 固件事件环多次同步失败：EnableSlot 超时 USBSTS=0x18(EINT|PCD)
+         * 却吃不到 CMD_COMPLETION（Cycle/dequeue 失步）。
+         */
+        (void)gFwCrcrSave;
+        (void)gFwErstbaSave;
+        (void)gFwEvtSave;
+        (void)gFwErdpSave;
+        gCmdRingLive = gCmdRing;
+        gEvtRingLive = gEvtRing;
+        gEvtRingSize = EVT_SIZE;
+        InitRing(gCmdRing, &gCmd, RING_SIZE);
+        FlushDma(gCmdRing, sizeof(gCmdRing));
+        (void)MapXhciDma(PointerToPhysical(gCmdRing), sizeof(gCmdRing));
+        WriteMmio64(gOperationalBase + 0x18, PointerToPhysical(gCmdRing) | 1ULL);
 
-            /* Halt 后再读 CRCR：dequeue/RCS 以此时为准 */
-            CrcrNow = ReadMmio64(gOperationalBase + 0x18);
-            if ((CrcrNow & ~0x3FULL) != 0) {
-                DeqPhys = CrcrNow & ~0x3FULL;
-                Rcs = (UINT32)(CrcrNow & 1ULL);
-            }
-
-            if (EvtSeg < 16) {
-                EvtSeg = 16;
-            }
-            if (EvtSeg > XHCI_FW_EVT_MAX) {
-                EvtSeg = XHCI_FW_EVT_MAX;
-            }
-            EvtBytes = (UINTN)EvtSeg * sizeof(XHCI_TRB);
-            if (MapXhciDma(DeqPhys, 0x1000) != 0 ||
-                MapXhciDma(gFwErstbaSave, 0x1000) != 0 ||
-                MapXhciDma(gFwEvtSave, EvtBytes < 0x1000 ? 0x1000 : EvtBytes) != 0) {
-                HalSerialBootMark("boot: xhci map rings fail\n");
-                return 0;
-            }
-            /*
-             * 勿把 CRCR dequeue 当环基址 InitRing（会把 LINK 写到错误偏移 → cmd TO）。
-             * 扫固件 LINK 还原基址/长度，Enq/Pcs 对齐当前 dequeue。
-             */
-            if (ResolveFwCmdRing(DeqPhys, Rcs, &CmdBase, &CmdSize, &Enq, &Pcs) == 0) {
-                gCmdRingLive = CmdBase;
-                gCmd.Enq = Enq;
-                gCmd.Pcs = Pcs;
-                gCmd.Size = CmdSize;
-                /* 保持 Halt 后 CRCR，勿改写成「伪基址|1」 */
-                WriteMmio64(gOperationalBase + 0x18, DeqPhys | (UINT64)(Rcs & 1u));
-                {
-                    char HexN[12];
-                    char HexE[12];
-                    mn = 0;
-                    mp = "boot: xhci fwcmd N=";
-                    while (*mp && mn < 22) {
-                        Mark[mn++] = *mp++;
-                    }
-                    HalSerialFormatHex(HexN, CmdSize, 3);
-                    Mark[mn++] = HexN[0];
-                    Mark[mn++] = HexN[1];
-                    Mark[mn++] = HexN[2];
-                    Mark[mn++] = ' ';
-                    Mark[mn++] = 'e';
-                    Mark[mn++] = '=';
-                    HalSerialFormatHex(HexE, Enq, 2);
-                    Mark[mn++] = HexE[0];
-                    Mark[mn++] = HexE[1];
-                    Mark[mn++] = '\n';
-                    Mark[mn] = 0;
-                    HalSerialBootMark(Mark);
-                }
-            } else {
-                /* 找不到 LINK：最后手段才按 dequeue 当基址重建 */
-                gCmdRingLive = (XHCI_TRB *)(UINTN)DeqPhys;
-                InitRing(gCmdRingLive, &gCmd, XHCI_FW_CMD_SIZE);
-                FlushDma(gCmdRingLive, (UINTN)XHCI_FW_CMD_SIZE * sizeof(XHCI_TRB));
-                WriteMmio64(gOperationalBase + 0x18, DeqPhys | 1ULL);
-                HalSerialBootMark("boot: xhci fwcmd fb\n");
-            }
-
-            gEvtRingLive = (XHCI_TRB *)(UINTN)gFwEvtSave;
-            gEvtRingSize = EvtSeg;
-            gEvtDeq = 0;
-            gEvtCcs = 1;
-            Erst = (UINT8 *)(UINTN)gFwErstbaSave;
-            *(UINT64 *)(void *)Erst = gFwEvtSave;
-            *(UINT16 *)(void *)(Erst + 8) = (UINT16)EvtSeg;
-            FlushDma(Erst, 16);
-            WriteMmio32(gRuntimeBase + 0x20, 0);
-            WriteMmio32(gRuntimeBase + 0x24, 0);
-            WriteMmio32(gRuntimeBase + 0x28, 1);
-            WriteMmio32(gRuntimeBase + 0x2C, 0);
-            WriteMmio64(gRuntimeBase + 0x30, gFwErstbaSave);
-            WriteMmio64(gRuntimeBase + 0x38, gFwEvtSave);
-        } else {
-            /* 快照无环：保持 Halt 后寄存器原样，勿 carve（曾导致 bRS R 挂） */
-            gCmdRingLive = gCmdRing;
-            gEvtRingLive = gEvtRing;
-            gEvtRingSize = EVT_SIZE;
-            InitRing(gCmdRing, &gCmd, RING_SIZE);
-            gEvtDeq = 0;
-            gEvtCcs = 1;
-            HalSerialBootMark("boot: xhci rings leave alone\n");
-        }
+        ZeroMemory(gEvtRing, sizeof(gEvtRing));
+        gEvtDeq = 0;
+        gEvtCcs = 1;
+        ZeroMemory(gErst, sizeof(gErst));
+        *(UINT64 *)(void *)gErst = PointerToPhysical(gEvtRing);
+        *(UINT16 *)(void *)(gErst + 8) = (UINT16)EVT_SIZE;
+        FlushDma(gEvtRing, sizeof(gEvtRing));
+        FlushDma(gErst, sizeof(gErst));
+        (void)MapXhciDma(PointerToPhysical(gEvtRing), sizeof(gEvtRing));
+        (void)MapXhciDma(PointerToPhysical(gErst), sizeof(gErst));
+        WriteMmio32(gRuntimeBase + 0x20, 0);
+        WriteMmio32(gRuntimeBase + 0x24, 0);
+        WriteMmio32(gRuntimeBase + 0x28, 1);
+        WriteMmio32(gRuntimeBase + 0x2C, 0);
+        WriteMmio64(gRuntimeBase + 0x30, PointerToPhysical(gErst));
+        WriteMmio64(gRuntimeBase + 0x38, PointerToPhysical(gEvtRing) | (1ULL << 3));
+        HalSerialBootMark("boot: xhci priv rings\n");
 
         Fence();
         BootMarkRs('b', 'R');
@@ -1018,24 +1192,17 @@ static int StartController(UINT32 MaxSlots) {
         Fence();
         BootMarkRs('a', 'R');
         if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, 100000)) {
+            DiagChk("StartController.fwRS", 0, "HCH=0", ReadMmio32(gOperationalBase + 4), 8);
             BootLog("boot: xhci run timeout\n");
             return 0;
         }
-        /* 等命令环真正 Running，再敲门铃 */
         if (!WaitSet(gOperationalBase + 0x18, CRCR_CRR, 100000)) {
+            DiagChk("StartController.CRR", 0, "CRR=1", ReadMmio32(gOperationalBase + 0x18), 8);
             HalSerialBootMark("boot: xhci CRR TO\n");
+        } else {
+            DiagChk("StartController.fwRS", 1, "HCH=0+CRR", ReadMmio32(gOperationalBase + 4), 8);
         }
         HalSerialBootMark("boot: xhci RS running\n");
-
-        /* RS 已通：按固件段长清空事件环 */
-        if (gFwEvtSave != 0 && gEvtRingLive == (XHCI_TRB *)(UINTN)gFwEvtSave) {
-            ZeroMemory(gEvtRingLive, (UINTN)gEvtRingSize * sizeof(XHCI_TRB));
-            FlushDma(gEvtRingLive, (UINTN)gEvtRingSize * sizeof(XHCI_TRB));
-            gEvtDeq = 0;
-            gEvtCcs = 1;
-            WriteMmio64(gRuntimeBase + 0x38, gFwEvtSave);
-            HalSerialBootMark("boot: xhci evt clr\n");
-        }
         return 1;
     }
 
@@ -1102,12 +1269,14 @@ static int StartController(UINT32 MaxSlots) {
     HalSerialBootMark("boot: xhci after RS\n");
 
     if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, 1000000)) {
+        Sts = ReadMmio32(gOperationalBase + 4);
+        DiagChk("StartController.RS", 0, "HCH=0", Sts, 8);
         BootLog("boot: xhci run timeout\n");
         return 0;
     }
     Sts = ReadMmio32(gOperationalBase + 4);
+    DiagChk("StartController.RS", !(Sts & USBSTS_HCH), "HCH=0 running", Sts, 8);
     HalSerialBootMark("boot: xhci RS running\n");
-    (void)Sts;
     (void)gDcbaaFromFirmware;
     return 1;
 }
@@ -1122,6 +1291,17 @@ static UINT8 PortSpeed(UINT32 Portsc) {
 
 static UINT32 PortscNeutral(UINT32 State) {
     return (State & PORTSC_RO) | (State & PORTSC_RWS);
+}
+
+/*
+ * 清 PORTSC 变更位（W1C）— 仅 QEMU/virt 路径使用。
+ * 真机照片两轮：Neutral 清法与 SeaBIOS(PED|PP|CHANGE) 清法都会在
+ * PED 已置位后把口打回 0x6E1/0xAE1（Polling）；故真机 ResetPort 不清变更。
+ */
+static void PortscClearChange(UINT64 Ps) {
+    UINT32 Val = ReadMmio32(Ps);
+    WriteMmio32(Ps, PORTSC_PED | PORTSC_PP | (Val & PORTSC_CHANGE));
+    Fence();
 }
 
 /* 已连接口上电；CCS=0 时再给所有口上 PP（PPC 控制器否则看不见设备） */
@@ -1158,102 +1338,147 @@ static void PowerConnectedPorts(void) {
         }
     }
 }
-
 /*
- * 使能已连接端口。
- * 真机：bRS 已通后常停在「port reset」——写 PR 可能 MMIO 挂死。
- * 固件已 PED+CCS 时跳过 PR（再 Address）；否则精简写 PR，并清除 PRC。
+ * 标准化端口复位（xHCI）：
+ * USB2：PP → CCS → PR（勿写 PED=0）→ 等 PRC → 等 PED+CCS。
+ * USB3：WPR。
+ * 真机：已 PED 勿再 PR；成功后不清变更（sticky PRC）；仅 PED=0 时可清 sticky。
  */
 static int ResetPort(UINT32 Port1) {
     UINT64 Ps = gOperationalBase + PortReg(Port1);
     UINT32 Val = ReadMmio32(Ps);
+    UINT32 SpeedHint = PortSpeed(Val);
     UINT32 Speed;
-    int t;
-    char B[12];
     int RealPc = !HalCpuIsHypervisor();
+    int i;
+    int t;
+    int Ok;
 
-    if (!(Val & PORTSC_CCS)) {
-        return 0;
-    }
+    DiagChk("ResetPort.enter", 1, "PORTSC", Val, 8);
 
-    HalSerialWrite("boot: xhci portsc=");
-    HalSerialFormatHex(B, Val, 8);
-    HalSerialWrite(B);
-    HalSerialWrite("\n");
-    BootLogHex("boot: xhci portsc=", Val, 8);
-
-    if (!(Val & PORTSC_PP)) {
-        WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PP);
-        if (RealPc) {
-            if (!WaitSetMs(Ps, PORTSC_PP, 50)) {
-                EnumWhy("boot: why=PP timeout\n");
-                return 0;
-            }
-        } else if (!WaitSet(Ps, PORTSC_PP, 30000)) {
-            BootLog("boot: xhci PP timeout\n");
-            return 0;
-        }
-        Val = ReadMmio32(Ps);
-    }
-
-    Speed = PortSpeed(Val);
-    BootLogHex("boot: xhci speed=", Speed, 2);
-
-    /* 真机：已使能则勿再 PR（写 PR 曾挂死） */
+    /* 真机：已使能则跳过 PR（二次 PR 会把 0x00200E03 打成 0x002006E1） */
     if (RealPc && (Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
-        HalSerialBootMark("boot: xhci PED skip PR\n");
-        StallMs(20);
+        DiagChk("ResetPort.already", 1, "PED+CCS skip PR", Val, 8);
+        Speed = PortSpeed(Val);
+        DiagChk("ResetPort.done", 1, "enabled", Speed, 2);
         return 1;
     }
 
-    HalSerialBootMark("boot: xhci bPR\n");
-    Val = PortscNeutral(ReadMmio32(Ps)) & ~PORTSC_PED;
-    if (Speed >= 4) {
+    /* 端口上电（勿在已连接时清 PED） */
+    if (!(Val & PORTSC_PP)) {
+        WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PP);
+        Ok = RealPc ? WaitSetMs(Ps, PORTSC_PP, 50) : WaitSet(Ps, PORTSC_PP, 30000);
+        Val = ReadMmio32(Ps);
+        DiagChk("ResetPort.PP", Ok && (Val & PORTSC_PP), "PP=1", Val, 8);
+        if (!Ok) {
+            EnumWhy("boot: why=PP timeout\n");
+            return 0;
+        }
+    }
+
+    if (!(Val & PORTSC_CCS)) {
+        if (RealPc) {
+            for (i = 0; i < 50; i++) {
+                StallMs(10);
+                Val = ReadMmio32(Ps);
+                if (Val & PORTSC_CCS) {
+                    break;
+                }
+            }
+        } else {
+            for (i = 0; i < 50000; i++) {
+                Val = ReadMmio32(Ps);
+                if (Val & PORTSC_CCS) {
+                    break;
+                }
+            }
+        }
+        DiagChk("ResetPort.CCS", !!(Val & PORTSC_CCS), "CCS=1", Val, 8);
+        if (!(Val & PORTSC_CCS)) {
+            return 0;
+        }
+    }
+
+    /* PED=0 时清 sticky 变更安全；便于重新 PR */
+    if (RealPc && !(Val & PORTSC_PED) && (Val & PORTSC_CHANGE)) {
+        WriteMmio32(Ps, PortscNeutral(Val) | (Val & PORTSC_CHANGE) | PORTSC_PP);
+        Fence();
+        StallMs(5);
+        Val = ReadMmio32(Ps);
+        DiagChk("ResetPort.clrSticky", !(Val & PORTSC_PRC), "PRC=0", Val, 8);
+    }
+
+    SpeedHint = PortSpeed(Val);
+    DiagChk("ResetPort.speed", SpeedHint != 0, "spd!=0", SpeedHint, 2);
+
+    /*
+     * 无条件热复位。USB2：写 PR，保留 PP；不要 &~PED（禁用口）。
+     * 硬件会在复位过程中自行清 PED，完成后置 PED。
+     */
+    Val = PortscNeutral(ReadMmio32(Ps));
+    if (SpeedHint >= 4) {
         WriteMmio32(Ps, Val | PORTSC_WPR | PORTSC_PP);
     } else {
         WriteMmio32(Ps, Val | PORTSC_PR | PORTSC_PP);
     }
     Fence();
-    HalSerialBootMark("boot: xhci aPR\n");
 
     if (RealPc) {
-        if (!WaitSetMs(Ps, PORTSC_PRC | PORTSC_WRC, 500)) {
-            HalSerialBootMark("boot: xhci PR TO\n");
+        /*
+         * 照片：PED OK → 任意 afterClr → Polling。成功后 leavePRC。
+         * PRC 可先到而 PED 仍 0（0x002006E1），多等一会 PED。
+         */
+        Ok = WaitSetMs(Ps, PORTSC_PRC | PORTSC_WRC, 500);
+        Val = ReadMmio32(Ps);
+        DiagChk("ResetPort.PRC", Ok, "PRC|WRC", Val, 8);
+        if (!Ok) {
             EnumWhy("boot: why=reset timeout\n");
             return 0;
         }
-        Val = ReadMmio32(Ps);
-        WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PRC | PORTSC_WRC | PORTSC_CSC);
-        if (!WaitSetMs(Ps, PORTSC_PED, 200)) {
-            HalSerialBootMark("boot: xhci no PED\n");
-            EnumWhy("boot: why=not PED\n");
+        if (!(Val & PORTSC_PED)) {
+            Ok = WaitSetMs(Ps, PORTSC_PED, 1000);
+            Val = ReadMmio32(Ps);
+        }
+        DiagChk("ResetPort.PED", (Val & PORTSC_PED) && (Val & PORTSC_CCS),
+                "PED+CCS", Val, 8);
+        if (!(Val & PORTSC_PED) || !(Val & PORTSC_CCS)) {
+            if (!(Val & PORTSC_CCS)) {
+                EnumWhy("boot: why=lost CCS\n");
+            } else {
+                EnumWhy("boot: why=not PED\n");
+            }
             return 0;
         }
-        Val = ReadMmio32(Ps);
-        if (!(Val & PORTSC_CCS)) {
-            EnumWhy("boot: why=lost CCS\n");
-            return 0;
-        }
-        HalSerialBootMark("boot: xhci port enabled\n");
+        DiagChk("ResetPort.leavePRC", 1, "sticky PRC", Val, 8);
+        Speed = PortSpeed(Val);
+        DiagChk("ResetPort.done", 1, "enabled", Speed, 2);
         StallMs(50);
         return 1;
     }
 
-    if (!WaitSet(Ps, PORTSC_PRC | PORTSC_WRC, 60000)) {
-        BootLog("boot: xhci reset timeout\n");
+    Ok = WaitSet(Ps, PORTSC_PRC | PORTSC_WRC, 60000);
+    Val = ReadMmio32(Ps);
+    DiagChk("ResetPort.PRC", Ok, "PRC|WRC", Val, 8);
+    if (!Ok) {
         return 0;
     }
-    Val = ReadMmio32(Ps);
-    WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PRC | PORTSC_WRC | PORTSC_CSC);
-
+    if (!(Val & PORTSC_PED)) {
+        for (t = 0; t < 30000; t++) {
+            Val = ReadMmio32(Ps);
+            if (Val & PORTSC_PED) {
+                break;
+            }
+        }
+    }
+    PortscClearChange(Ps);
     for (t = 0; t < 30000; t++) {
         Val = ReadMmio32(Ps);
         if ((Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
-            BootLog("boot: xhci port enabled\n");
+            DiagChk("ResetPort.done", 1, "PED+CCS", Val, 8);
             return 1;
         }
     }
-    BootLog("boot: xhci port not PED\n");
+    DiagChk("ResetPort.PED", 0, "PED+CCS", ReadMmio32(Ps), 8);
     return 0;
 }
 
@@ -1271,27 +1496,22 @@ static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
                                UINT8 *DevCtx, UINT32 RouteString,
                                UINT8 ParentHubSlot, UINT8 TtPort,
                                int HubDevice, UINT8 HubNumPorts) {
-    int RealPc = !HalCpuIsHypervisor();
+    int Ok;
 
     gXferSlot = 0;
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci enable slot\n");
+    if (SlotOut) {
+        *SlotOut = 0;
     }
+    DiagChk("AddressDev.port", 1, "root+spd", ((UINT64)RootPort << 8) | Speed, 4);
     if (Command(0, TRB_TYPE(TRB_ENABLE_SLOT), SlotOut) < 0 || *SlotOut == 0 ||
-        *SlotOut > DCBAA_SLOTS) {
-        DebugWrite("XHCI: Enable Slot failed\n");
+        *SlotOut > gDcbaaMaxSlot) {
+        DiagChkStr("AddressDev", 0, "EnableSlot ok", "fail");
+        BootLogHex("boot: xhci EnableSlot cc=", gCmdCode, 2);
+        BootLogHex("boot: xhci EnableSlot slot=", *SlotOut, 2);
+        BootLogHex("boot: xhci EnableSlot done=", gCmdDone, 1);
         EnumWhy("boot: why=enable slot\n");
-        if (RealPc) {
-            HalSerialBootMark("boot: xhci enslot fail\n");
-        }
         return 0;
     }
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci enslot ok\n");
-    }
-    DebugWrite("XHCI: Slot ");
-    DebugHex32(*SlotOut);
-    DebugWrite("\n");
 
     gXferSlot = *SlotOut;
     DcbaaSet(*SlotOut, PointerToPhysical(DevCtx));
@@ -1306,17 +1526,14 @@ static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
     }
 
     UINT32 *Slot = (UINT32 *)(void *)InSlot();
-    /* DW0: Route String | Speed | Hub | Context Entries=1 */
     Slot[0] = (1u << 27) | ((UINT32)Speed << 20) | (RouteString & 0xFFFFFu);
     if (HubDevice) {
         Slot[0] |= (1u << 26);
     }
-    /* DW1: Root Hub Port Number | Number of Ports（hub） */
     Slot[1] = ((UINT32)RootPort << 16);
     if (HubDevice && HubNumPorts != 0) {
         Slot[1] |= ((UINT32)HubNumPorts << 24);
     }
-    /* DW2: TT Hub Slot + TT Port（FS/LS 经 HS hub） */
     if (ParentHubSlot != 0 && Speed < 3) {
         Slot[2] = (UINT32)ParentHubSlot | ((UINT32)TtPort << 8);
     }
@@ -1335,22 +1552,13 @@ static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
     DcbaaFlush();
     FlushDma(gEp0Ring, sizeof(gEp0Ring));
 
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci addrdev\n");
-    }
-    if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_ADDRESS_DEV) | TRB_SLOT(*SlotOut), 0) < 0) {
-        DebugWrite("XHCI: Address Device failed\n");
+    Ok = Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_ADDRESS_DEV) | TRB_SLOT(*SlotOut), 0) == 0;
+    DiagChk("AddressDev", Ok, "AddressDev cc=1", gCmdCode, 2);
+    if (!Ok) {
         BootLogHex("boot: xhci addr cc=", gCmdCode, 2);
         EnumWhy("boot: why=address fail\n");
-        if (RealPc) {
-            HalSerialBootMark("boot: xhci addrdev fail\n");
-        }
         return 0;
     }
-    if (RealPc) {
-        HalSerialBootMark("boot: xhci addrdev ok\n");
-    }
-    DebugWrite("XHCI: Address Device OK\n");
     return 1;
 }
 
@@ -1405,11 +1613,11 @@ static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
     Enqueue(gEp0Ring, &gEp0, 0, 0, TRB_TYPE(TRB_STATUS) | TRB_IOC | StatusDir);
     RingDoorbell(gXferSlot, 1);
     if (WaitTransfer(150000) < 0) {
-        DebugWrite("XHCI: EP0 transfer failed cc=");
-        DebugHex32(gXferCode);
-        DebugWrite("\n");
+        DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
         return -1;
     }
+    DiagChk("ControlXfer", gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET,
+            "cc=1|13", gXferCode, 2);
     return 0;
 }
 
@@ -1451,8 +1659,11 @@ static int EvaluateEp0(UINT32 SlotId, UINT16 Mps) {
 /* 先 8 字节拿 bMaxPacketSize0，再 18 字节完整设备描述符 */
 static int GetDeviceDesc(void) {
     UINT8 Mps;
+    int Ok;
 
-    if (GetDesc(0x0100, 0, 8, gCtrlBuf) < 0) {
+    Ok = GetDesc(0x0100, 0, 8, gCtrlBuf) == 0;
+    DiagChk("GetDesc8", Ok, "xfer ok", Ok ? gCtrlBuf[7] : gXferCode, 2);
+    if (!Ok) {
         EnumWhy("boot: why=desc8\n");
         return -1;
     }
@@ -1463,11 +1674,12 @@ static int GetDeviceDesc(void) {
     if (Mps != (UINT8)gEp0Mps) {
         (void)EvaluateEp0(gXferSlot, Mps);
     }
-    if (GetDesc(0x0100, 0, 18, gCtrlBuf) < 0) {
+    Ok = GetDesc(0x0100, 0, 18, gCtrlBuf) == 0;
+    DiagChk("GetDesc18", Ok, "len>=18 class", Ok ? gCtrlBuf[4] : gXferCode, 2);
+    if (!Ok) {
         EnumWhy("boot: why=desc18\n");
         return -1;
     }
-    BootLogHex("boot: xhci class=", gCtrlBuf[4], 2);
     return 0;
 }
 
@@ -1519,6 +1731,34 @@ static int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
     return ControlXfer(&Setup, Data);
 }
 
+/* HID GET_REPORT(Input)：中断 IN 不来时真机 poll 兜底（独立缓冲，勿占 gReportBuf） */
+static int HidGetInputReport(UINT32 Slot, UINT8 Iface, void *Buf, UINT16 Length) {
+    USB_SETUP_PACKET Setup = {
+        .bmRequestType = 0xA1,
+        .bRequest = 0x01,
+        .wValue = 0x0100,
+        .wIndex = Iface,
+        .wLength = Length
+    };
+    UINT32 QuietSave;
+
+    if (Slot == 0 || Length == 0 || !Buf) {
+        return -1;
+    }
+    gXferSlot = Slot;
+    ZeroMemory(Buf, Length);
+    FlushDma(Buf, Length);
+    QuietSave = gDiagQuiet;
+    gDiagQuiet = 1; /* 读秒时勿刷 ControlXfer OK 盖白字 */
+    if (ControlXfer(&Setup, Buf) < 0) {
+        gDiagQuiet = QuietSave;
+        return -1;
+    }
+    gDiagQuiet = QuietSave;
+    FlushDma(Buf, Length);
+    return 0;
+}
+
 static UINT8 FsInterval(UINT8 BInterval) {
     if (BInterval == 0) {
         BInterval = 1;
@@ -1537,6 +1777,7 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed)
     UINT8 EpNum = EpAddr & 0x0F;
     UINT8 In = (EpAddr & 0x80) ? 1 : 0;
     gIntrDci = (UINT32)EpNum * 2 + In;
+    gKbdEpAddr = EpAddr;
 
     ZeroMemory(gInCtx, sizeof(gInCtx));
     *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0) | (1u << gIntrDci);
@@ -1556,7 +1797,8 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed)
     UINT64 Deq = PointerToPhysical(gIntrRing) | 1;
     Ep[2] = (UINT32)Deq;
     Ep[3] = (UINT32)(Deq >> 32);
-    Ep[4] = Mps;
+    /* Average TRB Length | Max ESIT Payload Lo（HID：=MPS；为 0 时部分 HC 不调度中断 IN） */
+    Ep[4] = (UINT32)Mps | ((UINT32)Mps << 16);
 
     FlushDma(gInCtx, sizeof(gInCtx));
     FlushDma(gIntrRing, sizeof(gIntrRing));
@@ -1570,12 +1812,56 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed)
     return 1;
 }
 
+/*
+ * 真机 Arm：枚举期已挂中断 TRB。须先 Stop（环仍有效）→ 排空 Stopped 事件
+ * → 再 InitRing → Set TR Dequeue；失败则 Reset EP 再试。
+ * 旧序 InitRing 先于 Stop 会毁掉 HC 还在用的环，且 Stop 回调里 QueueIntr
+ * 会导致 SetTrDeq 报 Context State Error (got=0x13)。
+ */
+static int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St,
+                           UINTN RingBytes) {
+    UINT64 Deq;
+    UINT32 EpField = (Dci & 0x1Fu) << 16;
+
+    if (Slot == 0 || Dci == 0) {
+        return -1;
+    }
+
+    /* 1) 先停 EP（此时环内容仍与硬件一致） */
+    (void)Command(0, TRB_TYPE(TRB_STOP_EP) | TRB_SLOT(Slot) | EpField, 0);
+    ProcessEvents();
+    if (!HalCpuIsHypervisor()) {
+        ProcessEventsRealPc();
+    }
+
+    /* 2) 软件环从头重建，再告诉 HC 新 dequeue */
+    InitRing(Ring, St, RING_SIZE);
+    FlushDma(Ring, RingBytes);
+    Deq = PointerToPhysical(&Ring[St->Enq]) | (St->Pcs & 1u);
+    if (Command(Deq, TRB_TYPE(TRB_SET_TR_DEQ) | TRB_SLOT(Slot) | EpField, 0) == 0) {
+        return 0;
+    }
+
+    /* 3) Context State 等：Reset EP 后再 SetTrDeq */
+    (void)Command(0, TRB_TYPE(TRB_RESET_EP) | TRB_SLOT(Slot) | EpField, 0);
+    ProcessEvents();
+    InitRing(Ring, St, RING_SIZE);
+    FlushDma(Ring, RingBytes);
+    Deq = PointerToPhysical(&Ring[St->Enq]) | (St->Pcs & 1u);
+    if (Command(Deq, TRB_TYPE(TRB_SET_TR_DEQ) | TRB_SLOT(Slot) | EpField, 0) < 0) {
+        HalSerialWrite("boot: xhci sync deq fail\n");
+        return -1;
+    }
+    return 0;
+}
+
 /* 提交中断 IN 传输 TRB */
 static void QueueIntr(void) {
     gIntrDone = 0;
     gIntrReportReady = 0;
     FlushDma(gReportBuf, sizeof(gReportBuf));
-    Enqueue(gIntrRing, &gIntr, PointerToPhysical(gReportBuf), 8, TRB_TYPE(TRB_NORMAL) | TRB_IOC);
+    Enqueue(gIntrRing, &gIntr, PointerToPhysical(gReportBuf), 8,
+            TRB_TYPE(TRB_NORMAL) | TRB_IOC | TRB_ISP);
     RingDoorbell(gSlotId, gIntrDci);
 }
 
@@ -1705,6 +1991,7 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
     UINT8 EpNum = EpAddr & 0x0F;
     UINT8 In = (EpAddr & 0x80) ? 1 : 0;
     gMouseIntrDci = (UINT32)EpNum * 2 + In;
+    gMouseEpAddr = EpAddr;
     gMouseReportLen = (UINT8)(Mps > 8 ? 8 : Mps);
 
     ZeroMemory(gInCtx, sizeof(gInCtx));
@@ -1723,7 +2010,7 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
     UINT64 Deq = PointerToPhysical(gMouseIntrRing) | 1;
     Ep[2] = (UINT32)Deq;
     Ep[3] = (UINT32)(Deq >> 32);
-    Ep[4] = Mps;
+    Ep[4] = (UINT32)Mps | ((UINT32)Mps << 16);
 
     FlushDma(gInCtx, sizeof(gInCtx));
     FlushDma(gMouseIntrRing, sizeof(gMouseIntrRing));
@@ -1740,7 +2027,7 @@ static void QueueMouseIntr(void) {
     gMouseReportReady = 0;
     FlushDma(gMouseBuf, sizeof(gMouseBuf));
     Enqueue(gMouseIntrRing, &gMouseIntr, PointerToPhysical(gMouseBuf), gMouseReportLen,
-            TRB_TYPE(TRB_NORMAL) | TRB_IOC);
+            TRB_TYPE(TRB_NORMAL) | TRB_IOC | TRB_ISP);
     RingDoorbell(gMouseSlotId, gMouseIntrDci);
 }
 
@@ -2069,6 +2356,7 @@ static int InitMouseOnPort(UINT32 Port1) {
         gMouseSlotId = 0;
         return 0;
     }
+    gMouseIface = Iface;
     if (!ConfigureMouseIntr(gMouseSlotId, EpAddr, Mps, Interval, Speed)) {
         DebugWrite("XHCI: mouse endpoint failed\n");
         DisableSlot(gMouseSlotId);
@@ -2086,6 +2374,8 @@ static int InitMouseOnPort(UINT32 Port1) {
 int XhciInit(UINT64 BaseAddress) {
     int RealPc = !HalCpuIsHypervisor();
     char B[12];
+
+    BootLog("xhci diag: OK|FAIL step want=期望 got=实际\n");
 
     /*
      * 实测：白字最后停在 ports=0x12 且无 B10 黄字 → Present 在该行可能不返回。
@@ -2143,6 +2433,8 @@ int XhciInit(UINT64 BaseAddress) {
     gCapabilityBase = BaseAddress;
     UINT32 Cap = ReadMmio32(gCapabilityBase);
     UINT32 CapLength = Cap & 0xFF;
+    DiagChk("ReadCap", Cap != 0xFFFFFFFFu && CapLength >= 0x20 && CapLength != 0xFF,
+            "CAP!=F.. len>=20", Cap, 8);
     if (Cap == 0xFFFFFFFFu || CapLength < 0x20 || CapLength == 0xFF) {
         if (RealPc) {
             HalSerialBootMark("boot: xhci bad CAP\n");
@@ -2168,6 +2460,7 @@ int XhciInit(UINT64 BaseAddress) {
     gFwErstbaSave = 0;
     gFwEvtSave = 0;
     gFwEvtSegSave = 0;
+    gFwErdpSave = 0;
     if (RealPc) {
         UINT8 *Erst;
         UINT64 Crcr;
@@ -2176,6 +2469,7 @@ int XhciInit(UINT64 BaseAddress) {
         gFwCrcrSave = Crcr & ~0x3FULL;
         gFwCrcrRcs = (UINT32)(Crcr & 1ULL);
         gFwErstbaSave = ReadMmio64(gRuntimeBase + 0x30) & ~0x3FULL;
+        gFwErdpSave = ReadMmio64(gRuntimeBase + 0x38);
         if (gFwErstbaSave != 0) {
             if (MapXhciDma(gFwErstbaSave, 0x1000) != 0) {
                 HalSerialBootMark("boot: xhci map ERST fail\n");
@@ -2249,6 +2543,7 @@ int XhciInit(UINT64 BaseAddress) {
             return 0;
         }
     }
+    DiagChkStr("XhciInit.run", 1, "controller running", "yes");
     HalSerialWrite("boot: xhci controller running\n");
     DebugWrite("XHCI: controller running\n");
     PowerConnectedPorts();
@@ -2419,7 +2714,8 @@ int XhciInit(UINT64 BaseAddress) {
     }
 
     DebugWrite("XHCI: keyboard ready\n");
-    HalSerialWrite("boot: xhci-hid ready\n");
+    /* 与 mouse 同走 BootLog：真机屏上先 keyboard 再 mouse，再由 Probe 打 init returned */
+    BootLog("boot: xhci-hid keyboard\n");
 
     for (UINT32 p = 1; p <= gMaxPorts; p++) {
         if (p == gPort1) {
@@ -2591,11 +2887,16 @@ static void EnableHostInterrupts(void) {
  */
 void XhciDrainEvents(void) {
     int i;
+    int RealPc = !HalCpuIsHypervisor();
 
     gStatDrain++;
     SpinLockAcquire(&gHidQueueLock);
     for (i = 0; i < 32; i++) {
-        ProcessEvents();
+        if (RealPc) {
+            ProcessEventsRealPc();
+        } else {
+            ProcessEvents();
+        }
         if (gIntrDone) {
             gIntrDone = 0;
             if (gIntrReportReady) {
@@ -2615,6 +2916,20 @@ void XhciDrainEvents(void) {
                 gStatMousePush++;
             }
             QueueMouseIntr();
+        }
+    }
+    /*
+     * 禁止在持 gHidQueueLock 时 HidGetInputReport/ControlXfer：
+     * WaitCommand 可达数百 ms 且 IF=1，定时器切到 Gui 再 Drain → 同锁死锁，
+     * 家侧表现为桌面不能打字、短按电源无效（须长按强制关机）。
+     * PHOTO 已证明中断 IN 可完成；门铃轻推即可，勿走 EP0 兜底。
+     */
+    if (RealPc) {
+        if (gSlotId != 0 && gIntrDci != 0 && (gStatDrain & 0x3Fu) == 0) {
+            RingDoorbell(gSlotId, gIntrDci);
+        }
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0 && (gStatDrain & 0x3Fu) == 0) {
+            RingDoorbell(gMouseSlotId, gMouseIntrDci);
         }
     }
     if (gUseIrq && gRuntimeBase != 0) {
@@ -2777,14 +3092,47 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gIrqMode = XHCI_IRQ_MODE_POLL;
         HalSerialWrite("boot: xhci irq=poll (base)\n");
         (void)XhciTryEnterDual(Device); /* stub：打 dual=stub 行，不改模式 */
+        /* PHOTO 只看 Arm 之后的计数 */
+        gStatIntrEvt = 0;
+        gStatMouseEvt = 0;
+        gStatKbdPush = 0;
+        gStatMousePush = 0;
+        gStatXferAny = 0;
+        gStatUnmatched = 0;
+        gStatEvtRing = 0;
+        gStatDrain = 0;
+        gStatLastCc = 0;
+        gStatLastSlot = 0;
+        gStatLastEp = 0;
+        gDiagXferLogged = 0;
+        gDiagIntrCcLogged = 0;
         XhciDiagLogArms();
-        /* 枚举期可能已把中断 TRB 耗光且未再投递；Arm 时强制再门铃 */
+        /* 真机：先同步 EP dequeue，再投递；失败则仍尝试 Queue（枚举环可能仍可用） */
         if (gSlotId != 0 && gIntrDci != 0) {
+            if (SyncIntrDequeue(gSlotId, gIntrDci, gIntrRing, &gIntr, sizeof(gIntrRing)) == 0) {
+                HalSerialWrite("boot: xhci sync kbd deq\n");
+            }
             QueueIntr();
         }
         if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+            if (SyncIntrDequeue(gMouseSlotId, gMouseIntrDci, gMouseIntrRing, &gMouseIntr,
+                                sizeof(gMouseIntrRing)) == 0) {
+                HalSerialWrite("boot: xhci sync mouse deq\n");
+            }
             QueueMouseIntr();
         }
+        /* Arm 同步产生的 Stopped 事件勿计入 PHOTO */
+        gStatIntrEvt = 0;
+        gStatMouseEvt = 0;
+        gStatKbdPush = 0;
+        gStatMousePush = 0;
+        gStatXferAny = 0;
+        gStatUnmatched = 0;
+        gStatEvtRing = 0;
+        gStatDrain = 0;
+        gStatLastCc = 0;
+        gStatLastSlot = 0;
+        gStatLastEp = 0;
         HalSerialWrite("boot: xhci rearm intr\n");
         XhciDrainEvents();
         return 0;

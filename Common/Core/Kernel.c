@@ -3,10 +3,12 @@
  */
 #include "BootInfo.h"
 #include "Hal.h"
+#include "HalSerial.h"
 #include "Scheduler.h"
 #include "KernelModules.h"
 #include "Tasks.h"
 #include "Console.h"
+#include "Font.h"
 
 void KernelMain(void) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -16,8 +18,11 @@ void KernelMain(void) {
     HalVideoSet(&V);
     /* H0：进核即改像素（在开分页 / 驱动 Probe 之前），真机卡死时可区分 Boot vs Kernel */
     if (Info && Info->FrameBufferSize != 0) {
+        FontInit(); /* GOP 日志/DrawString 依赖字体表；video 模块里会再 Init 一次 */
         HalVideoClearScreen(0x00204060u);
         HalVideoPresent();
+        HalSerialGopEnable();
+        HalSerialWrite("boot: KernelMain live\n");
     }
 
     if (KernelModulesRun() != 0) {
@@ -25,6 +30,12 @@ void KernelMain(void) {
             HalCpuPark();
         }
     }
+
+    /*
+     * 进调度/桌面前关掉 boot→GOP 镜像：之后 Debug 只进 ring，
+     * 有 COM1 再旁路写串口。有/无串口主路径一致。
+     */
+    HalSerialGopMirror(0);
 
     /* PR-B1：ConsoleOnly → 串口壳；HasFrameBuffer + virt 形状 → 协作桌面 */
     if (HalConsoleOnly()) {

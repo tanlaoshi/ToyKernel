@@ -88,14 +88,17 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H2：真机键盘
 
-> **2026-09-08**：真机键鼠暂不通。计划：**base poll（默认+备份）→ hub → stat → dual（MSI-X，不通回 poll）→ 可选 irq**。代码已留 `XHCI_IRQ_MODE` / `XhciTryEnterDual` 占位。
+> **2026-09-09（家里轨 PR1–5）**：`home/xhci-retry-from-scratch` 已并入真机路径：**DiagChk**、**firmware-first 环**、**无 PED=0 禁用**、枚举 + CA 恢复、真机 **`irq=poll (base)`**（零 MSI；`XhciTryEnterDual` 占位）。课堂 QEMU 仍 MSI/dual。
 
-- **PR-H-xhci-base 🔧（JX）**：真机 poll 基线；键/鼠分队列；**兼作 dual 失败备份**
-- **PR-H-xhci-dual ⬜**：base 通后；MSI-X + Drain 盲排空；`XhciFallbackToPoll`
-- **PR-H-xhci-stat ⬜**：完成 TRB / Poll / IRQ 计数
-- **PR-H-xhci-irq ⬜（可选）**：dual 证明后再减 poll
-- **回归笔记**：曾通 poll；裸 `irq=msi` 后桌面死；枚举已见键鼠
-- **PR-H-hub 🔧**：NUC 已见键鼠；打字挂 base
+- **PR-H-xhci-obs/rs/port/enum/base ✅**（本分支一次落地；拆分见路线图家里轨）
+  - 观测：`xhci OK|FAIL step want=… got=…` + `HalSerialBootMark`
+  - 控制器：Halt-only 优先；固件 DCBAAP/CRCR/ERST；`RS running`
+  - 端口：USB2 `PR` / USB3 `WPR`；清变更强制带 `PP`；**禁止**复位前写 `PED=0`
+  - 枚举：EnableSlot / Address / Config；命令超时 CA 恢复一次
+  - 输入：真机 `boot: xhci irq=poll (base)` + Drain；PHOTO 后再 Arm（仍 poll）
+- **PR-H-hub ⬜（JX 可选）**：根口 hub 后键盘
+- **PR-H-xhci-dual / stat / irq ⬜**：base 通后再开；裸 `irq=msi` 曾致桌面死输入
+- **回归笔记**：曾通 poll；USB3 写 PED=0 → `PORTSC=0` / `why=PED clear TO`（已修）
 - **PS/2 fallback** / **H-ioapic**：见 H2 其余条目；未做 EHCI/嵌套 hub 等
 
 ### H3：无 COM1 → GOP 控制台
@@ -126,7 +129,8 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
-| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。下一刀：零 MSI 的 `irq=poll (base)` 恢复打字 |
+| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)` |
+| 工业 PC（家用靶） | ✅ | ✅ | 🔧 **poll base**（PR1–5 落地） | U 盘 FAT | 2026-09-09：`firmware-first` + 无 PED=0 + `irq=poll (base)`；验收看 `xhci OK|FAIL` / `RS running` / `xhci-hid keyboard` |
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 
 **冒烟勾选表**（上电→Boot→桌面/串口；xHCI/盘/网；交作业用一页总表）：

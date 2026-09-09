@@ -1434,7 +1434,10 @@ void ConsoleOnEnter(void) {
         return;
     }
     ConsoleWrite("\n");
+    /* help/ls 等大量 ConsoleWrite：真机逐行 Present 极卡，整命令结束再刷一次 */
+    GuiPresentDeferPush();
     RunLine();
+    GuiPresentDeferPop();
     gLen = 0;
     ConsolePromptAfterCommand();
 }

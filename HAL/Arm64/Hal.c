@@ -180,7 +180,7 @@ int HalCpuIsHypervisor(void) {
     return 1; /* Arm virt 当作 hypervisor 环境 */
 }
 
-void HalVirtPlatformIdleLoop(void) {
+void HalVirtIdleLoop(void) {
     HalSerialWrite("virt: idle loop (no console)\n");
     for (;;) {
         HalCpuHalt();

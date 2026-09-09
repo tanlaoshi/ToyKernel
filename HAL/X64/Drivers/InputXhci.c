@@ -206,13 +206,16 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         DebugWrite("\n");
         gXhciDev = Controllers[i];
         if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
+            /*
+             * XhciInit 内已按「keyboard → mouse」打过 BootLog；
+             * 此处只确认 Init 返回。勿再打 keyboard（否则像「init 完才有键盘」）。
+             */
             HalSerialWrite("boot: xhci init returned\n");
             if (XhciHidKeyboardReady() || XhciMousePresent()) {
                 gXhciReady = 1;
-                if (XhciHidKeyboardReady()) {
-                    HalSerialWrite("boot: xhci-hid keyboard\n");
-                } else {
-                    HalSerialWrite("boot: xhci-hid mouse\n");
+                if (!XhciHidKeyboardReady() && XhciMousePresent()) {
+                    /* 仅鼠标路径（Init 内已打 mouse only / mouse） */
+                    HalSerialWrite("boot: xhci-hid mouse-only bind\n");
                 }
                 if (OutPriv) {
                     *OutPriv = 0;

@@ -22,6 +22,7 @@
 #include "Locale.h"
 #include "Driver.h"
 #include "DriverInput.h"
+#include "HalDevices.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
@@ -87,7 +88,7 @@ static int InitializeCpu(void) {
     }
     HalTimerInit();
     HalSyscallInit();
-    /* virt：仍在此挂 virtio-input；x86 真机延后到 gui 后的 usb 模块 */
+    /* virt：仍在此挂 virtio-input；x86 真机延后到 gui 后的 usb 模块（与 main 一致） */
     if (HalPlatformIsVirtSerialConsole()) {
         (void)HalUsbInit();
     }
@@ -106,11 +107,26 @@ static int InitializeUsb(void) {
     } else {
         HalSerialWrite("boot: input NONE (continue)\n");
     }
-    /* 真机：先 Arm MSI（写入 irq= 行），再 PHOTO 拍尾部日志（含 irq=msi）。 */
+    /*
+     * 真机：Arm 保持 irq=poll (base)（XhciEnableIrq 零 MSI + dual stub），
+     * 再 PHOTO 拍尾部日志。QEMU 不走 PhotoHold。
+     */
     if (!HalCpuIsHypervisor()) {
         HalSerialWrite("boot: xhci-Hhid photo-hold build\n");
         HalInputArmIrq();
         HalSerialGopPhotoHold(20);
+        /* PHOTO→gui 空窗：多 Drain 几轮，降低事件环溢满概率 */
+        {
+            int n;
+            HAL_KEYBOARD_REPORT Dump;
+
+            for (n = 0; n < 64; n++) {
+                HalInputPoll();
+            }
+            /* 读秒残留键勿带进桌面（易开空壳/吞首键） */
+            while (HalKeyboardDequeue(&Dump)) {
+            }
+        }
     }
     return 0; /* 无键盘也必须进 gui / 桌面 */
 }
@@ -120,16 +136,23 @@ static int InitializeFileSystem(void) {
 }
 
 static int InitializeGui(void) {
-    HalSerialWrite("boot: gui...\n");
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     (void)DbInit();
-    HalSerialWrite("boot: gui fonts\n");
-    (void)FontLoadAssets();
-    HalSerialWrite("boot: gui theme\n");
+    (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     (void)ThemeLoad();
     LocaleInit();
-    HalSerialWrite("boot: gui DesktopInit\n");
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     GuiInit();
-    HalSerialWrite("boot: gui ready\n");
+    if (!HalCpuIsHypervisor()) {
+        HalInputPoll();
+    }
     return 0;
 }
 
@@ -143,9 +166,17 @@ static int InitializeNetwork(void) {
 }
 
 static int InitializeDriver(void) {
-    /* PR-D2：先注册平台驱动；ProbeAll 可早绑 ATA；virtio-blk 待 VMM 后由 HalBlockInit 再 Probe */
+    /*
+     * PR-D2：只早 Probe Block（ATA PIO 无需 MMIO）。
+     * 勿 ProbeAll：VMM 前 xHCI/AHCI/NVMe/Net 本会跳过，但 ps2-kbd 会跑 Ps2InitHw；
+     * 真机无经典 8042 时 STATUS 常浮空 0xFF（OBF 永真）→ 排空 while 死循环，屏停 [mod] driver。
+     * Input / Net 仍由后续 usb / network 模块 Probe。
+     */
     HalDriverRegister();
-    return ToyDriverProbeAll();
+    HalSerialWrite("boot: driver register ok\n");
+    (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_BLOCK);
+    HalSerialWrite("boot: driver block probe done\n");
+    return 0;
 }
 
 static int InitializeScheduler(void) {
@@ -166,7 +197,7 @@ static int InitializeConsole(void) {
     return 0;
 }
 
-/* x86 全量：usb 在 gui 前，便于桌面叠画探测结果 */
+/* x86 全量：usb 在 gui 前，便于桌面叠画探测结果（与 main 一致） */
 static const MODULE gModulesFull[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
