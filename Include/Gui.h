@@ -45,6 +45,9 @@ void GuiPointerMove(UINT32 X, UINT32 Y);
 void GuiCursorPaint(void);
 void GuiFrameBufferBegin(void);
 void GuiFrameBufferEnd(void);
+/* 批量输出时推迟 Present（真机 4K 级 GOP 逐行 Present 极卡） */
+void GuiPresentDeferPush(void);
+void GuiPresentDeferPop(void);
 void GuiCursorHide(void);
 void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);

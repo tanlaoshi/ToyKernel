@@ -374,15 +374,8 @@ int FileSystemVolBackend(int Idx, const char **OutName) {
     return 0;
 }
 
-static int TryProbeDrive(UINT32 Drive, UINT32 *OutLba, int *OutIsEsp) {
-    if (!BlockSelect(Drive)) {
-        return 0;
-    }
-    return GptFindFatStartEx(OutLba, OutIsEsp);
-}
-
 /*
- * 扫描所有 Block 盘，各挂一个 FAT 卷；命名 A/B/…，
+ * 扫描所有 Block 盘，挂上每个盘上的全部 FAT 分区；
  * 含 TOYOS.ID 的另名 TOYOS（默认）；GPT ESP 只读且可名 ESP。
  */
 static int MountAllVolumes(void) {
@@ -399,54 +392,66 @@ static int MountAllVolumes(void) {
     gActiveLba = 0xFFFFFFFFu;
 
     for (d = 0; d < BLOCK_MAX_DRIVES && gVolCount < FS_MAX_VOLUMES; d++) {
-        UINT32 Start = 0;
-        int IsEsp = 0;
-        FS_VOLUME *V;
-        int Idx;
+        GPT_FAT_PART Parts[GPT_MAX_FAT_PARTS];
+        int N;
+        int p;
 
-        if (!TryProbeDrive(d, &Start, &IsEsp)) {
+        if (!BlockSelect(d)) {
             continue;
         }
-        if (VfsSelect(FatFsOps()) != 0) {
+        N = GptFindAllFat(Parts, GPT_MAX_FAT_PARTS);
+        if (N <= 0) {
             continue;
         }
-        if (!BlockSelect(d) || VfsMount(Start) != FAT_OK) {
-            continue;
+        for (p = 0; p < N && gVolCount < FS_MAX_VOLUMES; p++) {
+            FS_VOLUME *V;
+            int Idx;
+            int IsEsp = Parts[p].IsEsp;
+            UINT32 Start = Parts[p].StartLba;
+
+            if (VfsSelect(FatFsOps()) != 0) {
+                continue;
+            }
+            if (!BlockSelect(d) || VfsMount(Start) != FAT_OK) {
+                continue;
+            }
+
+            Idx = gVolCount;
+            V = &gVols[Idx];
+            V->Drive = d;
+            V->StartLba = Start;
+            V->Letter = (char)('A' + Idx);
+            V->ReadOnly = IsEsp ? 1 : 0;
+            V->HasToyId = 0;
+            V->Ops = FatFsOps();
+            V->Name[0] = V->Letter;
+            V->Name[1] = 0;
+
+            if (VfsReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
+                V->HasToyId = 1;
+                CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
+                ToyVol = Idx;
+            } else if (IsEsp) {
+                CopyName(V->Name, FS_VOL_NAME_MAX, "ESP");
+                V->ReadOnly = 1;
+            }
+
+            gVolCount++;
+            gActiveVol = Idx;
+            gActiveOps = V->Ops;
+            gActiveDrive = d;
+            gActiveLba = Start;
+
+            DebugWrite("fs: vol ");
+            DebugWrite(V->Name);
+            DebugWrite(" letter=");
+            DebugHex32((UINT32)(UINT8)V->Letter);
+            DebugWrite(" drive=");
+            DebugHex32(d);
+            DebugWrite(" lba=");
+            DebugHex32(Start);
+            DebugWrite("\n");
         }
-
-        Idx = gVolCount;
-        V = &gVols[Idx];
-        V->Drive = d;
-        V->StartLba = Start;
-        V->Letter = (char)('A' + Idx);
-        V->ReadOnly = IsEsp ? 1 : 0;
-        V->HasToyId = 0;
-        V->Ops = FatFsOps();
-        V->Name[0] = V->Letter;
-        V->Name[1] = 0;
-
-        if (VfsReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
-            V->HasToyId = 1;
-            CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
-            ToyVol = Idx;
-        } else if (IsEsp) {
-            CopyName(V->Name, FS_VOL_NAME_MAX, "ESP");
-            V->ReadOnly = 1;
-        }
-
-        gVolCount++;
-        gActiveVol = Idx;
-        gActiveOps = V->Ops;
-        gActiveDrive = d;
-        gActiveLba = Start;
-
-        DebugWrite("fs: vol ");
-        DebugWrite(V->Name);
-        DebugWrite(" letter=");
-        DebugHex32((UINT32)(UINT8)V->Letter);
-        DebugWrite(" drive=");
-        DebugHex32(d);
-        DebugWrite("\n");
     }
 
     /* PR-F3：可选只读资源卷（无盘亦可挂；有盘时占下一字母） */
@@ -511,7 +516,7 @@ static int MountAllVolumes(void) {
     HalConsoleWriteSerial("fs: mounted ");
     {
         char Msg[8];
-        Msg[0] = (char)('0' + gVolCount);
+        Msg[0] = (char)('0' + (gVolCount > 9 ? 9 : gVolCount));
         Msg[1] = 0;
         HalConsoleWriteSerial(Msg);
     }

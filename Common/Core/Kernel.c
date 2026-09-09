@@ -3,6 +3,7 @@
  */
 #include "BootInfo.h"
 #include "Hal.h"
+#include "HalSerial.h"
 #include "Scheduler.h"
 #include "KernelModules.h"
 #include "Tasks.h"
@@ -29,6 +30,12 @@ void KernelMain(void) {
             HalCpuPark();
         }
     }
+
+    /*
+     * 进调度/桌面前关掉 boot→GOP 镜像：之后 Debug 只进 ring，
+     * 有 COM1 再旁路写串口。有/无串口主路径一致。
+     */
+    HalSerialGopMirror(0);
 
     /* PR-B1：ConsoleOnly → 串口壳；HasFrameBuffer + virt 形状 → 协作桌面 */
     if (HalConsoleOnly()) {

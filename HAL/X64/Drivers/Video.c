@@ -6,26 +6,7 @@
  */
 #include "Video.h"
 #include "Font.h"
-#include "PhysicalMemory.h"
 #include "Hal.h"
-
-/* Bochs/QEMU VBE DISPI（OVMF QemuVideo 同端口） */
-#define VBE_DISPI_IOPORT_INDEX  0x01CE
-#define VBE_DISPI_IOPORT_DATA   0x01D0
-#define VBE_DISPI_INDEX_ID      0x0
-#define VBE_DISPI_INDEX_XRES    0x1
-#define VBE_DISPI_INDEX_YRES    0x2
-#define VBE_DISPI_INDEX_BPP     0x3
-#define VBE_DISPI_INDEX_ENABLE  0x4
-#define VBE_DISPI_INDEX_BANK    0x5
-#define VBE_DISPI_INDEX_VIRT_WIDTH  0x6
-#define VBE_DISPI_INDEX_VIRT_HEIGHT 0x7
-#define VBE_DISPI_INDEX_X_OFFSET    0x8
-#define VBE_DISPI_INDEX_Y_OFFSET    0x9
-#define VBE_DISPI_INDEX_VIDEO_MEMORY_64K 0xa
-#define VBE_DISPI_ID0           0xB0C0
-#define VBE_DISPI_ENABLED       0x01
-#define VBE_DISPI_LFB_ENABLED   0x40
 
 static SCREEN_INFO gScreen = {0};
 static UINT32 gBackground = 0x00000000;
@@ -277,6 +258,11 @@ void VideoPresent(void) {
     UINT32 Y0;
     UINT32 X1;
     UINT32 Y1;
+    UINT64 FbBytes;
+    UINT64 LayoutBytes;
+    UINT64 RowOff;
+    UINT64 RowBytes;
+    UINT64 Flags;
 
     if (!gBackOn || !gBack || !gFront) {
         gDirty = 0;
@@ -285,25 +271,72 @@ void VideoPresent(void) {
     if (!gDirty) {
         return;
     }
+    /*
+     * 关中断整段 blit：真机 poll 路径曾用 Busy 防重入，但 #PF/半途 return
+     * 会把 Busy 粘死 → 之后 Shell 字只写后缓冲、屏上永远空窗/不能「看见」打字。
+     * CLI 下不会嵌套 Present，不再需要 sticky Busy。
+     */
+    Flags = HalIrqSave();
+    if (!gDirty) {
+        HalIrqRestore(Flags);
+        return;
+    }
     X0 = gDx0;
     Y0 = gDy0;
     X1 = gDx1;
     Y1 = gDy1;
+    if (X0 >= gScreen.Width || Y0 >= gScreen.Height) {
+        gDirty = 0;
+        HalIrqRestore(Flags);
+        return;
+    }
     if (X1 > gScreen.Width) {
         X1 = gScreen.Width;
     }
     if (Y1 > gScreen.Height) {
         Y1 = gScreen.Height;
     }
+    if (X0 >= X1 || Y0 >= Y1) {
+        gDirty = 0;
+        HalIrqRestore(Flags);
+        return;
+    }
+    LayoutBytes = (UINT64)gFrontPitch * (UINT64)gScreen.Height * 4ull;
+    FbBytes = gScreen.FrameBufferSize;
+    if (FbBytes == 0) {
+        FbBytes = LayoutBytes;
+    } else if (gFrontPitch > gScreen.Width &&
+               FbBytes == (UINT64)gScreen.Width * (UINT64)gScreen.Height * 4ull &&
+               LayoutBytes > FbBytes) {
+        /*
+         * 常见固件：Size=Width*Height*4，但 PixelsPerScanLine>Width。
+         * 按 Size 卡行会误杀合法 pitch 寻址 → 客户区/提示符永不进 scanout。
+         */
+        FbBytes = LayoutBytes;
+    }
+    gDirty = 0;
+    RowBytes = (UINT64)(X1 - X0) * 4ull;
     for (Y = Y0; Y < Y1; Y++) {
-        UINT32 *Src = &gBack[Y * gBackPitch + X0];
-        UINT32 *Dst = &gFront[Y * gFrontPitch + X0];
+        UINT32 *Src;
+        UINT32 *Dst;
 
+        RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
+        if (RowOff + RowBytes > FbBytes) {
+            /* 其余行仍脏，下次 Present 续传（勿丢 Shell 文字） */
+            gDx0 = X0;
+            gDy0 = Y;
+            gDx1 = X1;
+            gDy1 = Y1;
+            gDirty = 1;
+            break;
+        }
+        Src = &gBack[Y * gBackPitch + X0];
+        Dst = &gFront[Y * gFrontPitch + X0];
         for (X = X0; X < X1; X++) {
             *Dst++ = *Src++;
         }
     }
-    gDirty = 0;
+    HalIrqRestore(Flags);
 }
 
 void VideoGetSize(UINT32 *Width, UINT32 *Height) {

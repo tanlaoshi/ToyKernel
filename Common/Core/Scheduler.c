@@ -1352,9 +1352,12 @@ void SchedulerApStart(void) {
     Idle->Started = 1;
     Ret = (UINT64)(UINTN)Idle->Frame;
     SpinLockRelease(&gSchedulerLock);
-    HalDebugWrite("sched: AP entered idle cpu=");
-    HalDebugWriteHex32(Cpu);
-    HalDebugWrite("\n");
+    /* 8 AP 并发写 COM1 会把欢迎语打成乱码；只留一条样例给冒烟 */
+    if (Cpu == 1) {
+        HalDebugWrite("sched: AP entered idle cpu=");
+        HalDebugWriteHex32(Cpu);
+        HalDebugWrite("\n");
+    }
     HalSchedulerEnter(Idle->Frame);
     (void)Ret;
     for (;;) {

@@ -1,9 +1,14 @@
 /*
- * HAL/X64/HalSerial.c — 串口门面；PR-H3：无 COM1 时镜像到 GOP
+ * HAL/X64/HalSerial.c — 调试日志门面
  *
- * 真机：即使 Probe 到 COM1，也常驻 gRing 并 Desktop 叠画。
- * Boot 日志必须跨多次 HalSerialWrite 拼行（"try BAR=" + hex + "\n"），
- * 绝不能把半截字符串当成一行，否则会出现左侧竖排 0x.. 叠字。
+ * 输出契约（串口是旁路，不得影响桌面/输入主路径）：
+ *   1) 常驻 ring（Desktop 可叠画历史）
+ *   2) COM1 TX：Probe 到才 SerialWrite；没有则不碰 UART
+ *   3) COM1 RX→Shell 保留（CoolTerm）；Tasks 每轮限量读，勿抽干堵死 USB
+ *   4) GOP 镜像：仅 boot/PHOTO；与有无 COM1 无关，进调度前关闭
+ *
+ * 家侧曾误判「插串口才能打字」：无 COM1 时 Debug 更快狂刷无锁 Present；
+ * 有 COM1 时 UART 空等拖慢，竞态变轻——与串口叫醒无关（IER=0）。
  */
 #include "HalSerial.h"
 #include "HalVideo.h"
@@ -23,6 +28,11 @@ static int gVideoUp;
 static int gGopBanner;
 static int gGopMute;
 static int gPhotoHold; /* 读秒：禁 Gop 卷屏/禁 BootMark 盖白字 */
+/*
+ * 1 = boot/PHOTO 期间把日志画到 GOP（与有无 COM1 无关）。
+ * 0 = 桌面阶段：只 ring；有 COM1 再旁路写串口。
+ */
+static int gGopMirror = 1;
 static UINT32 gBootLogY;
 static char gLine[160];
 static UINTN gLineLen;
@@ -196,14 +206,21 @@ void HalSerialWrite(const char *Text) {
     if (!Text) {
         return;
     }
+    /* 拼行缓冲：跨多次 Write 的 "try BAR=" + hex + "\n" 必须进同一 ring */
     RingAppend(Text);
-    /* 读秒中勿再 GopWrite：否则触底 ClearBody 会把白字尾部清掉 */
-    if (gVideoUp && !gGopMute && !gPhotoHold) {
+    /* GOP：仅 boot 镜像；读秒中禁止（会 ClearBody 清白字） */
+    if (gGopMirror && gVideoUp && !gGopMute && !gPhotoHold) {
         GopWrite(Text);
     }
+    /* 旁路：有 COM1 才写；无则静默跳过 */
     if (SerialPresent()) {
         SerialWrite(Text);
     }
+}
+
+/* 关镜像后有/无 COM1 行为一致：主路径不再因 Debug→Present 分叉 */
+void HalSerialGopMirror(int Enable) {
+    gGopMirror = Enable ? 1 : 0;
 }
 
 /* 真机 xHCI RS 后枚举：禁 Present，避免清屏/blit 与控制器打架 */
@@ -452,5 +469,7 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
         } while (Now - T0 < OneSec);
     }
     gPhotoHold = 0;
+    /* 此后再 GopWrite 会与桌面/多核 Debug 抢 Present；COM1 有无都不该再镜像 */
+    HalSerialGopMirror(0);
     HalSerialBootMark("boot: PHOTO done, desktop next\n");
 }

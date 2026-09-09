@@ -35,7 +35,7 @@
 #define PTE_XHCI_DMA (PTE_PRESENT | PTE_WRITABLE | PTE_PWT | PTE_PCD)
 
 #define RING_SIZE           32
-#define EVT_SIZE            32
+#define EVT_SIZE            128 /* 真机 PHOTO→gui 空窗期需更大；原 32 易溢满导致桌面假死 */
 #define DCBAA_SLOTS         16
 #define PORTSC_CCS          (1u << 0)
 #define PORTSC_PED          (1u << 1)
@@ -73,6 +73,7 @@
 
 #define TRB_C               (1u << 0)
 #define TRB_TC              (1u << 1)
+#define TRB_ISP             (1u << 2) /* 短包也要完成事件（鼠标常见） */
 #define TRB_IOC             (1u << 5)
 #define TRB_IDT             (1u << 6)
 #define TRB_TYPE(t)         ((UINT32)(t) << 10)
@@ -759,19 +760,35 @@ static void ProcessEvents(void) {
 }
 
 /*
- * 真机：USBSTS.EINT 已置但 Cycle 对不上时，翻 CCS 再扫一次。
- * 照片：EnableSlot 超时 got=USBSTS 0x18（EINT|PCD）→ 有事件却 ProcessEvents 吃不到。
+ * 真机：USBSTS.EINT 已置但 Cycle 对不上时，仅当环头 Cycle==~CCS 才翻一次。
+ * 旧逻辑见 EINT 就翻：PCD/粘住 EINT 会把 CCS 永久弄反 → 中断完成永远吃不到，
+ * 却仍可能靠碰巧/翻回来吃到部分 EP0（PHOTO：t>0 i=0）。
  */
 static void ProcessEventsRealPc(void) {
     UINT32 Sts;
+    XHCI_TRB *Evt;
+    UINT32 EvtSize = gEvtRingSize ? gEvtRingSize : EVT_SIZE;
 
     ProcessEvents();
-    Sts = ReadMmio32(gOperationalBase + 4);
-    if (gCmdDone || !(Sts & USBSTS_EINT)) {
+    if (gCmdDone) {
         return;
     }
-    gEvtCcs ^= 1u;
-    ProcessEvents();
+    Sts = ReadMmio32(gOperationalBase + 4);
+    if (!(Sts & USBSTS_EINT)) {
+        return;
+    }
+    if (gEvtDeq >= EvtSize) {
+        return;
+    }
+    Evt = &gEvtRingLive[gEvtDeq];
+    FlushDma(Evt, sizeof(*Evt));
+    if ((Evt->Control & TRB_C) == ((gEvtCcs ^ 1u) & 1u)) {
+        gEvtCcs ^= 1u;
+        ProcessEvents();
+    } else {
+        /* 无待处理事件：清粘住的 EINT，勿翻 CCS */
+        WriteMmio32(gOperationalBase + 4, USBSTS_EINT);
+    }
 }
 
 static void QueueIntr(void);
@@ -1780,7 +1797,8 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed)
     UINT64 Deq = PointerToPhysical(gIntrRing) | 1;
     Ep[2] = (UINT32)Deq;
     Ep[3] = (UINT32)(Deq >> 32);
-    Ep[4] = Mps;
+    /* Average TRB Length | Max ESIT Payload Lo（HID：=MPS；为 0 时部分 HC 不调度中断 IN） */
+    Ep[4] = (UINT32)Mps | ((UINT32)Mps << 16);
 
     FlushDma(gInCtx, sizeof(gInCtx));
     FlushDma(gIntrRing, sizeof(gIntrRing));
@@ -1842,7 +1860,8 @@ static void QueueIntr(void) {
     gIntrDone = 0;
     gIntrReportReady = 0;
     FlushDma(gReportBuf, sizeof(gReportBuf));
-    Enqueue(gIntrRing, &gIntr, PointerToPhysical(gReportBuf), 8, TRB_TYPE(TRB_NORMAL) | TRB_IOC);
+    Enqueue(gIntrRing, &gIntr, PointerToPhysical(gReportBuf), 8,
+            TRB_TYPE(TRB_NORMAL) | TRB_IOC | TRB_ISP);
     RingDoorbell(gSlotId, gIntrDci);
 }
 
@@ -1991,7 +2010,7 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
     UINT64 Deq = PointerToPhysical(gMouseIntrRing) | 1;
     Ep[2] = (UINT32)Deq;
     Ep[3] = (UINT32)(Deq >> 32);
-    Ep[4] = Mps;
+    Ep[4] = (UINT32)Mps | ((UINT32)Mps << 16);
 
     FlushDma(gInCtx, sizeof(gInCtx));
     FlushDma(gMouseIntrRing, sizeof(gMouseIntrRing));
@@ -2008,7 +2027,7 @@ static void QueueMouseIntr(void) {
     gMouseReportReady = 0;
     FlushDma(gMouseBuf, sizeof(gMouseBuf));
     Enqueue(gMouseIntrRing, &gMouseIntr, PointerToPhysical(gMouseBuf), gMouseReportLen,
-            TRB_TYPE(TRB_NORMAL) | TRB_IOC);
+            TRB_TYPE(TRB_NORMAL) | TRB_IOC | TRB_ISP);
     RingDoorbell(gMouseSlotId, gMouseIntrDci);
 }
 
@@ -2900,69 +2919,17 @@ void XhciDrainEvents(void) {
         }
     }
     /*
-     * 真机：中断 IN 优先。仅当尚无中断完成（i=0）时才 GET_REPORT，
-     * 且用独立缓冲，避免与 QueueIntr 的 gReportBuf 打架。
+     * 禁止在持 gHidQueueLock 时 HidGetInputReport/ControlXfer：
+     * WaitCommand 可达数百 ms 且 IF=1，定时器切到 Gui 再 Drain → 同锁死锁，
+     * 家侧表现为桌面不能打字、短按电源无效（须长按强制关机）。
+     * PHOTO 已证明中断 IN 可完成；门铃轻推即可，勿走 EP0 兜底。
      */
     if (RealPc) {
-        static UINT8 gGetReportNote;
-        static UINT8 WasDown;
-        static UINT8 MouseWas;
-        if (gSlotId != 0 && gIntrDci != 0) {
-            if ((gStatDrain & 0xFFu) == 0) {
-                RingDoorbell(gSlotId, gIntrDci);
-            }
-            if (gStatIntrEvt == 0 && (gStatDrain & 0x7FFu) == 0) {
-                if (HidGetInputReport(gSlotId, gKbdIface, gGetReportBuf, 8) == 0) {
-                    int nz = 0;
-                    int b;
-                    for (b = 0; b < 8; b++) {
-                        gReportBuf[b] = gGetReportBuf[b];
-                        if (gGetReportBuf[b]) {
-                            nz = 1;
-                        }
-                    }
-                    if (nz || WasDown) {
-                        KbdPush();
-                        gStatKbdPush++;
-                    }
-                    WasDown = (UINT8)nz;
-                    if (!gGetReportNote) {
-                        HalSerialWrite("boot: xhci get-report poll\n");
-                        gGetReportNote = 1;
-                    }
-                }
-            }
+        if (gSlotId != 0 && gIntrDci != 0 && (gStatDrain & 0x3Fu) == 0) {
+            RingDoorbell(gSlotId, gIntrDci);
         }
-        if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
-            if ((gStatDrain & 0xFFu) == 0) {
-                RingDoorbell(gMouseSlotId, gMouseIntrDci);
-            }
-            if (gStatMouseEvt == 0 && (gStatDrain & 0x7FFu) == 0) {
-                UINT16 Len = gMouseReportLen ? gMouseReportLen : 8;
-                UINT8 Tmp[8];
-                if (Len > 8) {
-                    Len = 8;
-                }
-                if (HidGetInputReport(gMouseSlotId, gMouseIface, Tmp, Len) == 0) {
-                    int nz = 0;
-                    int b;
-                    for (b = 0; b < (int)Len; b++) {
-                        gMouseBuf[b] = Tmp[b];
-                        if (Tmp[b]) {
-                            nz = 1;
-                        }
-                    }
-                    if (nz || MouseWas) {
-                        MousePush();
-                        gStatMousePush++;
-                    }
-                    MouseWas = (UINT8)nz;
-                    if (!gGetReportNote) {
-                        HalSerialWrite("boot: xhci get-report poll\n");
-                        gGetReportNote = 1;
-                    }
-                }
-            }
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0 && (gStatDrain & 0x3Fu) == 0) {
+            RingDoorbell(gMouseSlotId, gMouseIntrDci);
         }
     }
     if (gUseIrq && gRuntimeBase != 0) {

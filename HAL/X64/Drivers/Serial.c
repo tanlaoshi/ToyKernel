@@ -51,8 +51,10 @@ static void SerialPutChar(char C) {
     if (!gSerialOk) {
         return;
     }
-    Timeout = 100000;
+    /* 短等即可：真机旁路日志，勿空转拖死 BSP（对端未读/无线时） */
+    Timeout = 2000;
     while (Timeout-- && !(HalIoRead8(COM1 + 5) & 0x20)) {
+        __asm__ volatile ("pause");
     }
     HalIoWrite8(COM1, (UINT8)C);
 }
