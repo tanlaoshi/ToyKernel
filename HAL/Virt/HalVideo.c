@@ -61,6 +61,17 @@ UINT64 HalVideoFrameBufferSize(void) {
     return VideoFrameBufferSize();
 }
 
+/* PR-G-fb-pte：x86 才有 PWT/PCD；virt 空实现 */
+void HalVideoLogFbPte(void) {
+}
+
+int HalVideoFbPteLine(char *Buf, UINTN Max) {
+    if (Buf && Max > 0) {
+        Buf[0] = 0;
+    }
+    return 0;
+}
+
 void HalVideoPresent(void) {
     VideoPresent();
 }

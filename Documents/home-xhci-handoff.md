@@ -84,9 +84,19 @@ PHOTO 串口证据（2026-09-09）：`proto=0 mps=4`，`k` 涨、`m=0`、`u=0`�
 - **光标卡**：真机 `hlt` 等 tick + save-under ReadPixel。已 busy-poll（偶发 hlt）+ XOR 光标 + 合并 Present/拖动。
 - 期望日志：`ep0=split` / `hub ttt=` / `xhci-hid mouse`（或 `via hub`）；PHOTO `m` 涨；桌面跟手。
 
+## 消费级机对照（与 NUC/工控分开；暂不动）
+
+| 机型 | PHOTO 要点 | 输入结果 |
+|------|------------|----------|
+| **NUC / 工控** | hub/分口键鼠、`kbd-v8` | 键鼠可用 |
+| **ASUS N56VZ** | 8 口 `PORTSC=0x2A0`、**CCS=0** | PS/2 键 OK；USB 鼠废 |
+| **台式机**（2026-09-11） | 反复 **`addr cc=0x04`**；`ResetPort` **not PED** / **reset timeout**；PS/2 self-test fail | **`input NONE`**；屏 `3840x2560` |
+
+笔电偏「根口看不见设备」；台式偏「有尝试但 Address/Reset 失败」。路线图 §1.0·C 已并成一条「消费级机 xHCI」。**勿为这两台改动 NUC 已通路径，除非单独开刀并回归 NUC。**
+
 ## 建议下一刀（JX）
 
-1. 冷启动：`help` 真机应接近一次刷出；`vols`/`ls` 默认 TOYOS（U 盘双区且 Block 能见该盘时）
-2. CoolTerm `ls` 只一个 `toyos>`
-3. smoke PASS
-4. （可选）USB MSC / 真机 MSI dual，使 Block 看见 U 盘 TOYOS
+1. 路线图当前刀：**PR-H-xhci-dual**（或确认后 **PR-G-fb-wc**）
+2. **PR-G-fb-pte** ✅：PHOTO 黄字 `boot: fb-pte … cache=`（与 `boot: video` 同行区）
+3. 消费级机 / 真机分辨率 / 双键盘 → 边角暂缓
+4. smoke PASS；真机相关改动必回归 NUC/工控

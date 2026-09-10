@@ -547,6 +547,15 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
             Res[n++] = (char)('0' + (Rh % 10));
             Res[n] = 0;
             HalVideoDrawStringAt(BOOT_LOG_X, Y, Res, 0x00FFFF00u);
+            Y += LineH;
+            /* PR-G-fb-pte：与 video 同行区直绘，不依赖 ring 尾 */
+            {
+                char FbLine[96];
+                if (HalVideoFbPteLine(FbLine, sizeof(FbLine)) > 0 &&
+                    Y + LineH < H - LineH) {
+                    HalVideoDrawStringAt(BOOT_LOG_X, Y, FbLine, 0x00FFFF00u);
+                }
+            }
         }
         HalVideoDrawEndFront();
     }

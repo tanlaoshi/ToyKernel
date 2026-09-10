@@ -80,6 +80,8 @@ static int InitializeVideo(void) {
     }
     HalVideoPresent();
     HalSerialGopEnable();
+    /* PR-G-fb-pte：映射已落（PRESENT|WRITABLE，无 PTE_MMIO）；核验叶 PTE，不改属性 */
+    HalVideoLogFbPte();
     return 0;
 }
 
@@ -114,6 +116,8 @@ static int InitializeUsb(void) {
      */
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();
+        /* PHOTO 只刷 ring 尾；fb-pte 原在 video 初期，会被卷掉——进 PHOTO 前再打一行 */
+        HalVideoLogFbPte();
         HalSerialGopPhotoHold(15); /* 真机拍照抄 log */
         /* PHOTO→gui：抽空鼠队列并对齐累加坐标，避免满队列+误绝对解析钉死光标 */
         {

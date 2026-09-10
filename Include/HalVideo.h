@@ -23,6 +23,10 @@ int HalVideoCanHotSetMode(void);
 int HalVideoSetMode(UINT32 Width, UINT32 Height);
 UINT64 HalVideoFrameBufferBase(void);
 UINT64 HalVideoFrameBufferSize(void);
+/* PR-G-fb-pte：boot 一行 FB phys + PWT/PCD(/PAT) + 推导 cache；不改映射。x86 有内容，其它 HAL 空实现 */
+void HalVideoLogFbPte(void);
+/* 填入一行（无尾 '\n'）；成功返回长度，无 FB 返回 0。供 PHOTO 直绘 */
+int HalVideoFbPteLine(char *Buf, UINTN Max);
 
 void HalVideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略客户区 clip（鼠标光标） */
