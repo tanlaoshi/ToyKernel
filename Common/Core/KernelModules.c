@@ -114,7 +114,7 @@ static int InitializeUsb(void) {
      */
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();
-        HalSerialGopPhotoHold(30); /* 真机拍照抄 log；过短拍不完 */
+        HalSerialGopPhotoHold(15); /* 真机拍照抄 log */
         /* PHOTO→gui：抽空鼠队列并对齐累加坐标，避免满队列+误绝对解析钉死光标 */
         {
             UINT32 Cx = 512;

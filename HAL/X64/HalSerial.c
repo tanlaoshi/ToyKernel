@@ -374,8 +374,8 @@ static UINT64 ReadTsc(void) {
 }
 
 static void PhotoMarkLeft(UINT32 Left) {
-    char Msg[120];
-    char Diag[80];
+    char Msg[160];
+    char Diag[120];
     const char *P = "PHOTO ";
     int N = 0;
     UINT32 W;

@@ -39,6 +39,19 @@ static void CommandInfo(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
+/* PR-H-xhci-stat：Shell 可查 mode= + t/i/k/m…（与 PHOTO 同行格式） */
+static void CommandXhci(int Argc, char **Argv) {
+    char Diag[120];
+
+    (void)Argc;
+    (void)Argv;
+    Diag[0] = 0;
+    HalInputDiagFormat(Diag, (int)sizeof(Diag));
+    ConsoleWrite("xhci ");
+    ConsoleWrite(Diag[0] ? Diag : "(no stats)");
+    ConsoleWrite("\n");
+}
+
 static void CommandMemory(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
     UINT64 RegionBytes = 0;
@@ -1274,11 +1287,13 @@ void ShellCommandsRegister(void) {
     ConsoleRegister2("show", "memory", "physical memory stats", CommandMemory);
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
+    ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegisterAliasLine("memory", "show", "memory");
     ConsoleRegisterAliasLine("net", "show", "network");
     ConsoleRegisterAliasLine("network", "show", "network");
     ConsoleRegisterAliasLine("info", "show", "info");
+    ConsoleRegisterAliasLine("xhci", "show", "xhci");
 
     ConsoleRegister2("test", "memory", "alloc/verify/free one page", CommandMemtest);
     ConsoleRegister2("test", "glyph", "UTF-8 Chinese glyph test", CommandZh);

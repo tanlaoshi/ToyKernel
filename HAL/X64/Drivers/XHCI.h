@@ -66,6 +66,8 @@ typedef enum {
 
 int XhciInit(UINT64 BaseAddress);
 int XhciHidKeyboardReady(void); /* 已 Address+Configure 键盘 */
+/* 真机多 xHCI：当前控制器无 HID 时停 RS 并清 started，便于试下一颗 BAR */
+void XhciAbandonNoHid(void);
 int XhciEnableIrq(USB_CONTROLLER *Device);
 /* PR-H-xhci-dual 占位：试进 DUAL；当前真机 stub，仍留 POLL */
 int XhciTryEnterDual(USB_CONTROLLER *Device);
@@ -76,7 +78,7 @@ void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 /* dual/irq 失败时切回 poll 备份 */
 void XhciFallbackToPoll(const char *Why);
 XHCI_IRQ_MODE XhciIrqMode(void);
-void XhciDiagFormat(char *Buf, int Max); /* PHOTO：t/i/k/m/u/s/c/r/d */
+void XhciDiagFormat(char *Buf, int Max); /* PHOTO/Shell：mode= + t/i/k/m/u/s/c/r/d/q */
 void XhciDiagLogArms(void);              /* slot/DCI 期望值 */
 void XhciIrq(void);
 void XhciDrainEvents(void);

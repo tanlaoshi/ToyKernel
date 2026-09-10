@@ -124,6 +124,7 @@ static UINT64 gDoorbellBase;
 static UINT64 gRuntimeBase;
 static UINT32 gCtxSize;
 static UINT32 gMaxPorts;
+static int gXhciStarted; /* 已对某 BAR 完成 Start；无 HID 时可 Abandon 再试下一颗 */
 /* 真机探针：DMAR/TE 留给写 RS 前那行黄字 */
 static int gXhciDmar = -2; /* -2未查 -1坏 0无 1有 */
 static int gXhciTe = -2;   /* -2未做 -1失败 0无DRHD 1本关 2已关 */
@@ -194,6 +195,7 @@ static volatile UINT32 gStatEvtRing;   /* 事件环弹出次数（含命令完�
 static volatile UINT32 gStatLastSlot;
 static volatile UINT32 gStatLastEp;
 static volatile UINT32 gStatUnmatched; /* Transfer 且未匹配键鼠 DCI */
+static volatile UINT32 gStatIrq;       /* PR-H-xhci-stat：XhciIrq 进入次数 */
 static UINT32 gDiagXferLogged;        /* 限制串口/屏日志条数 */
 static UINT32 gDiagQuiet;             /* GET_REPORT poll：勿 DiagChk 刷屏/盖白字 */
 static UINT32 gDiagIntrCcLogged;
@@ -1427,11 +1429,18 @@ static void PortscClearChange(UINT64 Ps) {
     Fence();
 }
 
-/* 已连接口上电；CCS=0 时再给所有口上 PP（PPC 控制器否则看不见设备） */
+/*
+ * 已连接口上电。
+ * 刀1/刀2（笔记本 CCS=0，不动 NUC/工控已成功路径）：
+ *   - 已有 CCS：行为与旧相同（真机仅 Stall 50ms）。
+ *   - 全 0：PP all → 打 maxports → 多轮等待复扫 → 仍 0 则打前几口 PORTSC。
+ */
 static void PowerConnectedPorts(void) {
     UINT32 p;
     UINT32 Surveyed = 0;
     int RealPc = !HalCpuIsHypervisor();
+    int Round;
+    UINT32 DumpLimit;
 
     for (p = 1; p <= gMaxPorts && p <= 32; p++) {
         UINT64 Ps = gOperationalBase + PortReg(p);
@@ -1443,22 +1452,78 @@ static void PowerConnectedPorts(void) {
             }
         }
     }
-    if (Surveyed == 0) {
-        BootLog("boot: xhci CCS=0, PP all\n");
+    if (Surveyed > 0) {
+        /* NUC/工控：口上已有设备，保持原短等待 */
+        if (RealPc) {
+            StallMs(50);
+        } else {
+            volatile int D;
+            for (D = 0; D < 50000; D++) {
+            }
+        }
+        return;
+    }
+
+    BootLog("boot: xhci CCS=0, PP all\n");
+    BootLogHex("boot: xhci maxports=", gMaxPorts, 2);
+    for (p = 1; p <= gMaxPorts && p <= 32; p++) {
+        UINT64 Ps = gOperationalBase + PortReg(p);
+        UINT32 Val = ReadMmio32(Ps);
+        if (!(Val & PORTSC_PP)) {
+            WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PP);
+        }
+    }
+
+    if (!RealPc) {
+        volatile int D;
+        for (D = 0; D < 50000; D++) {
+        }
+        return;
+    }
+
+    /* 仅无 CCS：加长等待（USB3 口挂 USB2 鼠常见） */
+    for (Round = 0; Round < 8; Round++) {
+        StallMs(100);
+        Surveyed = 0;
         for (p = 1; p <= gMaxPorts && p <= 32; p++) {
             UINT64 Ps = gOperationalBase + PortReg(p);
             UINT32 Val = ReadMmio32(Ps);
             if (!(Val & PORTSC_PP)) {
                 WriteMmio32(Ps, PortscNeutral(Val) | PORTSC_PP);
+                Val = ReadMmio32(Ps);
+            }
+            if (Val & PORTSC_CCS) {
+                Surveyed++;
             }
         }
-    }
-    if (RealPc) {
-        StallMs(50);
-    } else {
-        volatile int D;
-        for (D = 0; D < 50000; D++) {
+        if (Surveyed > 0) {
+            BootLogHex("boot: xhci CCS after wait=", Surveyed, 2);
+            return;
         }
+    }
+
+    /* 普查已扫完全部口仍无 CCS；打齐最多 8 口 PORTSC（Intel 常 USB2/3 分口编号） */
+    DumpLimit = gMaxPorts;
+    if (DumpLimit > 8) {
+        DumpLimit = 8;
+    }
+    for (p = 1; p <= DumpLimit; p++) {
+        UINT32 Val = ReadMmio32(gOperationalBase + PortReg(p));
+        char Pref[32];
+        int n = 0;
+        const char *S = "boot: xhci PORTSC";
+        while (*S && n < 24) {
+            Pref[n++] = *S++;
+        }
+        if (p >= 10) {
+            Pref[n++] = (char)('0' + (p / 10));
+            Pref[n++] = (char)('0' + (p % 10));
+        } else {
+            Pref[n++] = (char)('0' + p);
+        }
+        Pref[n++] = '=';
+        Pref[n] = 0;
+        BootLogHex(Pref, Val, 8);
     }
 }
 /*
@@ -3879,7 +3944,6 @@ static int InitMouseOnPort(UINT32 Port1) {
 int XhciInit(UINT64 BaseAddress) {
     int RealPc = !HalCpuIsHypervisor();
     char B[12];
-    static int gXhciStarted;
 
     if (gXhciStarted) {
         if (XhciHidKeyboardReady() || XhciMousePresent()) {
@@ -4373,6 +4437,22 @@ int XhciHidKeyboardReady(void) {
     return gSlotId != 0;
 }
 
+/*
+ * 刀：笔记本可能有多颗 xHCI；第一颗 8 口全 RxDetect/无 CCS 时放弃，
+ * 清 gXhciStarted 才能对下一 BAR 再跑 XhciInit。NUC/工控有 HID 不会走到这里。
+ */
+void XhciAbandonNoHid(void) {
+    HaltControllerQuiet();
+    gSlotId = 0;
+    gMouseSlotId = 0;
+    gHubSlotId = 0;
+    gIntrDci = 0;
+    gMouseIntrDci = 0;
+    gPort1 = 0;
+    gXhciStarted = 0;
+    BootLog("boot: xhci abandon no HID\n");
+}
+
 /* 将键盘报告推入环形软件队列 */
 static void KbdPush(void) {
     UINT32 Next = (gKeyboardWriteIndex + 1) % KBD_Q;
@@ -4483,6 +4563,7 @@ static void ImClearPending(void) {
 
 /* XHCI MSI-X 中断处理：处理事件、重新排队中断传输 */
 void XhciIrq(void) {
+    gStatIrq++;
     SpinLockAcquire(&gHidQueueLock);
     ProcessEvents();
     if (gIntrDone) {
@@ -4633,16 +4714,27 @@ XHCI_IRQ_MODE XhciIrqMode(void) {
     return gIrqMode;
 }
 
-/* PHOTO：t=任意xfer i=键鼠匹配 k/m=推送 u=未匹配 se=最近slot.ep c=cc r=环事件 d=drain */
+/* PHOTO/Shell：mode=poll|dual|irq + t/i/k/m/u/s/c/r/d/q（q=IRQ 进入次数） */
 void XhciDiagFormat(char *Buf, int Max) {
     char Dig[12];
     int N = 0;
-    UINT32 V[8];
+    UINT32 V[9];
     int vi;
-    const char *Tags = "tikmucrd"; /* 紧凑标签；se 单独拼 */
+    const char *Tags = "tikmucrdq";
+    const char *Mode;
 
     if (!Buf || Max < 8) {
         return;
+    }
+    if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
+        Mode = "mode=dual";
+    } else if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
+        Mode = "mode=irq";
+    } else {
+        Mode = "mode=poll";
+    }
+    while (*Mode && N + 1 < Max) {
+        Buf[N++] = *Mode++;
     }
     V[0] = gStatXferAny;
     V[1] = gStatIntrEvt + gStatMouseEvt;
@@ -4652,8 +4744,9 @@ void XhciDiagFormat(char *Buf, int Max) {
     V[5] = gStatLastCc;
     V[6] = gStatEvtRing;
     V[7] = gStatDrain;
-    Buf[0] = 0;
-    for (vi = 0; vi < 8 && N + 14 < Max; vi++) {
+    V[8] = gStatIrq;
+    Buf[N] = 0;
+    for (vi = 0; vi < 9 && N + 14 < Max; vi++) {
         int t = 0;
         UINT32 X = V[vi];
         /* c 与 se 之间插入 se=；c 在 Tags[5] */

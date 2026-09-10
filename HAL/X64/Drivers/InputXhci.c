@@ -178,6 +178,10 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     USB_CONTROLLER Controllers[8];
     int Count;
     int i;
+    int XhciN;
+    int XhciIdx;
+    int RealPc = !HalCpuIsHypervisor();
+    char B[20];
 
     (void)Self;
     (void)BusCtx;
@@ -194,18 +198,89 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
 
     Count = PciScanUSBControllers(Controllers, 8);
     ToyLogUsb("boot: xHCI controllers=");
-    {
-        char B[12];
-        HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
-        ToyLogUsb(B);
-        ToyLogUsb("\n");
-    }
+    HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
+    ToyLogUsb(B);
+    ToyLogUsb("\n");
     DebugWrite("XHCI: controllers=");
     DebugHex32((UINT32)Count);
     DebugWrite("\n");
+
+    /* 刀：先列出所有 ProgIF=0x30（含 BAR），PHOTO 可抄 */
+    XhciN = 0;
     for (i = 0; i < Count; i++) {
         if (Controllers[i].Type != 0x30) {
             continue;
+        }
+        {
+            char Msg[72];
+            int n = 0;
+            const char *P = "boot: xhci#";
+            while (*P && n < 12) {
+                Msg[n++] = *P++;
+            }
+            Msg[n++] = (char)('0' + (XhciN % 10));
+            P = " ";
+            Msg[n++] = ' ';
+            HalSerialFormatHex(B, Controllers[i].Bus, 2);
+            Msg[n++] = B[2];
+            Msg[n++] = B[3];
+            Msg[n++] = ':';
+            HalSerialFormatHex(B, Controllers[i].Device, 2);
+            Msg[n++] = B[2];
+            Msg[n++] = B[3];
+            Msg[n++] = '.';
+            HalSerialFormatHex(B, Controllers[i].Function, 1);
+            Msg[n++] = B[2];
+            P = " bar=";
+            while (*P && n < 40) {
+                Msg[n++] = *P++;
+            }
+            HalSerialFormatHex(B, Controllers[i].BaseAddress, 16);
+            {
+                int j = 0;
+                while (B[j] && n < 70) {
+                    Msg[n++] = B[j++];
+                }
+            }
+            Msg[n++] = '\n';
+            Msg[n] = 0;
+            ToyBootMarkUsb(Msg);
+            ToyLogUsb(Msg);
+        }
+        XhciN++;
+    }
+    {
+        char Msg[28];
+        int n = 0;
+        const char *P = "boot: xHCI n=";
+        while (*P) {
+            Msg[n++] = *P++;
+        }
+        HalSerialFormatHex(B, (UINT64)(UINT32)XhciN, 1);
+        Msg[n++] = B[2];
+        Msg[n++] = '\n';
+        Msg[n] = 0;
+        ToyBootMarkUsb(Msg);
+        ToyLogUsb(Msg);
+    }
+
+    XhciIdx = 0;
+    for (i = 0; i < Count; i++) {
+        if (Controllers[i].Type != 0x30) {
+            continue;
+        }
+        {
+            char Msg[24];
+            int n = 0;
+            const char *P = "boot: xhci try#";
+            while (*P) {
+                Msg[n++] = *P++;
+            }
+            Msg[n++] = (char)('0' + (XhciIdx % 10));
+            Msg[n++] = '\n';
+            Msg[n] = 0;
+            ToyBootMarkUsb(Msg);
+            ToyLogUsb(Msg);
         }
         DebugWrite("XHCI: pci ");
         DebugHex32(Controllers[i].Bus);
@@ -216,15 +291,10 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         DebugWrite("\n");
         gXhciDev = Controllers[i];
         if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
-            /*
-             * XhciInit 内已按「keyboard → mouse」打过 BootLog；
-             * 此处只确认 Init 返回。勿再打 keyboard（否则像「init 完才有键盘」）。
-             */
             ToyLogUsb("boot: xhci init returned\n");
             if (XhciHidKeyboardReady() || XhciMousePresent()) {
                 gXhciReady = 1;
                 if (!XhciHidKeyboardReady() && XhciMousePresent()) {
-                    /* 仅鼠标路径（Init 内已打 mouse only / mouse） */
                     ToyLogUsb("boot: xhci-hid mouse-only bind\n");
                 }
                 if (OutPriv) {
@@ -233,16 +303,26 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
                 return 0; /* Bind USB HID */
             }
             /*
-             * 控制器已起但无键盘：勿 Bind，否则 ToyDriverInputReady
-             * 会挡住后面的 ps2-kbd。
+             * 真机：无 HID（常见 CCS=0）→ abandon 再试下一颗 xHCI。
+             * QEMU/单控制器：保持旧行为，立刻让出给 PS/2。
              */
+            if (RealPc && XhciIdx + 1 < XhciN) {
+                XhciAbandonNoHid();
+                XhciIdx++;
+                continue;
+            }
             ToyLogUsb("boot: xhci up (no HID), try PS/2\n");
             break;
         }
         ToyLogUsb("boot: xhci init failed at BAR\n");
+        if (RealPc && XhciIdx + 1 < XhciN) {
+            XhciIdx++;
+            continue;
+        }
         if (!HalCpuIsHypervisor()) {
             break;
         }
+        XhciIdx++;
     }
 
     {
