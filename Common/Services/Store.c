@@ -227,6 +227,17 @@ static int LoadCatalogPath(const char *Path, STORE_ENTRY *Out, int Max, int *Out
 
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
     int Err;
+    static const char Builtin[] =
+        "hello|app|1|HELLO.ELF|-|x86_64|Hello\n"
+        "guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo|demopack,sun8\n"
+        "cat|app|1|CAT.ELF|-|x86_64|Cat\n"
+        "sun8|font|1|VGA8X16.FNT|-|any|Sun 8x16 (store)\n"
+        "demopack|asset|1|INFO.TXT|-|any|Demo asset pack\n";
+    const char *P;
+    const char *Line;
+    char LineBuf[192];
+    int Li;
+    int Count;
 
     /* PR-S2：已 sync 的 Store/catalog.txt 优先覆盖镜像内 Assets */
     Err = LoadCatalogPath(STORE_CATALOG_ALT, Out, Max, OutCount);
@@ -234,10 +245,33 @@ int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
         return *OutCount;
     }
     Err = LoadCatalogPath(STORE_CATALOG_PATH, Out, Max, OutCount);
-    if (Err == FAT_OK) {
+    if (Err == FAT_OK && *OutCount > 0) {
         return *OutCount;
     }
-    return Err;
+
+    /* 无盘/空 catalog：内核内置离线表（不必搭服务器） */
+    if (!Out || Max <= 0 || !OutCount) {
+        return FAT_ERR_INVAL;
+    }
+    Count = 0;
+    P = Builtin;
+    while (*P && Count < Max) {
+        Line = P;
+        Li = 0;
+        while (*P && *P != '\n' && Li + 1 < (int)sizeof(LineBuf)) {
+            LineBuf[Li++] = *P++;
+        }
+        LineBuf[Li] = 0;
+        if (*P == '\n') {
+            P++;
+        }
+        (void)Line;
+        if (ParseLine(&Out[Count], LineBuf) == 0) {
+            Count++;
+        }
+    }
+    *OutCount = Count;
+    return Count > 0 ? Count : FAT_ERR_NOENT;
 }
 
 static void JoinPath(char *Dst, int DstMax, const char *A, const char *B) {

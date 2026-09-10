@@ -12,7 +12,10 @@ typedef enum {
     DESKTOP_ACTION_NONE = -1,
     DESKTOP_ACTION_SHELL = 0,
     DESKTOP_ACTION_SETTINGS,
-    DESKTOP_ACTION_FILES
+    DESKTOP_ACTION_FILES,
+    DESKTOP_ACTION_STORE,
+    DESKTOP_ACTION_SHUTDOWN,
+    DESKTOP_ACTION_REBOOT
 } DESKTOP_ACTION;
 
 void DesktopInit(void);
@@ -39,5 +42,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out);
  */
 int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction);
 void DesktopRefreshLabels(void);
+/* PR-G-taskbar-clock：分钟变化时重绘右下角时间 */
+void DesktopTickClock(void);
 
 #endif

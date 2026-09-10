@@ -12,6 +12,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "StoreUi.h"
 #include "EditUi.h"
 #include "Console.h"
 #include "Locale.h"
@@ -177,6 +178,10 @@ void CloseWindow(int Idx) {
             gFocusWin = i;
             SettingsUiRepaint();
             gFocusWin = SavedFocus;
+        } else if (gWindows[i].Kind == GUI_WIN_STORE) {
+            gFocusWin = i;
+            StoreUiRepaint();
+            gFocusWin = SavedFocus;
         } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiRepaint();
@@ -284,6 +289,9 @@ void GuiRaiseToFront(int Idx) {
     /* 顶层无有效备份时补内容，再抓一份干净备份 */
     if (gWindows[Idx].Kind == GUI_WIN_SETTINGS) {
         SettingsUiRepaint();
+        BackupWindowAt(Idx);
+    } else if (gWindows[Idx].Kind == GUI_WIN_STORE) {
+        StoreUiRepaint();
         BackupWindowAt(Idx);
     } else if (gWindows[Idx].Kind == GUI_WIN_FILES) {
         FilesUiRepaint();
@@ -466,6 +474,80 @@ int GuiOpenSettings(void) {
 }
 
 
+int GuiOpenStore(void) {
+    int Idx;
+    int i;
+    UINT32 X;
+    UINT32 Y;
+    UINT32 W;
+    UINT32 H;
+    UINT32 Margin = 40;
+
+    /* 单实例：已有 Store 则前置焦点，不新开 */
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_STORE) {
+            gFocusWin = i;
+            RaiseWindow(i);
+            SyncWindowVisuals();
+            StoreUiRepaint();
+            GuiFocusApply();
+            BackupWindowAt(gFocusWin);
+            DebugWrite("gui: focus existing store idx=");
+            DebugHex32((UINT32)gFocusWin);
+            DebugWrite("\n");
+            return gFocusWin;
+        }
+    }
+
+    Idx = AllocWindowSlot();
+    if (Idx < 0) {
+        return -1;
+    }
+    W = 520;
+    H = 420;
+    if (W + Margin * 2 > gScreenWidth) {
+        W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
+    }
+    if (H + Margin * 2 > gScreenHeight) {
+        H = gScreenHeight > Margin * 2 ? gScreenHeight - Margin * 2 : gScreenHeight / 2;
+    }
+    X = Margin;
+    Y = Margin + 24;
+    gWindows[Idx].Active = 1;
+    gWindows[Idx].Kind = GUI_WIN_STORE;
+    gWindows[Idx].X = X;
+    gWindows[Idx].Y = Y;
+    gWindows[Idx].Width = W;
+    gWindows[Idx].Height = H;
+    gWindows[Idx].Background = ThemeSettingsClientBackground();
+    gWindows[Idx].Title = LocStr(MSG_APP_STORE);
+    gWindows[Idx].TermSet = 0;
+    gWindows[Idx].InputLen = 0;
+    gWindows[Idx].WaitPrompt = 0;
+    gWindows[Idx].PromptShown = 0;
+    gWindows[Idx].InputLine[0] = 0;
+
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
+    DrawWindowAt(Idx);
+    ComposeEnd();
+    gFocusWin = Idx;
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+    StoreUiOpen();
+    BackupWindowAt(Idx);
+    GuiFocusApply();
+    BackupWindowAt(gFocusWin);
+    DebugWrite("gui: open store idx=");
+    DebugHex32((UINT32)gFocusWin);
+    DebugWrite("\n");
+    return gFocusWin;
+}
+
+
 int GuiOpenFiles(void) {
     int Idx;
     UINT32 X;
@@ -626,6 +708,8 @@ void GuiRefreshTitles(void) {
             gWindows[i].Title = LocStr(MSG_APP_SHELL);
         } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
             gWindows[i].Title = LocStr(MSG_APP_SETTINGS);
+        } else if (gWindows[i].Kind == GUI_WIN_STORE) {
+            gWindows[i].Title = LocStr(MSG_APP_STORE);
         } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gWindows[i].Title = LocStr(MSG_APP_FILES);
         } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
@@ -640,6 +724,8 @@ void GuiRefreshTitles(void) {
     ComposeEnd();
     if (GuiFocusKind() == GUI_WIN_SETTINGS) {
         SettingsUiRepaint();
+    } else if (GuiFocusKind() == GUI_WIN_STORE) {
+        StoreUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_FILES) {
         FilesUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_EDIT) {
@@ -743,6 +829,8 @@ void GuiOnDisplayResize(void) {
     if (!GuiInputLocked()) {
         if (GuiFocusKind() == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
+        } else if (GuiFocusKind() == GUI_WIN_STORE) {
+            StoreUiRepaint();
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
             FilesUiRepaint();
         } else if (GuiFocusKind() == GUI_WIN_EDIT) {
@@ -862,6 +950,12 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             } else {
                 SettingsUiOnClick(X, Y);
             }
+        } else if (GuiFocusKind() == GUI_WIN_STORE) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
+                StoreUiRepaint();
+            } else {
+                StoreUiOnClick(X, Y);
+            }
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 FilesUiRepaint();
@@ -899,6 +993,12 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             (void)GuiOpenSettings();
         } else if (Act == DESKTOP_ACTION_FILES) {
             (void)GuiOpenFiles();
+        } else if (Act == DESKTOP_ACTION_STORE) {
+            (void)GuiOpenStore();
+        } else if (Act == DESKTOP_ACTION_SHUTDOWN) {
+            HalCpuShutdown();
+        } else if (Act == DESKTOP_ACTION_REBOOT) {
+            HalCpuReboot();
         }
         return 1;
     }
@@ -1087,5 +1187,6 @@ void GuiPollMouse(void) {
         gCursorBtn = LastBtn;
     }
     GuiPresentDeferPop();
+    DesktopTickClock();
 }
 

@@ -12,6 +12,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "StoreUi.h"
 #include "EditUi.h"
 
 void GfxIrqEnter(void) {
@@ -877,6 +878,8 @@ void GuiApplyThemeColors(void) {
             gWindows[i].WaitPrompt = 0;
         } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_SETTINGS) {
             gWindows[i].Background = ThemeSettingsClientBackground();
+        } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_STORE) {
+            gWindows[i].Background = ThemeSettingsClientBackground();
         } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_FILES) {
             gWindows[i].Background = ThemeSettingsClientBackground();
         } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_EDIT) {
@@ -922,6 +925,9 @@ void GuiComposeThemeScene(void) {
         } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
             gFocusWin = i;
             SettingsUiPaintFocused();
+        } else if (gWindows[i].Kind == GUI_WIN_STORE) {
+            gFocusWin = i;
+            StoreUiPaintFocused();
         } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
             FilesUiPaintFocused();

@@ -2,7 +2,8 @@
  * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-D4 / PR-G13）
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
- * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|START.BMP。
+ * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER.BMP。
+ * 四个桌面图标另有内核内置 48×48 回退（真机缺文件也能显示）。
  * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
  * 默认 FAT 无 Assets 时 FileSystemReadFile 回退 RES: 内嵌副本（真机无 USB TOYOS）。
  */
@@ -18,7 +19,7 @@
 #include "Debug.h"
 #include "ToySerialLog.h"
 
-#define DESKTOP_ICON_COUNT    3
+#define DESKTOP_ICON_COUNT    4
 #define DESKTOP_ICON_SIZE     48
 #define DESKTOP_ICON_GAP      28
 #define DESKTOP_ORIGIN_X      36
@@ -31,12 +32,22 @@
 #define START_BTN_PAD_X       8u
 #define START_BTN_MIN_W       56u
 #define START_ICON_SZ         20u
-#define MENU_W                160u
+#define MENU_W                168u
 #define MENU_ITEM_H           28u
-#define MENU_ITEMS            3
+#define MENU_ITEMS            6
 #define MENU_ICON_SZ          18u
 #define WALL_FILE_MAX         (512u * 1024u)
 #define ICON_FILE_MAX         (16u * 1024u)
+
+/* 开始菜单行 → DESKTOP_ACTION（勿用行号直接强转） */
+static const DESKTOP_ACTION gMenuActions[MENU_ITEMS] = {
+    DESKTOP_ACTION_SHELL,
+    DESKTOP_ACTION_SETTINGS,
+    DESKTOP_ACTION_FILES,
+    DESKTOP_ACTION_STORE,
+    DESKTOP_ACTION_SHUTDOWN,
+    DESKTOP_ACTION_REBOOT
+};
 
 typedef struct {
     const char     *Label;
@@ -59,7 +70,12 @@ static BMP_IMAGE gWall;
 static int gWallReady;
 static BMP_IMAGE gStartBmp;
 static int gStartBmpReady;
+static BMP_IMAGE gPowerBmp;
+static int gPowerBmpReady;
 static int gMenuOpen;
+static UINT8 gClockHour;
+static UINT8 gClockMinute;
+static int gClockValid;
 
 /* 已按当前分辨率拉伸的壁纸缓存（加速 DesktopFillRect，避免拖死鼠标） */
 static UINT32 *gWallScreen;
@@ -208,6 +224,66 @@ static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
     DebugWrite(Path);
     DebugWrite("\n");
     return 1;
+}
+
+#include "IconDesktop48.inc"
+
+static int LoadBuiltinIcon(BMP_IMAGE *Out, const UINT32 *Src, const char *Tag) {
+    UINT32 Pages;
+    UINT32 *Dst;
+    UINT32 i;
+
+    if (!Out || !Src) {
+        return 0;
+    }
+    BmpFree(Out);
+    Pages = (48u * 48u * sizeof(UINT32) + 4095u) / 4096u;
+    Dst = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
+    if (!Dst) {
+        DebugWrite(Tag);
+        DebugWrite(": builtin alloc fail\n");
+        return 0;
+    }
+    for (i = 0; i < 48u * 48u; i++) {
+        Dst[i] = Src[i];
+    }
+    Out->Pixels = Dst;
+    Out->Width = 48;
+    Out->Height = 48;
+    Out->Pages = Pages;
+    DebugWrite(Tag);
+    DebugWrite(": builtin ok\n");
+    return 1;
+}
+
+static void LoadDesktopIcons(void) {
+    int i;
+    static const UINT32 *const Builtin[DESKTOP_ICON_COUNT] = {
+        gIconShell48, gIconSet48, gIconFiles48, gIconStore48
+    };
+    static const char *const BuiltinTag[DESKTOP_ICON_COUNT] = {
+        "desktop: shell", "desktop: set", "desktop: files", "desktop: store"
+    };
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        gIcons[i].BmpReady = 0;
+        if (!gIcons[i].BmpPath) {
+            continue;
+        }
+        gIcons[i].BmpReady = LoadBmpPath(gIcons[i].BmpPath, &gIcons[i].Bmp,
+                                         ICON_FILE_MAX, BuiltinTag[i]);
+        if (!gIcons[i].BmpReady) {
+            gIcons[i].BmpReady =
+                LoadBuiltinIcon(&gIcons[i].Bmp, Builtin[i], BuiltinTag[i]);
+        }
+    }
+    gStartBmpReady = LoadBmpPath("Assets/Icons/bmp48/START.BMP", &gStartBmp,
+                                 ICON_FILE_MAX, "desktop: start");
+    gPowerBmpReady = LoadBmpPath("Assets/Icons/bmp48/POWER.BMP", &gPowerBmp,
+                                 ICON_FILE_MAX, "desktop: power");
+    if (!gPowerBmpReady) {
+        gPowerBmpReady = LoadBuiltinIcon(&gPowerBmp, gIconPower48, "desktop: power");
+    }
 }
 
 static UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
@@ -417,6 +493,12 @@ static void PlaceDesktopIcons(void) {
     gIcons[2].X = DESKTOP_ORIGIN_X;
     gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
 
+    gIcons[3].Action = DESKTOP_ACTION_STORE;
+    gIcons[3].IconColor = 0x002080C0;
+    gIcons[3].BmpPath = "Assets/Icons/bmp48/STORE.BMP";
+    gIcons[3].X = DESKTOP_ORIGIN_X;
+    gIcons[3].Y = DESKTOP_ORIGIN_Y + RowH * 3;
+
     DesktopRefreshLabels();
 }
 
@@ -427,21 +509,6 @@ static void LoadWallpaper(void) {
     if (gWallReady) {
         BuildWallScreen();
     }
-}
-
-static void LoadDesktopIcons(void) {
-    int i;
-
-    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        gIcons[i].BmpReady = 0;
-        if (!gIcons[i].BmpPath) {
-            continue;
-        }
-        gIcons[i].BmpReady = LoadBmpPath(gIcons[i].BmpPath, &gIcons[i].Bmp,
-                                         ICON_FILE_MAX, "desktop: icon");
-    }
-    gStartBmpReady = LoadBmpPath("Assets/Icons/bmp48/START.BMP", &gStartBmp,
-                                 ICON_FILE_MAX, "desktop: start");
 }
 
 UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
@@ -629,7 +696,13 @@ static void DrawTaskbarRaw(void) {
     UINT32 Tw;
     UINT32 Ix;
     UINT32 Iy;
+    UINT32 ClockW;
+    UINT32 ClockX;
     const char *Start;
+    char Clock[8];
+    UINT8 Hour = 0;
+    UINT8 Minute = 0;
+    int HaveTime;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
     StartBtnGeom(&Bx, &By, &Bw, &Bh);
@@ -652,6 +725,31 @@ static void DrawTaskbarRaw(void) {
     Ty = BarY + (TASKBAR_H > FontCellH() ? (TASKBAR_H - FontCellH()) / 2 : 0);
     HalVideoDrawStringAt(Tx, Ty, Start ? Start : "Start",
                          gMenuOpen ? COLOR_WHITE : COLOR_BLACK);
+
+    /* 右下角 HH:MM（CMOS+CST）；失败则 --:-- */
+    HaveTime = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
+    if (HaveTime) {
+        Clock[0] = (char)('0' + (Hour / 10) % 10);
+        Clock[1] = (char)('0' + (Hour % 10));
+        Clock[2] = ':';
+        Clock[3] = (char)('0' + (Minute / 10) % 10);
+        Clock[4] = (char)('0' + (Minute % 10));
+        Clock[5] = 0;
+        gClockHour = Hour;
+        gClockMinute = Minute;
+        gClockValid = 1;
+    } else {
+        Clock[0] = '-';
+        Clock[1] = '-';
+        Clock[2] = ':';
+        Clock[3] = '-';
+        Clock[4] = '-';
+        Clock[5] = 0;
+        gClockValid = 0;
+    }
+    ClockW = FontStringWidth(Clock);
+    ClockX = (Sw > ClockW + 12u) ? (Sw - ClockW - 12u) : Bx + Bw + 8u;
+    HalVideoDrawStringAt(ClockX, Ty, Clock, COLOR_WHITE);
 }
 
 static void DrawStartMenuRaw(void) {
@@ -669,6 +767,9 @@ static void DrawStartMenuRaw(void) {
     Labels[0] = LocStr(MSG_ICON_SHELL);
     Labels[1] = LocStr(MSG_ICON_SETTINGS);
     Labels[2] = LocStr(MSG_ICON_FILES);
+    Labels[3] = LocStr(MSG_ICON_STORE);
+    Labels[4] = LocStr(MSG_ICON_SHUTDOWN);
+    Labels[5] = LocStr(MSG_ICON_REBOOT);
     UiFillRectangle(Mx, My, Mw, Mh, COLOR_LIGHT_GRAY);
     UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
     for (i = 0; i < MENU_ITEMS; i++) {
@@ -676,14 +777,22 @@ static void DrawStartMenuRaw(void) {
         UINT32 IconX;
         UINT32 IconY;
         UINT32 TextX;
+        int HasIcon = 0;
 
         UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, COLOR_GRAY);
         IconX = Mx + 6;
         IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
         TextX = Mx + 10;
-        if (gIcons[i].BmpReady) {
+        if (i < DESKTOP_ICON_COUNT && gIcons[i].BmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gIcons[i].Bmp);
+            HasIcon = 1;
+        } else if (i >= DESKTOP_ICON_COUNT && gPowerBmpReady) {
+            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                             &gPowerBmp);
+            HasIcon = 1;
+        }
+        if (HasIcon) {
             TextX = IconX + MENU_ICON_SZ + 6u;
         }
         HalVideoDrawStringAt(TextX,
@@ -945,11 +1054,11 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
         if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
             Item = (int)((Y - My) / MENU_ITEM_H);
             if (Item >= 0 && Item < MENU_ITEMS) {
-                /* 先关菜单并刷新桌面，再由 Gui 开窗——禁止在 Open 后再全屏 Fill */
+                /* 先关菜单并刷新桌面，再由 Gui 开窗/关机——禁止在 Open 后再全屏 Fill */
                 gMenuOpen = 0;
                 RequestRefresh();
                 if (OutAction) {
-                    *OutAction = (DESKTOP_ACTION)Item;
+                    *OutAction = gMenuActions[Item];
                 }
                 return 1;
             }
@@ -1026,6 +1135,36 @@ void DesktopRefreshLabels(void) {
     gIcons[0].Label = LocStr(MSG_ICON_SHELL);
     gIcons[1].Label = LocStr(MSG_ICON_SETTINGS);
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
+    gIcons[3].Label = LocStr(MSG_ICON_STORE);
+}
+
+void DesktopTickClock(void) {
+    static UINT32 Skip;
+    UINT8 Hour = 0;
+    UINT8 Minute = 0;
+    int Ok;
+
+    /* 勿每帧读 CMOS；约几十次 Poll 再查一次 */
+    if (++Skip < 45u) {
+        return;
+    }
+    Skip = 0;
+
+    Ok = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
+    if (Ok) {
+        if (gClockValid && Hour == gClockHour && Minute == gClockMinute) {
+            return;
+        }
+    } else if (!gClockValid) {
+        return;
+    }
+    HalVideoDrawBeginFront();
+    DrawTaskbarRaw();
+    if (gMenuOpen) {
+        DrawStartMenuRaw();
+    }
+    HalVideoDrawEndFront();
+    HalVideoPresent();
 }
 
 int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {

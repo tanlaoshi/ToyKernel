@@ -19,18 +19,34 @@ void HalCpuHalt(void) {
 
 void HalCpuReboot(void) {
     UINT32 i;
+    static UINT8 NullIdt[10];
 
     HalIrqDisable();
-    /* 8042 脉冲复位（QEMU/PC 通用）；失败则 CF9 冷复位 */
+    /* 8042 脉冲复位（QEMU/PC 常用） */
     for (i = 0; i < 100000; i++) {
         if ((HalIoRead8(0x64) & 0x02) == 0) {
             break;
         }
     }
     HalIoWrite8(0x64, 0xFE);
+    for (i = 0; i < 100000; i++) {
+        __asm__ volatile ("pause");
+    }
+    /* port 0x92 fast reset */
+    HalIoWrite8(0x92, (UINT8)(HalIoRead8(0x92) | 0x01));
+    /* CF9：full then soft */
+    HalIoWrite8(0xCF9, 0x0E);
+    for (i = 0; i < 100000; i++) {
+        __asm__ volatile ("pause");
+    }
     HalIoWrite8(0xCF9, 0x06);
+    /* 三重故障：QEMU 默认会复位客户机（勿依赖 -no-reboot） */
+    for (i = 0; i < 10; i++) {
+        NullIdt[i] = 0;
+    }
+    __asm__ volatile ("lidt %0; ud2" :: "m"(NullIdt) : "memory");
     for (;;) {
-        HalCpuHalt();
+        __asm__ volatile ("cli; hlt");
     }
 }
 

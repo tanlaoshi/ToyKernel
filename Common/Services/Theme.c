@@ -25,7 +25,8 @@ static UINT32 gModeH;
 void ThemeInit(void) {
     gDesktopBg = COLOR_DARK_GRAY;
     gShellClientBg = COLOR_LIGHT_GRAY;
-    gFontId = 0;
+    /* 默认小字：16×32 会撑爆 Store 等窄按钮；有 Sun 8x16 则用它 */
+    gFontId = 2; /* Terminus 10x18；ThemeLoad 后再选 Sun */
     gModeW = 0;
     gModeH = 0;
     (void)FontSetById(gFontId);
@@ -46,6 +47,39 @@ UINT32 ThemeSettingsClientBackground(void) {
 
 UINT32 ThemeFontId(void) {
     return gFontId;
+}
+
+/* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
+static UINT32 ThemeCompactFontId(void) {
+    UINT32 i;
+    const FONT_FACE *F;
+    UINT32 Fallback = 2;
+
+    if (FontCount() == 0) {
+        return 0;
+    }
+    if (Fallback >= FontCount()) {
+        Fallback = FontCount() - 1;
+    }
+    for (i = 0; i < FontCount(); i++) {
+        F = FontGetById(i);
+        if (!F || !F->Name) {
+            continue;
+        }
+        if (F->Width <= 8 && F->Height <= 16) {
+            return i; /* Sun 8x16 等 */
+        }
+    }
+    for (i = 0; i < FontCount(); i++) {
+        F = FontGetById(i);
+        if (!F || !F->Name) {
+            continue;
+        }
+        if (F->Width <= 10 && F->Height <= 18) {
+            return i;
+        }
+    }
+    return Fallback;
 }
 
 UINT32 ThemeDisplayWidth(void) {
@@ -475,6 +509,11 @@ int ThemeLoad(void) {
     (void)FontSetById(gFontId);
     if (gFontId >= FontCount() || FontCurrentId() != gFontId) {
         ThemeClampFontId();
+    }
+    /* font=0 旧默认是 Terminus 16×32，自动改到紧凑字面 */
+    if (gFontId == 0) {
+        gFontId = ThemeCompactFontId();
+        (void)FontSetById(gFontId);
     }
     DebugWrite("theme: desktop=");
     DebugHex32(gDesktopBg);

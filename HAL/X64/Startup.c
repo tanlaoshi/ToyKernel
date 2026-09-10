@@ -13,8 +13,11 @@
 extern char __kernel_end[];
 extern void HalPlatformSetXhciFallback(UINT64 Address);
 extern void HalPlatformSetRsdp(UINT64 Address);
+extern void HalPlatformSetSystemTable(void *SystemTable);
+extern void HalPlatformNoteRuntimeRange(UINT64 Phys, UINT64 Size);
 
 #define EFI_MEMORY_CONVENTIONAL 7
+#define EFI_MEMORY_RUNTIME      (1ULL << 63)
 
 typedef struct {
     UINT32 Type;
@@ -56,6 +59,7 @@ static void BootInfoFromUefi(BOOT_CONFIG *Cfg, BOOT_INFO *Out, BOOT_CONFIG *CfgP
 
     HalPlatformSetXhciFallback(Cfg->XhciBaseAddress);
     HalPlatformSetRsdp(Cfg->RsdpAddress);
+    HalPlatformSetSystemTable(Cfg->SystemTable);
 
     if (Map->Buffer != 0 && Map->DescriptorSize >= sizeof(EFI_MEMORY_DESCRIPTOR)) {
         Base = (UINT8 *)Map->Buffer;
@@ -63,6 +67,10 @@ static void BootInfoFromUefi(BOOT_CONFIG *Cfg, BOOT_INFO *Out, BOOT_CONFIG *CfgP
         for (i = 0; i < Count; i++) {
             EFI_MEMORY_DESCRIPTOR *Desc =
                 (EFI_MEMORY_DESCRIPTOR *)(Base + i * Map->DescriptorSize);
+            if (Desc->Attribute & EFI_MEMORY_RUNTIME) {
+                HalPlatformNoteRuntimeRange(Desc->PhysicalStart,
+                                            Desc->NumberOfPages << 12);
+            }
             if (Desc->Type != EFI_MEMORY_CONVENTIONAL) {
                 continue;
             }

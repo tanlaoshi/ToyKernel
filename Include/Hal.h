@@ -27,6 +27,15 @@ void HalPatApplyWc(void);
 void HalPlatformMapMmio(void);
 UINT64 HalPlatformXhciFallback(void);
 
+/* Boot 传入的 EFI_SYSTEM_TABLE*；供 Runtime GetTime（PR-G-taskbar-clock） */
+void HalPlatformSetSystemTable(void *SystemTable);
+void *HalPlatformSystemTable(void);
+void HalPlatformNoteRuntimeRange(UINT64 Phys, UINT64 Size);
+int HalPlatformRuntimeRangeCount(void);
+/* 成功 0；无 Runtime / GetTime 失败返回非 0（失败时勿再调以免踩缺页） */
+int HalRtcGetTime(UINT16 *Year, UINT8 *Month, UINT8 *Day,
+                  UINT8 *Hour, UINT8 *Minute, UINT8 *Second);
+
 typedef void *(*HalPageAllocateFunction)(void *Ctx);
 
 int HalInit(void);

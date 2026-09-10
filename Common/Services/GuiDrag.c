@@ -10,6 +10,7 @@
 #include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
+#include "StoreUi.h"
 #include "EditUi.h"
 
 void ResetDragState(void) {
@@ -635,6 +636,8 @@ void GuiDragEnd(void) {
         }
         if (gWindows[DragIdx].Kind == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_STORE) {
+            StoreUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_FILES) {
             FilesUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_EDIT) {
