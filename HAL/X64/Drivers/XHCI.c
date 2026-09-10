@@ -2110,97 +2110,10 @@ static void XhciPollKbdGetReport(void) {
 }
 
 /*
- * 鼠标 Add-only 后：勿对 Running 的键 EP 直接 Reset（→ cc=0x13 Context State）。
- * 顺序：Stop → SetDeq（Sync）；再失败则 Drop+Add 仅键盘（鼠位不动）。
+ * 曾有 ReAddKbdIntrOnly / RecoverKbdIntr / EnableKbdGetReport：
+ * GET_REPORT 易 Stall；recover 未再挂入枚举路径 → 已删，消 unused 警告。
+ * HID GET_REPORT 曾作 poll 兜底；持 gHidQueueLock 时调用会死锁，故已从 Drain 移除。
  */
-static int ReAddKbdIntrOnly(void) {
-    UINT32 CtxEntries;
-    UINT32 *Slot;
-    UINT32 *KbdEp;
-    UINT8 KbdIv;
-    UINT16 KbdMps;
-    UINT64 KbdDeq;
-    UINT8 Speed = gSpeed;
-
-    if (gSlotId == 0 || gIntrDci == 0) {
-        return -1;
-    }
-    CtxEntries = gIntrDci;
-    if (gMouseIntrDci > CtxEntries) {
-        CtxEntries = gMouseIntrDci;
-    }
-    ZeroMemory(gInCtx, sizeof(gInCtx));
-    *(UINT32 *)(void *)(gInCtx + 0) = (1u << gIntrDci); /* Drop 仅键盘 */
-    *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0) | (1u << gIntrDci);
-    Slot = (UINT32 *)(void *)InSlot();
-    Slot[0] = (CtxEntries << 27) | ((UINT32)Speed << 20) | (gKbdRoute & 0xFFFFFu);
-    Slot[1] = (UINT32)gPort1 << 16;
-    if (gKbdHubSlot != 0 && Speed < 3) {
-        Slot[2] = (UINT32)gKbdHubSlot | ((UINT32)gKbdTtPort << 8);
-    }
-    KbdMps = gKbdMps;
-    if (KbdMps == 0 || KbdMps > 64) {
-        KbdMps = 8;
-    }
-    KbdIv = gKbdEpInterval;
-    if (KbdIv == 0) {
-        KbdIv = (Speed >= 3) ? 3 : FsInterval(10);
-    }
-    InitRing(gIntrRing, &gIntr, RING_SIZE);
-    KbdEp = (UINT32 *)(void *)InEp(gIntrDci);
-    KbdEp[0] = (UINT32)KbdIv << 16;
-    KbdEp[1] = (3u << 1) | (7u << 3) | ((UINT32)KbdMps << 16);
-    KbdDeq = PointerToPhysical(gIntrRing) | 1;
-    KbdEp[2] = (UINT32)KbdDeq;
-    KbdEp[3] = (UINT32)(KbdDeq >> 32);
-    KbdEp[4] = (UINT32)KbdMps | ((UINT32)KbdMps << 16);
-    FlushDma(gIntrRing, sizeof(gIntrRing));
-    FlushDma(gInCtx, sizeof(gInCtx));
-    if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(gSlotId), 0) < 0) {
-        BootLog("boot: xhci kbd re-add fail\n");
-        return -1;
-    }
-    BootLog("boot: xhci kbd re-add ok\n");
-    return 0;
-}
-
-static void RecoverKbdIntr(void) {
-    UINT32 QuietSave;
-
-    if (gSlotId == 0 || gIntrDci == 0) {
-        return;
-    }
-    QuietSave = gDiagQuiet;
-    gDiagQuiet = 1; /* Stop/Reset 完成码勿刷 FAIL */
-    BootLog("boot: xhci kbd recover\n");
-    /*
-     * v4 对 Running EP 直接 Reset → got=0x13；须先 Stop 再 SetDeq。
-     * 仍失败再 Drop+Add 仅键盘（保留鼠标 EP）。
-     */
-    if (SyncIntrDequeue(gSlotId, gIntrDci, gIntrRing, &gIntr, sizeof(gIntrRing)) == 0) {
-        BootLog("boot: xhci kbd sync ok\n");
-    } else if (ReAddKbdIntrOnly() == 0) {
-        /* re-add 已 InitRing */
-    } else {
-        BootLog("boot: xhci kbd recover fail\n");
-    }
-    QueueIntr();
-    RingDoorbell(gSlotId, gIntrDci);
-    gDiagQuiet = QuietSave;
-}
-
-static void EnableKbdGetReport(void) {
-    /*
-     * GET_REPORT 在本复合键上常 Stall(cc=6)，刷屏且不涨 k。
-     * v5：默认关掉；键靠 recover 后的中断 IN。需要时再开。
-     */
-    gKbdPollReport = 0;
-    gGetReportFails = 0;
-    ZeroMemory(gKbdReportPrev, sizeof(gKbdReportPrev));
-    BootLog("boot: xhci kbd-fix=v5\n");
-}
-
-/* HID GET_REPORT 曾作 poll 兜底；持 gHidQueueLock 时调用会死锁，故已从 Drain 移除。 */
 
 static UINT8 FsInterval(UINT8 BInterval) {
     if (BInterval == 0) {
