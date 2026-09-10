@@ -443,8 +443,8 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     if (Seconds == 0) {
         return;
     }
-    if (Seconds > 8) {
-        Seconds = 8; /* 够拍照；勿再 20s */
+    if (Seconds > 120) {
+        Seconds = 120; /* 上限防误传；真机拍照常用 30 */
     }
 
     /*

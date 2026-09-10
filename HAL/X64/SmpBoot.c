@@ -324,11 +324,13 @@ int HalSmpStartApplicationProcessors(void) {
         SmpLog("smp: no RSDP (single CPU)\n");
         return 0;
     }
-    /* 电源与 MADT 解耦：MADT 失败仍应能短按关机 */
+    /* 电源与 MADT 解耦：MADT 失败仍应能短按关机；BootLog 以便 PHOTO 尾能抄到 */
     if (AcpiPowerInit(Rsdp) == 0) {
         SmpLog("smp: ACPI power ready\n");
+        HalSerialBootMark("boot: ACPI power ready\n");
     } else {
         SmpLog("smp: ACPI power n/a\n");
+        HalSerialBootMark("boot: ACPI power n/a\n");
     }
     if (AcpiMadtParse(Rsdp, gApicIds, HAL_MAX_CPUS, &Count, &BspFromMadt) != 0) {
         return 0;

@@ -465,7 +465,9 @@ int AcpiDmarDisableTranslation(UINT64 RsdpPhys) {
 
 /* ---- FACP 电源：短按电源键 / 软关机 ---- */
 #define PM1_PWRBTN_STS (1u << 8)
+#define PM1_PWRBTN_EN  (1u << 8)
 #define PM1_SLP_EN     (1u << 13)
+#define PM1_SCI_EN     (1u << 0)
 
 static UINT16 gPm1aEvt;
 static UINT16 gPm1aCnt;
@@ -513,6 +515,12 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     UINT8 *P;
     UINT32 Pm1aEvt;
     UINT32 Pm1aCnt;
+    UINT32 SmiCmd;
+    UINT8 AcpiEnable;
+    UINT16 EnPort;
+    UINT16 Cnt;
+    UINT16 En;
+    UINT32 Wait;
 
     gPowerReady = 0;
     gPm1aEvt = 0;
@@ -533,6 +541,8 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     if (gPm1EvtLen == 0) {
         gPm1EvtLen = 4;
     }
+    SmiCmd = *(UINT32 *)(void *)(P + 48);
+    AcpiEnable = P[52];
     /*
      * ACPI 2.0+：仅当 32 位口为 0 才读 X_GAS。
      * Address @ +4；X_PM1a_CNT @172（160 是 X_PM1b_EVT，勿再用）。
@@ -553,15 +563,39 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
         }
     }
     if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt == 0 || Pm1aEvt > 0xFFFFu) {
+        SmpLog("smp: ACPI power ports missing\n");
         return -1;
     }
     gPm1aEvt = (UINT16)Pm1aEvt;
     gPm1aCnt = (UINT16)Pm1aCnt;
-    HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS); /* 清残留；不写 SCI_EN/PM1_EN */
+
+    /*
+     * 多数板卡：无 SCI_EN 时 PWRBTN_STS 不锁存；无 PWRBTN_EN 时短按无 STS。
+     * 只写规范位置（EN @ EVT + len/2），勿再写 +4 / 0xFFFF。
+     */
+    Cnt = HalIoRead16(gPm1aCnt);
+    if ((Cnt & PM1_SCI_EN) == 0 && SmiCmd != 0 && SmiCmd <= 0xFFFFu && AcpiEnable != 0) {
+        HalIoWrite8((UINT16)SmiCmd, AcpiEnable);
+        for (Wait = 0; Wait < 100000u; Wait++) {
+            if (HalIoRead16(gPm1aCnt) & PM1_SCI_EN) {
+                break;
+            }
+            __asm__ volatile ("pause");
+        }
+    }
+    EnPort = (UINT16)(gPm1aEvt + (gPm1EvtLen / 2));
+    En = HalIoRead16(EnPort);
+    HalIoWrite16(EnPort, (UINT16)(En | PM1_PWRBTN_EN));
+    HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS); /* W1C 清残留 */
+
     SmpLog("smp: ACPI PM1 evt=");
     SmpLogHex32(gPm1aEvt);
     SmpLog(" cnt=");
     SmpLogHex32(gPm1aCnt);
+    SmpLog(" en=");
+    SmpLogHex32(EnPort);
+    SmpLog(" sci=");
+    SmpLogHex32(HalIoRead16(gPm1aCnt) & PM1_SCI_EN);
     SmpLog("\n");
     gPowerReady = 1;
     return 0;
