@@ -71,6 +71,7 @@ void XhciAbandonNoHid(void);
 int XhciEnableIrq(USB_CONTROLLER *Device);
 /* PR-H-xhci-dual：试进 DUAL（MSI-X/MSI + Drain backup）；失败则 FallbackToPoll */
 int XhciTryEnterDual(USB_CONTROLLER *Device);
+/* PR-H-xhci-irq：仅当 gStatIrq 已证明投递后，Drain 内懒升为轻量 IRQ 模式 */
 /* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
 void XhciInitMouseDeferred(void);
 /* PHOTO→桌面：清空鼠队列、重置累加坐标、Sync+Queue 键鼠 */

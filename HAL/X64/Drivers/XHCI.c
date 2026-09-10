@@ -4612,19 +4612,44 @@ static void EnableHostInterrupts(void) {
 }
 
 /*
- * 排空事件环。POLL 与 DUAL 都必须盲 ProcessEvents（backup）。
- * 仅将来 XHCI_IRQ_MODE_IRQ 才可考虑减弱 Drain（PR-H-xhci-irq）。
- *
- * 真机证据：把键盘误配成鼠标时，poll 排空能把键码送进 GUI。
- * 开 MSI 后若关掉盲 Drain，NUC 上完成 TRB 会堆死。
+ * 排空事件环。
+ * POLL / DUAL：盲 ProcessEvents×32（backup；真机 dual 时 q=0 也靠这条活）。
+ * IRQ（PR-H-xhci-irq）：减为 ×1 + 门铃轻推；长时间无新 IRQ → FallbackToPoll。
  */
 void XhciDrainEvents(void) {
     int i;
     int RealPc = !HalCpuIsHypervisor();
+    int Passes = 32;
+    static UINT32 sLastIrq;
+    static UINT32 sIrqStall;
 
     gStatDrain++;
+
+    /* PR-H-xhci-irq：有 IRQ 证据才维持轻量 Drain；停滞则回 poll */
+    if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
+        if (gStatIrq != sLastIrq) {
+            sLastIrq = gStatIrq;
+            sIrqStall = 0;
+        } else if (++sIrqStall > 200000u) {
+            sIrqStall = 0;
+            XhciFallbackToPoll("irq-stall");
+            /* Fallback 已 Drain；下面按 POLL 再走一轮无妨 */
+        } else {
+            Passes = 1; /* 减 poll */
+        }
+    } else if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
+        /* q 涨起来后再升 IRQ（懒升；真机 q=0 永留 dual） */
+        if (gStatIrq >= 3u && gUseIrq) {
+            gIrqMode = XHCI_IRQ_MODE_IRQ;
+            sLastIrq = gStatIrq;
+            sIrqStall = 0;
+            BootLog("boot: xhci irq=msi (irq)\n");
+            Passes = 1;
+        }
+    }
+
     SpinLockAcquire(&gHidQueueLock);
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i < Passes; i++) {
         if (RealPc) {
             ProcessEventsRealPc();
         } else {
@@ -4753,7 +4778,7 @@ void XhciDiagFormat(char *Buf, int Max) {
     if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
         Mode = "mode=dual irq=msi";
     } else if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
-        Mode = "mode=irq";
+        Mode = "mode=irq irq=msi";
     } else {
         Mode = "mode=poll";
     }
