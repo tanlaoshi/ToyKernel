@@ -2,12 +2,15 @@
  * Video.c — GOP 帧缓冲驱动（PR-G9：可选 backbuffer + 脏矩形 Present）
  *
  * 绘制写入后缓冲（若已启用）；VideoPresent 将脏区一次 blit 到 scanout。
+ * PR-G-present：脏区按行 memcpy（非整段逐像素）。
  * 字形经 Font_*（Fonts/），不直接绑定某一份点阵表。
  */
 #include "Video.h"
 #include "Font.h"
 #include "PhysicalMemory.h"
 #include "Hal.h"
+
+extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
 /* Bochs/QEMU VBE DISPI（OVMF QemuVideo 同端口） */
 #define VBE_DISPI_IOPORT_INDEX  0x01CE
@@ -272,7 +275,6 @@ UINT32 VideoBackbufferPages(void) {
 /* 将脏区（或全屏若从未标记）blit 到 GOP；无后缓冲时为空操作 */
 void VideoPresent(void) {
     UINT32 Y;
-    UINT32 X;
     UINT32 X0;
     UINT32 Y0;
     UINT32 X1;
@@ -336,7 +338,7 @@ void VideoPresent(void) {
     gDirty = 0;
     RowBytes = (UINT64)(X1 - X0) * 4ull;
     for (Y = Y0; Y < Y1; Y++) {
-        UINT32 *Src;
+        const UINT32 *Src;
         UINT32 *Dst;
 
         RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
@@ -349,11 +351,10 @@ void VideoPresent(void) {
             gDirty = 1;
             break;
         }
+        /* PR-G-present：按行整段拷，避免逐像素循环 */
         Src = &gBack[Y * gBackPitch + X0];
         Dst = &gFront[Y * gFrontPitch + X0];
-        for (X = X0; X < X1; X++) {
-            *Dst++ = *Src++;
-        }
+        memcpy(Dst, Src, (UINTN)RowBytes);
     }
     HalIrqRestore(Flags);
 }

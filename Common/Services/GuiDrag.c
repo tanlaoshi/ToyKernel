@@ -232,15 +232,13 @@ void CaptureDragRestoreData(int DragIdx) {
 
 void BeginDragBackups(int DragIdx) {
     int i;
-    int Overlap = AnyWindowsOverlap();
 
     /*
-     * 重叠时保留既有干净备份，勿 ForceFull 从 FB 重抓（上层像素会烙进下层 →
-     * Shell 里出现 Settings 的红 X）。无重叠才 Reset 清 snap/under。
+     * 不用全屏 snap/under 合成：省 2× 帧缓冲，避免 OOM 半状态；
+     * 也避免 snap 含窗本体时 Composite 露底失败留下标题栏/客户区残影
+     * （见 44b1633；bbfa299 回潮后再现）。
      */
-    if (!Overlap) {
-        ResetDragState();
-    }
+    ResetDragState();
     if (DragIdx < 0 || DragIdx >= MAX_WINS || !gWindows[DragIdx].Active) {
         return;
     }
@@ -248,24 +246,20 @@ void BeginDragBackups(int DragIdx) {
         DebugWrite("gui: drag backup alloc failed\n");
         return;
     }
+    HalVideoClearClip();
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWindows[i].Active) {
             continue;
         }
         EnsureWindowBackupBuf(i);
-        if (Overlap && i != DragIdx && WindowOccludedByOther(i) &&
-            gWinBackupValid[i]) {
-            continue;
-        }
-        BackupWindowAt(i);
+        /* ForceFull：重叠区也要完整备份，ClearOld 才能正确露底 */
+        BackupWindowAtEx(i, 1);
     }
     if (!gWinBackupValid[DragIdx]) {
         DebugWrite("gui: drag backup invalid\n");
         return;
     }
     gDragHasBackup = 1;
-    CaptureDragRestoreData(DragIdx);
-    /* snap/under 失败时仍可 ClearOld 拖；合成路径需两者皆有效 */
 }
 
 
@@ -277,22 +271,7 @@ void StartDragBackups(int DragIdx) {
     HalVideoPresent();
     GfxIrqLeave();
     GuiFocusSave();
-    if (gDragHasBackup && AllActiveWindowsHaveValidBackup()) {
-        int i;
-
-        HalVideoClearClip();
-        for (i = 0; i < MAX_WINS; i++) {
-            if (!gWindows[i].Active) {
-                continue;
-            }
-            if (i == DragIdx || !WindowOccludedByOther(i)) {
-                BackupWindowAt(i);
-            }
-        }
-        CaptureDragRestoreData(DragIdx);
-    } else {
-        BeginDragBackups(DragIdx);
-    }
+    BeginDragBackups(DragIdx);
     if (!gDragHasBackup || !gWinBackupValid[DragIdx]) {
         DebugWrite("gui: drag aborted (no backup)\n");
         ResetDragState();
@@ -481,17 +460,13 @@ void PaintAllWindowsDraw(int DragIdx) {
 }
 
 
-/* 拖动一帧：优先脏区 snap/under 合成；失败则 ClearOld+备份（可能残影） */
+/* 拖动一帧：擦旧足迹 + 贴窗备份 + Present（不用全屏 snap 合成，避残影/OOM） */
 void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
     const GUI_WINDOW *Drag = &gWindows[DragIdx];
     UINT32 Ww = Drag->Width;
     UINT32 Wh = Drag->Height;
 
     HalVideoClearClip();
-    if (gScreenSnapValid && gUnderDragValid) {
-        CompositeDragDirtyRegion(DragIdx, OldX, OldY, Ww, Wh);
-        return;
-    }
     ClearOldDragFootprint(OldX, OldY, Ww, Wh, DragIdx);
     if (gWinBackupValid[DragIdx] && gWinBackup[DragIdx] != 0) {
         PaintWindowFromBackup(DragIdx);
@@ -567,26 +542,20 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         W->X = NewX;
         W->Y = NewY;
         RedrawDragFrame(Idx, Ox, Oy);
-        /* RedrawDragFrame / Composite 路径内已 Present */
+        /* RedrawDragFrame 内已 Present */
     } else if (gDragWin >= 0) {
         W->X = NewX;
         W->Y = NewY;
         HalVideoClearClip();
-        if (gWinBackupValid[Idx] && gScreenSnapValid && gUnderDragValid) {
-            CompositeDragDirtyRegion(Idx, Ox, Oy, Ww, Wh);
-        } else if (gWinBackupValid[Idx]) {
-            ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
+        ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
+        if (gWinBackupValid[Idx]) {
             PaintWindowFromBackup(Idx);
-            GfxIrqEnter();
-            HalVideoPresent();
-            GfxIrqLeave();
         } else {
-            ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
             PaintAllWindowsDraw(Idx);
-            GfxIrqEnter();
-            HalVideoPresent();
-            GfxIrqLeave();
         }
+        GfxIrqEnter();
+        HalVideoPresent();
+        GfxIrqLeave();
     } else {
         HalVideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
         W->X = NewX;

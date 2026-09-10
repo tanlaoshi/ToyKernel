@@ -2,7 +2,7 @@
  * SettingsUi.c — Settings 菜单（PR-D5/D7 + PR-G12 控件化）
  *
  * 分辨率：ThemeSave → TOYOS.DB + THEME.CFG；QEMU 优先 ThemeApplyDisplayLive（PR-G-hotres）。
- * 热切失败时仍写盘，提示退出 QEMU 重跑脚本（D7）。
+ * 热切失败时仍写盘：VM 提示退出 QEMU 重跑脚本（D7）；真机提示 Boot 跟 EDID/GOP。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -284,7 +284,9 @@ static void PaintMenu(void) {
         if (gDisplayHint == 2) {
             DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
         } else if (gDisplayHint == 1) {
-            DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
+            DrawHint(X0, &Y, MaxBottom,
+                     LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC),
+                     COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
         CurColor = ThemeDesktopBackground();
@@ -343,15 +345,18 @@ static void PaintMenu(void) {
         FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
         DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
         if (HasPref && (PrefW != NowW || PrefH != NowH)) {
-            /* Guest reboot 不改 QEMU edid：偏好已写盘但 Now 仍是启动分辨率 */
-            DrawHint(X0, &Y, MaxBottom, "Pref!=Now: quit QEMU + ./run-split.sh",
+            /* VM：Guest reboot 不改 QEMU edid；真机：Boot 忽略 THEME.CFG mode= */
+            DrawHint(X0, &Y, MaxBottom,
+                     LocStr(HalCpuIsHypervisor() ? MSG_SET_PREF_DIFF : MSG_SET_PREF_DIFF_PC),
                      COLOR_BLUE);
         }
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
         if (gDisplayHint == 2) {
             DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
         } else if (gDisplayHint == 1) {
-            DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_SAVED), COLOR_BLUE);
+            DrawHint(X0, &Y, MaxBottom,
+                     LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC),
+                     COLOR_BLUE);
         }
     } else if (gPage == SETTINGS_PAGE_LANGUAGE) {
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_LANG), COLOR_BLACK);
@@ -446,9 +451,15 @@ static void ApplyDisplayChoice(int Index) {
             "settings: live OK; cold boot still needs quit QEMU + ./run-split.sh\n");
     } else if (Saved) {
         gDisplayHint = 1;
-        HalConsoleWriteSerial(
-            "settings: display saved; quit QEMU window, then ./run-split.sh (edid)\n");
-        DebugWrite("settings: display pref saved (relaunch QEMU on VM)\n");
+        if (HalCpuIsHypervisor()) {
+            HalConsoleWriteSerial(
+                "settings: display saved; quit QEMU window, then ./run-split.sh (edid)\n");
+            DebugWrite("settings: display pref saved (relaunch QEMU on VM)\n");
+        } else {
+            HalConsoleWriteSerial(
+                "settings: display pref saved; real PC boot follows EDID/GOP\n");
+            DebugWrite("settings: display pref saved (real PC EDID)\n");
+        }
     } else {
         gDisplayHint = 0;
     }

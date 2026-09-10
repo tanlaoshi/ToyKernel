@@ -214,9 +214,60 @@ int FileSystemListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, i
     return VfsListEntries(Rel && Rel[0] ? Rel : 0, Out, Max, OutCount);
 }
 
+static int PathIsAssetsRelative(const char *Path) {
+    const char *Want = "assets/";
+    int i;
+
+    if (!Path) {
+        return 0;
+    }
+    for (i = 0; Want[i]; i++) {
+        char C = Path[i];
+        if (C >= 'A' && C <= 'Z') {
+            C = (char)(C - 'A' + 'a');
+        }
+        if (C == '\\') {
+            C = '/';
+        }
+        if (C != Want[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int FileSystemReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize) {
     const char *Rel;
-    int Err = FileSystemPreparePath(Path, &Rel, 0);
+    int Err;
+    char ResPath[160];
+    int i;
+
+    if (!Path) {
+        return FAT_ERR_INVAL;
+    }
+    Err = FileSystemPreparePath(Path, &Rel, 0);
+    if (Err == FAT_OK) {
+        Err = VfsReadFile(Rel, Buffer, MaxSize, OutSize);
+        if (Err == FAT_OK) {
+            return FAT_OK;
+        }
+    }
+    /*
+     * 真机无 USB MSC 时默认卷常是 NVMe ESP，没有 Assets/。
+     * 无卷前缀的 Assets/… 失败则回退 RES:（内嵌桌面图标/壁纸）。
+     */
+    if (!PathIsAssetsRelative(Path)) {
+        return Err != FAT_OK ? Err : FAT_ERR_NOENT;
+    }
+    ResPath[0] = 'R';
+    ResPath[1] = 'E';
+    ResPath[2] = 'S';
+    ResPath[3] = ':';
+    for (i = 0; Path[i] && i < (int)sizeof(ResPath) - 5; i++) {
+        ResPath[4 + i] = Path[i];
+    }
+    ResPath[4 + i] = 0;
+    Err = FileSystemPreparePath(ResPath, &Rel, 0);
     if (Err != FAT_OK) {
         return Err;
     }

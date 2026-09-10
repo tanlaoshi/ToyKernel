@@ -7,6 +7,27 @@ void *memcpy(void *Dst, const void *Src, UINTN Len) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     UINTN i;
+
+    /* 对齐后按 8/4 字节搬：VideoPresent 行拷等大块路径依赖此实现 */
+    if (Len >= 8u && (((UINTN)D | (UINTN)S) & 7u) == 0) {
+        UINT64 *D64 = (UINT64 *)(void *)D;
+        const UINT64 *S64 = (const UINT64 *)(const void *)S;
+        while (Len >= 8u) {
+            *D64++ = *S64++;
+            Len -= 8u;
+        }
+        D = (UINT8 *)(void *)D64;
+        S = (const UINT8 *)(const void *)S64;
+    } else if (Len >= 4u && (((UINTN)D | (UINTN)S) & 3u) == 0) {
+        UINT32 *D32 = (UINT32 *)(void *)D;
+        const UINT32 *S32 = (const UINT32 *)(const void *)S;
+        while (Len >= 4u) {
+            *D32++ = *S32++;
+            Len -= 4u;
+        }
+        D = (UINT8 *)(void *)D32;
+        S = (const UINT8 *)(const void *)S32;
+    }
     for (i = 0; i < Len; i++) {
         D[i] = S[i];
     }

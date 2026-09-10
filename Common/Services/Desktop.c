@@ -3,7 +3,8 @@
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
  * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|START.BMP。
- * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。资源不链入 Kernel.elf。
+ * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
+ * 默认 FAT 无 Assets 时 FileSystemReadFile 回退 RES: 内嵌副本（真机无 USB TOYOS）。
  */
 #include "Desktop.h"
 #include "UI.h"
