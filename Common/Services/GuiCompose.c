@@ -43,9 +43,22 @@ void ComposeEnd(void) {
 /* 主题合成中推迟 Present；拖动等路径仍立即提交 */
 void GfxPresent(void) {
     if (gDeferPresent) {
+        gShellEchoCoalesce = 0;
+        return;
+    }
+    /*
+     * PR-G-shell-present：Shell 打字回显先写后缓冲，跳过本帧 Present。
+     * ShellTask 每轮末尾 HalVideoPresent 会合并刷出；help/ls 仍走 Defer*。
+     */
+    if (gShellEchoCoalesce) {
+        gShellEchoCoalesce = 0;
         return;
     }
     HalVideoPresent();
+}
+
+void GuiPresentShellEchoMark(void) {
+    gShellEchoCoalesce = 1;
 }
 
 void GuiPresentDeferPush(void) {
@@ -56,6 +69,7 @@ void GuiPresentDeferPop(void) {
     if (gDeferPresent > 0) {
         gDeferPresent--;
     }
+    gShellEchoCoalesce = 0;
     if (gDeferPresent == 0) {
         HalVideoPresent();
     }

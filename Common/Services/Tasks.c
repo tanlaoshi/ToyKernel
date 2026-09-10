@@ -236,8 +236,10 @@ void ShellTask(void) {
             Previous = Report;
         }
         GuiPollMouse();
-        /* 真机也要刷脏区：Console 字经 FrameBufferEnd→Present；
-         * 若上次 Present 半途保留了 gDirty，这里续传。virt 原路径保留。 */
+        /*
+         * PR-G-shell-present：打字回显经 EchoMark 跳过逐键 Present，
+         * 本处合并提交脏区（亦续传上次半途 gDirty）。virt/真机同路径。
+         */
         HalVideoPresent();
 
         /*

@@ -90,6 +90,7 @@ extern int    gGfxLockDepth;
 extern UINT64 gGfxIrqFlags;
 extern int    gComposeBusy;
 extern int    gDeferPresent;
+extern int    gShellEchoCoalesce;
 
 extern GUI_CONSOLE_OPS gGuiConsoleOps;
 

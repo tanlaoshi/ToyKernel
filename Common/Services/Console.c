@@ -318,6 +318,8 @@ static void ConsoleDrawChar(char C, UINT32 Color) {
     HalConsoleDrawChar(C, Color);
     GuiBackupSyncRect(X, Y, FontCellW(), FontCellH());
     GuiFocusSyncCursor();
+    /* PR-G-shell-present：打字回显合并 Present（ShellTask 轮询末刷） */
+    GuiPresentShellEchoMark();
     GuiFrameBufferEnd();
 }
 
@@ -1371,6 +1373,7 @@ void ConsoleOnBackspace(void) {
             GuiBackupSyncRect(X, Y, FontAdvanceX(), FontCellH());
         }
         GuiFocusSyncCursor();
+        GuiPresentShellEchoMark();
         GuiFrameBufferEnd();
     }
     HalConsoleBackspaceSerial();
@@ -1434,7 +1437,8 @@ void ConsoleOnEnter(void) {
         return;
     }
     ConsoleWrite("\n");
-    /* help/ls 等大量 ConsoleWrite：真机逐行 Present 极卡，整命令结束再刷一次 */
+    /* help/ls 等大量 ConsoleWrite：真机逐行 Present 极卡，整命令结束再刷一次。
+     * PR-G-shell-present 只合并打字回显；本 Defer 语义保持不变。 */
     GuiPresentDeferPush();
     RunLine();
     GuiPresentDeferPop();

@@ -66,6 +66,7 @@ int    gGfxLockDepth;
 UINT64 gGfxIrqFlags;
 int    gComposeBusy;
 int    gDeferPresent;
+int    gShellEchoCoalesce; /* PR-G-shell-present：打字回显合并 Present */
 static int gInputLocked;
 static UINT8 gMousePrevBtn;
 

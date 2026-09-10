@@ -48,6 +48,8 @@ void GuiFrameBufferEnd(void);
 /* 批量输出时推迟 Present（真机 4K 级 GOP 逐行 Present 极卡） */
 void GuiPresentDeferPush(void);
 void GuiPresentDeferPop(void);
+/* PR-G-shell-present：下一次 GfxPresent 可合并（打字回显）；ShellTask 轮询末再刷 */
+void GuiPresentShellEchoMark(void);
 void GuiCursorHide(void);
 void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);
