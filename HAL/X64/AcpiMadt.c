@@ -460,3 +460,121 @@ int AcpiDmarDisableTranslation(UINT64 RsdpPhys) {
     }
     return 1;
 }
+
+/* ---- FACP 电源：短按电源键 / 软关机 ---- */
+#define PM1_PWRBTN_STS (1u << 8)
+#define PM1_SLP_EN     (1u << 13)
+
+static UINT16 gPm1aEvt;
+static UINT16 gPm1aCnt;
+static UINT8  gPm1EvtLen;
+static UINT8  gPowerReady;
+
+static ACPI_SDT_HEADER *FindFacp(UINT64 RsdpPhys) {
+    ACPI_RSDP *Rsdp;
+    ACPI_SDT_HEADER *Root;
+    ACPI_SDT_HEADER *Tab;
+
+    if (RsdpPhys == 0 || MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return 0;
+    }
+    Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
+    if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
+        return 0;
+    }
+    Tab = 0;
+    if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Tab = FindTableXsdt(Root, "FACP");
+        }
+    }
+    if (Tab == 0 && Rsdp->RsdtAddress != 0) {
+        Root = MapSdtHeader((UINT64)Rsdp->RsdtAddress);
+        if (Root) {
+            Tab = FindTableRsdt(Root, "FACP");
+        }
+    }
+    return Tab;
+}
+
+int AcpiPowerInit(UINT64 RsdpPhys) {
+    ACPI_SDT_HEADER *Facp;
+    UINT8 *P;
+    UINT32 Pm1aEvt;
+    UINT32 Pm1aCnt;
+
+    gPowerReady = 0;
+    gPm1aEvt = 0;
+    gPm1aCnt = 0;
+    gPm1EvtLen = 4;
+    Facp = FindFacp(RsdpPhys);
+    if (!Facp || Facp->Length < 116) {
+        return -1;
+    }
+    if (MapPhys((UINT64)(UINTN)Facp, Facp->Length) != 0) {
+        return -1;
+    }
+    P = (UINT8 *)Facp;
+    /* ACPI 1.0 FADT：PM1a_EVT@56 PM1a_CNT@64 PM1_EVT_LEN@88 */
+    Pm1aEvt = *(UINT32 *)(void *)(P + 56);
+    Pm1aCnt = *(UINT32 *)(void *)(P + 64);
+    gPm1EvtLen = P[88];
+    if (gPm1EvtLen == 0) {
+        gPm1EvtLen = 4;
+    }
+    /* ACPI 2.0+：若 32 位口为 0，试 X_PM1a_* GAS（Address_Space=1 I/O） */
+    if ((Pm1aCnt == 0 || Pm1aEvt == 0) && Facp->Length >= 244) {
+        /* X_PM1a_EVT_BLK @148, X_PM1a_CNT_BLK @160：GAS Address @ +8 */
+        if (P[148] == 1 && Pm1aEvt == 0) {
+            Pm1aEvt = (UINT32)(*(UINT64 *)(void *)(P + 156));
+        }
+        if (P[160] == 1 && Pm1aCnt == 0) {
+            Pm1aCnt = (UINT32)(*(UINT64 *)(void *)(P + 168));
+        }
+    }
+    if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt > 0xFFFFu) {
+        return -1;
+    }
+    gPm1aEvt = (UINT16)Pm1aEvt;
+    gPm1aCnt = (UINT16)Pm1aCnt;
+    gPowerReady = 1;
+    return 0;
+}
+
+void AcpiPowerOff(void) {
+    UINT16 V;
+    UINT8 Typ;
+
+    /* QEMU/Bochs 常见关机口 */
+    HalIoWrite16(0x604, 0x2000);
+    HalIoWrite16(0xB004, 0x2000);
+    HalIoWrite16(0x4004, 0x3400);
+
+    if (!gPowerReady || gPm1aCnt == 0) {
+        return;
+    }
+    /* 试 SLP_TYP 0..7；多数板卡 5 或 0 */
+    for (Typ = 0; Typ < 8; Typ++) {
+        V = HalIoRead16(gPm1aCnt);
+        V = (UINT16)((V & 0xC3FFu) | ((UINT16)Typ << 10) | PM1_SLP_EN);
+        HalIoWrite16(gPm1aCnt, V);
+    }
+}
+
+int AcpiPowerButtonPressed(void) {
+    UINT16 Sts;
+    UINT16 Off;
+
+    if (!gPowerReady || gPm1aEvt == 0) {
+        return 0;
+    }
+    /* PM1 状态在块低半；长度常 4 → 状态 16bit @ base */
+    Off = 0;
+    Sts = HalIoRead16((UINT16)(gPm1aEvt + Off));
+    if (Sts & PM1_PWRBTN_STS) {
+        HalIoWrite16((UINT16)(gPm1aEvt + Off), PM1_PWRBTN_STS); /* W1C */
+        return 1;
+    }
+    return 0;
+}

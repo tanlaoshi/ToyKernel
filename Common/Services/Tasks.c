@@ -45,17 +45,17 @@ static int SerialIsEnter(char C) {
  * 多数轮次短自旋；偶发 hlt 仍给定时器/短按电源窗口。
  */
 static void YieldForPollInput(void) {
-    static UINT32 SpinGen;
-
     if (!HalCpuIsHypervisor()) {
         UINT32 i;
-        for (i = 0; i < 800; i++) {
+        if (HalPowerButtonPressed()) {
+            HalSerialWrite("boot: power button -> shutdown\n");
+            HalCpuShutdown();
+        }
+        /* 真机 poll-USB：勿 hlt 等 tick，否则光标锁 ~10ms+ */
+        for (i = 0; i < 200; i++) {
             __asm__ volatile ("pause");
         }
-        SpinGen++;
-        if ((SpinGen & 15u) != 0) {
-            return;
-        }
+        return;
     }
     HalCpuHalt();
 }
@@ -306,6 +306,10 @@ void ShellTask(void) {
         HalNetPoll();
         TcpPoll();
 #endif
+        if (HalPowerButtonPressed()) {
+            HalSerialWrite("boot: power button -> shutdown\n");
+            HalCpuShutdown();
+        }
         {
             UDP_DATAGRAM Dg;
             int (*RecvFn)(UDP_DATAGRAM *) = UdpRecv;

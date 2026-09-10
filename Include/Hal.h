@@ -27,6 +27,8 @@ void HalCpuHalt(void);
 void HalCpuPark(void);
 void HalCpuReboot(void);
 void HalCpuShutdown(void);
+/* 真机：ACPI 电源键短按（需 AcpiPowerInit）；1=应关机 */
+int HalPowerButtonPressed(void);
 
 void HalIrqEnable(void);
 void HalIrqDisable(void);

@@ -3249,6 +3249,18 @@ static int InitMouseOnPort(UINT32 Port1) {
 int XhciInit(UINT64 BaseAddress) {
     int RealPc = !HalCpuIsHypervisor();
     char B[12];
+    static int gXhciStarted;
+
+    if (gXhciStarted) {
+        HalSerialWrite("boot: xhci init skipped (already up)\n");
+        return 1;
+    }
+
+    /* 运行时误调 / 损坏指针：QEMU 曾见 BAR=0x193A50 → Cap=0 后异常 */
+    if (BaseAddress < 0x100000ULL || (BaseAddress & 0xFULL) != 0) {
+        HalSerialWrite("boot: xhci reject BAR\n");
+        return 0;
+    }
 
     BootLog(DiagVerbose() ? "xhci diag: VERBOSE\n" : "xhci diag: quiet\n");
 
@@ -3598,6 +3610,7 @@ int XhciInit(UINT64 BaseAddress) {
                 break;
             }
         }
+        gXhciStarted = 1;
         return 1;
     }
 
@@ -3627,6 +3640,7 @@ int XhciInit(UINT64 BaseAddress) {
         (void)EnumHubChildrenForMouse();
     }
 
+    gXhciStarted = 1;
     return 1;
 }
 

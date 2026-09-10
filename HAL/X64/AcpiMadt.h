@@ -37,4 +37,10 @@ int AcpiTablePresent(UINT64 RsdpPhys, const char *Sig4);
  */
 int AcpiDmarDisableTranslation(UINT64 RsdpPhys);
 
+/* FACP：软关机 + 电源键（短按） */
+int AcpiPowerInit(UINT64 RsdpPhys);
+void AcpiPowerOff(void);
+/* 1=检测到电源键按下（已清状态位） */
+int AcpiPowerButtonPressed(void);
+
 #endif

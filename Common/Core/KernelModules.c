@@ -113,7 +113,7 @@ static int InitializeUsb(void) {
      */
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();
-        HalSerialGopPhotoHold(20);
+        HalSerialGopPhotoHold(5);
         /* PHOTO→gui 空窗：多 Drain 几轮，降低事件环溢满概率 */
         {
             int n;

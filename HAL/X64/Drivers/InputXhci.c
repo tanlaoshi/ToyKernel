@@ -142,6 +142,14 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
         HalSerialWrite(B);
         HalSerialWrite("\n");
     }
+    /* 拒绝明显非 MMIO 的 BAR（运行时误探曾出现 0x193A50） */
+    if (Base < 0x100000ULL) {
+        HalSerialWrite("boot: xhci skip low BAR\n");
+        if (RealPc) {
+            HalSerialGopMute(0);
+        }
+        return 0;
+    }
     DebugWrite("XHCI: try BAR ");
     DebugHex64(Base);
     DebugWrite("\n");

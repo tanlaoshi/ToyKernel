@@ -312,6 +312,10 @@ static void PhotoMarkLeft(UINT32 Left) {
     char Diag[80];
     const char *P = "PHOTO ";
     int N = 0;
+    UINT32 W;
+    UINT32 H;
+    UINT32 LineH;
+    UINT32 Y;
 
     while (*P && N < 8) {
         Msg[N++] = *P++;
@@ -327,98 +331,161 @@ static void PhotoMarkLeft(UINT32 Left) {
             Msg[N++] = Diag[i++];
         }
     }
-    Msg[N++] = '\n';
     Msg[N] = 0;
-    HalSerialWrite(Msg);
-}
-
-/* 只盯 k=/m=：d=/r= 每秒都涨，不能当「有输入」 */
-static int PhotoParseTag(const char *S, char Tag, UINT32 *Out) {
-    int i;
-
-    if (!S || !Out) {
-        return 0;
+    /* 串口旁路一份；屏底直写（不经 Mute） */
+    if (SerialPresent()) {
+        SerialWrite(Msg);
+        SerialWrite("\n");
     }
-    for (i = 0; S[i]; i++) {
-        if (S[i] == Tag && S[i + 1] == '=') {
-            UINT32 V = 0;
-            i += 2;
-            while (S[i] >= '0' && S[i] <= '9') {
-                V = V * 10u + (UINT32)(S[i] - '0');
-                i++;
-            }
-            *Out = V;
-            return 1;
-        }
+    if (!gVideoUp) {
+        return;
     }
-    return 0;
+    HalVideoGetSize(&W, &H);
+    LineH = BootLogLineH();
+    if (H > LineH + 8) {
+        Y = H - LineH - 8;
+    } else {
+        Y = BootLogBodyY(LineH);
+    }
+    if (W == 0) {
+        W = 1024;
+    }
+    HalVideoDrawBeginFront();
+    HalVideoFillRect(0, Y, W, LineH + 2, 0x00000000u);
+    HalVideoDrawStringAt(BOOT_LOG_X, Y, Msg, 0x00FFFF00u);
+    HalVideoDrawEndFront();
 }
 
 /*
- * 真机 xHCI Arm 后读秒：COM1 打 PHOTO。
- * 只打 begin / k或m变化 / 每5s心跳 / end（勿因 d=Drain 每秒刷屏）。
+ * 真机读秒：刷 ring 尾部到屏（无串口也能拍），底栏 PHOTO；默认秒数由调用方决定。
  */
 void HalSerialGopPhotoHold(UINT32 Seconds) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 LineH;
     UINT32 Left;
+    UINT32 MaxLines;
+    UINT32 LineCount;
+    UINT32 Skip;
+    UINT32 i;
     UINT64 T0;
     UINT64 Now;
     UINT64 OneSec;
-    char Diag[80];
-    UINT32 PrevK = 0;
-    UINT32 PrevM = 0;
-    UINT32 SincePrint;
+    const char *Log;
+    const char *Start;
 
     if (Seconds == 0) {
         return;
     }
+    if (Seconds > 8) {
+        Seconds = 8; /* 够拍照；勿再 20s */
+    }
+    HalSerialGopMute(0);
+    if (!gVideoUp) {
+        /* 无 GOP 时仍 spin，便于有串口的机 */
+        OneSec = 3000000000ULL;
+        for (Left = Seconds; Left > 0; Left--) {
+            T0 = ReadTsc();
+            do {
+                HalInputPoll();
+                Now = ReadTsc();
+            } while (Now - T0 < OneSec);
+        }
+        return;
+    }
     gPhotoHold = 1;
-    HalSerialGopMute(1);
+    HalVideoGetSize(&W, &H);
+    LineH = BootLogLineH();
+    if (H == 0) {
+        H = 768;
+    }
+    MaxLines = 20;
+    if (LineH > 0 && H > BootLogBodyY(LineH) + LineH * 3) {
+        MaxLines = (H - BootLogBodyY(LineH) - LineH * 3) / LineH;
+        if (MaxLines < 8) {
+            MaxLines = 8;
+        }
+        if (MaxLines > 40) {
+            MaxLines = 40;
+        }
+    }
 
-    Diag[0] = 0;
-    HalInputDiagFormat(Diag, (int)sizeof(Diag));
-    HalSerialWrite("PHOTO begin");
-    HalSerialWrite(Diag);
-    HalSerialWrite("\n");
-    (void)PhotoParseTag(Diag, 'k', &PrevK);
-    (void)PhotoParseTag(Diag, 'm', &PrevM);
+    gGopBanner = 0;
+    GopBannerOnce();
+    BootLogClearBody(W, H, LineH);
 
-    /* 与 StallMs 同口径：~3GHz → 1s */
+    Log = HalSerialLogText();
+    Start = Log ? Log : "";
+    LineCount = 0;
+    for (i = 0; Start[i]; i++) {
+        if (Start[i] == '\n') {
+            LineCount++;
+        }
+    }
+    Skip = 0;
+    if (LineCount > MaxLines) {
+        Skip = LineCount - MaxLines;
+        LineCount = 0;
+        for (i = 0; Start[i]; i++) {
+            if (Start[i] == '\n') {
+                LineCount++;
+                if (LineCount == Skip) {
+                    Start = Start + i + 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    gGopBatch = 1;
+    if (Skip > 0) {
+        GopWrite("(boot log tail — earlier lines omitted)\n");
+    }
+    if (Start && *Start) {
+        GopWrite(Start);
+    }
+    GopWrite("\n*** PHOTO: press keys/move mouse ***\n");
+    {
+        char Res[48];
+        UINT32 Rw = 0;
+        UINT32 Rh = 0;
+        int n = 0;
+        const char *P = "boot: video ";
+        HalVideoGetSize(&Rw, &Rh);
+        while (*P && n < 16) {
+            Res[n++] = *P++;
+        }
+        Res[n++] = (char)('0' + ((Rw / 1000) % 10));
+        Res[n++] = (char)('0' + ((Rw / 100) % 10));
+        Res[n++] = (char)('0' + ((Rw / 10) % 10));
+        Res[n++] = (char)('0' + (Rw % 10));
+        Res[n++] = 'x';
+        Res[n++] = (char)('0' + ((Rh / 1000) % 10));
+        Res[n++] = (char)('0' + ((Rh / 100) % 10));
+        Res[n++] = (char)('0' + ((Rh / 10) % 10));
+        Res[n++] = (char)('0' + (Rh % 10));
+        Res[n++] = '\n';
+        Res[n] = 0;
+        GopWrite(Res);
+    }
+    gGopBatch = 0;
+    HalVideoPresent();
+
     OneSec = 3000000000ULL;
-    SincePrint = 0;
     for (Left = Seconds; Left > 0; Left--) {
-        UINT32 K = 0;
-        UINT32 M = 0;
-        int Changed;
-
+        PhotoMarkLeft(Left);
         T0 = ReadTsc();
         do {
             HalInputPoll();
             __asm__ volatile ("pause");
             Now = ReadTsc();
         } while (Now - T0 < OneSec);
-
-        Diag[0] = 0;
-        HalInputDiagFormat(Diag, (int)sizeof(Diag));
-        (void)PhotoParseTag(Diag, 'k', &K);
-        (void)PhotoParseTag(Diag, 'm', &M);
-        Changed = (K != PrevK) || (M != PrevM);
-        SincePrint++;
-        if (Changed || SincePrint >= 5 || Left == 1) {
-            PhotoMarkLeft(Left);
-            PrevK = K;
-            PrevM = M;
-            SincePrint = 0;
-        }
     }
-
-    Diag[0] = 0;
-    HalInputDiagFormat(Diag, (int)sizeof(Diag));
-    HalSerialWrite("PHOTO end");
-    HalSerialWrite(Diag);
-    HalSerialWrite("\n");
 
     gPhotoHold = 0;
     HalSerialGopMute(0);
+    /* 无串口办公室：进桌面前仍保持 GOP 镜像关，避免桌面被 boot 字盖住；
+     * 但 ring 已拍过。有串口同样关镜像。 */
     HalSerialGopMirror(0);
-    HalSerialWrite("boot: PHOTO done\n");
+    HalSerialBootMark("boot: PHOTO done\n");
 }

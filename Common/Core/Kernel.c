@@ -23,6 +23,28 @@ void KernelMain(void) {
         HalVideoPresent();
         HalSerialGopEnable();
         HalSerialWrite("boot: KernelMain live\n");
+        {
+            char Line[48];
+            int n = 0;
+            const char *P = "boot: fb ";
+            UINT32 W = Info->HorizontalResolution;
+            UINT32 H = Info->VerticalResolution;
+            while (*P && n < 16) {
+                Line[n++] = *P++;
+            }
+            Line[n++] = (char)('0' + ((W / 1000) % 10));
+            Line[n++] = (char)('0' + ((W / 100) % 10));
+            Line[n++] = (char)('0' + ((W / 10) % 10));
+            Line[n++] = (char)('0' + (W % 10));
+            Line[n++] = 'x';
+            Line[n++] = (char)('0' + ((H / 1000) % 10));
+            Line[n++] = (char)('0' + ((H / 100) % 10));
+            Line[n++] = (char)('0' + ((H / 10) % 10));
+            Line[n++] = (char)('0' + (H % 10));
+            Line[n++] = '\n';
+            Line[n] = 0;
+            HalSerialWrite(Line);
+        }
     }
 
     if (KernelModulesRun() != 0) {
@@ -32,8 +54,8 @@ void KernelMain(void) {
     }
 
     /*
-     * 进调度/桌面前关掉 boot→GOP 镜像：之后 Debug 只进 ring，
-     * 有 COM1 再旁路写串口。有/无串口主路径一致。
+     * 进调度/桌面前关掉 boot→GOP 镜像（桌面勿被串口字盖住）。
+     * 无 COM1 时 boot 期已全程镜像，PHOTO 也刷了 ring 尾。
      */
     HalSerialGopMirror(0);
 

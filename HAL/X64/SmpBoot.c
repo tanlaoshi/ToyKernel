@@ -326,6 +326,11 @@ int HalSmpStartApplicationProcessors(void) {
     if (AcpiMadtParse(Rsdp, gApicIds, HAL_MAX_CPUS, &Count, &BspFromMadt) != 0) {
         return 0;
     }
+    if (AcpiPowerInit(Rsdp) == 0) {
+        SmpLog("smp: ACPI power ready\n");
+    } else {
+        SmpLog("smp: ACPI power n/a\n");
+    }
     gCpuCount = Count;
     NormalizeBspFirst(BspId, Count);
     Count = gCpuCount;

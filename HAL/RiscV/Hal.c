@@ -74,6 +74,10 @@ void HalCpuPark(void) {
 void HalCpuReboot(void) { HalCpuPark(); }
 void HalCpuShutdown(void) { HalCpuPark(); }
 
+int HalPowerButtonPressed(void) {
+    return 0;
+}
+
 void HalIrqEnable(void) {
     __asm__ volatile("csrs sstatus, %0" ::"r"(SSTATUS_SIE) : "memory");
 }

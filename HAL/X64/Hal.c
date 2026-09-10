@@ -5,6 +5,7 @@
 #include "BootInfo.h"
 #include "Arch.h"
 #include "Debug.h"
+#include "AcpiMadt.h"
 
 int HalInit(void) {
     return ArchInit();
@@ -34,9 +35,15 @@ void HalCpuReboot(void) {
 }
 
 void HalCpuShutdown(void) {
+    /* QEMU 口 + ACPI PM1 SLP_EN；失败则停机等长按 */
+    AcpiPowerOff();
     for (;;) {
         __asm__ volatile ("cli; hlt");
     }
+}
+
+int HalPowerButtonPressed(void) {
+    return AcpiPowerButtonPressed();
 }
 
 void HalIrqEnable(void) {
