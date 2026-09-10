@@ -35,8 +35,9 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 网络 | ✅ | virtio-net；builtin UDP/TCP；可选 `LWIP=1` 用户 socket |
 | SMP | ✅ 演示级 | AP idle / 可偷任务；shell/gui 钉 BSP |
 | 应用商店 | ✅ | `store install/remove/combo`；资源包 + 依赖 |
+| **真机 UEFI PC** | ✅ **里程碑** | NUC：U 盘启动；xHCI poll；**有线键鼠分口可用**（2026-09-10） |
 
-细表与缺口见 [`Documents/路线图.md`](Documents/路线图.md)。
+细表与缺口见 [`Documents/路线图.md`](Documents/路线图.md)（文末有 NUC 里程碑归档）。
 
 ---
 
