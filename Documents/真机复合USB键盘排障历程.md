@@ -4,7 +4,7 @@
 > **硬件真相**：有线键盘 + Logitech G102 **分插两个 USB 口**（无接收器）  
 > **初判失误**：日志像「同 slot 复合」——实为驱动把 G102 **附加 HID** 误当成键盘，再把同设备 boot 鼠绑成 composite  
 > **验收**：PHOTO `k>` 且 `m>`；桌面可打字、可移鼠标；戳 `boot: xhci build=kbd-v8`  
-> **代码**：`HAL/X64/Drivers/XHCI.c` · 合入 `fef65a1`（键鼠）/ `0b07402`（ACPI 加固，关机另验）  
+> **代码**：`HAL/X64/Drivers/XHCI.c` · 合入 `fef65a1`（键鼠）/ `0b07402`（ACPI 短按，**真机已确认可关机**）  
 > **状态**：**✅ 收官**。下文保留试错轨迹。路线图：[`路线图.md`](路线图.md) 文末【归档】里程碑 · NUC。  
 > **对照**：[`今日USB键盘逻辑对照-开盘vs当前.md`](今日USB键盘逻辑对照-开盘vs当前.md)、[`home-xhci-handoff.md`](home-xhci-handoff.md)
 
@@ -129,7 +129,7 @@ PHOTO / 桌面
  ├─ k>0 m>0，不同 slot
  │    └─ 预期好相
  └─ 电源短按
-      └─ 看 boot: ACPI power ready / sci= / enrd=（与 USB 正交；0b07402）
+      └─ ✅ 2026-09-10 NUC 已确认关机（`0b07402`：X_GAS / SCI_EN / PWRBTN_EN / `_S5_`）
 ```
 
 ---
@@ -175,7 +175,7 @@ PHOTO / 桌面
 - [x] 真机不走同 slot 复合加鼠  
 - [x] PHOTO / 桌面：`k>0` 且 `m>0`  
 - [x] 路线图 / 协作日志里程碑已记  
-- [ ] 电源短按：ACPI 加固已合入（`0b07402`），待 PHOTO 再确认关机  
+- [x] 电源短按：NUC 真机确认可关机（`0b07402`，2026-09-10）  
 - [ ] 长期：USB MSC；xHCI dual（可选）
 
 （完）
