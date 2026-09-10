@@ -12,6 +12,7 @@
 #include "Debug.h"
 #include "Hal.h"
 #include "HalSerial.h"
+#include "ToySerialLog.h"
 
 #define AHCI_PCI_CLASS       0x010601u
 #define AHCI_MAX_PORTS       32
@@ -459,15 +460,15 @@ int AhciSetup(void) {
     }
 
     gReady = 1;
-    HalSerialWrite("boot: ahci drives=");
+    ToyLogFs("boot: ahci drives=");
     {
         static const char Hex[] = "0123456789abcdef";
         char B[2];
         B[0] = Hex[gDriveCount & 0xf];
         B[1] = 0;
-        HalSerialWrite(B);
+        ToyLogFs(B);
     }
-    HalSerialWrite("\n");
+    ToyLogFs("\n");
     DebugWrite("ahci: hba=");
     DebugHex32((UINT32)gHbaPhys);
     DebugWrite("\n");

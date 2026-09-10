@@ -4,6 +4,7 @@
 #include "Driver.h"
 #include "DriverInput.h"
 #include "Hal.h"
+#include "ToySerialLog.h"
 #include "PCIe.h"
 #include "XHCI.h"
 #include "Debug.h"
@@ -63,7 +64,8 @@ static void MapXhciBar(UINT64 Base) {
 }
 
 static void XhciInputPoll(void) {
-    if (gXhciReady && (XhciHidKeyboardReady() || XhciMousePresent())) {
+    /* 控制器已起就盲 Drain；勿等 MousePresent（曾因 deferred 鼠标导致 PHOTO d=1） */
+    if (gXhciReady) {
         XhciDrainEvents();
     }
 }
@@ -131,20 +133,20 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
     /* 真机：Map 前 mute，避免 try BAR= 的 Present 卡死进不了 Init */
     if (RealPc) {
         HalSerialGopMute(1);
-        HalSerialBootMark("boot: xhci-B10 map\n");
+        ToyBootMarkUsb("boot: xhci-B10 map\n");
     }
     MapXhciBar(Base);
     if (RealPc) {
-        HalSerialBootMark("boot: xhci-B10 mapped\n");
+        ToyBootMarkUsb("boot: xhci-B10 mapped\n");
     } else {
-        HalSerialWrite("boot: xhci try BAR=");
+        ToyLogUsb("boot: xhci try BAR=");
         HalSerialFormatHex(B, Base, 16);
-        HalSerialWrite(B);
-        HalSerialWrite("\n");
+        ToyLogUsb(B);
+        ToyLogUsb("\n");
     }
     /* 拒绝明显非 MMIO 的 BAR（运行时误探曾出现 0x193A50） */
     if (Base < 0x100000ULL) {
-        HalSerialWrite("boot: xhci skip low BAR\n");
+        ToyLogUsb("boot: xhci skip low BAR\n");
         if (RealPc) {
             HalSerialGopMute(0);
         }
@@ -191,12 +193,12 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     }
 
     Count = PciScanUSBControllers(Controllers, 8);
-    HalSerialWrite("boot: xHCI controllers=");
+    ToyLogUsb("boot: xHCI controllers=");
     {
         char B[12];
         HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
-        HalSerialWrite(B);
-        HalSerialWrite("\n");
+        ToyLogUsb(B);
+        ToyLogUsb("\n");
     }
     DebugWrite("XHCI: controllers=");
     DebugHex32((UINT32)Count);
@@ -218,12 +220,12 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
              * XhciInit 内已按「keyboard → mouse」打过 BootLog；
              * 此处只确认 Init 返回。勿再打 keyboard（否则像「init 完才有键盘」）。
              */
-            HalSerialWrite("boot: xhci init returned\n");
+            ToyLogUsb("boot: xhci init returned\n");
             if (XhciHidKeyboardReady() || XhciMousePresent()) {
                 gXhciReady = 1;
                 if (!XhciHidKeyboardReady() && XhciMousePresent()) {
                     /* 仅鼠标路径（Init 内已打 mouse only / mouse） */
-                    HalSerialWrite("boot: xhci-hid mouse-only bind\n");
+                    ToyLogUsb("boot: xhci-hid mouse-only bind\n");
                 }
                 if (OutPriv) {
                     *OutPriv = 0;
@@ -234,10 +236,10 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
              * 控制器已起但无键盘：勿 Bind，否则 ToyDriverInputReady
              * 会挡住后面的 ps2-kbd。
              */
-            HalSerialWrite("boot: xhci up (no HID), try PS/2\n");
+            ToyLogUsb("boot: xhci up (no HID), try PS/2\n");
             break;
         }
-        HalSerialWrite("boot: xhci init failed at BAR\n");
+        ToyLogUsb("boot: xhci init failed at BAR\n");
         if (!HalCpuIsHypervisor()) {
             break;
         }
@@ -253,15 +255,16 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
             gXhciDev.BaseAddress = Fallback;
             gXhciDev.Bar[0] = Fallback;
             gXhciDev.Type = 0x30;
-            if (TryXhciAt(Fallback, 0)) {
+            if (TryXhciAt(Fallback, &gXhciDev) &&
+                (XhciHidKeyboardReady() || XhciMousePresent())) {
                 gXhciReady = 1;
-                HalSerialWrite("boot: xhci-hid keyboard\n");
+                ToyLogUsb("boot: xhci-hid keyboard\n");
                 if (OutPriv) {
                     *OutPriv = 0;
                 }
                 return 0;
             }
-            HalSerialWrite("boot: xhci fallback BAR failed\n");
+            ToyLogUsb("boot: xhci fallback BAR failed / no HID\n");
         }
     }
     /* 不在此处再打 “no boot keyboard”——交给 PS/2 Probe 与 usb 模块汇总 */
@@ -313,6 +316,6 @@ void InputXhciArmIrq(void) {
     }
     (void)XhciEnableIrq(&gXhciDev);
     if (!XhciUsesIrq()) {
-        HalSerialWrite("boot: xhci arm fallback poll\n");
+        ToyLogUsb("boot: xhci arm fallback poll\n");
     }
 }

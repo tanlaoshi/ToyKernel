@@ -3,6 +3,20 @@ ARCH ?= x86_64
 BOARD ?= virt
 DEBUG ?= 0
 NO_COM1 ?= 0
+# 串口总开关 + 分模块（见 Include/ToySerialConfig.h）；NO_COM1=1 ⇒ SERIAL=0
+SERIAL ?= 1
+SERIAL_BOOT ?= 1
+SERIAL_USB ?= 1
+SERIAL_SMP ?= 1
+SERIAL_GUI ?= 1
+SERIAL_NET ?= 1
+SERIAL_FS ?= 1
+SERIAL_MEM ?= 1
+SERIAL_DRV ?= 1
+SERIAL_MISC ?= 1
+ifeq ($(NO_COM1),1)
+SERIAL := 0
+endif
 LWIP ?= 0
 LWIPINCLUDES :=
 LWIPOBJS :=
@@ -91,7 +105,16 @@ XHCI_DIAG_VERBOSE ?= 0
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
               -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
-              -DTOY_NO_COM1=$(NO_COM1) \
+              -DTOY_SERIAL=$(SERIAL) \
+              -DTOY_SERIAL_BOOT=$(SERIAL_BOOT) \
+              -DTOY_SERIAL_USB=$(SERIAL_USB) \
+              -DTOY_SERIAL_SMP=$(SERIAL_SMP) \
+              -DTOY_SERIAL_GUI=$(SERIAL_GUI) \
+              -DTOY_SERIAL_NET=$(SERIAL_NET) \
+              -DTOY_SERIAL_FS=$(SERIAL_FS) \
+              -DTOY_SERIAL_MEM=$(SERIAL_MEM) \
+              -DTOY_SERIAL_DRV=$(SERIAL_DRV) \
+              -DTOY_SERIAL_MISC=$(SERIAL_MISC) \
               -DXHCI_DIAG_VERBOSE=$(XHCI_DIAG_VERBOSE) \
               -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
               $(ARCH_CFLAGS)

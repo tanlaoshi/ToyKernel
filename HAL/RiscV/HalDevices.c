@@ -50,6 +50,14 @@ int HalUsbInit(void) {
 void HalInputArmIrq(void) {
 }
 
+void HalInputInitMouseDeferred(void) {
+}
+
+void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
+    (void)CursorX;
+    (void)CursorY;
+}
+
 void HalInputPoll(void) {
     ToyDriverInputPoll();
 }

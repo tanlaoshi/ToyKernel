@@ -7,6 +7,7 @@
 #include "PhysicalMemory.h"
 #include "Driver.h"
 #include "DriverBlock.h"
+#include "ToySerialLog.h"
 
 #define VIRTIO_BLK_T_IN  0u
 #define VIRTIO_BLK_T_OUT 1u
@@ -34,7 +35,7 @@ static void HexU32(UINT32 V) {
         V >>= 4;
     }
     Buf[8] = 0;
-    HalSerialWrite(Buf);
+    ToyLogFs(Buf);
 }
 
 static int BlkXfer(UINT32 Type, UINT32 Lba, UINT32 Count, void *Buffer) {
@@ -170,7 +171,7 @@ static int VirtioBlockDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
     }
 
     if (VirtioMmioSetupQueue(&gBlk, Ctx.FoundBase, VIRTIO_DEV_BLOCK, 8, 0) != 0) {
-        HalSerialWrite("virtio-blk: setup failed\n");
+        ToyLogFs("virtio-blk: setup failed\n");
         return -1;
     }
 
@@ -183,9 +184,9 @@ static int VirtioBlockDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
     gIoBuf = Meta + 128;
     gBlkReady = 1;
 
-    HalSerialWrite("boot: virtio-blk @");
+    ToyLogFs("boot: virtio-blk @");
     HexU32((UINT32)Ctx.FoundBase);
-    HalSerialWrite("\n");
+    ToyLogFs("\n");
 
     if (OutPriv) {
         *OutPriv = 0;

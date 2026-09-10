@@ -43,6 +43,10 @@ void HalDriverRegister(void);
 int HalUsbInit(void);
 /* 真机 PHOTO 后开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
+/* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
+void HalInputInitMouseDeferred(void);
+/* PHOTO→桌面：清空鼠队列并对齐累加坐标 */
+void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 void HalInputPoll(void);
 /* PHOTO：t=任意xfer i=键鼠匹配 k/m推送 u未匹配 s=slot.ep c完成码 r环事件 d=Drain */
 void HalInputDiagFormat(char *Buf, int Max);

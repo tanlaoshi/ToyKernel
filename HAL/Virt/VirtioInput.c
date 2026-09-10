@@ -12,6 +12,7 @@
 #include "Driver.h"
 #include "DriverInput.h"
 #include "HalDevices.h"
+#include "ToySerialLog.h"
 
 #define EV_SYN 0x00
 #define EV_KEY 0x01
@@ -434,7 +435,7 @@ static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
         if (VirtioMmioSetupQueue(&gKbd, S.KbdBase, VIRTIO_DEV_INPUT, 8, 0) == 0) {
             RefillQueue(&gKbd, gKbdEvBuf, gKbd.QueueSize);
             gKbdOn = 1;
-            HalSerialWrite("boot: virtio-input keyboard\n");
+            ToyLogDrv("boot: virtio-input keyboard\n");
         }
     }
     if (S.TabBase) {
@@ -443,7 +444,7 @@ static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
             ReadAbsInfo(S.TabBase, ABS_Y, &gAbsMinY, &gAbsMaxY);
             RefillQueue(&gTab, gTabEvBuf, gTab.QueueSize);
             gTabOn = 1;
-            HalSerialWrite("boot: virtio-input tablet\n");
+            ToyLogDrv("boot: virtio-input tablet\n");
         }
     }
     if (!(gKbdOn || gTabOn)) {

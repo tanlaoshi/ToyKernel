@@ -10,6 +10,7 @@
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
 #include "SpinLock.h"
+#include "ToySerialLog.h"
 
 #define SCHED_TAG_KERNEL_FIRST 1ULL
 #define SCHED_TAG_USER_FIRST   2ULL
@@ -1343,7 +1344,7 @@ void SchedulerApStart(void) {
     Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
     if (!Idle) {
         SpinLockRelease(&gSchedulerLock);
-        HalDebugWrite("sched: AP has no idle\n");
+        ToyLogSmp("sched: AP has no idle\n");
         for (;;) {
             HalCpuPark();
         }
@@ -1354,9 +1355,9 @@ void SchedulerApStart(void) {
     SpinLockRelease(&gSchedulerLock);
     /* 8 AP 并发写 COM1 会把欢迎语打成乱码；只留一条样例给冒烟 */
     if (Cpu == 1) {
-        HalDebugWrite("sched: AP entered idle cpu=");
-        HalDebugWriteHex32(Cpu);
-        HalDebugWrite("\n");
+        ToyLogSmp("sched: AP entered idle cpu=");
+        ToyLogSmpHex32(Cpu);
+        ToyLogSmp("\n");
     }
     HalSchedulerEnter(Idle->Frame);
     (void)Ret;

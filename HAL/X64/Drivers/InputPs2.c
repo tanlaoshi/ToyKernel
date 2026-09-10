@@ -10,6 +10,7 @@
 #include "InputPs2.h"
 #include "VirtualMemory.h"
 #include "SpinLock.h"
+#include "ToySerialLog.h"
 
 #define PS2_DATA   0x60
 #define PS2_STATUS 0x64
@@ -292,7 +293,7 @@ static int Ps2InitHw(void) {
     CtrlCmd(0xAA);
     if (!KbdRead(&Ack) || Ack != 0x55) {
         /* 真机无键或无 8042：快速失败，勿继续 reset 长序列 */
-        HalSerialWrite("boot: ps2-kbd self-test fail\n");
+        ToyLogDrv("boot: ps2-kbd self-test fail\n");
         return 0;
     }
 
@@ -312,11 +313,11 @@ static int Ps2InitHw(void) {
     (void)KbdRead(&Ack);
 
     if (Ps2StatusLooksDead(HalIoRead8(PS2_STATUS))) {
-        HalSerialWrite("boot: ps2-kbd died after init\n");
+        ToyLogDrv("boot: ps2-kbd died after init\n");
         return 0;
     }
 
-    HalSerialWrite("boot: ps2-kbd keyboard\n");
+    ToyLogDrv("boot: ps2-kbd keyboard\n");
     return 1;
 }
 
@@ -342,7 +343,7 @@ static int Ps2DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
         return 0;
     }
     if (!Ps2InitHw()) {
-        HalSerialWrite("boot: ps2-kbd probe failed\n");
+        ToyLogDrv("boot: ps2-kbd probe failed\n");
         return -1;
     }
     gPs2Ready = 1;

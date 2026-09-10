@@ -8,6 +8,7 @@
 #include "Hal.h"
 #include "Platform.h"
 #include "VirtualMemory.h"
+#include "ToySerialLog.h"
 
 #define IOAPIC_DEFAULT_PHYS 0xFEC00000ULL
 #define IOAPIC_REGSEL       0x00
@@ -106,15 +107,15 @@ int IoApicInit(void) {
     }
 
     gReady = 1;
-    HalDebugWrite("boot: ioapic base=");
-    HalDebugHex64(Phys);
-    HalDebugWrite(" maxredir=");
-    HalDebugWriteHex32(gMaxRedir);
-    HalDebugWrite(" gsi0=");
-    HalDebugWriteHex32(GsiBase);
-    HalDebugWrite(" iso=");
-    HalDebugWriteHex32((UINT32)gIsoCount);
-    HalDebugWrite("\n");
+    ToyLogSmp("boot: ioapic base=");
+    ToyLogSmpHex64(Phys);
+    ToyLogSmp(" maxredir=");
+    ToyLogSmpHex32(gMaxRedir);
+    ToyLogSmp(" gsi0=");
+    ToyLogSmpHex32(GsiBase);
+    ToyLogSmp(" iso=");
+    ToyLogSmpHex32((UINT32)gIsoCount);
+    ToyLogSmp("\n");
     return 0;
 }
 
@@ -163,14 +164,14 @@ int IoApicRouteGsi(UINT32 Gsi, UINT8 Vector, UINT8 DestApicId,
     Hi = ((UINT32)DestApicId) << 24;
     WriteRte(Index, Lo, Hi);
 
-    HalDebugWrite("boot: ioapic route gsi=");
-    HalDebugWriteHex32(Gsi);
-    HalDebugWrite(" vec=");
-    HalDebugWriteHex32(Vector);
-    HalDebugWrite(" dest=");
-    HalDebugWriteHex32(DestApicId);
-    HalDebugWrite(Level ? " level" : " edge");
-    HalDebugWrite(ActiveLow ? " low\n" : " high\n");
+    ToyLogSmp("boot: ioapic route gsi=");
+    ToyLogSmpHex32(Gsi);
+    ToyLogSmp(" vec=");
+    ToyLogSmpHex32(Vector);
+    ToyLogSmp(" dest=");
+    ToyLogSmpHex32(DestApicId);
+    ToyLogSmp(Level ? " level" : " edge");
+    ToyLogSmp(ActiveLow ? " low\n" : " high\n");
     return 0;
 }
 
@@ -213,7 +214,7 @@ int IoApicRoutePciIntx(USB_CONTROLLER *Device, UINT8 Vector, UINT8 DestApicId) {
     Dw = PciReadConfig(Device->Bus, Device->Device, Device->Function, 0x3C);
     Line = (UINT8)(Dw & 0xFFu);
     if (Line == 0 || Line == 0xFF || Line > 23) {
-        HalDebugWrite("boot: ioapic pci intx: no line\n");
+        ToyLogSmp("boot: ioapic pci intx: no line\n");
         return -1;
     }
 

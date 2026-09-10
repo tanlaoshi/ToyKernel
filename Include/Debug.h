@@ -1,8 +1,9 @@
 /*
- * Debug.h — 内核调试输出开关
+ * Debug.h — 内核调试输出开关（TOY_DEBUG）与串口总开关（TOY_SERIAL）正交
  *
  * 编译：make DEBUG=1 或 ./build.sh DEBUG=1
  * 默认 TOY_DEBUG=0：DebugWrite/DebugHex* 编译为空操作。
+ * 串口总开关 / 分模块：见 ToySerialConfig.h（SERIAL=0 / SERIAL_USB=0 …）。
  * Shell 命令输出请继续用 ConsoleWrite（不受此开关影响）。
  */
 #ifndef TOY_DEBUG_H

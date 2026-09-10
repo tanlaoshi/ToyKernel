@@ -15,6 +15,7 @@
 #include "FileSystem.h"
 #include "PhysicalMemory.h"
 #include "Debug.h"
+#include "ToySerialLog.h"
 
 #define DESKTOP_ICON_COUNT    3
 #define DESKTOP_ICON_SIZE     48
@@ -987,7 +988,7 @@ void DesktopInit(void) {
     }
     gDesktopBusy = 1;
 
-    HalSerialWrite("boot: desktop icons\n");
+    ToyLogGui("boot: desktop icons\n");
     PlaceDesktopIcons();
 
     gSelected = -1;
@@ -995,11 +996,11 @@ void DesktopInit(void) {
     gSelectX = 0;
     gSelectY = 0;
     gMenuOpen = 0;
-    HalSerialWrite("boot: desktop wallpaper\n");
+    ToyLogGui("boot: desktop wallpaper\n");
     LoadWallpaper();
-    HalSerialWrite("boot: desktop bmp icons\n");
+    ToyLogGui("boot: desktop bmp icons\n");
     LoadDesktopIcons();
-    HalSerialWrite("boot: desktop ready\n");
+    ToyLogGui("boot: desktop ready\n");
     DebugWrite("desktop: icons+taskbar ready (bmp48 Assets/Icons)\n");
     gDesktopBusy = 0;
 }

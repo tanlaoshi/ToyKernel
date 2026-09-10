@@ -340,14 +340,14 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
         HalCpuHalt(); /* 等定时器/网卡；无 halt 会把 TimeoutMs 当空转次数瞬间耗尽 */
     }
     if (S->Phase != 1) {
-        HalDebugWrite("sock: connect fail phase=");
-        HalDebugWriteHex32((UINT32)S->Phase);
-        HalDebugWrite(" err=");
-        HalDebugWriteHex32((UINT32)(INT32)S->Err);
+        ToyLogNet("sock: connect fail phase=");
+        ToyLogNetHex32((UINT32)S->Phase);
+        ToyLogNet(" err=");
+        ToyLogNetHex32((UINT32)(INT32)S->Err);
         if ((INT32)S->Err == -14) {
-            HalDebugWrite(" (RST: host nc -l -p PORT first?)\n");
+            ToyLogNet(" (RST: host nc -l -p PORT first?)\n");
         } else {
-            HalDebugWrite("\n");
+            ToyLogNet("\n");
         }
         Neg = (S->Phase == 0 && S->Err == ERR_OK)
                   ? -TOY_ETIMEDOUT
@@ -495,6 +495,7 @@ int ToySocketClose(int Sock) {
 #else
 
 #include "toy_socket.h"
+#include "ToySerialLog.h"
 
 int ToySocketCreate(void) {
     return -1;

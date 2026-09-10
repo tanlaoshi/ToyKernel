@@ -16,6 +16,7 @@
 #include "DriverNet.h"
 #ifdef TOY_LWIP
 #include "toy_netif.h"
+#include "ToySerialLog.h"
 #endif
 
 #define VIRTIO_NET_F_MAC   (1ULL << 5)
@@ -456,7 +457,7 @@ static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **Out
     }
 
     if (VirtioMmioNegotiate(&gRx, Base, VIRTIO_DEV_NET, VIRTIO_NET_F_MAC) != 0) {
-        HalSerialWrite("boot: virtio-net negotiate failed\n");
+        ToyLogNet("boot: virtio-net negotiate failed\n");
         return -1;
     }
     Ver = VirtioMmioRead32(Base, 0x004u);
@@ -467,11 +468,11 @@ static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **Out
     gTx.DeviceId = VIRTIO_DEV_NET;
 
     if (VirtioMmioSetupOneQueue(&gRx, RX_QUEUE_ID, RX_BUF_COUNT) != 0) {
-        HalSerialWrite("boot: virtio-net rx queue failed\n");
+        ToyLogNet("boot: virtio-net rx queue failed\n");
         return -1;
     }
     if (VirtioMmioSetupOneQueue(&gTx, TX_QUEUE_ID, 4) != 0) {
-        HalSerialWrite("boot: virtio-net tx queue failed\n");
+        ToyLogNet("boot: virtio-net tx queue failed\n");
         return -1;
     }
 
@@ -494,7 +495,7 @@ static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **Out
     }
 
     gNetOk = 1;
-    HalSerialWrite("boot: virtio-net\n");
+    ToyLogNet("boot: virtio-net\n");
     if (OutPriv) {
         *OutPriv = 0;
     }

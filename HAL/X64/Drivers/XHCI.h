@@ -69,6 +69,10 @@ int XhciHidKeyboardReady(void); /* 已 Address+Configure 键盘 */
 int XhciEnableIrq(USB_CONTROLLER *Device);
 /* PR-H-xhci-dual 占位：试进 DUAL；当前真机 stub，仍留 POLL */
 int XhciTryEnterDual(USB_CONTROLLER *Device);
+/* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
+void XhciInitMouseDeferred(void);
+/* PHOTO→桌面：清空鼠队列、重置累加坐标、Sync+Queue 键鼠 */
+void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 /* dual/irq 失败时切回 poll 备份 */
 void XhciFallbackToPoll(const char *Why);
 XHCI_IRQ_MODE XhciIrqMode(void);

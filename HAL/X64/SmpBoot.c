@@ -3,14 +3,15 @@
  */
 #include "AcpiMadt.h"
 #include "Hal.h"
+#include "ToySerialLog.h"
 #include "Platform.h"
 #include "HalPort.h"
 #include "Arch.h"
 #include "Scheduler.h"
-/* PR-S1/S2 验证日志始终走串口（不受 TOY_DEBUG 开关影响） */
-#define SmpLog(Text)      HalDebugWrite(Text)
-#define SmpLogHex32(V)    HalDebugWriteHex32(V)
-#define SmpLogHex64(V)    HalDebugHex64(V)
+/* PR-S1/S2 验证日志：走 SMP 通道（可 SERIAL_SMP=0 quiet） */
+#define SmpLog(Text)      ToyLogSmp(Text)
+#define SmpLogHex32(V)    ToyLogSmpHex32(V)
+#define SmpLogHex64(V)    ToyLogSmpHex64(V)
 
 #define LAPIC_BASE       0xFEE00000ULL
 #define LAPIC_ID         0x20
@@ -323,13 +324,14 @@ int HalSmpStartApplicationProcessors(void) {
         SmpLog("smp: no RSDP (single CPU)\n");
         return 0;
     }
-    if (AcpiMadtParse(Rsdp, gApicIds, HAL_MAX_CPUS, &Count, &BspFromMadt) != 0) {
-        return 0;
-    }
+    /* 电源与 MADT 解耦：MADT 失败仍应能短按关机 */
     if (AcpiPowerInit(Rsdp) == 0) {
         SmpLog("smp: ACPI power ready\n");
     } else {
         SmpLog("smp: ACPI power n/a\n");
+    }
+    if (AcpiMadtParse(Rsdp, gApicIds, HAL_MAX_CPUS, &Count, &BspFromMadt) != 0) {
+        return 0;
     }
     gCpuCount = Count;
     NormalizeBspFirst(BspId, Count);

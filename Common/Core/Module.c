@@ -3,13 +3,14 @@
  */
 #include "Module.h"
 #include "Hal.h"
+#include "ToySerialLog.h"
 #include "HalDevices.h"
 #include "Debug.h"
 
 static void ModLog(const char *Name, const char *Suffix) {
-    HalSerialWrite("[mod] ");
-    HalSerialWrite(Name);
-    HalSerialWrite(Suffix);
+    ToyLogBoot("[mod] ");
+    ToyLogBoot(Name);
+    ToyLogBoot(Suffix);
 }
 
 /* 真机 bring-up：进度改走黄字 boot log，不再画左上角色块 */

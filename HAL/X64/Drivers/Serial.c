@@ -1,14 +1,13 @@
 /*
  * Serial.c — COM1 串口驱动（经 HalIo；PR-H3：探测存在性）
+ *
+ * TOY_SERIAL=0：不 Probe、不碰端口，一切 TX/RX 空操作。
  */
 #include "Serial.h"
 #include "Hal.h"
+#include "ToySerialConfig.h"
 
 #define COM1 0x3F8
-
-#ifndef TOY_NO_COM1
-#define TOY_NO_COM1 0
-#endif
 
 static int gSerialOk;
 
@@ -16,7 +15,7 @@ static int ProbeCom1(void) {
     UINT8 A;
     UINT8 B;
 
-#if TOY_NO_COM1
+#if !TOY_SERIAL
     return 0;
 #endif
     /* Scratch 寄存器（offset 7）：无 16550 时常读回 0xFF */
@@ -28,6 +27,10 @@ static int ProbeCom1(void) {
 }
 
 void SerialInit(void) {
+#if !TOY_SERIAL
+    gSerialOk = 0;
+    return;
+#else
     gSerialOk = ProbeCom1();
     if (!gSerialOk) {
         return;
@@ -39,10 +42,15 @@ void SerialInit(void) {
     HalIoWrite8(COM1 + 3, 0x03);
     HalIoWrite8(COM1 + 2, 0xC7);
     HalIoWrite8(COM1 + 4, 0x0B);
+#endif
 }
 
 int SerialPresent(void) {
+#if !TOY_SERIAL
+    return 0;
+#else
     return gSerialOk;
+#endif
 }
 
 static void SerialPutChar(char C) {

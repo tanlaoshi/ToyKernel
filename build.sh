@@ -5,17 +5,29 @@ cd "$(dirname "$0")"
 # 用法:
 #   ./build.sh              # ARCH=x86_64
 #   ./build.sh DEBUG=1
+#   ./build.sh SERIAL=0              # 总开关：不 Init UART、无串口 TX
+#   ./build.sh SERIAL_USB=0          # 仅 USB/xHCI 串口 quiet
+#   ./build.sh NO_COM1=1             # 兼容旧名，等价 SERIAL=0
 #   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0）
 #   ./build.sh riscv
 #   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
-#   ./build.sh arm64 BOARD=virt           # PR-B2：选 HAL/Arm64/Board/<board>
-#   ./build.sh riscv BOARD=milk-v-duo-s   # PR-B3：Duo S 命令行板包
-#   ./build.sh NO_COM1=1     # PR-H3：强制无 COM1，GOP 文本调试（课堂有显示时验）
+#   ./build.sh arm64 BOARD=virt
+#   ./build.sh riscv BOARD=milk-v-duo-s
 ARCH=x86_64
 BOARD=virt
 DEBUG=0
 LWIP=0
 NO_COM1=0
+SERIAL=1
+SERIAL_BOOT=1
+SERIAL_USB=1
+SERIAL_SMP=1
+SERIAL_GUI=1
+SERIAL_NET=1
+SERIAL_FS=1
+SERIAL_MEM=1
+SERIAL_DRV=1
+SERIAL_MISC=1
 BRINGUP=
 for Arg in "$@"; do
     case "$Arg" in
@@ -23,8 +35,19 @@ for Arg in "$@"; do
         DEBUG=0|debug=0) DEBUG=0 ;;
         LWIP=1|lwip=1) LWIP=1 ;;
         LWIP=0|lwip=0) LWIP=0 ;;
-        NO_COM1=1|no_com1=1) NO_COM1=1 ;;
+        NO_COM1=1|no_com1=1) NO_COM1=1; SERIAL=0 ;;
         NO_COM1=0|no_com1=0) NO_COM1=0 ;;
+        SERIAL=1|serial=1) SERIAL=1 ;;
+        SERIAL=0|serial=0) SERIAL=0 ;;
+        SERIAL_BOOT=*) SERIAL_BOOT="${Arg#SERIAL_BOOT=}" ;;
+        SERIAL_USB=*) SERIAL_USB="${Arg#SERIAL_USB=}" ;;
+        SERIAL_SMP=*) SERIAL_SMP="${Arg#SERIAL_SMP=}" ;;
+        SERIAL_GUI=*) SERIAL_GUI="${Arg#SERIAL_GUI=}" ;;
+        SERIAL_NET=*) SERIAL_NET="${Arg#SERIAL_NET=}" ;;
+        SERIAL_FS=*) SERIAL_FS="${Arg#SERIAL_FS=}" ;;
+        SERIAL_MEM=*) SERIAL_MEM="${Arg#SERIAL_MEM=}" ;;
+        SERIAL_DRV=*) SERIAL_DRV="${Arg#SERIAL_DRV=}" ;;
+        SERIAL_MISC=*) SERIAL_MISC="${Arg#SERIAL_MISC=}" ;;
         BRINGUP=1|bringup=1) BRINGUP=1 ;;
         BRINGUP=0|bringup=0) BRINGUP=0 ;;
         BOARD=*) BOARD="${Arg#BOARD=}" ;;
@@ -36,7 +59,7 @@ if [ -z "$BRINGUP" ]; then
     BRINGUP=0
 fi
 
-echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP NO_COM1=$NO_COM1"
+echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_DEBUG=$DEBUG SERIAL=$SERIAL USB=$SERIAL_USB LWIP=$LWIP BRINGUP=$BRINGUP"
 
 case "$ARCH" in
     x86_64) HAL_ARCH=X64 ;;
@@ -51,7 +74,11 @@ ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
 USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
 
 make clean ARCH="$ARCH" BOARD="$BOARD"
-make ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" NO_COM1="$NO_COM1"
+make ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" \
+    NO_COM1="$NO_COM1" SERIAL="$SERIAL" \
+    SERIAL_BOOT="$SERIAL_BOOT" SERIAL_USB="$SERIAL_USB" SERIAL_SMP="$SERIAL_SMP" \
+    SERIAL_GUI="$SERIAL_GUI" SERIAL_NET="$SERIAL_NET" SERIAL_FS="$SERIAL_FS" \
+    SERIAL_MEM="$SERIAL_MEM" SERIAL_DRV="$SERIAL_DRV" SERIAL_MISC="$SERIAL_MISC"
 
 if [ ! -f "$ELF" ]; then
     echo "Build failed!"

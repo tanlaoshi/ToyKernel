@@ -17,6 +17,7 @@
 #include "Locale.h"
 #include "PhysicalMemory.h"
 #include "CoreOps.h"
+#include "ToySerialLog.h"
 
 GUI_WINDOW gWindows[MAX_WINS];
 UINT32 gScreenWidth;
@@ -789,7 +790,7 @@ void GuiOnArrowKey(UINT8 Key) {
 
 /* PR-I3：右键占位 — 串口记一笔；不弹菜单（菜单另刀） */
 void GuiRightClickPlaceholder(UINT32 X, UINT32 Y) {
-    HalSerialWrite("gui: right-click\n");
+    ToyLogGui("gui: right-click\n");
     DebugWrite("gui: right-click x=");
     DebugHex32(X);
     DebugWrite(" y=");

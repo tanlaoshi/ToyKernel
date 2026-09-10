@@ -22,6 +22,7 @@
 #include "Console.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "ToySerialLog.h"
 #include "AcpiMadt.h"
 #include "Platform.h"
 #include "SpinLock.h"
@@ -134,6 +135,8 @@ static UINT32 gIntrDci;
 static UINT16 gEp0Mps;
 static UINT8  gKbdIface;
 static UINT8  gKbdEpAddr; /* 配置描述符 bEndpointAddress，匹配事件用 */
+static UINT16 gKbdMps;    /* ConfigureIntr 记下的 MPS；composite 重建用 */
+static UINT8  gKbdEpInterval; /* 已换算进 EP 上下文的 Interval 字段 */
 static UINT8  gUseGetReport;
 static UINT8  gUseIrq;
 /* 真机默认 POLL；DUAL/IRQ 见 XhciTryEnterDual（占位） */
@@ -161,7 +164,12 @@ static UINT8  gMouseParseScore; /* ParseConfigMouse 评分：3=boot鼠 2=boot子
 static UINT8  gMouseAbsolute;   /* 1：报告为绝对坐标（QEMU usb-tablet） */
 static UINT8  gMouseEpAddr;
 static UINT8  gMouseReportLen;
+static UINT8  gMouseXferLen; /* 最近一次中断 IN 实际字节（短包后 < MPS） */
 static UINT8  gMouseBuf[8] __attribute__((aligned(64)));
+/* boot 相对鼠：在驱动内累加成屏坐标；PHOTO→桌面时重置到光标 */
+static int    gMouseAbsX = 512;
+static int    gMouseAbsY = 384;
+static int    gMouseAbsInit;
 static XHCI_TRB gMouseIntrRing[RING_SIZE] __attribute__((aligned(64)));
 static RING_STATE gMouseIntr;
 static UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
@@ -458,7 +466,7 @@ static void BootLogHexV(const char *Prefix, UINT64 Value, int Digits) {
 
 static void BootMarkV(const char *Text) {
     if (DiagVerbose()) {
-        HalSerialBootMark(Text);
+        ToyBootMarkUsb(Text);
     }
 }
 
@@ -730,7 +738,7 @@ static void ProcessEvents(void) {
                         Line[n++] = (char)('0' + (Code % 10));
                         Line[n++] = '\n';
                         Line[n] = 0;
-                        HalSerialWrite(Line);
+                        ToyLogUsb(Line);
                         gDiagIntrCcLogged++;
                     }
                 }
@@ -738,9 +746,24 @@ static void ProcessEvents(void) {
             if (MouseHit) {
                 Matched = 1;
                 if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
+                    UINT32 Remain = Evt->Status & 0xFFFFFF;
+                    UINT32 Req = gMouseReportLen ? gMouseReportLen : 8;
+
                     gStatMouseEvt++;
                     gMouseReportReady = 1;
                     gMouseIntrDone = 1;
+                    /* 短包：Remain=未传完；实际长度=请求-Remain */
+                    if (Remain < Req) {
+                        gMouseXferLen = (UINT8)(Req - Remain);
+                    } else {
+                        gMouseXferLen = (UINT8)Req;
+                    }
+                    if (gMouseXferLen < 3) {
+                        gMouseXferLen = 3;
+                    }
+                    if (gMouseXferLen > 8) {
+                        gMouseXferLen = 8;
+                    }
                 } else if (Code == CC_STOPPED || Code == CC_STOPPED_LEN ||
                            Code == CC_STOPPED_SHORT) {
                     /* 同上：Stop 取消，勿重投门铃 */
@@ -758,7 +781,7 @@ static void ProcessEvents(void) {
                         Line[n++] = (char)('0' + (Code % 10));
                         Line[n++] = '\n';
                         Line[n] = 0;
-                        HalSerialWrite(Line);
+                        ToyLogUsb(Line);
                         gDiagIntrCcLogged++;
                     }
                 }
@@ -786,7 +809,7 @@ static void ProcessEvents(void) {
                     Line[n++] = (char)('0' + (Code % 10));
                     Line[n++] = '\n';
                     Line[n] = 0;
-                    HalSerialWrite(Line);
+                    ToyLogUsb(Line);
                     gDiagXferLogged++;
                 }
             }
@@ -860,7 +883,7 @@ static int WaitCommand(int Timeout) {
             }
             if ((ReadTsc() - T0) >= Mid) {
                 Mid = Need + 1; /* 只刷一次 */
-                HalSerialBootMark("boot: xhci cmd wait2\n");
+                ToyBootMarkUsb("boot: xhci cmd wait2\n");
             }
             __asm__ volatile ("pause");
         }
@@ -913,7 +936,7 @@ static int WaitTransfer(int Timeout) {
         UINT64 T0 = ReadTsc();
         UINT64 Need = 150ULL * 3000000ULL; /* ~150ms：真机 cfg 描述符偶发慢 */
         for (;;) {
-            ProcessEvents();
+            ProcessEventsRealPc();
             ServiceHidCompletions();
             if (gXferDone) {
                 return (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0 : -1;
@@ -954,7 +977,7 @@ static void RecoverCommandRing(void) {
     UINT32 Enq;
     UINT32 Pcs;
 
-    HalSerialBootMark("boot: xhci cmd recover\n");
+    ToyBootMarkUsb("boot: xhci cmd recover\n");
     BootLog("boot: xhci command timeout, recovering...\n");
 
     Cr = ReadMmio64(gOperationalBase + 0x18);
@@ -1004,7 +1027,7 @@ static void RecoverCommandRing(void) {
     }
 
     gCmdDone = 0;
-    HalSerialBootMark("boot: xhci cmd ring recovered\n");
+    ToyBootMarkUsb("boot: xhci cmd ring recovered\n");
 }
 
 /* 提交一条命令 TRB 并等待完成；超时则 CA 恢复并重试一次 */
@@ -1094,10 +1117,10 @@ static void TakeLegacy(void) {
 /* 真机：BootMark 直写帧缓冲（不 Present）；QEMU 正常串口/GOP */
 static void BootLog(const char *Text) {
     if (!HalCpuIsHypervisor()) {
-        HalSerialBootMark(Text);
+        ToyBootMarkUsb(Text);
         return;
     }
-    HalSerialWrite(Text);
+    ToyLogUsb(Text);
 }
 
 /* 停 RS，避免无 HID 时事件环/遗留状态拖死后续 */
@@ -1124,13 +1147,13 @@ static int ResetController(void) {
     Cmd &= ~USBCMD_RS;
     WriteMmio32(gOperationalBase, Cmd);
     if (!WaitSet(gOperationalBase + 4, USBSTS_HCH, 1000000)) {
-        HalSerialWrite("boot: xhci halt timeout\n");
+        ToyLogUsb("boot: xhci halt timeout\n");
         DebugWrite("XHCI: halt timeout\n");
         return 0;
     }
     WriteMmio32(gOperationalBase, USBCMD_HCRST);
     if (!WaitClear(gOperationalBase, USBCMD_HCRST, 1000000) || !WaitClear(gOperationalBase + 4, USBSTS_CNR, 1000000)) {
-        HalSerialWrite("boot: xhci reset timeout\n");
+        ToyLogUsb("boot: xhci reset timeout\n");
         DebugWrite("XHCI: reset timeout\n");
         return 0;
     }
@@ -1167,7 +1190,7 @@ static void BootMarkRs(char Kind, char Stage) {
     Msg[n++] = Stage;
     Msg[n++] = '\n';
     Msg[n] = 0;
-    HalSerialBootMark(Msg);
+    ToyBootMarkUsb(Msg);
 }
 
 /* 分配 DCBAA、建环并 Run 控制器 */
@@ -1200,7 +1223,7 @@ static int StartController(UINT32 MaxSlots) {
         FwDcbaap = gFwDcbaapSave ? gFwDcbaapSave
                                  : (ReadMmio64(gOperationalBase + 0x30) & ~0x3FULL);
         if (FwDcbaap == 0) {
-            HalSerialBootMark("boot: xhci fw DCBAAP=0\n");
+            ToyBootMarkUsb("boot: xhci fw DCBAAP=0\n");
             return 0;
         }
         MapBytes = (UINTN)(MaxSlots + 1) * sizeof(UINT64);
@@ -1208,7 +1231,7 @@ static int StartController(UINT32 MaxSlots) {
             MapBytes = 0x1000;
         }
         if (MapXhciDma(FwDcbaap, MapBytes) != 0) {
-            HalSerialBootMark("boot: xhci map DCBAAP fail\n");
+            ToyBootMarkUsb("boot: xhci map DCBAAP fail\n");
             return 0;
         }
         gDcbaaLive = (UINT64 *)(UINTN)FwDcbaap;
@@ -1266,7 +1289,7 @@ static int StartController(UINT32 MaxSlots) {
         if (!WaitSet(gOperationalBase + 0x18, CRCR_CRR, 100000)) {
             if (DiagVerbose()) {
                 DiagChk("StartController.CRR", 0, "CRR=1", ReadMmio32(gOperationalBase + 0x18), 8);
-                HalSerialBootMark("boot: xhci CRR TO\n");
+                ToyBootMarkUsb("boot: xhci CRR TO\n");
             }
         } else {
             DiagChk("StartController.fwRS", 1, "HCH=0+CRR", ReadMmio32(gOperationalBase + 4), 8);
@@ -1284,8 +1307,8 @@ static int StartController(UINT32 MaxSlots) {
         }
         BootLog("boot: xhci scratchpad=");
         HalSerialFormatHex(B, Scratch, 4);
-        HalSerialWrite(B);
-        HalSerialWrite("\n");
+        ToyLogUsb(B);
+        ToyLogUsb("\n");
         ZeroMemory(gScratchPtr, sizeof(gScratchPtr));
         for (Si = 0; Si < Scratch; Si++) {
             gScratchPtr[Si] = PointerToPhysical(gScratchBuf[Si]);
@@ -1330,12 +1353,12 @@ static int StartController(UINT32 MaxSlots) {
     Sts = ReadMmio32(gOperationalBase + 4);
     BootLog("boot: xhci USBSTS before RS=");
     HalSerialFormatHex(B, Sts, 8);
-    HalSerialWrite(B);
-    HalSerialWrite("\n");
-    HalSerialBootMark("boot: xhci before RS\n");
+    ToyLogUsb(B);
+    ToyLogUsb("\n");
+    ToyBootMarkUsb("boot: xhci before RS\n");
     WriteMmio32(gOperationalBase, USBCMD_RS | USBCMD_INTE);
     Fence();
-    HalSerialBootMark("boot: xhci after RS\n");
+    ToyBootMarkUsb("boot: xhci after RS\n");
 
     if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, 1000000)) {
         Sts = ReadMmio32(gOperationalBase + 4);
@@ -1345,7 +1368,7 @@ static int StartController(UINT32 MaxSlots) {
     }
     Sts = ReadMmio32(gOperationalBase + 4);
     DiagChk("StartController.RS", !(Sts & USBSTS_HCH), "HCH=0 running", Sts, 8);
-    HalSerialBootMark("boot: xhci RS running\n");
+    ToyBootMarkUsb("boot: xhci RS running\n");
     (void)gDcbaaFromFirmware;
     return 1;
 }
@@ -1982,8 +2005,13 @@ static UINT8 FsInterval(UINT8 BInterval) {
 static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed) {
     UINT8 EpNum = EpAddr & 0x0F;
     UINT8 In = (EpAddr & 0x80) ? 1 : 0;
+    UINT8 Interval;
     gIntrDci = (UINT32)EpNum * 2 + In;
     gKbdEpAddr = EpAddr;
+    if (Mps == 0 || Mps > 64) {
+        Mps = 8;
+    }
+    gKbdMps = Mps;
 
     ZeroMemory(gInCtx, sizeof(gInCtx));
     *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0) | (1u << gIntrDci);
@@ -1997,7 +2025,8 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed)
 
     InitRing(gIntrRing, &gIntr, RING_SIZE);
     UINT32 *Ep = (UINT32 *)(void *)InEp(gIntrDci);
-    UINT8 Interval = (Speed >= 3) ? (UINT8)((BInterval > 0) ? (BInterval - 1) : 0) : FsInterval(BInterval);
+    Interval = (Speed >= 3) ? (UINT8)((BInterval > 0) ? (BInterval - 1) : 0) : FsInterval(BInterval);
+    gKbdEpInterval = Interval;
     Ep[0] = (UINT32)Interval << 16;
     Ep[1] = (3u << 1) | (7u << 3) | ((UINT32)Mps << 16);
     UINT64 Deq = PointerToPhysical(gIntrRing) | 1;
@@ -2055,13 +2084,13 @@ static int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *
     FlushDma(Ring, RingBytes);
     Deq = PointerToPhysical(&Ring[St->Enq]) | (St->Pcs & 1u);
     if (Command(Deq, TRB_TYPE(TRB_SET_TR_DEQ) | TRB_SLOT(Slot) | EpField, 0) < 0) {
-        HalSerialWrite("boot: xhci sync deq fail\n");
+        ToyLogUsb("boot: xhci sync deq fail\n");
         return -1;
     }
     return 0;
 }
 
-/* 提交中断 IN 传输 TRB */
+/* 提交中断 IN 传输 TRB（与 ea8a865 一致：固定 8 + ISP） */
 static void QueueIntr(void) {
     gIntrDone = 0;
     gIntrReportReady = 0;
@@ -2281,8 +2310,12 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
         UINT64 KbdDeq;
 
         InitRing(gIntrRing, &gIntr, RING_SIZE);
-        /* 键盘 Interval 已在首次 ConfigureIntr 算过；用保守 10ms 档重填 */
+        /* 与 ea8a865 一致：composite 重建键盘 EP 用保守 8 字节 MPS */
         KbdIv = (Speed >= 3) ? 3 : FsInterval(10);
+        if (gKbdEpInterval != 0) {
+            KbdIv = gKbdEpInterval;
+        }
+        (void)gKbdMps;
         KbdEp[0] = (UINT32)KbdIv << 16;
         KbdEp[1] = (3u << 1) | (7u << 3) | (8u << 16);
         KbdDeq = PointerToPhysical(gIntrRing) | 1;
@@ -2318,6 +2351,8 @@ static void QueueMouseIntr(void) {
 
     gMouseIntrDone = 0;
     gMouseReportReady = 0;
+    /* 短包只写前 N 字节；不清零会让相对鼠被「高字节非0」启发式误判成绝对 */
+    ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
     FlushDma(gMouseBuf, sizeof(gMouseBuf));
     /*
      * TRB 长度不得超过 EP MPS。真机 composite 鼠 mps=4 时曾固定 enqueue 8，
@@ -3032,9 +3067,10 @@ static int InitMouseOnKeyboardSlot(void) {
     gMouseSlotId = gSlotId;
     ZeroMemory(gReportBuf, 8);
     ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
-    /* Drop+Add 重建了键盘环，须立刻再投递 */
+    /* ea8a865：ConfigEP 已重建环，直接投递；勿再 Sync（易把 CCS/EP 弄死 → PHOTO r=0） */
     QueueIntr();
     QueueMouseIntr();
+    ToyLogUsb("boot: xhci composite kbd rearm\n");
     if (gMouseAbsolute) {
         BootLog("boot: xhci-hid mouse (composite abs)\n");
     } else {
@@ -3252,13 +3288,18 @@ int XhciInit(UINT64 BaseAddress) {
     static int gXhciStarted;
 
     if (gXhciStarted) {
-        HalSerialWrite("boot: xhci init skipped (already up)\n");
-        return 1;
+        if (XhciHidKeyboardReady() || XhciMousePresent()) {
+            ToyLogUsb("boot: xhci init skipped (already up)\n");
+            return 1;
+        }
+        /* 控制器曾起但无 HID：勿假成功，否则 Probe/fallback 会挡住 PS/2 */
+        ToyLogUsb("boot: xhci already up, no HID\n");
+        return 0;
     }
 
     /* 运行时误调 / 损坏指针：QEMU 曾见 BAR=0x193A50 → Cap=0 后异常 */
     if (BaseAddress < 0x100000ULL || (BaseAddress & 0xFULL) != 0) {
-        HalSerialWrite("boot: xhci reject BAR\n");
+        ToyLogUsb("boot: xhci reject BAR\n");
         return 0;
     }
 
@@ -3270,7 +3311,7 @@ int XhciInit(UINT64 BaseAddress) {
      */
     if (RealPc) {
         HalSerialGopMute(1);
-        HalSerialBootMark("boot: xhci-Hhid enter\n");
+        ToyBootMarkUsb("boot: xhci-Hhid enter\n");
         gXhciDmar = -2;
         gXhciTe = -2;
         {
@@ -3278,7 +3319,7 @@ int XhciInit(UINT64 BaseAddress) {
             int Dmar;
             int Te;
             if (Rsdp == 0) {
-                HalSerialBootMark("boot: xhci RSDP=0\n");
+                ToyBootMarkUsb("boot: xhci RSDP=0\n");
             } else {
                 BootMarkV("boot: xhci RSDP ok\n");
                 Dmar = AcpiTablePresent(Rsdp, "DMAR");
@@ -3295,13 +3336,13 @@ int XhciInit(UINT64 BaseAddress) {
                     } else if (Te == 0) {
                         BootMarkV("boot: xhci TE no DRHD\n");
                     } else {
-                        HalSerialBootMark("boot: xhci TE off fail\n");
+                        ToyBootMarkUsb("boot: xhci TE off fail\n");
                     }
                 } else if (Dmar == 0) {
                     BootMarkV("boot: xhci DMAR=no\n");
                     gXhciTe = -2;
                 } else {
-                    HalSerialBootMark("boot: xhci DMAR=bad\n");
+                    ToyBootMarkUsb("boot: xhci DMAR=bad\n");
                 }
             }
         }
@@ -3309,10 +3350,10 @@ int XhciInit(UINT64 BaseAddress) {
 
     if (BaseAddress == 0) {
         if (RealPc) {
-            HalSerialBootMark("boot: xhci null BAR\n");
+            ToyBootMarkUsb("boot: xhci null BAR\n");
             HalSerialGopMute(0);
         } else {
-            HalSerialWrite("boot: xhci null BAR\n");
+            ToyLogUsb("boot: xhci null BAR\n");
         }
         return 0;
     }
@@ -3324,13 +3365,13 @@ int XhciInit(UINT64 BaseAddress) {
             "CAP!=F.. len>=20", Cap, 8);
     if (Cap == 0xFFFFFFFFu || CapLength < 0x20 || CapLength == 0xFF) {
         if (RealPc) {
-            HalSerialBootMark("boot: xhci bad CAP\n");
+            ToyBootMarkUsb("boot: xhci bad CAP\n");
             HalSerialGopMute(0);
         } else {
-            HalSerialWrite("boot: xhci bad CAP=");
+            ToyLogUsb("boot: xhci bad CAP=");
             HalSerialFormatHex(B, Cap, 8);
-            HalSerialWrite(B);
-            HalSerialWrite("\n");
+            ToyLogUsb(B);
+            ToyLogUsb("\n");
         }
         return 0;
     }
@@ -3359,7 +3400,7 @@ int XhciInit(UINT64 BaseAddress) {
         gFwErdpSave = ReadMmio64(gRuntimeBase + 0x38);
         if (gFwErstbaSave != 0) {
             if (MapXhciDma(gFwErstbaSave, 0x1000) != 0) {
-                HalSerialBootMark("boot: xhci map ERST fail\n");
+                ToyBootMarkUsb("boot: xhci map ERST fail\n");
             } else {
                 Erst = (UINT8 *)(UINTN)gFwErstbaSave;
                 gFwEvtSave = *(UINT64 *)(void *)Erst;
@@ -3396,11 +3437,11 @@ int XhciInit(UINT64 BaseAddress) {
             Msg[n++] = B[1];
             Msg[n++] = '\n';
             Msg[n] = 0;
-            HalSerialBootMark(Msg);
+            ToyBootMarkUsb(Msg);
         } else {
-            HalSerialWrite("boot: xhci ports=");
-            HalSerialWrite(B);
-            HalSerialWrite("\n");
+            ToyLogUsb("boot: xhci ports=");
+            ToyLogUsb(B);
+            ToyLogUsb("\n");
         }
     }
 
@@ -3415,15 +3456,15 @@ int XhciInit(UINT64 BaseAddress) {
     if (RealPc) {
         BootMarkV("boot: xhci-Hhid halt\n");
         if (!HaltOnly()) {
-            HalSerialBootMark("boot: xhci halt fail\n");
+            ToyBootMarkUsb("boot: xhci halt fail\n");
             HalSerialGopMute(0);
-            HalSerialWrite("boot: xhci halt fail, desktop\n");
+            ToyLogUsb("boot: xhci halt fail, desktop\n");
             return 0;
         }
         if (!StartController(MaxSlots)) {
-            HalSerialBootMark("boot: xhci start fail\n");
+            ToyBootMarkUsb("boot: xhci start fail\n");
             HalSerialGopMute(0);
-            HalSerialWrite("boot: xhci start fail, desktop\n");
+            ToyLogUsb("boot: xhci start fail, desktop\n");
             HaltControllerQuiet();
             return 0;
         }
@@ -3432,7 +3473,7 @@ int XhciInit(UINT64 BaseAddress) {
             return 0;
         }
     }
-    HalSerialWrite("boot: xhci controller running\n");
+    ToyLogUsb("boot: xhci controller running\n");
     DebugWrite("XHCI: controller running\n");
     PowerConnectedPorts();
 
@@ -3470,12 +3511,12 @@ int XhciInit(UINT64 BaseAddress) {
         int PassMax = 3;
         for (int Wait = 0; Wait < PassMax && Port1 == 0; Wait++) {
             if (DiagVerbose()) {
-                HalSerialWrite("boot: xhci enum pass=");
+                ToyLogUsb("boot: xhci enum pass=");
                 {
                     char B[12];
                     HalSerialFormatHex(B, (UINT64)(UINT32)(Wait + 1), 2);
-                    HalSerialWrite(B);
-                    HalSerialWrite("\n");
+                    ToyLogUsb(B);
+                    ToyLogUsb("\n");
                 }
             }
             for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
@@ -3494,7 +3535,7 @@ int XhciInit(UINT64 BaseAddress) {
 
                 BootMarkV("boot: xhci address...\n");
                 if (!AddressDevice(p, Speed)) {
-                    HalSerialBootMark("boot: xhci addr fail\n");
+                    ToyBootMarkUsb("boot: xhci addr fail\n");
                     gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
@@ -3503,7 +3544,7 @@ int XhciInit(UINT64 BaseAddress) {
 
                 BootMarkV("boot: xhci get desc\n");
                 if (GetDeviceDesc() < 0) {
-                    HalSerialBootMark("boot: xhci desc fail\n");
+                    ToyBootMarkUsb("boot: xhci desc fail\n");
                     gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
@@ -3593,12 +3634,11 @@ int XhciInit(UINT64 BaseAddress) {
         }
     }
 
-    if (RealPc) {
-        HalSerialGopMute(0);
-    }
-
     if (Port1 == 0) {
-        HalSerialWrite("boot: xhci up but no HID keyboard\n");
+        if (RealPc) {
+            HalSerialGopMute(0); /* 放弃 xHCI：允许后续 boot 黄字 */
+        }
+        ToyLogUsb("boot: xhci up but no HID keyboard\n");
         BootLog("boot: xhci up but no HID keyboard\n");
         if (gEnumWhy) {
             BootLog(gEnumWhy);
@@ -3618,7 +3658,11 @@ int XhciInit(UINT64 BaseAddress) {
     /* 与 mouse 同走 BootLog：真机屏上先 keyboard 再 mouse，再由 Probe 打 init returned */
     BootLog("boot: xhci-hid keyboard\n");
 
-    /* 先绑同设备复合鼠标，再扫其它根口（QEMU tablet / 独立 USB 鼠标） */
+    /*
+     * 恢复 ea8a865 路径：枚举期立刻绑复合鼠标 / hub / 其它根口。
+     * 「mouse deferred」曾使 PHOTO 仅键盘且 Arm 弱投递 → 真机 k=m=0、桌面双死。
+     * Mute 仍保持到 PHOTO（BootMark 无 COM 不刷屏）；成功路径不在此 unmute。
+     */
     if (gMouseSlotId == 0) {
         (void)InitMouseOnKeyboardSlot();
     }
@@ -3635,13 +3679,55 @@ int XhciInit(UINT64 BaseAddress) {
             }
         }
     }
-    /* 鼠标扫描过程中可能刚认领到 hub，再扫一次子口 */
     if (gMouseSlotId == 0 && gHubSlotId != 0) {
         (void)EnumHubChildrenForMouse();
     }
 
     gXhciStarted = 1;
     return 1;
+}
+
+/* 真机 PHOTO 后再绑鼠标，避免复合/hub 扫描踩键盘 EP */
+void XhciInitMouseDeferred(void) {
+    if (HalCpuIsHypervisor()) {
+        return;
+    }
+    if (gMouseSlotId != 0) {
+        return;
+    }
+    ToyLogUsb("boot: xhci mouse deferred start\n");
+    if (gSlotId != 0) {
+        (void)InitMouseOnKeyboardSlot();
+    }
+    if (gMouseSlotId == 0 && gHubSlotId != 0) {
+        (void)EnumHubChildrenForMouse();
+    }
+    if (gMouseSlotId == 0) {
+        for (UINT32 p = 1; p <= gMaxPorts; p++) {
+            if (gSlotId != 0 && p == gPort1) {
+                continue;
+            }
+            if (InitMouseOnPort(p)) {
+                break;
+            }
+        }
+    }
+    if (gMouseSlotId == 0 && gHubSlotId != 0) {
+        (void)EnumHubChildrenForMouse();
+    }
+    if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+        QueueMouseIntr();
+    }
+    /* 鼠标配置可能 Stop 过键盘：直接再投递（与 ea8a865 composite 成功路径同形） */
+    if (gSlotId != 0 && gIntrDci != 0) {
+        QueueIntr();
+        ToyLogUsb("boot: xhci kbd rearm after mouse\n");
+    }
+    if (gMouseSlotId != 0) {
+        ToyLogUsb("boot: xhci mouse deferred ok\n");
+    } else {
+        ToyLogUsb("boot: xhci mouse deferred none\n");
+    }
 }
 
 int XhciHidKeyboardReady(void) {
@@ -3668,6 +3754,7 @@ static void MousePush(void) {
     UINT32 X1;
     UINT32 Y1;
     int UseAbsolute;
+    UINT8 ParseLen;
 
     if (Next == gMouseReadIndex) {
         return;
@@ -3675,29 +3762,29 @@ static void MousePush(void) {
     USB_MOUSE_REPORT *R = &gMouseQ[gMouseWriteIndex];
     R->Wheel = 0;
     R->Absolute = 0;
+    ParseLen = gMouseXferLen ? gMouseXferLen : gMouseReportLen;
+    if (ParseLen < 3) {
+        ParseLen = 3;
+    }
+    if (ParseLen > 8) {
+        ParseLen = 8;
+    }
     X0 = (UINT32)(gMouseBuf[1] | (gMouseBuf[2] << 8));
     Y0 = (UINT32)(gMouseBuf[3] | (gMouseBuf[4] << 8));
     X1 = (UINT32)(gMouseBuf[2] | (gMouseBuf[3] << 8));
     Y1 = (UINT32)(gMouseBuf[4] | (gMouseBuf[5] << 8));
 
     /*
-     * 枚举时已标 gMouseAbsolute（tablet Proto≠2）：始终按绝对报告解析，
-     * 勿用「高字节非 0」启发式——屏左上角 X/Y<256 时会误走相对路径乱跳。
-     * 未标绝对时仍用启发式，避免把误绑的键盘报告当平板。
+     * 仅枚举标了 gMouseAbsolute（QEMU tablet）才走绝对。
+     * boot 相对鼠（Proto=2）禁止「高字节启发式」——短包残留曾把 dx/dy
+     * 当成 16-bit 绝对坐标，Gui 再 /32767 → 光标钉死在角上（PHOTO m 涨、桌面不动）。
      */
     UseAbsolute = 0;
-    if (gMouseAbsolute && gMouseReportLen >= 5 && X0 <= 32767 && Y0 <= 32767) {
-        UseAbsolute = 1;
-    } else if (gMouseAbsolute && gMouseReportLen >= 6 &&
-               gMouseBuf[0] != 0 && X1 <= 32767 && Y1 <= 32767) {
-        /* 带 Report ID：id, buttons, X16, Y16 */
-        UseAbsolute = 2;
-    } else if (!gMouseAbsolute) {
-        if (gMouseReportLen >= 6 && X0 <= 32767 && Y0 <= 32767 &&
-            (gMouseBuf[2] != 0) && (gMouseBuf[4] != 0)) {
+    if (gMouseAbsolute && gMouseIfaceProto != 2) {
+        if (ParseLen >= 5 && X0 <= 32767 && Y0 <= 32767) {
             UseAbsolute = 1;
-        } else if (gMouseReportLen >= 7 && X1 <= 32767 && Y1 <= 32767 &&
-                   (gMouseBuf[3] != 0) && (gMouseBuf[5] != 0)) {
+        } else if (ParseLen >= 6 && gMouseBuf[0] != 0 && X1 <= 32767 &&
+                   Y1 <= 32767) {
             UseAbsolute = 2;
         }
     }
@@ -3707,7 +3794,7 @@ static void MousePush(void) {
         R->X = X0;
         R->Y = Y0;
         R->Absolute = 1;
-        if (gMouseReportLen >= 6) {
+        if (ParseLen >= 6) {
             R->Wheel = (INT8)gMouseBuf[5];
         }
     } else if (UseAbsolute == 2) {
@@ -3715,37 +3802,34 @@ static void MousePush(void) {
         R->X = X1;
         R->Y = Y1;
         R->Absolute = 1;
-        if (gMouseReportLen >= 7) {
+        if (ParseLen >= 7) {
             R->Wheel = (INT8)gMouseBuf[6];
         }
     } else {
         /* HID boot 相对鼠标：b0 buttons, b1 X, b2 Y, b3 wheel */
-        static int AbsX = 512;
-        static int AbsY = 384;
-        static int AbsInit;
         int Dx = (int)(signed char)gMouseBuf[1];
         int Dy = (int)(signed char)gMouseBuf[2];
-        if (!AbsInit) {
-            AbsInit = 1;
+        if (!gMouseAbsInit) {
+            gMouseAbsInit = 1;
         }
-        AbsX += Dx;
-        AbsY += Dy;
-        if (AbsX < 0) {
-            AbsX = 0;
+        gMouseAbsX += Dx;
+        gMouseAbsY += Dy;
+        if (gMouseAbsX < 0) {
+            gMouseAbsX = 0;
         }
-        if (AbsY < 0) {
-            AbsY = 0;
+        if (gMouseAbsY < 0) {
+            gMouseAbsY = 0;
         }
-        if (AbsX > 3840) {
-            AbsX = 3840;
+        if (gMouseAbsX > 3840) {
+            gMouseAbsX = 3840;
         }
-        if (AbsY > 2160) {
-            AbsY = 2160;
+        if (gMouseAbsY > 2160) {
+            gMouseAbsY = 2160;
         }
-        R->X = (UINT32)AbsX;
-        R->Y = (UINT32)AbsY;
+        R->X = (UINT32)gMouseAbsX;
+        R->Y = (UINT32)gMouseAbsY;
         R->Buttons = gMouseBuf[0] & 7;
-        if (gMouseReportLen >= 4) {
+        if (ParseLen >= 4) {
             R->Wheel = (INT8)gMouseBuf[3];
         }
     }
@@ -3874,12 +3958,12 @@ void XhciFallbackToPoll(const char *Why) {
     if (gRuntimeBase != 0) {
         WriteMmio32(gRuntimeBase + 0x20, 0); /* clear IE */
     }
-    HalSerialWrite("boot: xhci irq=poll (fallback)");
+    ToyLogUsb("boot: xhci irq=poll (fallback)");
     if (Why && Why[0]) {
-        HalSerialWrite(" ");
-        HalSerialWrite(Why);
+        ToyLogUsb(" ");
+        ToyLogUsb(Why);
     }
-    HalSerialWrite("\n");
+    ToyLogUsb("\n");
     XhciDrainEvents();
 }
 
@@ -3895,7 +3979,7 @@ int XhciTryEnterDual(USB_CONTROLLER *Device) {
     }
     /* 占位：保持 POLL，供路线图/日后开刀接线 */
     if (DiagVerbose()) {
-        HalSerialWrite("boot: xhci dual=stub (hold poll base)\n");
+        ToyLogUsb("boot: xhci dual=stub (hold poll base)\n");
     }
     gIrqMode = XHCI_IRQ_MODE_POLL;
     gUseIrq = 0;
@@ -3995,7 +4079,7 @@ void XhciDiagLogArms(void) {
     Line[n++] = (char)('0' + (gMouseIntrDci % 10));
     Line[n++] = '\n';
     Line[n] = 0;
-    HalSerialWrite(Line);
+    ToyLogUsb(Line);
 }
 
 /*
@@ -4008,7 +4092,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         DebugWrite("XHCI: no interrupt EP, IRQ unused\n");
         gUseIrq = 0;
         gIrqMode = XHCI_IRQ_MODE_POLL;
-        HalSerialWrite("boot: xhci irq=none\n");
+        ToyLogUsb("boot: xhci irq=none\n");
         return 0;
     }
     /* 真机：H-xhci-base — 零 MSI，留下 dual 占位入口 */
@@ -4016,7 +4100,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gUseIrq = 0;
         gIrqMode = XHCI_IRQ_MODE_POLL;
         if (DiagVerbose()) {
-            HalSerialWrite("boot: xhci irq=poll (base)\n");
+            ToyLogUsb("boot: xhci irq=poll (base)\n");
         }
         (void)XhciTryEnterDual(Device); /* stub：VERBOSE 时打 dual=stub */
         /* PHOTO 只看 Arm 之后的计数 */
@@ -4034,22 +4118,14 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gDiagXferLogged = 0;
         gDiagIntrCcLogged = 0;
         XhciDiagLogArms();
-        /* 真机：先同步 EP dequeue，再投递；失败则仍尝试 Queue（枚举环可能仍可用） */
+        /*
+         * PHOTO r=0/t=0 回归：Arm 再 SyncIntrDequeue（Stop+SetTrDeq）后事件环全空。
+         * 枚举期 ConfigEP+Queue 已可用；此处只再投递，勿 Stop（对齐「能工作的」composite 出口）。
+         */
         if (gSlotId != 0 && gIntrDci != 0) {
-            if (SyncIntrDequeue(gSlotId, gIntrDci, gIntrRing, &gIntr, sizeof(gIntrRing)) == 0) {
-                if (DiagVerbose()) {
-                    HalSerialWrite("boot: xhci sync kbd deq\n");
-                }
-            }
             QueueIntr();
         }
         if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
-            if (SyncIntrDequeue(gMouseSlotId, gMouseIntrDci, gMouseIntrRing, &gMouseIntr,
-                                sizeof(gMouseIntrRing)) == 0) {
-                if (DiagVerbose()) {
-                    HalSerialWrite("boot: xhci sync mouse deq\n");
-                }
-            }
             QueueMouseIntr();
         }
         /* Arm 同步产生的 Stopped 事件勿计入 PHOTO */
@@ -4065,7 +4141,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         gStatLastSlot = 0;
         gStatLastEp = 0;
         if (DiagVerbose()) {
-            HalSerialWrite("boot: xhci rearm intr\n");
+            ToyLogUsb("boot: xhci rearm intr\n");
         }
         XhciDrainEvents();
         return 0;
@@ -4076,7 +4152,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         XhciDrainEvents();
         gUseIrq = 1;
         gIrqMode = XHCI_IRQ_MODE_DUAL; /* QEMU：中断+Drain 同形，视为 dual 课堂形 */
-        HalSerialWrite("boot: xhci irq=msi\n");
+        ToyLogUsb("boot: xhci irq=msi\n");
         return 1;
     }
     Dest = HalCpuApicId(0);
@@ -4086,7 +4162,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         XhciDrainEvents();
         gUseIrq = 1;
         gIrqMode = XHCI_IRQ_MODE_DUAL;
-        HalSerialWrite("boot: xhci irq=ioapic\n");
+        ToyLogUsb("boot: xhci irq=ioapic\n");
         return 1;
     }
     DebugWrite("XHCI: MSI/IOAPIC failed; poll drain\n");
@@ -4129,6 +4205,29 @@ int XhciDequeueKeyboard(USB_KEYBOARD_REPORT *Report) {
 
 int XhciMousePresent(void) {
     return gMouseSlotId != 0;
+}
+
+/*
+ * PHOTO 里 HalInputPoll 只 Push 不消费 → 鼠队列易满。
+ * 进桌面前只抽空队列并对齐 Abs；勿 SyncIntrDequeue（枚举后多余 Stop 曾致 PHOTO r=0）。
+ */
+void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
+    if (HalCpuIsHypervisor()) {
+        return;
+    }
+    SpinLockAcquire(&gHidQueueLock);
+    gMouseReadIndex = gMouseWriteIndex;
+    gMouseAbsX = (int)CursorX;
+    gMouseAbsY = (int)CursorY;
+    gMouseAbsInit = 1;
+    if (gMouseAbsX < 0) {
+        gMouseAbsX = 0;
+    }
+    if (gMouseAbsY < 0) {
+        gMouseAbsY = 0;
+    }
+    SpinLockRelease(&gHidQueueLock);
+    ToyLogUsb("boot: xhci mouse handoff desktop\n");
 }
 
 int XhciDequeueMouse(USB_MOUSE_REPORT *Report) {

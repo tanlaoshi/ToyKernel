@@ -12,6 +12,7 @@
 #include "Debug.h"
 #include "Hal.h"
 #include "HalSerial.h"
+#include "ToySerialLog.h"
 
 #define NVME_PCI_CLASS        0x010802u
 #define NVME_MAX_CTRL         BLOCK_MAX_DRIVES
@@ -487,15 +488,15 @@ int NvmeSetup(void) {
     }
 
     gReady = 1;
-    HalSerialWrite("boot: nvme drives=");
+    ToyLogFs("boot: nvme drives=");
     {
         static const char Hex[] = "0123456789abcdef";
         char Buf[2];
         Buf[0] = Hex[gCtrlCount & 0xf];
         Buf[1] = 0;
-        HalSerialWrite(Buf);
+        ToyLogFs(Buf);
     }
-    HalSerialWrite("\n");
+    ToyLogFs("\n");
     return 1;
 }
 

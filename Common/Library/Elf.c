@@ -4,6 +4,7 @@
 #include "Elf.h"
 #include "PhysicalMemory.h"
 #include "Hal.h"
+#include "ToySerialLog.h"
 
 static void ZeroMemory(void *Ptr, UINTN Size) {
     UINT8 *B = (UINT8 *)Ptr;
@@ -331,7 +332,7 @@ int ElfLoadShared(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
         return -1;
     }
     if (!ElfHeaderOk(Hdr, Size, ET_DYN)) {
-        HalDebugWrite("elf: shared not ET_DYN\n");
+        ToyLogMem("elf: shared not ET_DYN\n");
         return -1;
     }
     if (ElfPhdrs(Bytes, Size, Hdr, &Ph, &Pn) != 0) {
@@ -342,7 +343,7 @@ int ElfLoadShared(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
             continue;
         }
         if (ElfMapSegment(Space, Bytes, &Ph[i], Base) != 0) {
-            HalDebugWrite("elf: map shared segment failed\n");
+            ToyLogMem("elf: map shared segment failed\n");
             return -1;
         }
     }
@@ -351,7 +352,7 @@ int ElfLoadShared(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Size,
     Info->Image = Bytes;
     Info->Size = Size;
     if (ElfFillSoSyms(Info, Ph, Pn) != 0) {
-        HalDebugWrite("elf: shared dynsym failed\n");
+        ToyLogMem("elf: shared dynsym failed\n");
         return -1;
     }
     return 0;
@@ -412,7 +413,7 @@ static int ElfApplyRelaTable(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Bytes, U
     if (ElfVaToFileOff(Ph, Pn, RelaVa, Bias, &RelaOff, Size) != 0) {
         /* EXEC 的 JMPREL 是绝对 VA，Bias=0 */
         if (Bias != 0 || ElfVaToFileOff(Ph, Pn, RelaVa, 0, &RelaOff, Size) != 0) {
-            HalDebugWrite("elf: rela va translate failed\n");
+            ToyLogMem("elf: rela va translate failed\n");
             return -1;
         }
     }
@@ -453,7 +454,7 @@ static int ElfApplyRelaTable(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Bytes, U
             case HAL_ELF_RELOC_GLOB_DAT:
             case HAL_ELF_RELOC_ABS64:
                 if (!HaveSym) {
-                    HalDebugWrite("elf: reloc needs symtab\n");
+                    ToyLogMem("elf: reloc needs symtab\n");
                     return -1;
                 }
                 {
@@ -467,9 +468,9 @@ static int ElfApplyRelaTable(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Bytes, U
                     Name = (const char *)(Bytes + StrOff + Sym->st_name);
                     Value = ElfLookupSymbol(Sos, SoCount, Name);
                     if (Value == 0) {
-                        HalDebugWrite("elf: unresolved ");
-                        HalDebugWrite(Name);
-                        HalDebugWrite("\n");
+                        ToyLogMem("elf: unresolved ");
+                        ToyLogMem(Name);
+                        ToyLogMem("\n");
                         return -1;
                     }
                     if (Kind == HAL_ELF_RELOC_ABS64) {
@@ -478,16 +479,16 @@ static int ElfApplyRelaTable(VIRTUAL_ADDRESS_SPACE *Space, const UINT8 *Bytes, U
                 }
                 break;
             case HAL_ELF_RELOC_COPY:
-                HalDebugWrite("elf: COPY reloc unsupported\n");
+                ToyLogMem("elf: COPY reloc unsupported\n");
                 return -1;
             default:
-                HalDebugWrite("elf: unsupported reloc\n");
+                ToyLogMem("elf: unsupported reloc\n");
                 return -1;
             }
         }
 
         if (VirtualMemoryCopyToSpace(Space, Dest, &Value, sizeof(Value)) < 0) {
-            HalDebugWrite("elf: reloc write failed\n");
+            ToyLogMem("elf: reloc write failed\n");
             return -1;
         }
     }
@@ -582,11 +583,11 @@ int ElfLoadFromMemory(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Siz
     UINT64 BrkBase = USER_CODE_VIRT;
 
     if (!ElfHeaderOk(Hdr, Size, ET_EXEC)) {
-        HalDebugWrite("elf: bad header\n");
+        ToyLogMem("elf: bad header\n");
         return -1;
     }
     if (ElfPhdrs(Bytes, Size, Hdr, &Phdrs, &Pn) != 0) {
-        HalDebugWrite("elf: phdr out of range\n");
+        ToyLogMem("elf: phdr out of range\n");
         return -1;
     }
 
@@ -597,7 +598,7 @@ int ElfLoadFromMemory(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Siz
             continue;
         }
         if (ElfMapSegment(Space, Bytes, &Phdrs[i], 0) != 0) {
-            HalDebugWrite("elf: map segment failed\n");
+            ToyLogMem("elf: map segment failed\n");
             return -1;
         }
         SegEnd = Phdrs[i].p_vaddr + Phdrs[i].p_memsz;
@@ -607,7 +608,7 @@ int ElfLoadFromMemory(VIRTUAL_ADDRESS_SPACE *Space, const void *Image, UINTN Siz
     }
 
     if (ElfMapStack(Space) != 0) {
-        HalDebugWrite("elf: map stack failed\n");
+        ToyLogMem("elf: map stack failed\n");
         return -1;
     }
 

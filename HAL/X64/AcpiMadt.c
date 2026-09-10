@@ -5,9 +5,11 @@
  */
 #include "AcpiMadt.h"
 #include "Hal.h"
+#include "ToySerialLog.h"
 #include "VirtualMemory.h"
 
-#define SmpLog(Text) HalDebugWrite(Text)
+#define SmpLog(Text) ToyLogSmp(Text)
+#define SmpLogHex32(V) ToyLogSmpHex32(V)
 #define ACPI_MAP_FLAGS (PTE_PRESENT | PTE_WRITABLE)
 #define ACPI_MAX_ROOT_ENTRIES 256u
 #define ACPI_MAX_TABLE_BYTES  (256u * 1024u)
@@ -470,6 +472,14 @@ static UINT16 gPm1aCnt;
 static UINT8  gPm1EvtLen;
 static UINT8  gPowerReady;
 
+static UINT64 GasIoAddress(const UINT8 *Gas) {
+    /* ACPI GAS：Address @ +4（旧误用 +8） */
+    if (Gas[0] != 1) {
+        return 0;
+    }
+    return *(UINT64 *)(void *)(Gas + 4);
+}
+
 static ACPI_SDT_HEADER *FindFacp(UINT64 RsdpPhys) {
     ACPI_RSDP *Rsdp;
     ACPI_SDT_HEADER *Root;
@@ -523,21 +533,36 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     if (gPm1EvtLen == 0) {
         gPm1EvtLen = 4;
     }
-    /* ACPI 2.0+：若 32 位口为 0，试 X_PM1a_* GAS（Address_Space=1 I/O） */
-    if ((Pm1aCnt == 0 || Pm1aEvt == 0) && Facp->Length >= 244) {
-        /* X_PM1a_EVT_BLK @148, X_PM1a_CNT_BLK @160：GAS Address @ +8 */
-        if (P[148] == 1 && Pm1aEvt == 0) {
-            Pm1aEvt = (UINT32)(*(UINT64 *)(void *)(P + 156));
+    /*
+     * ACPI 2.0+：仅当 32 位口为 0 才读 X_GAS。
+     * Address @ +4；X_PM1a_CNT @172（160 是 X_PM1b_EVT，勿再用）。
+     */
+    if ((Pm1aCnt == 0 || Pm1aEvt == 0) && Facp->Length >= 184) {
+        UINT64 A;
+        if (Pm1aEvt == 0) {
+            A = GasIoAddress(P + 148);
+            if (A != 0 && A <= 0xFFFFu) {
+                Pm1aEvt = (UINT32)A;
+            }
         }
-        if (P[160] == 1 && Pm1aCnt == 0) {
-            Pm1aCnt = (UINT32)(*(UINT64 *)(void *)(P + 168));
+        if (Pm1aCnt == 0) {
+            A = GasIoAddress(P + 172);
+            if (A != 0 && A <= 0xFFFFu) {
+                Pm1aCnt = (UINT32)A;
+            }
         }
     }
-    if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt > 0xFFFFu) {
+    if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt == 0 || Pm1aEvt > 0xFFFFu) {
         return -1;
     }
     gPm1aEvt = (UINT16)Pm1aEvt;
     gPm1aCnt = (UINT16)Pm1aCnt;
+    HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS); /* 清残留；不写 SCI_EN/PM1_EN */
+    SmpLog("smp: ACPI PM1 evt=");
+    SmpLogHex32(gPm1aEvt);
+    SmpLog(" cnt=");
+    SmpLogHex32(gPm1aCnt);
+    SmpLog("\n");
     gPowerReady = 1;
     return 0;
 }
@@ -564,16 +589,13 @@ void AcpiPowerOff(void) {
 
 int AcpiPowerButtonPressed(void) {
     UINT16 Sts;
-    UINT16 Off;
 
     if (!gPowerReady || gPm1aEvt == 0) {
         return 0;
     }
-    /* PM1 状态在块低半；长度常 4 → 状态 16bit @ base */
-    Off = 0;
-    Sts = HalIoRead16((UINT16)(gPm1aEvt + Off));
+    Sts = HalIoRead16(gPm1aEvt);
     if (Sts & PM1_PWRBTN_STS) {
-        HalIoWrite16((UINT16)(gPm1aEvt + Off), PM1_PWRBTN_STS); /* W1C */
+        HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS); /* W1C */
         return 1;
     }
     return 0;

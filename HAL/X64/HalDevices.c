@@ -17,6 +17,7 @@ void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
 void E1000DriverRegister(void);
 void XhciDiagFormat(char *Buf, int Max);
+void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 
 void HalDriverRegister(void) {
     /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
@@ -35,6 +36,14 @@ int HalUsbInit(void) {
 
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
+}
+
+void HalInputInitMouseDeferred(void) {
+    /* 已恢复枚举期绑鼠标（ea8a865）；保留符号以免旧调用方链接失败 */
+}
+
+void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
+    XhciMouseHandoffDesktop(CursorX, CursorY);
 }
 
 void HalInputPoll(void) {

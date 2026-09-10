@@ -12,6 +12,7 @@
 #include "Hal.h"
 #include "HalSerial.h"
 #include "Net.h"
+#include "ToySerialLog.h"
 
 #define E1000_VENDOR          0x8086u
 #define E1000_REG_CTRL        0x0000u
@@ -310,7 +311,7 @@ int E1000Setup(void) {
             (0x10u << E1000_TCTL_CT_SHIFT) | (0x40u << E1000_TCTL_COLD_SHIFT));
 
     gReady = 1;
-    HalSerialWrite("boot: e1000\n");
+    ToyLogNet("boot: e1000\n");
     DebugWrite("e1000: bar=");
     DebugHex32((UINT32)gBarPhys);
     DebugWrite("\n");

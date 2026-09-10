@@ -23,6 +23,7 @@
 #include "Driver.h"
 #include "DriverInput.h"
 #include "HalDevices.h"
+#include "ToySerialLog.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
 
@@ -100,12 +101,12 @@ static int InitializeSmp(void) {
 }
 
 static int InitializeUsb(void) {
-    HalSerialWrite("boot: input probe (USB then PS/2)\n");
+    ToyLogBoot("boot: input probe (USB then PS/2)\n");
     (void)HalUsbInit();
     if (ToyDriverInputReady()) {
-        HalSerialWrite("boot: input backend ready\n");
+        ToyLogBoot("boot: input backend ready\n");
     } else {
-        HalSerialWrite("boot: input NONE (continue)\n");
+        ToyLogBoot("boot: input NONE (continue)\n");
     }
     /*
      * 真机：Arm 保持 irq=poll (base)（XhciEnableIrq 零 MSI + dual stub），
@@ -114,16 +115,35 @@ static int InitializeUsb(void) {
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();
         HalSerialGopPhotoHold(5);
+        /* PHOTO→gui：抽空鼠队列并对齐累加坐标，避免满队列+误绝对解析钉死光标 */
+        {
+            UINT32 Cx = 512;
+            UINT32 Cy = 384;
+            UINT32 Sw = 0;
+            UINT32 Sh = 0;
+
+            HalVideoGetSize(&Sw, &Sh);
+            if (Sw > 0) {
+                Cx = Sw / 2;
+            }
+            if (Sh > 0) {
+                Cy = Sh / 2;
+            }
+            HalInputMouseHandoffDesktop(Cx, Cy);
+        }
         /* PHOTO→gui 空窗：多 Drain 几轮，降低事件环溢满概率 */
         {
             int n;
             HAL_KEYBOARD_REPORT Dump;
+            HAL_MOUSE_REPORT Mdump;
 
             for (n = 0; n < 64; n++) {
                 HalInputPoll();
             }
             /* 读秒残留键勿带进桌面（易开空壳/吞首键） */
             while (HalKeyboardDequeue(&Dump)) {
+            }
+            while (HalMouseDequeue(&Mdump)) {
             }
         }
     }
@@ -172,9 +192,9 @@ static int InitializeDriver(void) {
      * Input / Net 仍由后续 usb / network 模块 Probe。
      */
     HalDriverRegister();
-    HalSerialWrite("boot: driver register ok\n");
+    ToyLogBoot("boot: driver register ok\n");
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_BLOCK);
-    HalSerialWrite("boot: driver block probe done\n");
+    ToyLogBoot("boot: driver block probe done\n");
     return 0;
 }
 

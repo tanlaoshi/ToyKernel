@@ -2,6 +2,7 @@
  * Kernel.c — 内核入口：早期 Video 设置、模块初始化、启动常驻任务
  */
 #include "BootInfo.h"
+#include "ToySerialLog.h"
 #include "Hal.h"
 #include "HalSerial.h"
 #include "Scheduler.h"
@@ -22,7 +23,7 @@ void KernelMain(void) {
         HalVideoClearScreen(0x00204060u);
         HalVideoPresent();
         HalSerialGopEnable();
-        HalSerialWrite("boot: KernelMain live\n");
+        ToyLogBoot("boot: KernelMain live\n");
         {
             char Line[48];
             int n = 0;
@@ -43,7 +44,7 @@ void KernelMain(void) {
             Line[n++] = (char)('0' + (H % 10));
             Line[n++] = '\n';
             Line[n] = 0;
-            HalSerialWrite(Line);
+            ToyLogBoot(Line);
         }
     }
 

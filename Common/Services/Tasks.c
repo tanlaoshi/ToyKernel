@@ -15,6 +15,7 @@
 #include "LwIp.h"
 #include "Debug.h"
 #include "ShellCommands.h"
+#include "ToySerialLog.h"
 
 static volatile UINT32 gWorkerCount;
 /* CoolTerm 常发 CR+LF：两次 Enter → 双 toyos>；吞掉紧跟 CR 的 LF */
@@ -48,7 +49,7 @@ static void YieldForPollInput(void) {
     if (!HalCpuIsHypervisor()) {
         UINT32 i;
         if (HalPowerButtonPressed()) {
-            HalSerialWrite("boot: power button -> shutdown\n");
+            ToyLogBoot("boot: power button -> shutdown\n");
             HalCpuShutdown();
         }
         /* 真机 poll-USB：勿 hlt 等 tick，否则光标锁 ~10ms+ */
@@ -307,7 +308,7 @@ void ShellTask(void) {
         TcpPoll();
 #endif
         if (HalPowerButtonPressed()) {
-            HalSerialWrite("boot: power button -> shutdown\n");
+            ToyLogBoot("boot: power button -> shutdown\n");
             HalCpuShutdown();
         }
         {
