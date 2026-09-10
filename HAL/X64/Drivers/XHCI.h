@@ -69,7 +69,7 @@ int XhciHidKeyboardReady(void); /* 已 Address+Configure 键盘 */
 /* 真机多 xHCI：当前控制器无 HID 时停 RS 并清 started，便于试下一颗 BAR */
 void XhciAbandonNoHid(void);
 int XhciEnableIrq(USB_CONTROLLER *Device);
-/* PR-H-xhci-dual 占位：试进 DUAL；当前真机 stub，仍留 POLL */
+/* PR-H-xhci-dual：试进 DUAL（MSI-X/MSI + Drain backup）；失败则 FallbackToPoll */
 int XhciTryEnterDual(USB_CONTROLLER *Device);
 /* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
 void XhciInitMouseDeferred(void);

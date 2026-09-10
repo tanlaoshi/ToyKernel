@@ -113,8 +113,8 @@ static int InitializeUsb(void) {
         ToyLogBoot("boot: input NONE (continue)\n");
     }
     /*
-     * 真机：Arm 保持 irq=poll (base)（XhciEnableIrq 零 MSI + dual stub），
-     * 再 PHOTO 拍尾部日志。QEMU 不走 PhotoHold。
+     * 真机：Arm 试 irq=msi (dual)（XhciEnableIrq→TryEnterDual），不通则
+     * irq=poll (fallback)；Drain 始终盲排空。QEMU 不走 PhotoHold。
      */
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();

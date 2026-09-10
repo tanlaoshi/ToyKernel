@@ -379,7 +379,7 @@ int InputXhciInit(void) {
     return ToyDriverInputReady() ? 0 : -1;
 }
 
-/* 真机：Arm 走 base（EnableIrq→poll）；dual 占位在 XhciTryEnterDual */
+/* 真机：PHOTO 后 Arm → EnableIrq 试 dual，失败 poll (fallback) */
 void InputXhciArmIrq(void) {
     if (!gXhciReady) {
         return;
@@ -387,15 +387,11 @@ void InputXhciArmIrq(void) {
     if (!(XhciHidKeyboardReady() || XhciMousePresent())) {
         return;
     }
-    if (XhciIrqMode() == XHCI_IRQ_MODE_POLL && !HalCpuIsHypervisor()) {
-        (void)XhciEnableIrq(&gXhciDev); /* base + dual stub 日志 */
-        return;
-    }
     if (XhciUsesIrq()) {
         return;
     }
     (void)XhciEnableIrq(&gXhciDev);
-    if (!XhciUsesIrq()) {
+    if (!XhciUsesIrq() && HalCpuIsHypervisor()) {
         ToyLogUsb("boot: xhci arm fallback poll\n");
     }
 }

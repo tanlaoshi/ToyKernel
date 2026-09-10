@@ -146,7 +146,7 @@ static volatile UINT32 gGetReportBusy;
 static UINT8  gGetReportFails;
 static UINT8  gXferFast; /* GET_REPORT 用短超时，避免拖死鼠标 */
 static UINT8  gUseIrq;
-/* 真机默认 POLL；DUAL/IRQ 见 XhciTryEnterDual（占位） */
+/* 真机默认 POLL；DUAL 见 XhciTryEnterDual（EnableIrq / Arm） */
 static XHCI_IRQ_MODE gIrqMode = XHCI_IRQ_MODE_POLL;
 /* 键盘 Slot 的路由/TT，Configure Endpoint 必须带回，否则 hub 子设备 cfg 失败 */
 static UINT32 gKbdRoute;
@@ -4561,11 +4561,17 @@ static void ImClearPending(void) {
     WriteMmio32(gRuntimeBase + 0x20, Im | 1u);
 }
 
-/* XHCI MSI-X 中断处理：处理事件、重新排队中断传输 */
+/* XHCI MSI-X/MSI 中断：事件处理；真机走 RealPc 路径（粘 EINT/CCS） */
 void XhciIrq(void) {
+    int RealPc = !HalCpuIsHypervisor();
+
     gStatIrq++;
     SpinLockAcquire(&gHidQueueLock);
-    ProcessEvents();
+    if (RealPc) {
+        ProcessEventsRealPc();
+    } else {
+        ProcessEvents();
+    }
     if (gIntrDone) {
         gIntrDone = 0;
         if (gIntrReportReady) {
@@ -4672,6 +4678,10 @@ void XhciDrainEvents(void) {
 /* dual/irq → 切回 poll 备份（关 host IE；不拆 PCI MSI 表亦可，避免半残状态） */
 void XhciFallbackToPoll(const char *Why) {
     UINT32 Cmd;
+    char Line[72];
+    int n = 0;
+    const char *P = "boot: xhci irq=poll (fallback)";
+    const char *W = Why;
 
     gUseIrq = 0;
     gIrqMode = XHCI_IRQ_MODE_POLL;
@@ -4682,32 +4692,46 @@ void XhciFallbackToPoll(const char *Why) {
     if (gRuntimeBase != 0) {
         WriteMmio32(gRuntimeBase + 0x20, 0); /* clear IE */
     }
-    ToyLogUsb("boot: xhci irq=poll (fallback)");
-    if (Why && Why[0]) {
-        ToyLogUsb(" ");
-        ToyLogUsb(Why);
+    while (*P && n + 1 < (int)sizeof(Line)) {
+        Line[n++] = *P++;
     }
-    ToyLogUsb("\n");
+    if (W && W[0] && n + 2 < (int)sizeof(Line)) {
+        Line[n++] = ' ';
+        while (*W && n + 1 < (int)sizeof(Line)) {
+            Line[n++] = *W++;
+        }
+    }
+    if (n + 1 < (int)sizeof(Line)) {
+        Line[n++] = '\n';
+    }
+    Line[n] = 0;
+    BootLog(Line); /* 真机 PHOTO 可见；勿只用 ToyLogUsb */
     XhciDrainEvents();
 }
 
 /*
- * PR-H-xhci-dual 占位：真机 base 未通前不武装 MSI-X。
- * 实现时应：PciEnableMsi → EnableHostInterrupts → gIrqMode=DUAL、gUseIrq=1，
- * 且 Drain 仍盲排空；探针失败则 XhciFallbackToPoll。
+ * PR-H-xhci-dual：试 MSI-X/MSI + host IE → DUAL。
+ * Drain 在 DUAL 下仍盲排空（XhciDrainEvents 不看 gUseIrq 关排空）。
+ * 失败由调用方 XhciFallbackToPoll。
  */
 int XhciTryEnterDual(USB_CONTROLLER *Device) {
-    (void)Device;
-    if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
+    if (gIrqMode == XHCI_IRQ_MODE_DUAL && gUseIrq) {
         return 1;
     }
-    /* 占位：保持 POLL，供路线图/日后开刀接线 */
-    if (DiagVerbose()) {
-        ToyLogUsb("boot: xhci dual=stub (hold poll base)\n");
+    if (!Device) {
+        return 0;
     }
-    gIrqMode = XHCI_IRQ_MODE_POLL;
+    if (!PciEnableMsi(Device, VEC_XHCI)) {
+        return 0;
+    }
+    EnableHostInterrupts();
+    /* 先盲排空再开 gUseIrq，避免半开窗口丢完成 */
     gUseIrq = 0;
-    return 0;
+    XhciDrainEvents();
+    gUseIrq = 1;
+    gIrqMode = XHCI_IRQ_MODE_DUAL;
+    BootLog("boot: xhci irq=msi (dual)\n"); /* PHOTO ring 可抄 */
+    return 1;
 }
 
 XHCI_IRQ_MODE XhciIrqMode(void) {
@@ -4727,7 +4751,7 @@ void XhciDiagFormat(char *Buf, int Max) {
         return;
     }
     if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
-        Mode = "mode=dual";
+        Mode = "mode=dual irq=msi";
     } else if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
         Mode = "mode=irq";
     } else {
@@ -4830,7 +4854,7 @@ void XhciDiagLogArms(void) {
 }
 
 /*
- * QEMU：可开 MSI。真机：只进 POLL（base）；dual 走 XhciTryEnterDual。
+ * QEMU：MSI/IOAPIC → DUAL。真机：试 dual；失败 → poll (fallback)，Drain 永不关。
  */
 int XhciEnableIrq(USB_CONTROLLER *Device) {
     UINT8 Dest;
@@ -4842,78 +4866,66 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         ToyLogUsb("boot: xhci irq=none\n");
         return 0;
     }
-    /* 真机：H-xhci-base — 零 MSI，留下 dual 占位入口 */
-    if (!HalCpuIsHypervisor()) {
-        gUseIrq = 0;
-        gIrqMode = XHCI_IRQ_MODE_POLL;
-        if (DiagVerbose()) {
-            ToyLogUsb("boot: xhci irq=poll (base)\n");
-        }
-        (void)XhciTryEnterDual(Device); /* stub：VERBOSE 时打 dual=stub */
-        /* PHOTO 只看 Arm 之后的计数 */
-        gStatIntrEvt = 0;
-        gStatMouseEvt = 0;
-        gStatKbdPush = 0;
-        gStatMousePush = 0;
-        gStatXferAny = 0;
-        gStatUnmatched = 0;
-        gStatEvtRing = 0;
-        gStatDrain = 0;
-        gStatLastCc = 0;
-        gStatLastSlot = 0;
-        gStatLastEp = 0;
-        gDiagXferLogged = 0;
-        gDiagIntrCcLogged = 0;
-        XhciDiagLogArms();
-        /*
-         * 真机 Arm：只 Queue，勿 Sync。
-         * Add-only 后键盘仍 Running；Sync(=Stop+SetDeq) 会再次弄死 kbd（PHOTO k=0）。
-         * 鼠标此前 Sync 过也会拖垮 PHOTO r=t=0。
-         */
-        if (gSlotId != 0 && gIntrDci != 0) {
-            QueueIntr();
-        }
-        if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
-            QueueMouseIntr();
-        }
-        /* Arm 同步产生的 Stopped 事件勿计入 PHOTO */
-        gStatIntrEvt = 0;
-        gStatMouseEvt = 0;
-        gStatKbdPush = 0;
-        gStatMousePush = 0;
-        gStatXferAny = 0;
-        gStatUnmatched = 0;
-        gStatEvtRing = 0;
-        gStatDrain = 0;
-        gStatLastCc = 0;
-        gStatLastSlot = 0;
-        gStatLastEp = 0;
-        if (DiagVerbose()) {
-            ToyLogUsb("boot: xhci rearm intr\n");
-        }
-        XhciDrainEvents();
-        return 0;
+
+    /* PHOTO / show xhci：Arm 后计数清零 */
+    gStatIntrEvt = 0;
+    gStatMouseEvt = 0;
+    gStatKbdPush = 0;
+    gStatMousePush = 0;
+    gStatXferAny = 0;
+    gStatUnmatched = 0;
+    gStatEvtRing = 0;
+    gStatDrain = 0;
+    gStatLastCc = 0;
+    gStatLastSlot = 0;
+    gStatLastEp = 0;
+    gStatIrq = 0;
+    gDiagXferLogged = 0;
+    gDiagIntrCcLogged = 0;
+    XhciDiagLogArms();
+
+    /*
+     * 真机 Arm：只 Queue，勿 Sync（Stop+SetDeq 曾弄死 kbd / PHOTO r=0）。
+     */
+    if (gSlotId != 0 && gIntrDci != 0) {
+        QueueIntr();
     }
-    if (PciEnableMsi(Device, VEC_XHCI)) {
-        EnableHostInterrupts();
-        gUseIrq = 0;
+    if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+        QueueMouseIntr();
+    }
+    /* Queue 产生的 Stopped 勿计入 PHOTO */
+    gStatIntrEvt = 0;
+    gStatMouseEvt = 0;
+    gStatKbdPush = 0;
+    gStatMousePush = 0;
+    gStatXferAny = 0;
+    gStatUnmatched = 0;
+    gStatEvtRing = 0;
+    gStatDrain = 0;
+    gStatLastCc = 0;
+    gStatLastSlot = 0;
+    gStatLastEp = 0;
+
+    if (XhciTryEnterDual(Device)) {
         XhciDrainEvents();
-        gUseIrq = 1;
-        gIrqMode = XHCI_IRQ_MODE_DUAL; /* QEMU：中断+Drain 同形，视为 dual 课堂形 */
-        ToyLogUsb("boot: xhci irq=msi\n");
         return 1;
     }
-    Dest = HalCpuApicId(0);
-    if (PciEnableIoApicIntx(Device, VEC_XHCI, Dest)) {
-        EnableHostInterrupts();
-        gUseIrq = 0;
-        XhciDrainEvents();
-        gUseIrq = 1;
-        gIrqMode = XHCI_IRQ_MODE_DUAL;
-        ToyLogUsb("boot: xhci irq=ioapic\n");
-        return 1;
+
+    /* QEMU：再试 INTx→IOAPIC；真机 dual 失败则纯 poll backup */
+    if (HalCpuIsHypervisor()) {
+        Dest = HalCpuApicId(0);
+        if (PciEnableIoApicIntx(Device, VEC_XHCI, Dest)) {
+            EnableHostInterrupts();
+            gUseIrq = 0;
+            XhciDrainEvents();
+            gUseIrq = 1;
+            gIrqMode = XHCI_IRQ_MODE_DUAL;
+            ToyLogUsb("boot: xhci irq=ioapic (dual)\n");
+            return 1;
+        }
     }
-    DebugWrite("XHCI: MSI/IOAPIC failed; poll drain\n");
+
+    DebugWrite("XHCI: MSI failed; poll drain backup\n");
     XhciFallbackToPoll("no-msi");
     return 0;
 }
