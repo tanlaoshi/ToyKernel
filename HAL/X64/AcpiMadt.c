@@ -468,18 +468,70 @@ int AcpiDmarDisableTranslation(UINT64 RsdpPhys) {
 #define PM1_PWRBTN_EN  (1u << 8)
 #define PM1_SLP_EN     (1u << 13)
 #define PM1_SCI_EN     (1u << 0)
+/* FADT Flags bit4：1=电源键仅 control-method（无固定功能位） */
+#define FADT_FLAG_PWR_BUTTON (1u << 4)
 
 static UINT16 gPm1aEvt;
 static UINT16 gPm1aCnt;
+static UINT16 gPm1bEvt;
+static UINT16 gPm1bCnt;
+static UINT16 gPm1aEn;
+static UINT16 gPm1bEn;
 static UINT8  gPm1EvtLen;
+static UINT8  gSlpTypA; /* 来自 _S5_；0xFF=未知 */
 static UINT8  gPowerReady;
 
 static UINT64 GasIoAddress(const UINT8 *Gas) {
-    /* ACPI GAS：Address @ +4（旧误用 +8） */
+    /* ACPI GAS：Address @ +4（旧误用 +8）；SpaceId 1=SystemIO */
     if (Gas[0] != 1) {
         return 0;
     }
     return *(UINT64 *)(void *)(Gas + 4);
+}
+
+static void PowerStallMs(UINT32 Ms) {
+    UINT32 Lo;
+    UINT32 Hi;
+    UINT64 T0;
+    UINT64 Need;
+    UINT64 Now;
+
+    __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+    T0 = ((UINT64)Hi << 32) | Lo;
+    /* NUC ~3GHz；偏大无妨，仅用于等 SCI_EN */
+    Need = (UINT64)Ms * 3000000ULL;
+    for (;;) {
+        __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+        Now = ((UINT64)Hi << 32) | Lo;
+        if (Now - T0 >= Need) {
+            break;
+        }
+        HalCpuRelax();
+    }
+}
+
+static void PowerBootLine(const char *Text) {
+    SmpLog(Text);
+    HalSerialBootMark(Text);
+}
+
+static void PowerBootHex(const char *Prefix, UINT32 Value) {
+    char Line[56];
+    char Hex[12];
+    int n = 0;
+    int i;
+
+    while (Prefix[n] != 0 && n < 36) {
+        Line[n] = Prefix[n];
+        n++;
+    }
+    HalSerialFormatHex(Hex, Value, 4);
+    for (i = 0; Hex[i] != 0 && n < 52; i++) {
+        Line[n++] = Hex[i];
+    }
+    Line[n++] = '\n';
+    Line[n] = 0;
+    PowerBootLine(Line);
 }
 
 static ACPI_SDT_HEADER *FindFacp(UINT64 RsdpPhys) {
@@ -510,100 +562,302 @@ static ACPI_SDT_HEADER *FindFacp(UINT64 RsdpPhys) {
     return Tab;
 }
 
+/* AML：Name(_S5_, Package(){ TypA, ... }) → 取第一元素为 SLP_TYP */
+static int ParseSlpTypFromAml(const UINT8 *Data, UINT32 Len, UINT8 *OutTyp) {
+    UINT32 i;
+    const UINT8 *P;
+    UINT8 PkgLenByte;
+    UINT8 Extra;
+
+    if (Data == 0 || Len < 8 || OutTyp == 0) {
+        return -1;
+    }
+    for (i = 0; i + 8 < Len; i++) {
+        /* NameOp + "_S5_" */
+        if (Data[i] != 0x08 || Data[i + 1] != '_' || Data[i + 2] != 'S' ||
+            Data[i + 3] != '5' || Data[i + 4] != '_') {
+            continue;
+        }
+        P = Data + i + 5;
+        if (P >= Data + Len || *P != 0x12) { /* PackageOp */
+            continue;
+        }
+        P++;
+        if (P >= Data + Len) {
+            continue;
+        }
+        PkgLenByte = *P;
+        Extra = (UINT8)(PkgLenByte >> 6);
+        if (Extra == 0) {
+            P++;
+        } else {
+            if ((UINT32)(P - Data) + Extra + 1u >= Len) {
+                continue;
+            }
+            P += Extra + 1;
+        }
+        if (P >= Data + Len) {
+            continue;
+        }
+        P++; /* NumElements */
+        if (P >= Data + Len) {
+            continue;
+        }
+        if (*P == 0x0A && (P + 1) < Data + Len) { /* BytePrefix */
+            *OutTyp = P[1] & 7u;
+            return 0;
+        }
+        if (*P == 0x00) {
+            *OutTyp = 0;
+            return 0;
+        }
+        if (*P == 0x01) {
+            *OutTyp = 1;
+            return 0;
+        }
+        if (*P == 0x0B && (P + 2) < Data + Len) { /* WordPrefix */
+            *OutTyp = P[1] & 7u;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static void ParseSlpTypFromFacp(UINT64 RsdpPhys, ACPI_SDT_HEADER *Facp, UINT8 *P) {
+    UINT32 Dsdt32;
+    UINT64 Dsdt64;
+    ACPI_SDT_HEADER *Dsdt;
+    ACPI_RSDP *Rsdp;
+    ACPI_SDT_HEADER *Root;
+    UINT8 Typ;
+    UINT32 i;
+    UINT32 Entries;
+
+    gSlpTypA = 0xFF;
+    Dsdt32 = *(UINT32 *)(void *)(P + 40);
+    Dsdt64 = 0;
+    if (Facp->Length >= 148) {
+        Dsdt64 = *(UINT64 *)(void *)(P + 140); /* X_DSDT */
+    }
+    Dsdt = 0;
+    if (Dsdt64 != 0) {
+        Dsdt = MapSdtHeader(Dsdt64);
+    }
+    if (Dsdt == 0 && Dsdt32 != 0) {
+        Dsdt = MapSdtHeader((UINT64)Dsdt32);
+    }
+    Typ = 0xFF;
+    if (Dsdt != 0 &&
+        ParseSlpTypFromAml((const UINT8 *)(UINTN)Dsdt, Dsdt->Length, &Typ) == 0) {
+        gSlpTypA = Typ;
+        PowerBootHex("boot: ACPI _S5_ typ=", gSlpTypA);
+        return;
+    }
+
+    /* 部分固件把 _S5_ 只放在 SSDT */
+    if (RsdpPhys == 0 || MapPhys(RsdpPhys, sizeof(ACPI_RSDP)) != 0) {
+        return;
+    }
+    Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
+    Root = 0;
+    if (Rsdp->Revision >= 2 && Rsdp->XsdtAddress != 0) {
+        Root = MapSdtHeader(Rsdp->XsdtAddress);
+        if (Root) {
+            Entries = (Root->Length - (UINT32)sizeof(ACPI_SDT_HEADER)) / 8u;
+            if (Entries > ACPI_MAX_ROOT_ENTRIES) {
+                Entries = ACPI_MAX_ROOT_ENTRIES;
+            }
+            for (i = 0; i < Entries; i++) {
+                UINT64 Phys = ((UINT64 *)(void *)(Root + 1))[i];
+                ACPI_SDT_HEADER *Tab = MapSdtHeader(Phys);
+                if (Tab == 0 || !MemEq(Tab->Signature, "SSDT", 4)) {
+                    continue;
+                }
+                if (ParseSlpTypFromAml((const UINT8 *)(UINTN)Tab, Tab->Length, &Typ) == 0) {
+                    gSlpTypA = Typ;
+                    PowerBootHex("boot: ACPI _S5_ typ=", gSlpTypA);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+static void Pm1EnablePowerButton(UINT16 EvtPort, UINT16 EnPort) {
+    UINT16 En;
+
+    if (EvtPort == 0 || EnPort == 0) {
+        return;
+    }
+    En = HalIoRead16(EnPort);
+    HalIoWrite16(EnPort, (UINT16)(En | PM1_PWRBTN_EN));
+    HalIoWrite16(EvtPort, PM1_PWRBTN_STS); /* W1C 清残留 */
+}
+
+static void Pm1WriteSleep(UINT16 CntPort, UINT8 Typ) {
+    UINT16 V;
+
+    if (CntPort == 0) {
+        return;
+    }
+    V = HalIoRead16(CntPort);
+    V = (UINT16)((V & 0xC3FFu) | (((UINT16)Typ & 7u) << 10) | PM1_SLP_EN);
+    HalIoWrite16(CntPort, V);
+}
+
 int AcpiPowerInit(UINT64 RsdpPhys) {
     ACPI_SDT_HEADER *Facp;
     UINT8 *P;
     UINT32 Pm1aEvt;
     UINT32 Pm1aCnt;
+    UINT32 Pm1bEvt;
+    UINT32 Pm1bCnt;
     UINT32 SmiCmd;
+    UINT32 Flags;
+    UINT32 LegEvt;
+    UINT32 LegCnt;
+    UINT32 LegEvtB;
+    UINT32 LegCntB;
     UINT8 AcpiEnable;
-    UINT16 EnPort;
     UINT16 Cnt;
-    UINT16 En;
     UINT32 Wait;
+    UINT64 A;
 
     gPowerReady = 0;
     gPm1aEvt = 0;
     gPm1aCnt = 0;
+    gPm1bEvt = 0;
+    gPm1bCnt = 0;
+    gPm1aEn = 0;
+    gPm1bEn = 0;
     gPm1EvtLen = 4;
+    gSlpTypA = 0xFF;
     Facp = FindFacp(RsdpPhys);
     if (!Facp || Facp->Length < 116) {
+        PowerBootLine("boot: ACPI no FACP\n");
         return -1;
     }
     if (MapPhys((UINT64)(UINTN)Facp, Facp->Length) != 0) {
+        PowerBootLine("boot: ACPI FACP map fail\n");
         return -1;
     }
     P = (UINT8 *)Facp;
-    /* ACPI 1.0 FADT：PM1a_EVT@56 PM1a_CNT@64 PM1_EVT_LEN@88 */
+    /* ACPI 1.0 FADT：PM1a_EVT@56 PM1b@60 PM1a_CNT@64 PM1b_CNT@68 PM1_EVT_LEN@88 */
     Pm1aEvt = *(UINT32 *)(void *)(P + 56);
+    Pm1bEvt = *(UINT32 *)(void *)(P + 60);
     Pm1aCnt = *(UINT32 *)(void *)(P + 64);
+    Pm1bCnt = *(UINT32 *)(void *)(P + 68);
     gPm1EvtLen = P[88];
     if (gPm1EvtLen == 0) {
         gPm1EvtLen = 4;
     }
     SmiCmd = *(UINT32 *)(void *)(P + 48);
     AcpiEnable = P[52];
+    Flags = *(UINT32 *)(void *)(P + 112);
+
     /*
-     * ACPI 2.0+：仅当 32 位口为 0 才读 X_GAS。
-     * Address @ +4；X_PM1a_CNT @172（160 是 X_PM1b_EVT，勿再用）。
+     * ACPI 2.0+：优先 X_GAS（规范/Linux）；保留 legacy 以便 X 口无效时回退。
+     * 旧逻辑「仅 32 位为 0 才读 X」在 NUC 上会用到废弃口 → 短按无 STS。
      */
-    if ((Pm1aCnt == 0 || Pm1aEvt == 0) && Facp->Length >= 184) {
-        UINT64 A;
-        if (Pm1aEvt == 0) {
-            A = GasIoAddress(P + 148);
-            if (A != 0 && A <= 0xFFFFu) {
-                Pm1aEvt = (UINT32)A;
-            }
+    LegEvt = Pm1aEvt;
+    LegCnt = Pm1aCnt;
+    LegEvtB = Pm1bEvt;
+    LegCntB = Pm1bCnt;
+    if (Facp->Length >= 184) {
+        A = GasIoAddress(P + 148); /* X_PM1a_EVT */
+        if (A != 0 && A <= 0xFFFFu) {
+            Pm1aEvt = (UINT32)A;
         }
-        if (Pm1aCnt == 0) {
-            A = GasIoAddress(P + 172);
-            if (A != 0 && A <= 0xFFFFu) {
-                Pm1aCnt = (UINT32)A;
-            }
+        A = GasIoAddress(P + 160); /* X_PM1b_EVT */
+        if (A != 0 && A <= 0xFFFFu) {
+            Pm1bEvt = (UINT32)A;
+        }
+        A = GasIoAddress(P + 172); /* X_PM1a_CNT */
+        if (A != 0 && A <= 0xFFFFu) {
+            Pm1aCnt = (UINT32)A;
+        }
+        A = GasIoAddress(P + 184); /* X_PM1b_CNT */
+        if (A != 0 && A <= 0xFFFFu) {
+            Pm1bCnt = (UINT32)A;
         }
     }
     if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt == 0 || Pm1aEvt > 0xFFFFu) {
-        SmpLog("smp: ACPI power ports missing\n");
+        /* X 无效则退回 legacy */
+        Pm1aEvt = LegEvt;
+        Pm1aCnt = LegCnt;
+        Pm1bEvt = LegEvtB;
+        Pm1bCnt = LegCntB;
+    }
+    if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt == 0 || Pm1aEvt > 0xFFFFu) {
+        PowerBootLine("boot: ACPI power ports missing\n");
         return -1;
+    }
+    /* 选出的口若全 1（未解码），改试 legacy */
+    if (HalIoRead16((UINT16)Pm1aCnt) == 0xFFFFu && LegCnt != 0 && LegCnt <= 0xFFFFu &&
+        LegCnt != Pm1aCnt) {
+        PowerBootLine("boot: ACPI X_GAS dead, use legacy\n");
+        Pm1aEvt = LegEvt;
+        Pm1aCnt = LegCnt;
+        Pm1bEvt = LegEvtB;
+        Pm1bCnt = LegCntB;
     }
     gPm1aEvt = (UINT16)Pm1aEvt;
     gPm1aCnt = (UINT16)Pm1aCnt;
+    gPm1aEn = (UINT16)(gPm1aEvt + (gPm1EvtLen / 2));
+    if (Pm1bEvt != 0 && Pm1bEvt <= 0xFFFFu) {
+        gPm1bEvt = (UINT16)Pm1bEvt;
+        gPm1bEn = (UINT16)(gPm1bEvt + (gPm1EvtLen / 2));
+    }
+    if (Pm1bCnt != 0 && Pm1bCnt <= 0xFFFFu) {
+        gPm1bCnt = (UINT16)Pm1bCnt;
+    }
 
     /*
-     * 多数板卡：无 SCI_EN 时 PWRBTN_STS 不锁存；无 PWRBTN_EN 时短按无 STS。
-     * 只写规范位置（EN @ EVT + len/2），勿再写 +4 / 0xFFFF。
+     * 无 SCI_EN 时多数板卡不锁存 PWRBTN_STS；写 SMI_CMD(ACPI_ENABLE) 切入 ACPI 模式。
+     * 真机 SMM 可能较慢，毫秒级等待（勿只 pause 空转）。
      */
     Cnt = HalIoRead16(gPm1aCnt);
     if ((Cnt & PM1_SCI_EN) == 0 && SmiCmd != 0 && SmiCmd <= 0xFFFFu && AcpiEnable != 0) {
         HalIoWrite8((UINT16)SmiCmd, AcpiEnable);
-        for (Wait = 0; Wait < 100000u; Wait++) {
+        for (Wait = 0; Wait < 50u; Wait++) {
             if (HalIoRead16(gPm1aCnt) & PM1_SCI_EN) {
                 break;
             }
-            __asm__ volatile ("pause");
+            PowerStallMs(1);
         }
     }
-    EnPort = (UINT16)(gPm1aEvt + (gPm1EvtLen / 2));
-    En = HalIoRead16(EnPort);
-    HalIoWrite16(EnPort, (UINT16)(En | PM1_PWRBTN_EN));
-    HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS); /* W1C 清残留 */
+    Cnt = HalIoRead16(gPm1aCnt);
+    if ((Cnt & PM1_SCI_EN) == 0) {
+        /* 部分 PCH 允许直接置位；写了无效也无害 */
+        HalIoWrite16(gPm1aCnt, (UINT16)(Cnt | PM1_SCI_EN));
+        PowerStallMs(1);
+    }
 
-    SmpLog("smp: ACPI PM1 evt=");
-    SmpLogHex32(gPm1aEvt);
-    SmpLog(" cnt=");
-    SmpLogHex32(gPm1aCnt);
-    SmpLog(" en=");
-    SmpLogHex32(EnPort);
-    SmpLog(" sci=");
-    SmpLogHex32(HalIoRead16(gPm1aCnt) & PM1_SCI_EN);
-    SmpLog("\n");
+    Pm1EnablePowerButton(gPm1aEvt, gPm1aEn);
+    Pm1EnablePowerButton(gPm1bEvt, gPm1bEn);
+    ParseSlpTypFromFacp(RsdpPhys, Facp, P);
+
+    PowerBootHex("boot: ACPI PM1 evt=", gPm1aEvt);
+    PowerBootHex("boot: ACPI PM1 cnt=", gPm1aCnt);
+    PowerBootHex("boot: ACPI PM1 en=", gPm1aEn);
+    PowerBootHex("boot: ACPI sci=", HalIoRead16(gPm1aCnt) & PM1_SCI_EN);
+    PowerBootHex("boot: ACPI enrd=", HalIoRead16(gPm1aEn) & PM1_PWRBTN_EN);
+    if (Flags & FADT_FLAG_PWR_BUTTON) {
+        PowerBootLine("boot: ACPI pwrbtn=aml (still arm fixed)\n");
+    } else {
+        PowerBootLine("boot: ACPI pwrbtn=fixed\n");
+    }
+
     gPowerReady = 1;
     return 0;
 }
 
 void AcpiPowerOff(void) {
-    UINT16 V;
+    UINT8 Order[10];
+    UINT8 N;
+    UINT8 i;
     UINT8 Typ;
+    UINT8 Seen[8];
 
     /* QEMU/Bochs 常见关机口 */
     HalIoWrite16(0x604, 0x2000);
@@ -613,11 +867,36 @@ void AcpiPowerOff(void) {
     if (!gPowerReady || gPm1aCnt == 0) {
         return;
     }
-    /* 试 SLP_TYP 0..7；多数板卡 5 或 0 */
+
+    /* 优先 _S5_，再试常见 5/7，最后扫其余（勿先写 Typ0 把芯片打进怪态） */
+    N = 0;
+    for (i = 0; i < 8; i++) {
+        Seen[i] = 0;
+    }
+    if (gSlpTypA != 0xFF) {
+        Order[N++] = gSlpTypA & 7u;
+        Seen[gSlpTypA & 7u] = 1;
+    }
+    if (!Seen[5]) {
+        Order[N++] = 5;
+        Seen[5] = 1;
+    }
+    if (!Seen[7]) {
+        Order[N++] = 7;
+        Seen[7] = 1;
+    }
     for (Typ = 0; Typ < 8; Typ++) {
-        V = HalIoRead16(gPm1aCnt);
-        V = (UINT16)((V & 0xC3FFu) | ((UINT16)Typ << 10) | PM1_SLP_EN);
-        HalIoWrite16(gPm1aCnt, V);
+        if (!Seen[Typ]) {
+            Order[N++] = Typ;
+            Seen[Typ] = 1;
+        }
+    }
+
+    for (i = 0; i < N; i++) {
+        Typ = Order[i];
+        Pm1WriteSleep(gPm1aCnt, Typ);
+        Pm1WriteSleep(gPm1bCnt, Typ);
+        PowerStallMs(10);
     }
 }
 
@@ -627,10 +906,32 @@ int AcpiPowerButtonPressed(void) {
     if (!gPowerReady || gPm1aEvt == 0) {
         return 0;
     }
+
+    /* 固件偶发清 EN：每次轮询重新武装 */
+    if (gPm1aEn != 0) {
+        UINT16 En = HalIoRead16(gPm1aEn);
+        if ((En & PM1_PWRBTN_EN) == 0) {
+            HalIoWrite16(gPm1aEn, (UINT16)(En | PM1_PWRBTN_EN));
+        }
+    }
+    if (gPm1bEn != 0) {
+        UINT16 En = HalIoRead16(gPm1bEn);
+        if ((En & PM1_PWRBTN_EN) == 0) {
+            HalIoWrite16(gPm1bEn, (UINT16)(En | PM1_PWRBTN_EN));
+        }
+    }
+
     Sts = HalIoRead16(gPm1aEvt);
     if (Sts & PM1_PWRBTN_STS) {
-        HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS); /* W1C */
+        HalIoWrite16(gPm1aEvt, PM1_PWRBTN_STS);
         return 1;
+    }
+    if (gPm1bEvt != 0) {
+        Sts = HalIoRead16(gPm1bEvt);
+        if (Sts & PM1_PWRBTN_STS) {
+            HalIoWrite16(gPm1bEvt, PM1_PWRBTN_STS);
+            return 1;
+        }
     }
     return 0;
 }
