@@ -20,31 +20,57 @@ void HalCpuHalt(void) {
 void HalCpuReboot(void) {
     UINT32 i;
     static UINT8 NullIdt[10];
+    void *St;
+    void *Rt;
+    typedef void (*EfiResetSystemFn)(UINT32, UINT64, UINT64, void *)
+        __attribute__((ms_abi));
+    EfiResetSystemFn ResetFn;
 
     HalIrqDisable();
-    /* 8042 脉冲复位（QEMU/PC 常用） */
+
+    /* 1) FADT RESET_REG（含 CF9 脉冲；写两次） */
+    AcpiReset();
+
+    /* 2) 无 FADT 也强制 CF9 warm→cold（Intel PCH 真机主路径） */
+    AcpiCf9Reset(0x06);
+    AcpiCf9Reset(0x0E);
+
+    /* 3) 8042（有 KBC 的机器；USB 键盘机常无效） */
     for (i = 0; i < 100000; i++) {
         if ((HalIoRead8(0x64) & 0x02) == 0) {
             break;
         }
     }
     HalIoWrite8(0x64, 0xFE);
-    for (i = 0; i < 100000; i++) {
+    for (i = 0; i < 200000; i++) {
         __asm__ volatile ("pause");
     }
-    /* port 0x92 fast reset */
+
+    /* 4) port 0x92 */
     HalIoWrite8(0x92, (UINT8)(HalIoRead8(0x92) | 0x01));
-    /* CF9：full then soft */
-    HalIoWrite8(0xCF9, 0x0E);
-    for (i = 0; i < 100000; i++) {
+    for (i = 0; i < 200000; i++) {
         __asm__ volatile ("pause");
     }
-    HalIoWrite8(0xCF9, 0x06);
-    /* 三重故障：QEMU 默认会复位客户机（勿依赖 -no-reboot） */
-    for (i = 0; i < 10; i++) {
-        NullIdt[i] = 0;
+
+    /* 5) UEFI Runtime ResetSystem（冷复位）；放较后，避免与 GetTime 同类挂死抢前 */
+    St = HalPlatformSystemTable();
+    if (St != 0) {
+        Rt = *(void **)(UINTN)((UINT8 *)St + 88);
+        if (Rt != 0) {
+            ResetFn = *(EfiResetSystemFn *)(UINTN)((UINT8 *)Rt + 104);
+            if (ResetFn != 0) {
+                ResetFn(0, 0, 0, 0);
+            }
+        }
     }
-    __asm__ volatile ("lidt %0; ud2" :: "m"(NullIdt) : "memory");
+
+    /* 6) 三重故障：仅 hypervisor（QEMU）；真机 = CPU shutdown 假死 */
+    if (HalCpuIsHypervisor()) {
+        for (i = 0; i < 10; i++) {
+            NullIdt[i] = 0;
+        }
+        __asm__ volatile ("lidt %0; ud2" :: "m"(NullIdt) : "memory");
+    }
     for (;;) {
         __asm__ volatile ("cli; hlt");
     }

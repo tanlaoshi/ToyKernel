@@ -37,9 +37,13 @@ int AcpiTablePresent(UINT64 RsdpPhys, const char *Sig4);
  */
 int AcpiDmarDisableTranslation(UINT64 RsdpPhys);
 
-/* FACP：软关机 + 电源键（短按） */
+/* FACP：软关机 + 电源键（短按） + RESET_REG 复位 */
 int AcpiPowerInit(UINT64 RsdpPhys);
 void AcpiPowerOff(void);
+/* FADT RESET_REG；无则空操作。真机优先于 8042/三重故障 */
+void AcpiReset(void);
+/* Linux 式 CF9 双写脉冲（Code=0x06 warm / 0x0E cold） */
+void AcpiCf9Reset(UINT8 Code);
 /* 1=检测到电源键按下（已清状态位） */
 int AcpiPowerButtonPressed(void);
 

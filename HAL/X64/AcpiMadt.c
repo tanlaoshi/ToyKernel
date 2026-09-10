@@ -5,6 +5,7 @@
  */
 #include "AcpiMadt.h"
 #include "Hal.h"
+#include "PCIe.h"
 #include "ToySerialLog.h"
 #include "VirtualMemory.h"
 
@@ -470,6 +471,8 @@ int AcpiDmarDisableTranslation(UINT64 RsdpPhys) {
 #define PM1_SCI_EN     (1u << 0)
 /* FADT Flags bit4：1=电源键仅 control-method（无固定功能位） */
 #define FADT_FLAG_PWR_BUTTON (1u << 4)
+/* FADT Flags bit10：RESET_REG 有效 */
+#define FADT_FLAG_RESET_REG  (1u << 10)
 
 static UINT16 gPm1aEvt;
 static UINT16 gPm1aCnt;
@@ -480,12 +483,21 @@ static UINT16 gPm1bEn;
 static UINT8  gPm1EvtLen;
 static UINT8  gSlpTypA; /* 来自 _S5_；0xFF=未知 */
 static UINT8  gPowerReady;
+/* FADT RESET_REG：0=mem 1=io 2=pci；Addr=0 表示无 */
+static UINT8  gResetSpace;
+static UINT64 gResetAddr;
+static UINT8  gResetValue;
+static UINT8  gResetAccess; /* GAS AccessSize：1=byte 2=word 3=dword */
 
 static UINT64 GasIoAddress(const UINT8 *Gas) {
     /* ACPI GAS：Address @ +4（旧误用 +8）；SpaceId 1=SystemIO */
     if (Gas[0] != 1) {
         return 0;
     }
+    return *(UINT64 *)(void *)(Gas + 4);
+}
+
+static UINT64 GasAnyAddress(const UINT8 *Gas) {
     return *(UINT64 *)(void *)(Gas + 4);
 }
 
@@ -732,6 +744,10 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     gPm1bEn = 0;
     gPm1EvtLen = 4;
     gSlpTypA = 0xFF;
+    gResetSpace = 0;
+    gResetAddr = 0;
+    gResetValue = 0;
+    gResetAccess = 1;
     Facp = FindFacp(RsdpPhys);
     if (!Facp || Facp->Length < 116) {
         PowerBootLine("boot: ACPI no FACP\n");
@@ -837,6 +853,34 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     Pm1EnablePowerButton(gPm1bEvt, gPm1bEn);
     ParseSlpTypFromFacp(RsdpPhys, Facp, P);
 
+    /* ACPI 2.0+ RESET_REG（真机重启优先；无 flag 但口为 0xCF9 也收） */
+    if (Facp->Length >= 129) {
+        UINT8 Space = P[116];
+        UINT64 Ra = GasAnyAddress(P + 116);
+        UINT8 Val = P[128];
+        int Want = 0;
+
+        if (Flags & FADT_FLAG_RESET_REG) {
+            Want = 1;
+        } else if (Space == 1 && Ra == 0xCF9ull) {
+            /* 部分固件漏 RESET_REG_SUP，但 GAS 已填 CF9 */
+            Want = 1;
+            PowerBootLine("boot: ACPI reset=cf9 (no flag)\n");
+        }
+        if (Want && (Space <= 2) && Ra != 0) {
+            gResetSpace = Space;
+            gResetAddr = Ra;
+            gResetValue = Val ? Val : 0x06;
+            gResetAccess = P[119];
+            if (gResetAccess == 0) {
+                gResetAccess = 1;
+            }
+            PowerBootHex("boot: ACPI reset space=", Space);
+            PowerBootHex("boot: ACPI reset addr=", (UINT32)Ra);
+            PowerBootHex("boot: ACPI reset val=", gResetValue);
+        }
+    }
+
     PowerBootHex("boot: ACPI PM1 evt=", gPm1aEvt);
     PowerBootHex("boot: ACPI PM1 cnt=", gPm1aCnt);
     PowerBootHex("boot: ACPI PM1 en=", gPm1aEn);
@@ -853,11 +897,13 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
 }
 
 void AcpiPowerOff(void) {
-    UINT8 Order[10];
+    UINT8 Order[4];
     UINT8 N;
     UINT8 i;
     UINT8 Typ;
     UINT8 Seen[8];
+
+    HalIrqDisable();
 
     /* QEMU/Bochs 常见关机口 */
     HalIoWrite16(0x604, 0x2000);
@@ -868,7 +914,10 @@ void AcpiPowerOff(void) {
         return;
     }
 
-    /* 优先 _S5_，再试常见 5/7，最后扫其余（勿先写 Typ0 把芯片打进怪态） */
+    /*
+     * 只试 _S5_ 与常见 5/7。禁止扫 Typ0～7：错误 SLP_TYP 会把芯片打进
+     * S1/S3 类「假死」（屏亮/灯亮但无响应），开始菜单关机看起来像卡死。
+     */
     N = 0;
     for (i = 0; i < 8; i++) {
         Seen[i] = 0;
@@ -885,19 +934,89 @@ void AcpiPowerOff(void) {
         Order[N++] = 7;
         Seen[7] = 1;
     }
-    for (Typ = 0; Typ < 8; Typ++) {
-        if (!Seen[Typ]) {
-            Order[N++] = Typ;
-            Seen[Typ] = 1;
-        }
-    }
 
+    PowerBootLine("boot: ACPI poweroff\n");
     for (i = 0; i < N; i++) {
         Typ = Order[i];
         Pm1WriteSleep(gPm1aCnt, Typ);
         Pm1WriteSleep(gPm1bCnt, Typ);
-        PowerStallMs(10);
+        PowerStallMs(50);
     }
+}
+
+/* Linux/Windows：CF9 需先 |2 再写复位码，单写 0x06 部分机挂死不复位 */
+static void Cf9Pulse(UINT8 Code) {
+    UINT8 Cf9;
+
+    Cf9 = (UINT8)(HalIoRead8(0xCF9) & (UINT8)~Code);
+    HalIoWrite8(0xCF9, (UINT8)(Cf9 | 0x02));
+    PowerStallMs(1);
+    HalIoWrite8(0xCF9, (UINT8)(Cf9 | Code));
+    PowerStallMs(15);
+}
+
+static void ResetWriteIo(UINT16 Port, UINT8 Access, UINT8 Value) {
+    if (Access >= 3) {
+        HalIoWrite32(Port, (UINT32)Value);
+    } else if (Access == 2) {
+        HalIoWrite16(Port, (UINT16)Value);
+    } else {
+        HalIoWrite8(Port, Value);
+    }
+}
+
+static void ResetWritePci(UINT64 Addr, UINT8 Value) {
+    UINT8 Dev = (UINT8)((Addr >> 32) & 0xFFu);
+    UINT8 Fn = (UINT8)((Addr >> 16) & 0xFFu);
+    UINT8 Off = (UINT8)(Addr & 0xFFu);
+    UINT32 Aligned = (UINT32)(Off & ~3u);
+    UINT32 Shift = (UINT32)(Off & 3u) * 8u;
+    UINT32 Cur = PciReadConfig(0, Dev, Fn, (UINT8)Aligned);
+    Cur = (Cur & ~(0xFFu << Shift)) | ((UINT32)Value << Shift);
+    PciWriteConfig(0, Dev, Fn, (UINT8)Aligned, Cur);
+}
+
+void AcpiReset(void) {
+    int Pass;
+
+    if (gResetAddr == 0) {
+        return;
+    }
+    PowerBootLine("boot: ACPI reset\n");
+    for (Pass = 0; Pass < 2; Pass++) {
+        if (gResetSpace == 1) {
+            /* SystemIO：CF9 用双写脉冲（与 Linux BOOT_CF9 一致） */
+            if (gResetAddr == 0xCF9ull) {
+                Cf9Pulse(gResetValue);
+            } else if (gResetAddr <= 0xFFFFull) {
+                ResetWriteIo((UINT16)gResetAddr, gResetAccess, gResetValue);
+                PowerStallMs(15);
+            }
+        } else if (gResetSpace == 0) {
+            if (MapPhys(gResetAddr, 8) == 0) {
+                if (gResetAccess >= 3) {
+                    *(volatile UINT32 *)(UINTN)gResetAddr = (UINT32)gResetValue;
+                } else if (gResetAccess == 2) {
+                    *(volatile UINT16 *)(UINTN)gResetAddr = (UINT16)gResetValue;
+                } else {
+                    *(volatile UINT8 *)(UINTN)gResetAddr = gResetValue;
+                }
+            }
+            PowerStallMs(15);
+        } else if (gResetSpace == 2) {
+            ResetWritePci(gResetAddr, gResetValue);
+            PowerStallMs(15);
+        }
+    }
+}
+
+/* 供 HalCpuReboot：无 FADT 时也走 Linux CF9 脉冲 */
+void AcpiCf9Reset(UINT8 Code) {
+    if (Code == 0) {
+        Code = 0x06;
+    }
+    PowerBootLine("boot: CF9 reset\n");
+    Cf9Pulse(Code);
 }
 
 int AcpiPowerButtonPressed(void) {

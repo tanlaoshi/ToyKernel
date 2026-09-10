@@ -1054,11 +1054,15 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
         if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
             Item = (int)((Y - My) / MENU_ITEM_H);
             if (Item >= 0 && Item < MENU_ITEMS) {
-                /* 先关菜单并刷新桌面，再由 Gui 开窗/关机——禁止在 Open 后再全屏 Fill */
+                DESKTOP_ACTION Act = gMenuActions[Item];
+                /* 先关菜单；关机/重启勿先全屏刷新（真机 Present 后再 HAL 易像卡死） */
                 gMenuOpen = 0;
-                RequestRefresh();
+                if (Act != DESKTOP_ACTION_SHUTDOWN &&
+                    Act != DESKTOP_ACTION_REBOOT) {
+                    RequestRefresh();
+                }
                 if (OutAction) {
-                    *OutAction = gMenuActions[Item];
+                    *OutAction = Act;
                 }
                 return 1;
             }
