@@ -27,6 +27,12 @@ UINT64 HalVideoFrameBufferSize(void);
 void HalVideoLogFbPte(void);
 /* 填入一行（无尾 '\n'）；成功返回长度，无 FB 返回 0。供 PHOTO 直绘 */
 int HalVideoFbPteLine(char *Buf, UINTN Max);
+/*
+ * PR-G-fb-wc：PAT 开 WC 后仅重映 LFB（PWT→WC）；MMIO/xHCI 不动。
+ * 映射标志供 Theme 热切等复用。
+ */
+void HalVideoEnableFbWc(void);
+UINT64 HalVideoFbMapFlags(void);
 
 void HalVideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略客户区 clip（鼠标光标） */

@@ -353,3 +353,6 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) {
     return HalPageGetEntry(HalGetCurrentPageTable(), Virt);
 }
+
+void HalPatApplyWc(void) {
+}

@@ -5,8 +5,49 @@
 #include "PhysicalMemory.h"
 
 #define PTE_HUGE (1ULL << 7)
+#define PTE_PWT  (1ULL << 3)
+#define PTE_PCD  (1ULL << 4)
+#define PTE_PAT2M (1ULL << 12) /* 2M PDE：PAT；4K 时 bit7 为 PAT（与 PS 同号不同级） */
+
+#define MSR_IA32_PAT 0x277u
+#define PAT_TYPE_UC  0u
+#define PAT_TYPE_WC  1u
+#define PAT_TYPE_WT  4u
+#define PAT_TYPE_WB  6u
+#define PAT_TYPE_UC_MINUS 7u
 
 static UINT64 gKernelRoot;
+
+void HalFlushTlb(UINT64 VirtualAddress);
+
+static UINT64 Rdmsr(UINT32 Msr) {
+    UINT32 Lo;
+    UINT32 Hi;
+
+    __asm__ volatile ("rdmsr" : "=a"(Lo), "=d"(Hi) : "c"(Msr));
+    return ((UINT64)Hi << 32) | Lo;
+}
+
+static void Wrmsr(UINT32 Msr, UINT64 Value) {
+    UINT32 Lo = (UINT32)Value;
+    UINT32 Hi = (UINT32)(Value >> 32);
+
+    __asm__ volatile ("wrmsr" :: "c"(Msr), "a"(Lo), "d"(Hi) : "memory");
+}
+
+/*
+ * PR-G-fb-wc：PA1=WC。索引 PWT=1,PCD=0,PAT=0 → WC；
+ * PA0 仍 WB；PA3（PWT|PCD）仍 UC——xHCI PTE_MMIO 不变。
+ */
+void HalPatApplyWc(void) {
+    UINT64 Pat;
+
+    Pat = Rdmsr(MSR_IA32_PAT);
+    /* 清 PA1（bits 15:8），写入 WC */
+    Pat = (Pat & ~(0xFFULL << 8)) | ((UINT64)PAT_TYPE_WC << 8);
+    Wrmsr(MSR_IA32_PAT, Pat);
+    __asm__ volatile ("wbinvd" ::: "memory");
+}
 
 static UINT64 PagePhys(const void *Ptr) {
     return (UINT64)(UINTN)Ptr;
@@ -73,8 +114,49 @@ static UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
     }
 
     UINT64 *Pd = (UINT64 *)(UINTN)(Pdpt[Pdpti] & ~0xFFFULL);
-    if (Pd[Pdi] & PTE_HUGE) {
-        return 0;
+    /*
+     * 2M 大页：Map 需改单页属性（如 LFB→WC）时拆成 4K PT。
+     * 保留原 PWT/PCD；2M PAT(bit12) → 4K PAT(bit7)。
+     */
+    if ((Pd[Pdi] & HAL_PAGE_PRESENT) && (Pd[Pdi] & PTE_HUGE)) {
+        UINT64 Huge;
+        UINT64 PhysBase;
+        UINT64 LeafFlags;
+        UINT64 *NewPt;
+        UINTN i;
+
+        if (!Create) {
+            return 0;
+        }
+        Huge = Pd[Pdi];
+        PhysBase = Huge & 0x000FFFFFFFE00000ULL;
+        LeafFlags = HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
+        if (Huge & HAL_PAGE_USER) {
+            LeafFlags |= HAL_PAGE_USER;
+        }
+        if (Huge & PTE_PWT) {
+            LeafFlags |= PTE_PWT;
+        }
+        if (Huge & PTE_PCD) {
+            LeafFlags |= PTE_PCD;
+        }
+        if (Huge & PTE_PAT2M) {
+            LeafFlags |= PTE_HUGE; /* 4K：bit7 = PAT */
+        }
+        NewPt = Alloc ? (UINT64 *)Alloc(Ctx) : (UINT64 *)PageAllocTable();
+        if (!NewPt) {
+            return 0;
+        }
+        if (!Alloc) {
+            PageZero(NewPt, PAGE_SIZE);
+        }
+        for (i = 0; i < 512; i++) {
+            NewPt[i] = (PhysBase + ((UINT64)i << 12)) | LeafFlags;
+        }
+        Pd[Pdi] = PagePhys(NewPt) | TableFlags;
+        for (i = 0; i < 512; i++) {
+            HalFlushTlb(PhysBase + ((UINT64)i << 12));
+        }
     }
 
     UINT64 *Pt = (UINT64 *)(UINTN)(Pd[Pdi] & ~0xFFFULL);

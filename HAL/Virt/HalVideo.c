@@ -4,6 +4,7 @@
 #include "HalVideo.h"
 #include "Video.h"
 #include "PhysicalMemory.h"
+#include "Hal.h"
 
 void HalVideoSet(const VIDEO_CONFIG *Config) {
     VIDEO_CONFIG Local;
@@ -70,6 +71,13 @@ int HalVideoFbPteLine(char *Buf, UINTN Max) {
         Buf[0] = 0;
     }
     return 0;
+}
+
+void HalVideoEnableFbWc(void) {
+}
+
+UINT64 HalVideoFbMapFlags(void) {
+    return HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
 }
 
 void HalVideoPresent(void) {

@@ -6,6 +6,7 @@
 #include "PhysicalMemory.h"
 #include "Hal.h"
 #include "HalSerial.h"
+#include "VirtualMemory.h"
 
 /* 4K PTE：bit3 PWT、bit4 PCD、bit7 PAT；2M PDE：PAT 在 bit12，bit7=PS */
 #define FB_PTE_PWT (1ULL << 3)
@@ -56,8 +57,8 @@ static UINT64 FbLeafEntry(UINT64 Virt, int *OutHuge) {
 }
 
 /*
- * 默认 IA32_PAT：索引 PAT:PCD:PWT → 0=WB 1=WT 2=UC- 3=UC（4..7 同形）。
- * 仓库尚未给 GOP 改 PAT，故无 WC；真机若固件改过 PAT，本推导仅供对照。
+ * PAT 索引 PAT:PCD:PWT。PR-G-fb-wc 后 PA1=WC（仅 PWT）；
+ * PA0=WB；PA3=UC（PWT|PCD，xHCI PTE_MMIO）。
  */
 static const char *FbCacheName(int Pat, int Pcd, int Pwt) {
     int Idx = ((Pat & 1) << 2) | ((Pcd & 1) << 1) | (Pwt & 1);
@@ -67,6 +68,7 @@ static const char *FbCacheName(int Pat, int Pcd, int Pwt) {
     case 4:
         return "WB";
     case 1:
+        return "WC"; /* HalPatApplyWc：PA1 */
     case 5:
         return "WT";
     case 2:
@@ -78,6 +80,37 @@ static const char *FbCacheName(int Pat, int Pcd, int Pwt) {
     default:
         return "?";
     }
+}
+
+static int gFbWcMapped;
+
+UINT64 HalVideoFbMapFlags(void) {
+    if (gFbWcMapped) {
+        return HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE | HAL_PAGE_PWT;
+    }
+    return HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
+}
+
+void HalVideoEnableFbWc(void) {
+    UINT64 Base;
+    UINT64 Size;
+    UINT64 Flags;
+
+    Base = VideoFrameBufferBase();
+    Size = VideoFrameBufferSize();
+    if (Base == 0 || Size == 0) {
+        HalSerialBootMark("boot: fb-wc skip (no fb)\n");
+        return;
+    }
+
+    HalPatApplyWc();
+    Flags = HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE | HAL_PAGE_PWT;
+    if (VirtualMemoryMapRange(Base, Base, (UINTN)Size, Flags) != 0) {
+        HalSerialBootMark("boot: fb-wc map fail (keep WB)\n");
+        return;
+    }
+    gFbWcMapped = 1;
+    HalSerialBootMark("boot: fb-wc ok (PAT PA1, LFB PWT)\n");
 }
 
 /*

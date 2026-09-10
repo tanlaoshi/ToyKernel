@@ -450,6 +450,7 @@ void ArchApInit(UINT32 LogicalCpu) {
     IdtLidt();
     LapicEnable();
     ArchSyscallMsrInit(LogicalCpu);
+    HalPatApplyWc(); /* 与 BSP 同形：PA1=WC，LFB WC 映射对其它核也生效 */
 }
 
 /* 开中断 */

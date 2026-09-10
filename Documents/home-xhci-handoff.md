@@ -96,7 +96,7 @@ PHOTO 串口证据（2026-09-09）：`proto=0 mps=4`，`k` 涨、`m=0`、`u=0`�
 
 ## 建议下一刀（JX）
 
-1. 路线图当前刀：**PR-H-xhci-dual**（或确认后 **PR-G-fb-wc**）
-2. **PR-G-fb-pte** ✅：PHOTO 黄字 `boot: fb-pte … cache=`（与 `boot: video` 同行区）
+1. 路线图当前刀：**PR-H-xhci-dual**
+2. **PR-G-fb-wc** ✅ TG：PHOTO/`fb-pte` 应见 `cache=WC`；另有 `boot: fb-wc ok`
 3. 消费级机 / 真机分辨率 / 双键盘 → 边角暂缓
 4. smoke PASS；真机相关改动必回归 NUC/工控

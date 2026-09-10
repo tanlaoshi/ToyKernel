@@ -71,6 +71,8 @@ static int InitializeVideo(void) {
     FontInit();
     ThemeInit();
     HalVideoSet(&V);
+    /* PR-G-fb-wc：PAT PA1=WC，仅 LFB 映成 PWT（xHCI 仍 PTE_MMIO/UC） */
+    HalVideoEnableFbWc();
     HalVideoInitBackbuffer();
     HalVideoClearScreen(ThemeDesktopBackground());
     /* 再清一遍顶带，去掉固件/进度条残留色块 */
@@ -80,7 +82,7 @@ static int InitializeVideo(void) {
     }
     HalVideoPresent();
     HalSerialGopEnable();
-    /* PR-G-fb-pte：映射已落（PRESENT|WRITABLE，无 PTE_MMIO）；核验叶 PTE，不改属性 */
+    /* PR-G-fb-pte：映后核验；期望 cache=WC */
     HalVideoLogFbPte();
     return 0;
 }

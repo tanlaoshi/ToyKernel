@@ -102,7 +102,7 @@ int ThemeApplyDisplayLive(UINT32 Width, UINT32 Height) {
         MapBytes = Need;
     }
     if (VirtualMemoryMapRange(Base, Base, (UINTN)MapBytes,
-                              PTE_PRESENT | PTE_WRITABLE) != 0) {
+                              HalVideoFbMapFlags()) != 0) {
         return -1;
     }
 
