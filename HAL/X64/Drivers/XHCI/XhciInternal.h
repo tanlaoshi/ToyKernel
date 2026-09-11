@@ -299,6 +299,9 @@ void RingDoorbell(UINT32 Slot, UINT32 Target);
 void DcbaaSet(UINT32 Slot, UINT64 Phys);
 void DcbaaFlush(void);
 
+UINT8 *InSlot(void);
+UINT8 *InEp(UINT32 Dci);
+
 int ResetController(void);
 int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut);
 void RecoverCommandRing(void);
@@ -314,10 +317,19 @@ void PowerConnectedPorts(void);
 int ResetPortEx(UINT32 Port1, int Force);
 int ResetPort(UINT32 Port1);
 
+UINT16 SpeedMps(UINT8 Speed);
+void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut);
+void Ep0RingForSlotOut(UINT32 *SlotOut, XHCI_TRB **RingOut, RING_STATE **StOut);
 int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
                         UINT8 *DevCtx, UINT32 RouteString,
                         UINT8 ParentHubSlot, UINT8 TtPort,
                         int HubDevice, UINT8 HubNumPorts);
+int AddressDevice(UINT32 Port1, UINT8 Speed);
+int ControlXfer(USB_SETUP_PACKET *Setup, void *Data);
+int GetDesc(UINT16 TypeIndex, UINT16 Index, UINT16 Length, void *Buf);
+int EvaluateHubSlot(UINT32 SlotId, UINT32 RootPort, UINT8 Speed, UINT8 NumPorts);
+void HubNoteMttFromDevDesc(UINT8 Speed);
+int EvaluateEp0(UINT32 SlotId, UINT16 Mps);
 int GetDeviceDesc(void);
 int SetConfig(UINT8 Config);
 int SetInterface(UINT8 Iface, UINT8 Alt);
