@@ -309,6 +309,7 @@ void ServiceHidCompletions(void);
 UINT32 PortReg(UINT32 Port1);
 UINT8 PortSpeed(UINT32 Portsc);
 UINT32 PortscNeutral(UINT32 State);
+void PortscClearChange(UINT64 Ps);
 void PowerConnectedPorts(void);
 int ResetPortEx(UINT32 Port1, int Force);
 int ResetPort(UINT32 Port1);
