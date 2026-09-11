@@ -358,6 +358,13 @@ int RealPcRejectMouseExtraAsKeyboard(UINT16 Total, UINT8 Speed);
 int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
                               UINT8 ConfigVal);
 
+int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
+                   int (*ParseFn)(UINT8 *, UINT16, UINT8, UINT8 *, UINT8 *,
+                                  UINT16 *, UINT8 *),
+                   int UseBootProto);
+int IsHubDeviceDesc(void);
+int ConfigHasHubIface(UINT8 *Cfg, UINT16 Total);
+int TryConfigureKeyboardSlot(UINT8 Speed);
 int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot);
 int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed);
 int EnumHubChildrenForKeyboard(void);
@@ -367,6 +374,7 @@ int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);
 void MousePush(void);
 void KbdPush(void);
+/* XhciInitMouseDeferred / XhciMouse* 对外见 XHCI.h */
 
 void EnableHostInterrupts(void);
 void ImClearPending(void);
