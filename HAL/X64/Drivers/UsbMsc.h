@@ -1,7 +1,7 @@
 /*
  * UsbMsc.h — USB MSC BOT 门面（PR-H-msc）
  *
- * PR-H-msc-1：仅空壳；Init 失败、Ready=0；不碰 xHCI。
+ * PR-H-msc-2：Init → XhciMscBringUp（恒失败）；Ready=0；不认盘。
  */
 #ifndef USB_MSC_H
 #define USB_MSC_H

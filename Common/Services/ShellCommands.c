@@ -52,11 +52,18 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-msc-1：空壳提示；认盘在后续 PR */
+/* PR-H-msc-2：调 BringUp 壳（恒失败）；不扫口、不认盘 */
 static void CommandMsc(int Argc, char **Argv) {
+    int Rc;
+
     (void)Argc;
     (void)Argv;
-    ConsoleWrite("msc: PR-H-msc-1 scaffold (no claim; HID untouched)\n");
+    Rc = HalUsbMscInit();
+    ConsoleWrite("msc: PR-H-msc-2 bringup=");
+    ConsoleWrite(Rc == 0 ? "ok" : "fail");
+    ConsoleWrite(" ready=");
+    ConsoleWrite(HalUsbMscReady() ? "1" : "0");
+    ConsoleWrite(" (Bulk shell only; no scan/claim; HID untouched)\n");
 }
 
 static void CommandMemory(int Argc, char **Argv) {
@@ -1295,7 +1302,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
-    ConsoleRegister("msc", "USB MSC status (PR-H-msc scaffold)", CommandMsc);
+    ConsoleRegister("msc", "USB MSC bringup shell (PR-H-msc-2)", CommandMsc);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegisterAliasLine("memory", "show", "memory");
     ConsoleRegisterAliasLine("net", "show", "network");

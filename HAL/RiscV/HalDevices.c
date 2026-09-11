@@ -47,6 +47,14 @@ int HalUsbInit(void) {
 #endif
 }
 
+int HalUsbMscInit(void) {
+    return -1;
+}
+
+int HalUsbMscReady(void) {
+    return 0;
+}
+
 void HalInputArmIrq(void) {
 }
 

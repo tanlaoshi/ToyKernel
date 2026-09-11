@@ -179,6 +179,12 @@ static int    gMouseAbsY = 384;
 static int    gMouseAbsInit;
 static XHCI_TRB gMouseIntrRing[RING_SIZE] __attribute__((aligned(64)));
 static RING_STATE gMouseIntr;
+/* PR-H-msc-2：Bulk 静态环（仅 InitRing；不配 EP、不门铃、不扫口） */
+static XHCI_TRB gBulkInRing[RING_SIZE] __attribute__((aligned(64)));
+static XHCI_TRB gBulkOutRing[RING_SIZE] __attribute__((aligned(64)));
+static RING_STATE gBulkIn;
+static RING_STATE gBulkOut;
+static int gMscBulkRingsInited;
 static UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
 static volatile UINT32 gMouseIntrDone;
 static volatile UINT32 gIntrReportReady;
@@ -5026,4 +5032,30 @@ int XhciDequeueMouse(USB_MOUSE_REPORT *Report) {
     }
     SpinLockRelease(&gHidQueueLock);
     return Ok;
+}
+
+/*
+ * PR-H-msc-2：证明 Bulk 环可 Init；故意不扫口 / Reset / Address / Control。
+ * 后续 msc-3+ 再接枚举与 BOT。
+ */
+int XhciMscBringUp(void) {
+    if (!gMscBulkRingsInited) {
+        InitRing(gBulkInRing, &gBulkIn, RING_SIZE);
+        InitRing(gBulkOutRing, &gBulkOut, RING_SIZE);
+        FlushDma(gBulkInRing, sizeof(gBulkInRing));
+        FlushDma(gBulkOutRing, sizeof(gBulkOutRing));
+        gMscBulkRingsInited = 1;
+    }
+    return -1;
+}
+
+int XhciMscReady(void) {
+    return 0;
+}
+
+int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
+    (void)DirIn;
+    (void)Buf;
+    (void)Len;
+    return -1;
 }

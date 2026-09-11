@@ -1,16 +1,18 @@
 /*
- * UsbMsc.c — BOT 空壳（PR-H-msc-1）
+ * UsbMsc.c — BOT 门面（PR-H-msc-2）
  *
- * 不 include XHCI、不扫口、不认盘。后续 PR 再接 Bulk。
+ * 接 xHCI Bulk API 壳；BringUp 恒失败；不扫口、不认盘。
  */
 #include "UsbMsc.h"
+#include "XHCI.h"
 
 int UsbMscInit(void) {
-    return -1;
+    /* 仅调 XhciMscBringUp：InitRing Bulk 环后恒 -1 */
+    return XhciMscBringUp();
 }
 
 int UsbMscReady(void) {
-    return 0;
+    return XhciMscReady();
 }
 
 UINT32 UsbMscBlockCount(void) {

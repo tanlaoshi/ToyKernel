@@ -89,4 +89,13 @@ int XhciDequeueMouse(USB_MOUSE_REPORT *Report);
 int XhciUsesIrq(void);
 int XhciKeyboardSetLeds(UINT8 Leds);
 
+/*
+ * PR-H-msc-2：Bulk/MSC API 壳。仅静态环 + 恒失败入口；
+ * 不扫口、不 Reset、不 Address；不碰 Drain 键鼠热路径。
+ */
+int XhciMscBringUp(void); /* 恒 -1 */
+int XhciMscReady(void);   /* 恒 0 */
+/* DirIn=1 Bulk IN；本刀不入队、不门铃，恒 -1 */
+int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len);
+
 #endif

@@ -50,7 +50,7 @@ static int MscDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
 
 static int MscDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    /* PR-H-msc-1：不 BlockMuxInstallMsc，保持 AHCI/NVMe 后端不变 */
+    /* PR-H-msc-1/2：不 BlockMuxInstallMsc，保持 AHCI/NVMe 后端不变 */
     DebugWrite("msc: PR-H-msc-1 scaffold (no mux)\n");
     (void)gMscBackend;
     return 0;

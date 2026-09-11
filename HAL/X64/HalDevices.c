@@ -10,12 +10,13 @@
 #include "InputXhci.h"
 #include "InputPs2.h"
 #include "Net.h"
+#include "UsbMsc.h"
 
 /* BlockAta / BlockAhci（H1）/ BlockNvme（H5） */
 void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
-void MscDriverRegister(void); /* PR-H-msc-1：空壳，不认盘 */
+void MscDriverRegister(void); /* PR-H-msc：空壳注册；认盘在后续 PR */
 void E1000DriverRegister(void);
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -34,6 +35,14 @@ void HalDriverRegister(void) {
 
 int HalUsbInit(void) {
     return InputXhciInit();
+}
+
+int HalUsbMscInit(void) {
+    return UsbMscInit();
+}
+
+int HalUsbMscReady(void) {
+    return UsbMscReady();
 }
 
 void HalInputArmIrq(void) {
