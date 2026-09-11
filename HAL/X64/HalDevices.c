@@ -15,6 +15,7 @@
 void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
+void MscDriverRegister(void); /* PR-H-msc-1：空壳，不认盘 */
 void E1000DriverRegister(void);
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -24,6 +25,7 @@ void HalDriverRegister(void) {
     AhciDriverRegister();
     AtaDriverRegister();
     NvmeDriverRegister();
+    MscDriverRegister(); /* PR-H-msc-1：Bind 不改 Block 后端 */
     InputXhciRegister(); /* 先 USB HID */
     InputPs2Register();  /* 后 PS/2：仅当 xhci-hid 未绑 Input 时生效 */
     NetDriverRegister();

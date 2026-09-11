@@ -21,6 +21,8 @@ typedef struct {
 } BLOCK_BACKEND;
 
 void BlockRegisterBackend(const BLOCK_BACKEND *Backend);
+/* 当前后端指针（Mux 包装 MSC 时读取 Primary；PR-H-msc） */
+const BLOCK_BACKEND *BlockPeekBackend(void);
 
 int BlockSelect(UINT32 Drive);
 UINT32 BlockCurrentDrive(void);

@@ -52,6 +52,13 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
+/* PR-H-msc-1：空壳提示；认盘在后续 PR */
+static void CommandMsc(int Argc, char **Argv) {
+    (void)Argc;
+    (void)Argv;
+    ConsoleWrite("msc: PR-H-msc-1 scaffold (no claim; HID untouched)\n");
+}
+
 static void CommandMemory(int Argc, char **Argv) {
     const BOOT_INFO *Info = BootInfoGet();
     UINT64 RegionBytes = 0;
@@ -1288,6 +1295,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
+    ConsoleRegister("msc", "USB MSC status (PR-H-msc scaffold)", CommandMsc);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegisterAliasLine("memory", "show", "memory");
     ConsoleRegisterAliasLine("net", "show", "network");

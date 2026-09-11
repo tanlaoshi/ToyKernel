@@ -12,6 +12,10 @@ void BlockRegisterBackend(const BLOCK_BACKEND *Backend) {
     gBackend = Backend;
 }
 
+const BLOCK_BACKEND *BlockPeekBackend(void) {
+    return gBackend;
+}
+
 int BlockBackendReady(void) {
     return gBackend != 0;
 }
