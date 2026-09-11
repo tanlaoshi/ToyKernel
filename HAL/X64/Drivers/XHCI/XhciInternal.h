@@ -345,12 +345,18 @@ int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
                      UINT8 *Iface, UINT8 *EpAddr, UINT16 *Mps, UINT8 *Interval);
 int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed,
                   UINT8 MouseEpAddr, UINT16 MouseMps, UINT8 MouseBInterval);
-int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed);
+int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
+                       UINT8 Speed);
 void QueueIntr(void);
 void QueueMouseIntr(void);
 UINT8 FsInterval(UINT8 BInterval);
 int HidGetInputReport(UINT8 Iface, void *Data, UINT16 Length);
 int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St, UINTN RingBytes);
+int PrepCompositeMouse(UINT16 Total, UINT8 Speed, UINT8 KbdIface, UINT8 KbdEp,
+                       UINT8 *MouseEp, UINT16 *MouseMps, UINT8 *MouseIv);
+int RealPcRejectMouseExtraAsKeyboard(UINT16 Total, UINT8 Speed);
+int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
+                              UINT8 ConfigVal);
 
 int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot);
 int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed);
