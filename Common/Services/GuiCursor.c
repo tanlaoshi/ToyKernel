@@ -3,6 +3,7 @@
  *
  * 真机跟手：旧 save-under 每移一次 ReadPixel 一整框 + Present，极卡。
  * XOR 再画一次即擦除；与 GuiFrameBufferBegin/End 仍配合（先擦再绘再画上）。
+ * 尺寸随 gScreenHeight 相对 1080p 缩放（4K 更大，1080 保持原手感）。
  */
 #include "GuiPriv.h"
 #include "HalVideo.h"
@@ -12,12 +13,45 @@
 
 #define CURSOR_XOR_MASK 0x00FFFFFFu
 
+/* 臂长：1080→6，2160→12；线半宽：1080→0（1px），2160→1（3px） */
+static void CursorMetrics(int *Half, int *Thick) {
+    UINT32 H;
+    UINT32 HalfU;
+    int T;
+
+    H = gScreenHeight != 0 ? gScreenHeight : CURSOR_REF_H;
+    HalfU = (CURSOR_HALF_BASE * H + CURSOR_REF_H / 2u) / CURSOR_REF_H;
+    if (HalfU < 4u) {
+        HalfU = 4u;
+    }
+    if (HalfU > (UINT32)CURSOR_HALF_MAX) {
+        HalfU = (UINT32)CURSOR_HALF_MAX;
+    }
+    *Half = (int)HalfU;
+    T = (int)HalfU / CURSOR_HALF_BASE;
+    if (T > 0) {
+        T--;
+    }
+    if (T > CURSOR_THICK_MAX) {
+        T = CURSOR_THICK_MAX;
+    }
+    *Thick = T;
+}
+
 void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
                       UINT32 *Sw, UINT32 *Sh) {
-    *Sx = Cx >= CURSOR_HALF ? Cx - CURSOR_HALF : 0;
-    *Sy = Cy >= CURSOR_HALF ? Cy - CURSOR_HALF : 0;
-    UINT32 Ex = Cx + CURSOR_HALF + 1;
-    UINT32 Ey = Cy + CURSOR_HALF + 1;
+    int Half;
+    int Thick;
+    UINT32 Ext;
+    UINT32 Ex;
+    UINT32 Ey;
+
+    CursorMetrics(&Half, &Thick);
+    Ext = (UINT32)(Half + Thick);
+    *Sx = Cx >= Ext ? Cx - Ext : 0;
+    *Sy = Cy >= Ext ? Cy - Ext : 0;
+    Ex = Cx + Ext + 1;
+    Ey = Cy + Ext + 1;
     if (Ex > gScreenWidth) {
         Ex = gScreenWidth;
     }
@@ -28,24 +62,43 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     *Sh = Ey - *Sy;
 }
 
-/* 横条含中心，竖条跳过中心，避免中心被异或两次变回原色 */
+/*
+ * 粗十字：横条画满，竖条跳过与横条重叠的中心带，避免 XOR 两次抵消。
+ */
 static void XorCursorAt(UINT32 X, UINT32 Y) {
+    int Half;
+    int Thick;
     int i;
+    int t;
 
-    for (i = -CURSOR_HALF; i <= CURSOR_HALF; i++) {
-        int Px = (int)X + i;
-        if (Px >= 0 && (UINT32)Px < gScreenWidth) {
-            HalVideoXorPixelRaw((UINT32)Px, Y, CURSOR_XOR_MASK);
-        }
-    }
-    for (i = -CURSOR_HALF; i <= CURSOR_HALF; i++) {
-        int Py;
-        if (i == 0) {
+    CursorMetrics(&Half, &Thick);
+
+    for (t = -Thick; t <= Thick; t++) {
+        int Py = (int)Y + t;
+        if (Py < 0 || (UINT32)Py >= gScreenHeight) {
             continue;
         }
-        Py = (int)Y + i;
-        if (Py >= 0 && (UINT32)Py < gScreenHeight) {
-            HalVideoXorPixelRaw(X, (UINT32)Py, CURSOR_XOR_MASK);
+        for (i = -Half; i <= Half; i++) {
+            int Px = (int)X + i;
+            if (Px >= 0 && (UINT32)Px < gScreenWidth) {
+                HalVideoXorPixelRaw((UINT32)Px, (UINT32)Py, CURSOR_XOR_MASK);
+            }
+        }
+    }
+    for (t = -Thick; t <= Thick; t++) {
+        int Px = (int)X + t;
+        if (Px < 0 || (UINT32)Px >= gScreenWidth) {
+            continue;
+        }
+        for (i = -Half; i <= Half; i++) {
+            int Py;
+            if (i >= -Thick && i <= Thick) {
+                continue;
+            }
+            Py = (int)Y + i;
+            if (Py >= 0 && (UINT32)Py < gScreenHeight) {
+                HalVideoXorPixelRaw((UINT32)Px, (UINT32)Py, CURSOR_XOR_MASK);
+            }
         }
     }
 }

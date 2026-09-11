@@ -47,6 +47,7 @@ HAL/X64/Drivers/XHCI/
 #endif
 ```
 
+> **split-1 落地约定**：`XHCI.c` 在 `#include "XHCI/XhciInternal.h"` 前定义 `XHCI_INTERNAL_IMPLEMENTATION`，只吃宏/类型；`extern` 与共享函数原型包在 `#ifndef XHCI_INTERNAL_IMPLEMENTATION` 内，避免与本文件仍为 `static` 的定义冲突。后续拆出的 `.c` 不定义该宏。
 ### 3.2 所有寄存器宏定义
 
 从 XHCI.c 提取以下宏定义（一个不漏）：
@@ -159,6 +160,12 @@ extern XHCI_TRB gBulkOutRing[RING_SIZE];
 extern RING_STATE gBulkIn;
 extern RING_STATE gBulkOut;
 extern int gMscBulkRingsInited;
+
+// MSC scan 临时 slot（PR-H-msc-3；与 Bulk 壳并列）
+extern UINT32 gMscScanSlot;
+extern UINT8 gMscScanDevCtx[2048];
+extern XHCI_TRB gMscScanEp0Ring[RING_SIZE];
+extern RING_STATE gMscScanEp0;
 
 // 统计
 extern volatile UINT32 gStatIntrEvt;

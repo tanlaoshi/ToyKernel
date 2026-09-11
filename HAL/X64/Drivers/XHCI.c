@@ -18,257 +18,142 @@
  *   XhciIrq           — 中断服务例程
  *   XhciDequeueKeyboard — 从软件队列取键盘报告
  */
-#include "XHCI.h"
+/* PR-H-xhci-split-2：内部头；Diag 已迁 XhciDiag.c */
+#include "XHCI/XhciInternal.h"
 #include "Console.h"
-#include "Hal.h"
-#include "Debug.h"
-#include "ToySerialLog.h"
-#include "AcpiMadt.h"
-#include "Platform.h"
-#include "SpinLock.h"
-#include "VirtualMemory.h"
 
-#ifndef PTE_PWT
-#define PTE_PWT (1ULL << 3)
-#define PTE_PCD (1ULL << 4)
-#endif
-/* 固件 DMA 页：UC，避免 CPU cache 挡住 HC 读 TRB / 写事件 */
-#define PTE_XHCI_DMA (PTE_PRESENT | PTE_WRITABLE | PTE_PWT | PTE_PCD)
-
-#define RING_SIZE           32
-#define EVT_SIZE            128 /* 真机 PHOTO→gui 空窗期需更大；原 32 易溢满导致桌面假死 */
-#define DCBAA_SLOTS         16
-#define PORTSC_CCS          (1u << 0)
-#define PORTSC_PED          (1u << 1)
-#define PORTSC_OCA          (1u << 3)
-#define PORTSC_PR           (1u << 4)
-#define PORTSC_PP           (1u << 9)
-#define PORTSC_SPEED_SHIFT  10
-#define PORTSC_CSC          (1u << 17)
-#define PORTSC_PEC          (1u << 18)
-#define PORTSC_WRC          (1u << 19)
-#define PORTSC_OCC          (1u << 20)
-#define PORTSC_PRC          (1u << 21)
-#define PORTSC_PLC          (1u << 22)
-#define PORTSC_CEC          (1u << 23)
-#define PORTSC_WPR          (1u << 31)
-/* 写 PORTSC 时保留的 RO / 状态位（对齐 Linux xhci_port_state_to_neutral） */
-#define PORTSC_RO           (PORTSC_CCS | PORTSC_OCA | (0xFu << PORTSC_SPEED_SHIFT) | (1u << 30))
-#define PORTSC_RWS          (PORTSC_PED | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 8) | \
-                             PORTSC_PP | (1u << 14) | (1u << 15) | (1u << 16) | \
-                             (0x1Fu << 24) | PORTSC_WPR)
-#define PORTSC_CHANGE       (PORTSC_CSC | PORTSC_PEC | PORTSC_WRC | PORTSC_OCC | \
-                             PORTSC_PRC | PORTSC_PLC | PORTSC_CEC)
-
-#define USBCMD_RS           (1u << 0)
-#define USBCMD_HCRST        (1u << 1)
-#define USBCMD_INTE         (1u << 2)
-#define USBSTS_HCH          (1u << 0)
-#define USBSTS_HSE          (1u << 1)
-#define USBSTS_EINT         (1u << 2)
-#define USBSTS_CNR          (1u << 6)
-#define CRCR_CA             (1u << 2)
-#define CRCR_CRR            (1u << 3)
-#define XHCI_FW_CMD_SIZE    256
-#define XHCI_FW_EVT_MAX     256
-
-#define TRB_C               (1u << 0)
-#define TRB_TC              (1u << 1)
-#define TRB_ISP             (1u << 2) /* 短包也要完成事件（鼠标常见） */
-#define TRB_IOC             (1u << 5)
-#define TRB_IDT             (1u << 6)
-#define TRB_TYPE(t)         ((UINT32)(t) << 10)
-#define TRB_SLOT(s)         ((UINT32)(s) << 24)
-#define TRB_TRT_OUT         (2u << 16)
-#define TRB_TRT_IN          (3u << 16)
-#define TRB_DIR_IN          (1u << 16)
-
-#define TRB_NORMAL          1
-#define TRB_SETUP           2
-#define TRB_DATA            3
-#define TRB_STATUS          4
-#define TRB_LINK            6
-#define TRB_ENABLE_SLOT     9
-#define TRB_DISABLE_SLOT   10
-#define TRB_ADDRESS_DEV    11
-#define TRB_CONFIG_EP       12
-#define TRB_EVALUATE_CTX   13
-#define TRB_RESET_EP       14
-#define TRB_STOP_EP        15
-#define TRB_SET_TR_DEQ     16
-#define TRB_TRANSFER_EVENT 32
-#define TRB_CMD_COMPLETION  33
-
-#define CC_SUCCESS          1
-#define CC_SHORT_PACKET     13
-#define CC_CONTEXT_STATE    19 /* SetTrDeq 常见：EP 状态不允许 */
-#define CC_STOPPED          26 /* Stop EP 取消挂起传输 */
-#define CC_STOPPED_LEN      27
-#define CC_STOPPED_SHORT    28
-
-typedef struct {
-    UINT64 Parameter;
-    UINT32 Status;
-    UINT32 Control;
-} __attribute__((packed, aligned(16))) XHCI_TRB;
-
-typedef struct {
-    UINT32 Enq;
-    UINT32 Pcs;
-    UINT32 Size; /* TRB 个数（含末尾 LINK） */
-} RING_STATE;
-
-static UINT64 gCapabilityBase;
-static UINT64 gOperationalBase;
-static UINT64 gDoorbellBase;
-static UINT64 gRuntimeBase;
-static UINT32 gCtxSize;
-static UINT32 gMaxPorts;
-static int gXhciStarted; /* 已对某 BAR 完成 Start；无 HID 时可 Abandon 再试下一颗 */
+UINT64 gCapabilityBase;
+UINT64 gOperationalBase;
+UINT64 gDoorbellBase;
+UINT64 gRuntimeBase;
+UINT32 gCtxSize;
+UINT32 gMaxPorts;
+int gXhciStarted; /* 已对某 BAR 完成 Start；无 HID 时可 Abandon 再试下一颗 */
 /* 真机探针：DMAR/TE 留给写 RS 前那行黄字 */
-static int gXhciDmar = -2; /* -2未查 -1坏 0无 1有 */
-static int gXhciTe = -2;   /* -2未做 -1失败 0无DRHD 1本关 2已关 */
-static UINT32 gPort1;
-static UINT8  gSpeed;
-static UINT32 gSlotId;
-static UINT32 gXferSlot;
-static UINT32 gIntrDci;
-static UINT16 gEp0Mps;
-static UINT8  gKbdIface;
-static UINT8  gKbdParseScore; /* ParseConfig：3=boot键 2=3/1/0 1=其它HID */
-static UINT8  gKbdEpAddr; /* 配置描述符 bEndpointAddress，匹配事件用 */
-static UINT16 gKbdMps;    /* ConfigureIntr 记下的 MPS；composite 重建用 */
-static UINT8  gKbdEpInterval; /* 已换算进 EP 上下文的 Interval 字段 */
-static UINT8  gUseGetReport;
-static UINT8  gKbdPollReport; /* 真机复合键鼠：键中断 IN 常 k=0，改 EP0 GET_REPORT */
-static UINT8  gKbdReportPrev[8];
-static volatile UINT32 gGetReportBusy;
-static UINT8  gGetReportFails;
-static UINT8  gXferFast; /* GET_REPORT 用短超时，避免拖死鼠标 */
-static UINT8  gUseIrq;
+int gXhciDmar = -2; /* -2未查 -1坏 0无 1有 */
+int gXhciTe = -2;   /* -2未做 -1失败 0无DRHD 1本关 2已关 */
+UINT32 gPort1;
+UINT8  gSpeed;
+UINT32 gSlotId;
+UINT32 gXferSlot;
+UINT32 gIntrDci;
+UINT16 gEp0Mps;
+UINT8  gKbdIface;
+UINT8  gKbdParseScore; /* ParseConfig：3=boot键 2=3/1/0 1=其它HID */
+UINT8  gKbdEpAddr; /* 配置描述符 bEndpointAddress，匹配事件用 */
+UINT16 gKbdMps;    /* ConfigureIntr 记下的 MPS；composite 重建用 */
+UINT8  gKbdEpInterval; /* 已换算进 EP 上下文的 Interval 字段 */
+UINT8  gUseGetReport;
+UINT8  gKbdPollReport; /* 真机复合键鼠：键中断 IN 常 k=0，改 EP0 GET_REPORT */
+UINT8  gKbdReportPrev[8];
+volatile UINT32 gGetReportBusy;
+UINT8  gGetReportFails;
+UINT8  gXferFast; /* GET_REPORT 用短超时，避免拖死鼠标 */
+UINT8  gUseIrq;
 /* 真机默认 POLL；DUAL 见 XhciTryEnterDual（EnableIrq / Arm） */
-static XHCI_IRQ_MODE gIrqMode = XHCI_IRQ_MODE_POLL;
+XHCI_IRQ_MODE gIrqMode = XHCI_IRQ_MODE_POLL;
 /* 键盘 Slot 的路由/TT，Configure Endpoint 必须带回，否则 hub 子设备 cfg 失败 */
-static UINT32 gKbdRoute;
-static UINT8  gKbdHubSlot;
-static UINT8  gKbdTtPort;
-static const char *gEnumWhy;
+UINT32 gKbdRoute;
+UINT8  gKbdHubSlot;
+UINT8  gKbdTtPort;
 
-#define KBD_Q 16
-static USB_KEYBOARD_REPORT gKbdQ[KBD_Q];
-static volatile UINT32 gKeyboardWriteIndex;
-static volatile UINT32 gKeyboardReadIndex;
+USB_KEYBOARD_REPORT gKbdQ[KBD_Q];
+volatile UINT32 gKeyboardWriteIndex;
+volatile UINT32 gKeyboardReadIndex;
 
-static UINT32 gMouseSlotId;
-static UINT32 gMousePort;
-static UINT32 gMouseRoute;   /* hub 子设备 Route String；根口设备为 0 */
-static UINT8  gMouseHubSlot; /* TT：父 hub slot；根口为 0 */
-static UINT8  gMouseTtPort;
-static UINT32 gMouseIntrDci;
-static UINT8  gMouseIface;
-static UINT8  gMouseIfaceProto; /* bInterfaceProtocol：2=boot 相对；0=tablet 等绝对 */
-static UINT8  gMouseParseScore; /* ParseConfigMouse 评分：3=boot鼠 2=boot子类 1=其它HID */
-static UINT8  gMouseAbsolute;   /* 1：报告为绝对坐标（QEMU usb-tablet） */
-static UINT8  gMouseEpAddr;
-static UINT8  gMouseReportLen;
-static UINT8  gMouseXferLen; /* 最近一次中断 IN 实际字节（短包后 < MPS） */
-static UINT8  gMouseBuf[8] __attribute__((aligned(64)));
+UINT32 gMouseSlotId;
+UINT32 gMousePort;
+UINT32 gMouseRoute;   /* hub 子设备 Route String；根口设备为 0 */
+UINT8  gMouseHubSlot; /* TT：父 hub slot；根口为 0 */
+UINT8  gMouseTtPort;
+UINT32 gMouseIntrDci;
+UINT8  gMouseIface;
+UINT8  gMouseIfaceProto; /* bInterfaceProtocol：2=boot 相对；0=tablet 等绝对 */
+UINT8  gMouseParseScore; /* ParseConfigMouse 评分：3=boot鼠 2=boot子类 1=其它HID */
+UINT8  gMouseAbsolute;   /* 1：报告为绝对坐标（QEMU usb-tablet） */
+UINT8  gMouseEpAddr;
+UINT8  gMouseReportLen;
+UINT8  gMouseXferLen; /* 最近一次中断 IN 实际字节（短包后 < MPS） */
+UINT8  gMouseBuf[8] __attribute__((aligned(64)));
 /* boot 相对鼠：在驱动内累加成屏坐标；PHOTO→桌面时重置到光标 */
-static int    gMouseAbsX = 512;
-static int    gMouseAbsY = 384;
-static int    gMouseAbsInit;
-static XHCI_TRB gMouseIntrRing[RING_SIZE] __attribute__((aligned(64)));
-static RING_STATE gMouseIntr;
+int    gMouseAbsX = 512;
+int    gMouseAbsY = 384;
+int    gMouseAbsInit;
+XHCI_TRB gMouseIntrRing[RING_SIZE] __attribute__((aligned(64)));
+RING_STATE gMouseIntr;
 /* PR-H-msc-2：Bulk 静态环（仅 InitRing；不配 EP、不门铃、不扫口） */
-static XHCI_TRB gBulkInRing[RING_SIZE] __attribute__((aligned(64)));
-static XHCI_TRB gBulkOutRing[RING_SIZE] __attribute__((aligned(64)));
-static RING_STATE gBulkIn;
-static RING_STATE gBulkOut;
-static int gMscBulkRingsInited;
+XHCI_TRB gBulkInRing[RING_SIZE] __attribute__((aligned(64)));
+XHCI_TRB gBulkOutRing[RING_SIZE] __attribute__((aligned(64)));
+RING_STATE gBulkIn;
+RING_STATE gBulkOut;
+int gMscBulkRingsInited;
 /* PR-H-msc-3：scan 临时 slot，独立 EP0，勿 InitRing 键盘 gEp0 */
-static UINT32 gMscScanSlot;
-static UINT8  gMscScanDevCtx[2048] __attribute__((aligned(64)));
-static XHCI_TRB gMscScanEp0Ring[RING_SIZE] __attribute__((aligned(64)));
-static RING_STATE gMscScanEp0;
-static UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
-static volatile UINT32 gMouseIntrDone;
-static volatile UINT32 gIntrReportReady;
-static volatile UINT32 gMouseReportReady;
+UINT32 gMscScanSlot;
+UINT8  gMscScanDevCtx[2048] __attribute__((aligned(64)));
+XHCI_TRB gMscScanEp0Ring[RING_SIZE] __attribute__((aligned(64)));
+RING_STATE gMscScanEp0;
+UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
+volatile UINT32 gMouseIntrDone;
+volatile UINT32 gIntrReportReady;
+volatile UINT32 gMouseReportReady;
 /* poll 诊断：PHOTO/桌面可看完成与推送是否在涨 */
-static volatile UINT32 gStatIntrEvt;
-static volatile UINT32 gStatMouseEvt;
-static volatile UINT32 gStatKbdPush;
-static volatile UINT32 gStatMousePush;
-static volatile UINT32 gStatLastCc;
-static volatile UINT32 gStatDrain;
-static volatile UINT32 gStatXferAny;   /* 任意 Transfer Event */
-static volatile UINT32 gStatEvtRing;   /* 事件环弹出次数（含命令完成） */
-static volatile UINT32 gStatLastSlot;
-static volatile UINT32 gStatLastEp;
-static volatile UINT32 gStatUnmatched; /* Transfer 且未匹配键鼠 DCI */
-static volatile UINT32 gStatIrq;       /* PR-H-xhci-stat：XhciIrq 进入次数 */
-static UINT32 gDiagXferLogged;        /* 限制串口/屏日志条数 */
-static UINT32 gDiagQuiet;             /* GET_REPORT poll：勿 DiagChk 刷屏/盖白字 */
-static UINT32 gDiagIntrCcLogged;
-static UINT32 gCtrlFailLogged;        /* ControlXfer FAIL 最多抄几条到 PHOTO */
+volatile UINT32 gStatIntrEvt;
+volatile UINT32 gStatMouseEvt;
+volatile UINT32 gStatKbdPush;
+volatile UINT32 gStatMousePush;
+volatile UINT32 gStatLastCc;
+volatile UINT32 gStatDrain;
+volatile UINT32 gStatXferAny;   /* 任意 Transfer Event */
+volatile UINT32 gStatEvtRing;   /* 事件环弹出次数（含命令完成） */
+volatile UINT32 gStatLastSlot;
+volatile UINT32 gStatLastEp;
+volatile UINT32 gStatUnmatched; /* Transfer 且未匹配键鼠 DCI */
+volatile UINT32 gStatIrq;       /* PR-H-xhci-stat：XhciIrq 进入次数 */
 
-/*
- * 串口日志级别（默认安静）：
- *   make XHCI_DIAG_VERBOSE=1  → 全量 OK DiagChk + 逐步 BootMark
- *   默认 0                    → 只打 FAIL + 键鼠/hub 里程碑（好抄 PHOTO）
- */
-#ifndef XHCI_DIAG_VERBOSE
-#define XHCI_DIAG_VERBOSE 0
-#endif
 
-static int DiagVerbose(void) {
-    return XHCI_DIAG_VERBOSE != 0;
-}
+USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
+volatile UINT32 gMouseWriteIndex;
+volatile UINT32 gMouseReadIndex;
+SPIN_LOCK gHidQueueLock; /* PR-S-ap：IRQ 入队 vs AP 出队 */
 
-#define MOUSE_Q 32
-static USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
-static volatile UINT32 gMouseWriteIndex;
-static volatile UINT32 gMouseReadIndex;
-static SPIN_LOCK gHidQueueLock; /* PR-S-ap：IRQ 入队 vs AP 出队 */
-
-static XHCI_TRB gCmdRing[RING_SIZE] __attribute__((aligned(64)));
-static XHCI_TRB gEp0Ring[RING_SIZE] __attribute__((aligned(64)));
-static XHCI_TRB gHubEp0Ring[RING_SIZE] __attribute__((aligned(64)));   /* hub 专用：勿与键鼠共环 */
-static XHCI_TRB gMouseEp0Ring[RING_SIZE] __attribute__((aligned(64))); /* 独立鼠/子设备专用 */
-static XHCI_TRB gIntrRing[RING_SIZE] __attribute__((aligned(64)));
-static XHCI_TRB gEvtRing[EVT_SIZE] __attribute__((aligned(64)));
+XHCI_TRB gCmdRing[RING_SIZE] __attribute__((aligned(64)));
+XHCI_TRB gEp0Ring[RING_SIZE] __attribute__((aligned(64)));
+XHCI_TRB gHubEp0Ring[RING_SIZE] __attribute__((aligned(64)));   /* hub 专用：勿与键鼠共环 */
+XHCI_TRB gMouseEp0Ring[RING_SIZE] __attribute__((aligned(64))); /* 独立鼠/子设备专用 */
+XHCI_TRB gIntrRing[RING_SIZE] __attribute__((aligned(64)));
+XHCI_TRB gEvtRing[EVT_SIZE] __attribute__((aligned(64)));
 /* 真机可指向固件环（IOMMU 已映射）；QEMU 用上面静态缓冲 */
-static XHCI_TRB *gCmdRingLive = gCmdRing;
-static XHCI_TRB *gEvtRingLive = gEvtRing;
-static UINT32 gEvtRingSize = EVT_SIZE;
+XHCI_TRB *gCmdRingLive = gCmdRing;
+XHCI_TRB *gEvtRingLive = gEvtRing;
+UINT32 gEvtRingSize = EVT_SIZE;
 
-static RING_STATE gCmd;
-static RING_STATE gEp0;
-static RING_STATE gHubEp0;
-static RING_STATE gMouseEp0;
-static RING_STATE gIntr;
-static UINT32 gEvtDeq;
-static UINT32 gEvtCcs;
+RING_STATE gCmd;
+RING_STATE gEp0;
+RING_STATE gHubEp0;
+RING_STATE gMouseEp0;
+RING_STATE gIntr;
+UINT32 gEvtDeq;
+UINT32 gEvtCcs;
 
-static UINT64 gDcbaa[DCBAA_SLOTS + 1] __attribute__((aligned(64)));
+UINT64 gDcbaa[DCBAA_SLOTS + 1] __attribute__((aligned(64)));
 /*
  * 真机 bRS 2：自建 DCBAA/scratch 后 RS 挂；固件 DCBAAP 可 RS。
  * gDcbaaLive 指向固件表或本地 gDcbaa；槽位写入走 DcbaaSet。
  */
-static UINT64 *gDcbaaLive;
-static UINT32 gDcbaaMaxSlot;
-static int gDcbaaFromFirmware;
+UINT64 *gDcbaaLive;
+UINT32 gDcbaaMaxSlot;
+int gDcbaaFromFirmware;
 /*
  * 真机原则：固件已提供的 DMA 结构（DCBAAP/scratch、CRCR、ERST/事件环）优先沿用；
  * 禁止默认改指到内核 .bss。Halt 前快照；仅快照全空时才在固件 DCBAA 同页内切环。
  */
-static UINT64 gFwDcbaapSave;
-static UINT64 gFwCrcrSave;   /* CRCR 指针（已清低 6 位）= 当前 dequeue，非必然环基址 */
-static UINT32 gFwCrcrRcs;    /* CRCR.RCS，与 dequeue 配对 */
-static UINT64 gFwErstbaSave;
-static UINT64 gFwEvtSave;
-static UINT16 gFwEvtSegSave;
-static UINT64 gFwErdpSave;   /* 固件 ERDP：勿清环后强行改回基址 */
+UINT64 gFwDcbaapSave;
+UINT64 gFwCrcrSave;   /* CRCR 指针（已清低 6 位）= 当前 dequeue，非必然环基址 */
+UINT32 gFwCrcrRcs;    /* CRCR.RCS，与 dequeue 配对 */
+UINT64 gFwErstbaSave;
+UINT64 gFwEvtSave;
+UINT16 gFwEvtSegSave;
+UINT64 gFwErdpSave;   /* 固件 ERDP：勿清环后强行改回基址 */
 /*
  * HCSPARAMS2 MaxScratchpadBufs（与 Linux HCS_MAX_SCRATCHPAD 一致）：
  *   bits 25:21 = Hi（高 5 位）
@@ -276,60 +161,59 @@ static UINT64 gFwErdpSave;   /* 固件 ERDP：勿清环后强行改回基址 */
  *   count = (Hi << 5) | Lo
  * 旧式把 Hi/Lo 对调会少/多配页 → 装环后写 RS 时 DMA 踩错 → 真机硬挂。
  */
-#define XHCI_SCRATCH_MAX 128
-static UINT64 gScratchPtr[XHCI_SCRATCH_MAX] __attribute__((aligned(64)));
-static UINT8  gScratchBuf[XHCI_SCRATCH_MAX][4096] __attribute__((aligned(4096)));
-static UINT8  gDevCtx[2048] __attribute__((aligned(64)));
-static UINT8  gHubDevCtx[2048] __attribute__((aligned(64))); /* PR-H-hub */
-static UINT8  gInCtx[2048] __attribute__((aligned(64)));
-static UINT8  gCtrlBuf[256] __attribute__((aligned(64)));
-static UINT8  gReportBuf[8] __attribute__((aligned(64)));
-static UINT8  gErst[16] __attribute__((aligned(64)));
+UINT64 gScratchPtr[XHCI_SCRATCH_MAX] __attribute__((aligned(64)));
+UINT8  gScratchBuf[XHCI_SCRATCH_MAX][4096] __attribute__((aligned(4096)));
+UINT8  gDevCtx[2048] __attribute__((aligned(64)));
+UINT8  gHubDevCtx[2048] __attribute__((aligned(64))); /* PR-H-hub */
+UINT8  gInCtx[2048] __attribute__((aligned(64)));
+UINT8  gCtrlBuf[256] __attribute__((aligned(64)));
+UINT8  gReportBuf[8] __attribute__((aligned(64)));
+UINT8  gErst[16] __attribute__((aligned(64)));
 
-static UINT32 gHubSlotId;
-static UINT32 gHubRootPort;
-static UINT8  gHubNumPorts;
-static UINT8  gHubSpeed;
-static UINT8  gHubMtt; /* bDeviceProtocol==2 才置 MTT；误置单 TT hub 会导致子设备中断永不完成 */
-static UINT8  gHubTtt; /* Hub Desc wHubCharacteristics[6:5] → Slot TT Think Time */
-static UINT32 gPortNoHid; /* 键盘 pass 已判非 HID 的根口（如前面 U 盘） */
-static UINT32 gPortNeedForcePr; /* 本轮已 Address+Disable，再扫须强制 PR */
+UINT32 gHubSlotId;
+UINT32 gHubRootPort;
+UINT8  gHubNumPorts;
+UINT8  gHubSpeed;
+UINT8  gHubMtt; /* bDeviceProtocol==2 才置 MTT；误置单 TT hub 会导致子设备中断永不完成 */
+UINT8  gHubTtt; /* Hub Desc wHubCharacteristics[6:5] → Slot TT Think Time */
+UINT32 gPortNoHid; /* 键盘 pass 已判非 HID 的根口（如前面 U 盘） */
+UINT32 gPortNeedForcePr; /* 本轮已 Address+Disable，再扫须强制 PR */
 /* Address 走 gEp0 的 slot：claim 成鼠标后仍须用 gEp0，勿切 gMouseEp0 */
-static UINT8  gSlotEp0UsesKbdRing[DCBAA_SLOTS + 1];
+UINT8  gSlotEp0UsesKbdRing[DCBAA_SLOTS + 1];
 
-static volatile UINT32 gCmdDone;
-static UINT32 gCmdCode;
-static UINT32 gCmdSlot;
-static volatile UINT32 gXferDone;
-static UINT32 gXferCode;
-static UINT32 gXferRemain;
-static volatile UINT32 gIntrDone;
+volatile UINT32 gCmdDone;
+UINT32 gCmdCode;
+UINT32 gCmdSlot;
+volatile UINT32 gXferDone;
+UINT32 gXferCode;
+UINT32 gXferRemain;
+volatile UINT32 gIntrDone;
 
 /* 读 MMIO 32 位 */
-static inline UINT32 ReadMmio32(UINT64 Addr) {
+UINT32 ReadMmio32(UINT64 Addr) {
     return *(volatile UINT32 *)(UINTN)Addr;
 }
 
 /* 写 MMIO 32 位 */
-static inline void WriteMmio32(UINT64 Addr, UINT32 Value) {
+void WriteMmio32(UINT64 Addr, UINT32 Value) {
     *(volatile UINT32 *)(UINTN)Addr = Value;
 }
 
 /* 写 MMIO 64 位（分两次 32 位写） */
-static void WriteMmio64(UINT64 Addr, UINT64 Value) {
+void WriteMmio64(UINT64 Addr, UINT64 Value) {
     WriteMmio32(Addr, (UINT32)Value);
     WriteMmio32(Addr + 4, (UINT32)(Value >> 32));
 }
 
-static UINT64 ReadMmio64(UINT64 Addr) {
+UINT64 ReadMmio64(UINT64 Addr) {
     UINT64 Lo = ReadMmio32(Addr);
     UINT64 Hi = ReadMmio32(Addr + 4);
     return Lo | (Hi << 32);
 }
 
-static void FlushDma(const void *Ptr, UINTN Size);
+void FlushDma(const void *Ptr, UINTN Size);
 
-static void DcbaaSet(UINT32 Slot, UINT64 Phys) {
+void DcbaaSet(UINT32 Slot, UINT64 Phys) {
     if (!gDcbaaLive || Slot > gDcbaaMaxSlot) {
         return;
     }
@@ -337,7 +221,7 @@ static void DcbaaSet(UINT32 Slot, UINT64 Phys) {
     FlushDma(&gDcbaaLive[Slot], sizeof(UINT64));
 }
 
-static void DcbaaFlush(void) {
+void DcbaaFlush(void) {
     if (!gDcbaaLive) {
         return;
     }
@@ -345,17 +229,17 @@ static void DcbaaFlush(void) {
 }
 
 /* 虚拟地址转物理地址（恒等映射） */
-static UINT64 PointerToPhysical(const void *Ptr) {
+UINT64 PointerToPhysical(const void *Ptr) {
     return (UINT64)(UINTN)Ptr;
 }
 
 /* 内存屏障，保证 TRB 写入对硬件可见 */
-static void Fence(void) {
+void Fence(void) {
     __asm__ volatile ("mfence" ::: "memory");
 }
 
 /* 把 DMA 缓冲从 CPU cache 推出去（真机 RS 后 DMA 读环/DCBAA） */
-static void FlushDma(const void *Ptr, UINTN Size) {
+void FlushDma(const void *Ptr, UINTN Size) {
     const UINT8 *P = (const UINT8 *)Ptr;
     UINTN Off;
 
@@ -369,14 +253,14 @@ static void FlushDma(const void *Ptr, UINTN Size) {
 }
 
 /* 清零内存块 */
-static void ZeroMemory(void *Ptr, UINTN Size) {
+void ZeroMemory(void *Ptr, UINTN Size) {
     UINT8 *P = (UINT8 *)Ptr;
     while (Size--) {
         *P++ = 0;
     }
 }
 
-static void CopyMemory(void *Dst, const void *Src, UINTN Size) {
+void CopyMemory(void *Dst, const void *Src, UINTN Size) {
     UINT8 *D = (UINT8 *)Dst;
     const UINT8 *S = (const UINT8 *)Src;
     while (Size--) {
@@ -384,10 +268,9 @@ static void CopyMemory(void *Dst, const void *Src, UINTN Size) {
     }
 }
 
-static void BootLog(const char *Text);
 
 /* 等待寄存器 Mask 位清零 */
-static int WaitClear(UINT64 Addr, UINT32 Mask, int Timeout) {
+int WaitClear(UINT64 Addr, UINT32 Mask, int Timeout) {
     while (Timeout--) {
         if (!(ReadMmio32(Addr) & Mask)) {
             return 1;
@@ -397,7 +280,7 @@ static int WaitClear(UINT64 Addr, UINT32 Mask, int Timeout) {
 }
 
 /* 等待寄存器 Mask 位置位 */
-static int WaitSet(UINT64 Addr, UINT32 Mask, int Timeout) {
+int WaitSet(UINT64 Addr, UINT32 Mask, int Timeout) {
     while (Timeout--) {
         if (ReadMmio32(Addr) & Mask) {
             return 1;
@@ -406,7 +289,7 @@ static int WaitSet(UINT64 Addr, UINT32 Mask, int Timeout) {
     return 0;
 }
 
-static UINT64 ReadTsc(void) {
+UINT64 ReadTsc(void) {
     UINT32 Lo;
     UINT32 Hi;
 
@@ -415,7 +298,7 @@ static UINT64 ReadTsc(void) {
 }
 
 /* 真机忙等，按 ~3GHz 估算。QEMU 不要用长 Stall。 */
-static void StallMs(UINT32 Ms) {
+void StallMs(UINT32 Ms) {
     UINT64 T0;
     UINT64 Need;
 
@@ -429,7 +312,7 @@ static void StallMs(UINT32 Ms) {
     }
 }
 
-static int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
+int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     UINT64 T0;
     UINT64 Need;
 
@@ -446,7 +329,7 @@ static int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     }
 }
 
-static int WaitClearMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
+int WaitClearMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     UINT64 T0;
     UINT64 Need;
 
@@ -463,129 +346,9 @@ static int WaitClearMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     }
 }
 
-static void BootLogHex(const char *Prefix, UINT64 Value, int Digits) {
-    char B[20];
-    char Msg[56];
-    int n = 0;
-    int i = 0;
-
-    HalSerialFormatHex(B, Value, Digits);
-    while (Prefix[n] && n < 36) {
-        Msg[n] = Prefix[n];
-        n++;
-    }
-    while (B[i] && n < 54) {
-        Msg[n++] = B[i++];
-    }
-    Msg[n++] = '\n';
-    Msg[n] = 0;
-    BootLog(Msg);
-}
-
-static void BootLogV(const char *Text) {
-    if (DiagVerbose()) {
-        BootLog(Text);
-    }
-}
-
-static void BootLogHexV(const char *Prefix, UINT64 Value, int Digits) {
-    if (DiagVerbose()) {
-        BootLogHex(Prefix, Value, Digits);
-    }
-}
-
-static void BootMarkV(const char *Text) {
-    if (DiagVerbose()) {
-        ToyBootMarkUsb(Text);
-    }
-}
-
-static void EnumWhy(const char *Why) {
-    gEnumWhy = Why;
-    BootLog(Why);
-}
-
-/* 期望 vs 实际：默认只打 FAIL；VERBOSE=1 时 OK 也打 */
-static void DiagAppend(char *Msg, int *N, int Cap, const char *S) {
-    while (S && *S && *N < Cap - 1) {
-        Msg[(*N)++] = *S++;
-    }
-}
-
-static void DiagChk(const char *Step, int Ok, const char *Want, UINT64 Got, int Digits) {
-    char Msg[88];
-    char Hex[20];
-    int n = 0;
-
-    /* 安静：关掉 OK；FAIL 的 want=/got= 仍上 BootLog（PHOTO 能抄），除非 gDiagQuiet */
-    if (gDiagQuiet) {
-        return;
-    }
-    if (Ok && !DiagVerbose()) {
-        return;
-    }
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Ok ? "xhci OK " : "xhci FAIL ");
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Step);
-    DiagAppend(Msg, &n, (int)sizeof(Msg), " want=");
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Want);
-    DiagAppend(Msg, &n, (int)sizeof(Msg), " got=");
-    HalSerialFormatHex(Hex, Got, Digits);
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Hex);
-    if (n < (int)sizeof(Msg) - 1) {
-        Msg[n++] = '\n';
-    }
-    Msg[n] = 0;
-    BootLog(Msg);
-}
-
-static void DiagChkStr(const char *Step, int Ok, const char *Want, const char *Got) {
-    char Msg[88];
-    int n = 0;
-
-    if (gDiagQuiet) {
-        return;
-    }
-    if (Ok && !DiagVerbose()) {
-        return;
-    }
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Ok ? "xhci OK " : "xhci FAIL ");
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Step);
-    DiagAppend(Msg, &n, (int)sizeof(Msg), " want=");
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Want);
-    DiagAppend(Msg, &n, (int)sizeof(Msg), " got=");
-    DiagAppend(Msg, &n, (int)sizeof(Msg), Got);
-    if (n < (int)sizeof(Msg) - 1) {
-        Msg[n++] = '\n';
-    }
-    Msg[n] = 0;
-    BootLog(Msg);
-}
-
-static const char *CmdTrbName(UINT32 Control) {
-    switch ((Control >> 10) & 0x3F) {
-    case TRB_ENABLE_SLOT:
-        return "EnableSlot";
-    case TRB_DISABLE_SLOT:
-        return "DisableSlot";
-    case TRB_ADDRESS_DEV:
-        return "AddressDev";
-    case TRB_CONFIG_EP:
-        return "ConfigEP";
-    case TRB_EVALUATE_CTX:
-        return "EvalCtx";
-    case TRB_RESET_EP:
-        return "ResetEP";
-    case TRB_STOP_EP:
-        return "StopEP";
-    case TRB_SET_TR_DEQ:
-        return "SetTrDeq";
-    default:
-        return "Command";
-    }
-}
 
 /* 初始化 TRB 环状态 */
-static void InitRing(XHCI_TRB *Ring, RING_STATE *St, UINT32 Size) {
+void InitRing(XHCI_TRB *Ring, RING_STATE *St, UINT32 Size) {
     if (Size < 2) {
         Size = RING_SIZE;
     }
@@ -598,7 +361,7 @@ static void InitRing(XHCI_TRB *Ring, RING_STATE *St, UINT32 Size) {
 }
 
 /* 向环尾入队一条 TRB */
-static void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status, UINT32 Control) {
+void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status, UINT32 Control) {
     UINT32 i = St->Enq;
     UINT32 Size = St->Size ? St->Size : RING_SIZE;
     Ring[i].Parameter = Param;
@@ -617,11 +380,11 @@ static void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status,
     St->Enq = i;
 }
 
-static UINT32 TrbType(UINT32 Control) {
+UINT32 TrbType(UINT32 Control) {
     return (Control >> 10) & 0x3F;
 }
 
-static int MapXhciDma(UINT64 Phys, UINTN Bytes) {
+int MapXhciDma(UINT64 Phys, UINTN Bytes) {
     UINT64 Page = Phys & ~0xFFFULL;
     UINTN Span = (UINTN)((Phys + Bytes + 0xFFFULL) - Page);
     if (!VirtualMemoryEnabled()) {
@@ -644,7 +407,7 @@ static int MapXhciDma(UINT64 Phys, UINTN Bytes) {
  * CRCR 是 dequeue，不是环基址。在同页扫 LINK：Parameter→基址，LINK 下标→长度。
  * 成功则沿用固件环（勿 InitRing 从 dequeue 起当基址清掉）。
  */
-static int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
+int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
                             XHCI_TRB **BaseOut, UINT32 *SizeOut,
                             UINT32 *EnqOut, UINT32 *PcsOut) {
     UINT64 Page = DeqPhys & ~0xFFFULL;
@@ -684,7 +447,7 @@ static int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
 }
 
 /* 处理事件环中所有待处理 TRB（命令完成、传输完成） */
-static void ProcessEvents(void) {
+void ProcessEvents(void) {
     int Progress = 0;
     UINT32 EvtSize = gEvtRingSize ? gEvtRingSize : EVT_SIZE;
     int Guard = 0;
@@ -871,7 +634,7 @@ static void ProcessEvents(void) {
  * 旧逻辑见 EINT 就翻：PCD/粘住 EINT 会把 CCS 永久弄反 → 中断完成永远吃不到，
  * 却仍可能靠碰巧/翻回来吃到部分 EP0（PHOTO：t>0 i=0）。
  */
-static void ProcessEventsRealPc(void) {
+void ProcessEventsRealPc(void) {
     UINT32 Sts;
     XHCI_TRB *Evt;
     UINT32 EvtSize = gEvtRingSize ? gEvtRingSize : EVT_SIZE;
@@ -898,22 +661,22 @@ static void ProcessEventsRealPc(void) {
     }
 }
 
-static void QueueIntr(void);
-static void QueueMouseIntr(void);
-static void KbdPush(void);
-static void MousePush(void);
-static void ServiceHidCompletions(void);
-static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
+void QueueIntr(void);
+void QueueMouseIntr(void);
+void KbdPush(void);
+void MousePush(void);
+void ServiceHidCompletions(void);
+int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
                             UINT8 *Iface, UINT8 *EpAddr, UINT16 *Mps, UINT8 *Interval);
-static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
+int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
                               UINT8 Speed);
-static int SetInterface(UINT8 Iface, UINT8 Alt);
-static int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St,
+int SetInterface(UINT8 Iface, UINT8 Alt);
+int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St,
                            UINTN RingBytes);
-static UINT8 FsInterval(UINT8 BInterval);
+UINT8 FsInterval(UINT8 BInterval);
 
 /* 等待命令环完成事件 */
-static int WaitCommand(int Timeout) {
+int WaitCommand(int Timeout) {
     if (!HalCpuIsHypervisor()) {
         UINT64 T0 = ReadTsc();
         UINT64 Need = 300ULL * 3000000ULL; /* ~300ms */
@@ -944,7 +707,7 @@ static int WaitCommand(int Timeout) {
 }
 
 /* 枚举期 Wait* 也会进 ProcessEvents；必须顺带再投递中断 IN，否则 TRB 耗尽后永久无完成 */
-static void ServiceHidCompletions(void) {
+void ServiceHidCompletions(void) {
     if (gIntrDone) {
         gIntrDone = 0;
         if (gIntrReportReady) {
@@ -971,7 +734,7 @@ static void ServiceHidCompletions(void) {
     }
 }
 
-static int WaitTransfer(int Timeout) {
+int WaitTransfer(int Timeout) {
     /*
      * 真机：按 TSC 限时（默认 ~80ms）。旧版固定 20 万次 ProcessEvents，
      * 多口 ControlXfer 超时会空转数十秒 → 短按电源无效、只能长按硬关。
@@ -1002,7 +765,7 @@ static int WaitTransfer(int Timeout) {
 }
 
 /* 敲 Doorbell 通知硬件处理环 */
-static void RingDoorbell(UINT32 Slot, UINT32 Target) {
+void RingDoorbell(UINT32 Slot, UINT32 Target) {
     Fence();
     WriteMmio32(gDoorbellBase + Slot * 4, Target & 0xFF);
 }
@@ -1011,7 +774,7 @@ static void RingDoorbell(UINT32 Slot, UINT32 Target) {
  * 命令超时恢复：CA 中止命令环，排空事件，再同步 enqueue。
  * 私有环可 InitRing；固件环只按 CRCR dequeue 重解析，勿盲目清环/切软环。
  */
-static void RecoverCommandRing(void) {
+void RecoverCommandRing(void) {
     UINT64 Cr;
     UINT64 Ptr;
     UINT32 Rcs;
@@ -1075,7 +838,7 @@ static void RecoverCommandRing(void) {
 }
 
 /* 提交一条命令 TRB 并等待完成；超时则 CA 恢复并重试一次 */
-static int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
+int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
     int Wait = HalCpuIsHypervisor() ? 150000 : 200000;
     int RealPc = !HalCpuIsHypervisor();
     int Attempt;
@@ -1123,7 +886,7 @@ static UINT8 *InEp(UINT32 Dci) {
 }
 
 /* 释放 USB 传统支持（BIOS 移交） */
-static void TakeLegacy(void) {
+void TakeLegacy(void) {
     UINT32 Hcc1 = ReadMmio32(gCapabilityBase + 0x10);
     UINT32 Xecp = (Hcc1 >> 16) & 0xFFFF;
     int Wait;
@@ -1159,16 +922,9 @@ static void TakeLegacy(void) {
 }
 
 /* 真机：BootMark 直写帧缓冲（不 Present）；QEMU 正常串口/GOP */
-static void BootLog(const char *Text) {
-    if (!HalCpuIsHypervisor()) {
-        ToyBootMarkUsb(Text);
-        return;
-    }
-    ToyLogUsb(Text);
-}
 
 /* 停 RS，避免无 HID 时事件环/遗留状态拖死后续 */
-static void HaltControllerQuiet(void) {
+void HaltControllerQuiet(void) {
     UINT32 Cmd;
 
     if (gOperationalBase == 0) {
@@ -1186,7 +942,7 @@ static void HaltControllerQuiet(void) {
 }
 
 /* 复位 xHCI 控制器 */
-static int ResetController(void) {
+int ResetController(void) {
     UINT32 Cmd = ReadMmio32(gOperationalBase);
     Cmd &= ~USBCMD_RS;
     WriteMmio32(gOperationalBase, Cmd);
@@ -1205,7 +961,7 @@ static int ResetController(void) {
 }
 
 /* 真机：只停 RS，不做 HCRST（该机 HCRST 后再 set RS 会挂） */
-static int HaltOnly(void) {
+int HaltOnly(void) {
     UINT32 Cmd = ReadMmio32(gOperationalBase);
     if (Cmd & USBCMD_RS) {
         WriteMmio32(gOperationalBase, Cmd & ~USBCMD_RS);
@@ -1217,7 +973,7 @@ static int HaltOnly(void) {
 }
 
 /* 真机：分阶 set RS 黄字（仅 VERBOSE） */
-static void BootMarkRs(char Kind, char Stage) {
+void BootMarkRs(char Kind, char Stage) {
     char Msg[32];
     int n = 0;
     const char *P = "boot: xhci ";
@@ -1238,7 +994,7 @@ static void BootMarkRs(char Kind, char Stage) {
 }
 
 /* 分配 DCBAA、建环并 Run 控制器 */
-static int StartController(UINT32 MaxSlots) {
+int StartController(UINT32 MaxSlots) {
     UINT32 Hcs2 = ReadMmio32(gCapabilityBase + 0x08);
     /* Linux HCS_MAX_SCRATCHPAD：Hi@25:21，Lo@31:27 */
     UINT32 Scratch = (((Hcs2 >> 21) & 0x1F) << 5) | ((Hcs2 >> 27) & 0x1F);
@@ -1417,15 +1173,15 @@ static int StartController(UINT32 MaxSlots) {
     return 1;
 }
 
-static UINT32 PortReg(UINT32 Port1) {
+UINT32 PortReg(UINT32 Port1) {
     return 0x400 + (Port1 - 1) * 0x10;
 }
 
-static UINT8 PortSpeed(UINT32 Portsc) {
+UINT8 PortSpeed(UINT32 Portsc) {
     return (UINT8)((Portsc >> PORTSC_SPEED_SHIFT) & 0xF);
 }
 
-static UINT32 PortscNeutral(UINT32 State) {
+UINT32 PortscNeutral(UINT32 State) {
     return (State & PORTSC_RO) | (State & PORTSC_RWS);
 }
 
@@ -1434,7 +1190,7 @@ static UINT32 PortscNeutral(UINT32 State) {
  * 真机照片两轮：Neutral 清法与 SeaBIOS(PED|PP|CHANGE) 清法都会在
  * PED 已置位后把口打回 0x6E1/0xAE1（Polling）；故真机 ResetPort 不清变更。
  */
-static void PortscClearChange(UINT64 Ps) {
+void PortscClearChange(UINT64 Ps) {
     UINT32 Val = ReadMmio32(Ps);
     WriteMmio32(Ps, PORTSC_PED | PORTSC_PP | (Val & PORTSC_CHANGE));
     Fence();
@@ -1446,7 +1202,7 @@ static void PortscClearChange(UINT64 Ps) {
  *   - 已有 CCS：行为与旧相同（真机仅 Stall 50ms）。
  *   - 全 0：PP all → 打 maxports → 多轮等待复扫 → 仍 0 则打前几口 PORTSC。
  */
-static void PowerConnectedPorts(void) {
+void PowerConnectedPorts(void) {
     UINT32 p;
     UINT32 Surveyed = 0;
     int RealPc = !HalCpuIsHypervisor();
@@ -1547,7 +1303,7 @@ static void PowerConnectedPorts(void) {
  * Force=0：真机已 PED+CCS 则跳过 PR（同 pass 内二次 PR 易打坏口）。
  * Force=1：鼠标等二次枚举须 PR（DisableSlot 后设备仍 PED，不重置会 cc=0x04）。
  */
-static int ResetPortEx(UINT32 Port1, int Force) {
+int ResetPortEx(UINT32 Port1, int Force) {
     UINT64 Ps = gOperationalBase + PortReg(Port1);
     UINT32 Val = ReadMmio32(Ps);
     UINT32 SpeedHint = PortSpeed(Val);
@@ -1687,7 +1443,7 @@ static int ResetPortEx(UINT32 Port1, int Force) {
     return 0;
 }
 
-static int ResetPort(UINT32 Port1) {
+int ResetPort(UINT32 Port1) {
     return ResetPortEx(Port1, 0);
 }
 
@@ -1706,7 +1462,7 @@ static UINT16 SpeedMps(UINT8 Speed) {
  * 真机证据：Address 子设备时 InitRing(共享 gEp0Ring) 会毁掉 hub EP0 dequeue，
  * hub Slot 仍 Hub=1 且鼠 epst=Running，但 TT 中断 IN 永不完成 → PHOTO m=0。
  */
-static void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut) {
+void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut) {
     if (SlotId != 0 && SlotId == gHubSlotId) {
         *RingOut = gHubEp0Ring;
         *StOut = &gHubEp0;
@@ -1742,7 +1498,7 @@ static void Ep0RingForSlotOut(UINT32 *SlotOut, XHCI_TRB **RingOut, RING_STATE **
     }
 }
 
-static int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
+int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
                                UINT8 *DevCtx, UINT32 RouteString,
                                UINT8 ParentHubSlot, UINT8 TtPort,
                                int HubDevice, UINT8 HubNumPorts) {
@@ -1835,7 +1591,7 @@ static int AddressDevice(UINT32 Port1, UINT8 Speed) {
     return AddressDeviceOnPort(Port1, Speed, &gSlotId, gDevCtx, 0, 0, 0, 0, 0);
 }
 
-static void DisableSlot(UINT32 SlotId) {
+void DisableSlot(UINT32 SlotId) {
     if (SlotId == 0 || SlotId > DCBAA_SLOTS) {
         return;
     }
@@ -1860,7 +1616,7 @@ static void DisableSlot(UINT32 SlotId) {
 }
 
 /* ControlXfer 超时后 EP0 环与 HC 失步，须 Reset+SetTrDeq 才能继续枚举 */
-static void RecoverEp0(UINT32 SlotId) {
+void RecoverEp0(UINT32 SlotId) {
     XHCI_TRB *Ring;
     RING_STATE *St;
     UINT64 Deq;
@@ -1886,7 +1642,7 @@ static void RecoverEp0(UINT32 SlotId) {
 }
 
 /* EP0 控制传输（SETUP-DATA-STATUS） */
-static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
+int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
     XHCI_TRB *Ring;
     RING_STATE *St;
     UINT64 SetupParam = 0;
@@ -1948,7 +1704,7 @@ static int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
 }
 
 /* GET_DESCRIPTOR 控制传输封装 */
-static int GetDesc(UINT16 TypeIndex, UINT16 Index, UINT16 Length, void *Buf) {
+int GetDesc(UINT16 TypeIndex, UINT16 Index, UINT16 Length, void *Buf) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x80,
         .bRequest = 0x06,
@@ -2024,7 +1780,7 @@ static void HubNoteMttFromDevDesc(UINT8 Speed) {
     }
 }
 
-static int EvaluateEp0(UINT32 SlotId, UINT16 Mps) {
+int EvaluateEp0(UINT32 SlotId, UINT16 Mps) {
     XHCI_TRB *Ring;
     RING_STATE *St;
     UINT64 Deq;
@@ -2045,7 +1801,7 @@ static int EvaluateEp0(UINT32 SlotId, UINT16 Mps) {
 }
 
 /* 先 8 字节拿 bMaxPacketSize0，再 18 字节完整设备描述符 */
-static int GetDeviceDesc(void) {
+int GetDeviceDesc(void) {
     UINT8 Mps;
     int Ok;
 
@@ -2076,7 +1832,7 @@ static int GetDeviceDesc(void) {
 }
 
 /* SET_CONFIGURATION 请求 */
-static int SetConfig(UINT8 Config) {
+int SetConfig(UINT8 Config) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x00,
         .bRequest = 0x09,
@@ -2088,7 +1844,7 @@ static int SetConfig(UINT8 Config) {
 }
 
 /* HID SET_PROTOCOL Boot 协议 */
-static int SetProtocolBoot(UINT8 Iface) {
+int SetProtocolBoot(UINT8 Iface) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x21,
         .bRequest = 0x0B,
@@ -2100,7 +1856,7 @@ static int SetProtocolBoot(UINT8 Iface) {
 }
 
 /* HID SET_IDLE 请求 */
-static int SetIdle(UINT8 Iface) {
+int SetIdle(UINT8 Iface) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x21,
         .bRequest = 0x0A,
@@ -2112,7 +1868,7 @@ static int SetIdle(UINT8 Iface) {
 }
 
 /* HID SET_REPORT：输出报告（键盘 LED 等） */
-static int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
+int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x21,
         .bRequest = 0x09,
@@ -2124,7 +1880,7 @@ static int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
 }
 
 /* HID GET_REPORT(Input)：复合设备键盘中断 IN 不完成时的 EP0 兜底 */
-static int HidGetInputReport(UINT8 Iface, void *Data, UINT16 Length) {
+int HidGetInputReport(UINT8 Iface, void *Data, UINT16 Length) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0xA1,
         .bRequest = 0x01,
@@ -2143,7 +1899,7 @@ static int HidGetInputReport(UINT8 Iface, void *Data, UINT16 Length) {
  * 真机复合：PHOTO 上键 EP(DCI=5) 从不完成、鼠 DCI=3 正常。
  * 在 Drain 释锁后轮询 GET_REPORT；与中断鼠并行，勿持 gHidQueueLock。
  */
-static void XhciPollKbdGetReport(void) {
+void XhciPollKbdGetReport(void) {
     UINT8 Buf[8];
     int i;
     int Diff;
@@ -2200,7 +1956,7 @@ static void XhciPollKbdGetReport(void) {
  * HID GET_REPORT 曾作 poll 兜底；持 gHidQueueLock 时调用会死锁，故已从 Drain 移除。
  */
 
-static UINT8 FsInterval(UINT8 BInterval) {
+UINT8 FsInterval(UINT8 BInterval) {
     if (BInterval == 0) {
         BInterval = 1;
     }
@@ -2218,7 +1974,7 @@ static UINT8 FsInterval(UINT8 BInterval) {
  * 首次 ConfigEP。MouseEpAddr!=0 时同一次 Add 键盘+鼠标（真机二次 ConfigEP 会弄死键盘，
  * 含 Add-only；NUC PHOTO：add-only ok 仍 k=0 m 正常）。
  */
-static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed,
+int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed,
                          UINT8 MouseEpAddr, UINT16 MouseMps, UINT8 MouseBInterval) {
     UINT8 EpNum = EpAddr & 0x0F;
     UINT8 In = (EpAddr & 0x80) ? 1 : 0;
@@ -2343,7 +2099,7 @@ static int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed,
  * 在首次 ConfigEP 前：从当前配置描述符认领复合鼠标 iface（SetInterface/Protocol/Idle）。
  * 成功则写出 EP 参数供 ConfigureIntr 一次 Add。
  */
-static int PrepCompositeMouse(UINT16 Total, UINT8 Speed, UINT8 KbdIface, UINT8 KbdEp,
+int PrepCompositeMouse(UINT16 Total, UINT8 Speed, UINT8 KbdIface, UINT8 KbdEp,
                               UINT8 *EpOut, UINT16 *MpsOut, UINT8 *IvOut) {
     UINT8 Iface = 0, EpAddr = 0, Interval = 10;
     UINT16 Mps = 8;
@@ -2444,7 +2200,7 @@ static int PrepCompositeMouse(UINT16 Total, UINT8 Speed, UINT8 KbdIface, UINT8 K
  * 旧序 InitRing 先于 Stop 会毁掉 HC 还在用的环，且 Stop 回调里 QueueIntr
  * 会导致 SetTrDeq 报 Context State Error (got=0x13)。
  */
-static int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St,
+int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St,
                            UINTN RingBytes) {
     UINT64 Deq;
     UINT32 EpField = (Dci & 0x1Fu) << 16;
@@ -2482,7 +2238,7 @@ static int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *
 }
 
 /* 提交中断 IN：长度用首次 ConfigureIntr 的 MPS（勿超过 8） */
-static void QueueIntr(void) {
+void QueueIntr(void) {
     UINT32 Len = gKbdMps;
 
     gIntrDone = 0;
@@ -2496,7 +2252,7 @@ static void QueueIntr(void) {
     RingDoorbell(gSlotId, gIntrDci);
 }
 
-static int ParseConfig(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
+int ParseConfig(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
                        UINT8 *Iface, UINT8 *EpAddr, UINT16 *Mps, UINT8 *Interval) {
     UINT16 Off = 0;
     UINT8 CurScore = 0;
@@ -2554,7 +2310,7 @@ static int ParseConfig(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
  * 真键盘口永远轮不到，且假键盘 k=0、鼠却丝滑。
  * 若本设备「键盘分」<3 且已有像样鼠标接口 → 不当键盘，留给 InitMouseOnPort。
  */
-static int RealPcRejectMouseExtraAsKeyboard(UINT16 Total, UINT8 Speed) {
+int RealPcRejectMouseExtraAsKeyboard(UINT16 Total, UINT8 Speed) {
     UINT8 MIface = 0, MEp = 0, MIv = 10;
     UINT16 MMps = 8;
 
@@ -2596,7 +2352,7 @@ static int RealPcRejectMouseExtraAsKeyboard(UINT16 Total, UINT8 Speed) {
  * 勿 Disable+再 Address（真机常 cc=0x04 / Reset 超时 → m=0）。
  * 直接把当前 slot 认领为独立鼠标。
  */
-static int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
+int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
                                      UINT8 ConfigVal) {
     UINT8 Iface = 0, EpAddr = 0, Interval = 10;
     UINT16 Mps = 8;
@@ -2663,7 +2419,7 @@ static int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
     return 1;
 }
 
-static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
+int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
                             UINT8 *Iface, UINT8 *EpAddr, UINT16 *Mps, UINT8 *Interval) {
     UINT16 Off = 0;
     UINT8 FoundIface = 0;
@@ -2740,7 +2496,7 @@ static int ParseConfigMouse(UINT8 *Cfg, UINT16 Total, UINT8 Speed,
     return 1;
 }
 
-static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
+int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
                               UINT8 Speed) {
     UINT8 EpNum = EpAddr & 0x0F;
     UINT8 In = (EpAddr & 0x80) ? 1 : 0;
@@ -2943,7 +2699,7 @@ static int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BIn
     return 1;
 }
 
-static void QueueMouseIntr(void) {
+void QueueMouseIntr(void) {
     UINT32 Len;
 
     gMouseIntrDone = 0;
@@ -3040,18 +2796,8 @@ static int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
 
 /* ---- PR-H-hub：一层 USB2 hub（根口 Class 9）---- */
 
-#define HUB_PORT_CONNECTION   (1u << 0)
-#define HUB_PORT_ENABLE       (1u << 1)
-#define HUB_PORT_RESET        (1u << 4)
-#define HUB_PORT_POWER        (1u << 8)
-#define HUB_C_PORT_CONNECTION (1u << 16)
-#define HUB_C_PORT_RESET      (1u << 20)
-#define HUB_FEAT_PORT_RESET   4
-#define HUB_FEAT_PORT_POWER   8
-#define HUB_FEAT_C_PORT_CONNECTION 16
-#define HUB_FEAT_C_PORT_RESET 20
 
-static int HubCtrl(UINT8 BmReq, UINT8 Req, UINT16 Value, UINT16 Index,
+int HubCtrl(UINT8 BmReq, UINT8 Req, UINT16 Value, UINT16 Index,
                    UINT16 Len, void *Data) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = BmReq,
@@ -3064,7 +2810,7 @@ static int HubCtrl(UINT8 BmReq, UINT8 Req, UINT16 Value, UINT16 Index,
     return ControlXfer(&Setup, Data);
 }
 
-static int FinishHubSetup(UINT8 *OutNumPorts) {
+int FinishHubSetup(UINT8 *OutNumPorts) {
     UINT8 HubDesc[16];
     UINT8 Nports = 4;
     UINT8 ConfigVal = 1;
@@ -3128,7 +2874,7 @@ static UINT8 HubPortSpeed(UINT32 St) {
     return 1;
 }
 
-static int TryConfigureKeyboardSlot(UINT8 Speed) {
+int TryConfigureKeyboardSlot(UINT8 Speed) {
     UINT8 EpAddr = 0, Interval = 10;
     UINT16 Mps = 8;
     UINT8 ConfigVal = 1;
@@ -3239,7 +2985,7 @@ static int ConfigHasHubIface(UINT8 *Cfg, UINT16 Total) {
     return 0;
 }
 
-static int EnumHubChildrenForKeyboard(void) {
+int EnumHubChildrenForKeyboard(void) {
     UINT8 Port;
     UINT8 MaxP = gHubNumPorts;
     volatile int D;
@@ -3328,7 +3074,7 @@ static int EnumHubChildrenForKeyboard(void) {
 }
 
 /* hub 子口找独立鼠标（根口 composite 弱 HID 被跳过时） */
-static int EnumHubChildrenForMouse(void) {
+int EnumHubChildrenForMouse(void) {
     UINT8 Port;
     UINT8 MaxP = gHubNumPorts;
 
@@ -3476,7 +3222,7 @@ static int EnumHubChildrenForMouse(void) {
  * （重 Address 带 Hub 位常 cc=0x11；USB3 hub 亦不可设 Hub 位）。
  * 不碰 gSlotId（键盘已绑定时可安全认领另一根口上的 hub）。
  */
-static int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
+int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
     UINT8 Nports = 4;
     int Usb2Hub = (Speed < 4);
 
@@ -3546,7 +3292,7 @@ static int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot)
 }
 
 /* 根口已 Address：device class=9 或配置含 hub iface → 枚举子口找键盘 */
-static int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed) {
+int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed) {
     BootLog("boot: xhci hub on root\n");
     /* 重新 Address 为 Hub 设备（带 Hub 位）；此时 gSlotId 是误 Address 的非 hub */
     DisableSlot(gSlotId);
@@ -3561,7 +3307,7 @@ static int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed) {
 }
 
 /* HID SET_INTERFACE：激活指定 Alternate（复合键鼠偶见鼠标在 alt>0） */
-static int SetInterface(UINT8 Iface, UINT8 Alt) {
+int SetInterface(UINT8 Iface, UINT8 Alt) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x01,
         .bRequest = 0x0B,
@@ -3576,7 +3322,7 @@ static int SetInterface(UINT8 Iface, UINT8 Alt) {
  * 真机常见：USB 键鼠复合设备（同一 slot 上键盘 Proto=1 + 鼠标 Proto=2）。
  * 旧逻辑只扫「其它根口」，同口第二接口永远绑不上 → arms mouse=00/00。
  */
-static int InitMouseOnKeyboardSlot(void) {
+int InitMouseOnKeyboardSlot(void) {
     UINT8 EpAddr = 0, Interval = 10, Iface = 0;
     UINT16 Mps = 8;
     UINT16 Total;
@@ -3758,7 +3504,7 @@ static int InitMouseOnKeyboardSlot(void) {
     return 1;
 }
 
-static int InitMouseOnPort(UINT32 Port1) {
+int InitMouseOnPort(UINT32 Port1) {
     UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(Port1));
     UINT16 Total;
     UINT32 WasSlot;
@@ -4476,7 +4222,7 @@ void XhciAbandonNoHid(void) {
 }
 
 /* 将键盘报告推入环形软件队列 */
-static void KbdPush(void) {
+void KbdPush(void) {
     UINT32 Next = (gKeyboardWriteIndex + 1) % KBD_Q;
     if (Next == gKeyboardReadIndex) {
         return;
@@ -4488,7 +4234,7 @@ static void KbdPush(void) {
     gKeyboardWriteIndex = Next;
 }
 
-static void MousePush(void) {
+void MousePush(void) {
     UINT32 Next = (gMouseWriteIndex + 1) % MOUSE_Q;
     UINT32 X0;
     UINT32 Y0;
@@ -4578,7 +4324,7 @@ static void MousePush(void) {
 }
 
 /* 清除中断管理器挂起位 */
-static void ImClearPending(void) {
+void ImClearPending(void) {
     UINT32 Im = ReadMmio32(gRuntimeBase + 0x20);
     WriteMmio32(gRuntimeBase + 0x20, Im | 1u);
 }
@@ -4621,7 +4367,7 @@ void XhciIrq(void) {
 }
 
 /* 开 USBCMD.INTE + IMAN.IE（真机 Start 故意只置了 RS） */
-static void EnableHostInterrupts(void) {
+void EnableHostInterrupts(void) {
     UINT32 Cmd;
 
     if (gOperationalBase != 0) {
@@ -4786,119 +4532,8 @@ XHCI_IRQ_MODE XhciIrqMode(void) {
 }
 
 /* PHOTO/Shell：mode=poll|dual|irq + t/i/k/m/u/s/c/r/d/q（q=IRQ 进入次数） */
-void XhciDiagFormat(char *Buf, int Max) {
-    char Dig[12];
-    int N = 0;
-    UINT32 V[9];
-    int vi;
-    const char *Tags = "tikmucrdq";
-    const char *Mode;
-
-    if (!Buf || Max < 8) {
-        return;
-    }
-    if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
-        Mode = "mode=dual irq=msi";
-    } else if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
-        Mode = "mode=irq irq=msi";
-    } else {
-        Mode = "mode=poll";
-    }
-    while (*Mode && N + 1 < Max) {
-        Buf[N++] = *Mode++;
-    }
-    V[0] = gStatXferAny;
-    V[1] = gStatIntrEvt + gStatMouseEvt;
-    V[2] = gStatKbdPush;
-    V[3] = gStatMousePush;
-    V[4] = gStatUnmatched;
-    V[5] = gStatLastCc;
-    V[6] = gStatEvtRing;
-    V[7] = gStatDrain;
-    V[8] = gStatIrq;
-    Buf[N] = 0;
-    for (vi = 0; vi < 9 && N + 14 < Max; vi++) {
-        int t = 0;
-        UINT32 X = V[vi];
-        /* c 与 se 之间插入 se=；c 在 Tags[5] */
-        if (vi == 5 && N + 16 < Max) {
-            Buf[N++] = ' ';
-            Buf[N++] = 's';
-            Buf[N++] = '=';
-            {
-                UINT32 S = gStatLastSlot;
-                if (S >= 100) {
-                    S = 99;
-                }
-                Buf[N++] = (char)('0' + (S / 10));
-                Buf[N++] = (char)('0' + (S % 10));
-            }
-            Buf[N++] = '.';
-            {
-                UINT32 E = gStatLastEp;
-                if (E >= 100) {
-                    E = 99;
-                }
-                Buf[N++] = (char)('0' + (E / 10));
-                Buf[N++] = (char)('0' + (E % 10));
-            }
-        }
-        Buf[N++] = ' ';
-        Buf[N++] = Tags[vi];
-        Buf[N++] = '=';
-        if (X == 0) {
-            Buf[N++] = '0';
-            Buf[N] = 0;
-            continue;
-        }
-        while (X && t < 10) {
-            Dig[t++] = (char)('0' + (X % 10));
-            X /= 10;
-        }
-        while (t > 0 && N + 1 < Max) {
-            Buf[N++] = Dig[--t];
-        }
-        Buf[N] = 0;
-    }
-    /*
-     * 一眼读相：鼠有键无 + s 落在鼠 DCI → 键中断 IN 没完成（不是「计数器坏了」）。
-     * 期望键 DCI 常为 05；s=05.03 只说明最近事件是鼠标。
-     */
-    if (V[2] == 0 && V[3] > 0 && N + 18 < Max) {
-        const char *H = " !kbdIN=0";
-        while (*H && N + 1 < Max) {
-            Buf[N++] = *H++;
-        }
-        Buf[N] = 0;
-    }
-}
 
 /* Arm 后打一枪：期望的键鼠 slot/DCI，便于对照 s=. */
-void XhciDiagLogArms(void) {
-    char Line[96];
-    int n = 0;
-    const char *P = "boot: xhci arms kbd=";
-    while (*P && n < 28) {
-        Line[n++] = *P++;
-    }
-    Line[n++] = (char)('0' + ((gSlotId / 10) % 10));
-    Line[n++] = (char)('0' + (gSlotId % 10));
-    Line[n++] = '/';
-    Line[n++] = (char)('0' + ((gIntrDci / 10) % 10));
-    Line[n++] = (char)('0' + (gIntrDci % 10));
-    P = " mouse=";
-    while (*P && n < 48) {
-        Line[n++] = *P++;
-    }
-    Line[n++] = (char)('0' + ((gMouseSlotId / 10) % 10));
-    Line[n++] = (char)('0' + (gMouseSlotId % 10));
-    Line[n++] = '/';
-    Line[n++] = (char)('0' + ((gMouseIntrDci / 10) % 10));
-    Line[n++] = (char)('0' + (gMouseIntrDci % 10));
-    Line[n++] = '\n';
-    Line[n] = 0;
-    BootLog(Line); /* 真机 PHOTO 可见 slot/DCI，对照 s= */
-}
 
 /*
  * QEMU：MSI/IOAPIC → DUAL。真机：试 dual；失败 → poll (fallback)，Drain 永不关。
