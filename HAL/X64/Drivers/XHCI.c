@@ -185,6 +185,11 @@ static XHCI_TRB gBulkOutRing[RING_SIZE] __attribute__((aligned(64)));
 static RING_STATE gBulkIn;
 static RING_STATE gBulkOut;
 static int gMscBulkRingsInited;
+/* PR-H-msc-3：scan 临时 slot，独立 EP0，勿 InitRing 键盘 gEp0 */
+static UINT32 gMscScanSlot;
+static UINT8  gMscScanDevCtx[2048] __attribute__((aligned(64)));
+static XHCI_TRB gMscScanEp0Ring[RING_SIZE] __attribute__((aligned(64)));
+static RING_STATE gMscScanEp0;
 static UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
 static volatile UINT32 gMouseIntrDone;
 static volatile UINT32 gIntrReportReady;
@@ -1705,6 +1710,9 @@ static void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut
     if (SlotId != 0 && SlotId == gHubSlotId) {
         *RingOut = gHubEp0Ring;
         *StOut = &gHubEp0;
+    } else if (SlotId != 0 && SlotId == gMscScanSlot) {
+        *RingOut = gMscScanEp0Ring;
+        *StOut = &gMscScanEp0;
     } else if (SlotId != 0 && SlotId <= DCBAA_SLOTS && gSlotEp0UsesKbdRing[SlotId]) {
         /* 曾以键盘路径 Address：claim 为鼠后仍跟 gEp0 硬件 dequeue */
         *RingOut = gEp0Ring;
@@ -1725,6 +1733,9 @@ static void Ep0RingForSlotOut(UINT32 *SlotOut, XHCI_TRB **RingOut, RING_STATE **
     } else if (SlotOut == &gMouseSlotId) {
         *RingOut = gMouseEp0Ring;
         *StOut = &gMouseEp0;
+    } else if (SlotOut == &gMscScanSlot) {
+        *RingOut = gMscScanEp0Ring;
+        *StOut = &gMscScanEp0;
     } else {
         *RingOut = gEp0Ring;
         *StOut = &gEp0;
@@ -1839,6 +1850,9 @@ static void DisableSlot(UINT32 SlotId) {
     }
     if (gHubSlotId == SlotId) {
         gHubSlotId = 0;
+    }
+    if (gMscScanSlot == SlotId) {
+        gMscScanSlot = 0;
     }
     if (gXferSlot == SlotId) {
         gXferSlot = 0;
@@ -3967,7 +3981,9 @@ int XhciInit(UINT64 BaseAddress) {
         return 0;
     }
 
-    BootLog(DiagVerbose() ? "xhci diag: VERBOSE\n" : "xhci diag: quiet (FAIL want/got still on)\n");
+    if (DiagVerbose()) {
+        BootLog("xhci diag: VERBOSE\n");
+    }
     /* 刷机核对：没有这行 = NUC 仍在跑旧 Kernel.elf */
     BootLog("boot: xhci build=kbd-v8\n");
     gCtrlFailLogged = 0;
@@ -5058,4 +5074,132 @@ int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
     (void)Buf;
     (void)Len;
     return -1;
+}
+
+/*
+ * PR-H-msc-3：扫根口；跳过键鼠/hub 口；已 PED 则 Address+读 class 后 DisableSlot。
+ * 不 Force PR、不 SetConfig、不 BOT；独立 EP0 环，不碰键鼠环。
+ * 返回：打到 class 日志的口数；HC 未起则 -1。
+ */
+int XhciMscScanPorts(void) {
+    UINT32 P;
+    int Found = 0;
+
+    if (!gXhciStarted || gOperationalBase == 0 || gMaxPorts == 0) {
+        BootLog("boot: msc scan no hc\n");
+        return -1;
+    }
+
+    BootLog("boot: msc scan begin\n");
+    if (gMscScanSlot != 0) {
+        DisableSlot(gMscScanSlot);
+        gMscScanSlot = 0;
+    }
+
+    for (P = 1; P <= gMaxPorts && P <= 32u; P++) {
+        UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(P));
+        UINT8 Speed;
+        UINT8 Class;
+        UINT8 Sub;
+        UINT8 Proto;
+        UINT16 Vid;
+        UINT16 Pid;
+        USB_DEVICE_DESCRIPTOR *Dev;
+
+        if (!(Ps & PORTSC_CCS)) {
+            continue;
+        }
+        if (gSlotId != 0 && P == gPort1) {
+            BootLogHex("boot: msc scan skip kbd port=", P, 2);
+            continue;
+        }
+        if (gMouseSlotId != 0 && P == gMousePort) {
+            BootLogHex("boot: msc scan skip mouse port=", P, 2);
+            continue;
+        }
+        if (gHubSlotId != 0 && P == gHubRootPort) {
+            BootLogHex("boot: msc scan skip hub port=", P, 2);
+            continue;
+        }
+        if (!(Ps & PORTSC_PED)) {
+            /* 故意不 Force PR：留给 msc-4+ */
+            BootLogHex("boot: msc scan skip not PED port=", P, 2);
+            continue;
+        }
+
+        Speed = PortSpeed(Ps);
+        if (!AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx, 0, 0, 0, 0,
+                                 0)) {
+            BootLogHex("boot: msc scan addr fail port=", P, 2);
+            if (gMscScanSlot != 0) {
+                DisableSlot(gMscScanSlot);
+                gMscScanSlot = 0;
+            }
+            continue;
+        }
+        if (gMscScanSlot <= DCBAA_SLOTS) {
+            gSlotEp0UsesKbdRing[gMscScanSlot] = 0;
+        }
+
+        gXferSlot = gMscScanSlot;
+        if (GetDeviceDesc() < 0) {
+            BootLogHex("boot: msc scan desc fail port=", P, 2);
+            DisableSlot(gMscScanSlot);
+            gMscScanSlot = 0;
+            continue;
+        }
+
+        Dev = (USB_DEVICE_DESCRIPTOR *)(void *)gCtrlBuf;
+        Class = Dev->bDeviceClass;
+        Sub = Dev->bDeviceSubClass;
+        Proto = Dev->bDeviceProtocol;
+        Vid = Dev->idVendor;
+        Pid = Dev->idProduct;
+
+        /*
+         * bDeviceClass=0：看配置里第一个 Interface Class（只 GetDesc，不 SetConfig）。
+         */
+        if (Class == 0) {
+            if (GetDesc(0x0200, 0, 9, gCtrlBuf) == 0) {
+                UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
+                if (Total < 9) {
+                    Total = 9;
+                }
+                if (Total > sizeof(gCtrlBuf)) {
+                    Total = (UINT16)sizeof(gCtrlBuf);
+                }
+                if (GetDesc(0x0200, 0, Total, gCtrlBuf) == 0) {
+                    UINT16 Off = 0;
+                    while (Off + 9 <= Total) {
+                        UINT8 Len = gCtrlBuf[Off];
+                        UINT8 Type = gCtrlBuf[Off + 1];
+                        if (Len < 2 || Off + Len > Total) {
+                            break;
+                        }
+                        if (Type == 4 && Len >= 9) {
+                            Class = gCtrlBuf[Off + 5];
+                            Sub = gCtrlBuf[Off + 6];
+                            Proto = gCtrlBuf[Off + 7];
+                            break;
+                        }
+                        Off = (UINT16)(Off + Len);
+                    }
+                }
+            }
+        }
+
+        BootLogHex("boot: msc scan port=", P, 2);
+        BootLogHex("boot: msc scan class=", Class, 2);
+        BootLogHex("boot: msc scan sub=", Sub, 2);
+        BootLogHex("boot: msc scan proto=", Proto, 2);
+        BootLogHex("boot: msc scan vid=", Vid, 4);
+        BootLogHex("boot: msc scan pid=", Pid, 4);
+        Found++;
+
+        DisableSlot(gMscScanSlot);
+        gMscScanSlot = 0;
+    }
+
+    BootLogHex("boot: msc scan done n=", (UINT32)Found, 2);
+    return Found;
 }

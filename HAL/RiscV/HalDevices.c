@@ -55,6 +55,10 @@ int HalUsbMscReady(void) {
     return 0;
 }
 
+int HalUsbMscScan(void) {
+    return -1;
+}
+
 void HalInputArmIrq(void) {
 }
 

@@ -117,6 +117,13 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - 真机：PCIe NVMe 上 FAT（含 `TOYOS.ID`）可 `ls` / `exec`；**4KiB LBA / 多 NS / MSI 本刀不做**
 - Common FAT/VFS 无改动；注册在 AHCI 之后，有 NVMe 时覆盖后端
 
+### H-msc：USB MSC（分 PR）
+
+- **msc-1/2** ✅ TG：空壳 + Bulk API 壳（BringUp 恒失败）
+- **msc-3** ✅ TG 2026-09-12：Shell `msc scan` — 跳过键鼠/hub 口；已 PED 则 Address+读 class（含 class0 接口）后 **DisableSlot**；**不** Force PR / SetConfig / BOT；独立 `gMscScanEp0` 环
+- 验收：`msc scan` 后桌面键鼠仍可用；串口见 `boot: msc scan … class=` / `done n=`
+- **下一刀**：msc-4 `msc claim`（BOT Bulk）；仍不自动认盘
+
 ### H4：真机网卡范例（e1000）
 
 - 驱动：`E1000.c` + `NetE1000.c`；复用 Net.c ARP/ICMP（`NetBindE1000` / `NetInputFrame`）

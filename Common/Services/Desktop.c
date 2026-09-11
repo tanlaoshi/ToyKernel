@@ -233,6 +233,7 @@ static int LoadBuiltinIcon(BMP_IMAGE *Out, const UINT32 *Src, const char *Tag) {
     UINT32 *Dst;
     UINT32 i;
 
+    (void)Tag; /* TOY_DEBUG=0 时 DebugWrite 为空，避免 -Wunused-parameter */
     if (!Out || !Src) {
         return 0;
     }

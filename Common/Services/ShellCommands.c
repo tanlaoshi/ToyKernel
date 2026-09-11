@@ -52,18 +52,30 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-msc-2：调 BringUp 壳（恒失败）；不扫口、不认盘 */
+/* PR-H-msc-3：msc | msc scan；不自动认盘 */
 static void CommandMsc(int Argc, char **Argv) {
     int Rc;
 
-    (void)Argc;
-    (void)Argv;
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 's' && Argv[1][1] == 'c' &&
+        Argv[1][2] == 'a' && Argv[1][3] == 'n' && Argv[1][4] == 0) {
+        Rc = HalUsbMscScan();
+        ConsoleWrite("msc: scan ");
+        if (Rc < 0) {
+            ConsoleWrite("fail (no hc)\n");
+        } else {
+            ConsoleWrite("ok n=");
+            ConsoleWriteHex32((UINT32)Rc);
+            ConsoleWrite(" (class log only; no Force PR/SetConfig/BOT; HID untouched)\n");
+        }
+        return;
+    }
+
     Rc = HalUsbMscInit();
-    ConsoleWrite("msc: PR-H-msc-2 bringup=");
+    ConsoleWrite("msc: bringup=");
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
     ConsoleWrite(" ready=");
     ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-    ConsoleWrite(" (Bulk shell only; no scan/claim; HID untouched)\n");
+    ConsoleWrite(" (use: msc scan)\n");
 }
 
 static void CommandMemory(int Argc, char **Argv) {
@@ -1302,7 +1314,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
-    ConsoleRegister("msc", "USB MSC bringup shell (PR-H-msc-2)", CommandMsc);
+    ConsoleRegister("msc", "USB MSC: msc | msc scan (PR-H-msc-3)", CommandMsc);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegisterAliasLine("memory", "show", "memory");
     ConsoleRegisterAliasLine("net", "show", "network");

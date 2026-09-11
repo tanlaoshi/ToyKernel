@@ -44,6 +44,8 @@ int HalUsbInit(void);
 /* PR-H-msc-2：MSC BringUp 壳（恒失败）；不自动认盘 */
 int HalUsbMscInit(void);
 int HalUsbMscReady(void);
+/* PR-H-msc-3：Shell msc scan */
+int HalUsbMscScan(void);
 /* 真机 PHOTO 后开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
