@@ -14,6 +14,10 @@ void HalVideoDrawBeginFront(void);
 void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height);
+/* UI 整体缩放（50/100/150/200）；成功 0，重配后缓冲 */
+UINT32 HalVideoGetUiScale(void);
+void HalVideoGetPhysicalSize(UINT32 *Width, UINT32 *Height);
+int HalVideoSetUiScale(UINT32 Percent);
 /* PR-G-hotres：QEMU/Bochs VGA 可热切则 1；真机/无 DISPI 为 0 */
 int HalVideoCanHotSetMode(void);
 /*

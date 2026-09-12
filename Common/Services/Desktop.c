@@ -2,7 +2,7 @@
  * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-D4 / PR-G13）
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
- * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER.BMP。
+ * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER|REBOOT.BMP。
  * 四个桌面图标另有内核内置 48×48 回退（真机缺文件也能显示）。
  * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
  * 默认 FAT 无 Assets 时 FileSystemReadFile 回退 RES: 内嵌副本（真机无 USB TOYOS）。
@@ -72,6 +72,8 @@ static BMP_IMAGE gStartBmp;
 static int gStartBmpReady;
 static BMP_IMAGE gPowerBmp;
 static int gPowerBmpReady;
+static BMP_IMAGE gRebootBmp;
+static int gRebootBmpReady;
 static int gMenuOpen;
 static UINT8 gClockHour;
 static UINT8 gClockMinute;
@@ -284,6 +286,12 @@ static void LoadDesktopIcons(void) {
                                  ICON_FILE_MAX, "desktop: power");
     if (!gPowerBmpReady) {
         gPowerBmpReady = LoadBuiltinIcon(&gPowerBmp, gIconPower48, "desktop: power");
+    }
+    gRebootBmpReady = LoadBmpPath("Assets/Icons/bmp48/REBOOT.BMP", &gRebootBmp,
+                                  ICON_FILE_MAX, "desktop: reboot");
+    /* 无独立图时仍可用 POWER，但优先 REBOOT 与关机区分 */
+    if (!gRebootBmpReady && gPowerBmpReady) {
+        /* 保持 Ready=0，绘制时回退色块/POWER 分支会区分 */
     }
 }
 
@@ -788,9 +796,20 @@ static void DrawStartMenuRaw(void) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gIcons[i].Bmp);
             HasIcon = 1;
-        } else if (i >= DESKTOP_ICON_COUNT && gPowerBmpReady) {
+        } else if (i == 4 && gPowerBmpReady) {
+            /* 关机 */
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gPowerBmp);
+            HasIcon = 1;
+        } else if (i == 5 && gRebootBmpReady) {
+            /* 重启：独立图标 */
+            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                             &gRebootBmp);
+            HasIcon = 1;
+        } else if (i == 5 && gPowerBmpReady) {
+            /* 无 REBOOT.BMP 时用色块区分，勿与关机同图 */
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00406080);
+            UiDrawRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, COLOR_WHITE);
             HasIcon = 1;
         }
         if (HasIcon) {

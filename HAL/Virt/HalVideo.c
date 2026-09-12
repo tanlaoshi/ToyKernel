@@ -28,6 +28,7 @@ void HalVideoInitBackbuffer(void) {
     UINT32 Pages;
     UINT32 *Buf;
 
+    VideoReleaseBackbuffer();
     VideoGetSize(&W, &H);
     if (W == 0 || H == 0) {
         return;
@@ -96,6 +97,28 @@ int HalVideoBackbufferEnabled(void) {
 
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height) {
     VideoGetSize(Width, Height);
+}
+
+UINT32 HalVideoGetUiScale(void) {
+    return VideoGetUiScale();
+}
+
+void HalVideoGetPhysicalSize(UINT32 *Width, UINT32 *Height) {
+    VideoGetPhysicalSize(Width, Height);
+}
+
+int HalVideoSetUiScale(UINT32 Percent) {
+    if (VideoSetUiScale(Percent) != 0) {
+        return -1;
+    }
+    HalVideoInitBackbuffer();
+    if (!VideoBackbufferEnabled() && Percent != 100 &&
+        VideoGetUiScale() != 100) {
+        (void)VideoSetUiScale(100);
+        HalVideoInitBackbuffer();
+        return -1;
+    }
+    return 0;
 }
 
 void HalVideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {

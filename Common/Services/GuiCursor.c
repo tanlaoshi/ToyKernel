@@ -48,6 +48,10 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     CursorMetrics(&Half, &Thick);
     /* 须含黑描边外扩，否则描边像素不在 gUnder 内 → 移动留黑尾巴 */
     Ext = (UINT32)(Half + Thick + CURSOR_OUTLINE);
+    /* UI 缩放时再外扩 1 逻辑像素，配合 Present 最近邻防拖尾 */
+    if (HalVideoGetUiScale() != 100u) {
+        Ext += 1u;
+    }
     *Sx = Cx >= Ext ? Cx - Ext : 0;
     *Sy = Cy >= Ext ? Cy - Ext : 0;
     Ex = Cx + Ext + 1;

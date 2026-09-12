@@ -178,6 +178,10 @@ static int InitializeGui(void) {
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();
     }
+    /* ThemeLoad 后的 scale=：重配逻辑分辨率后再 GuiInit */
+    if (ThemeUiScale() != 100) {
+        (void)HalVideoSetUiScale(ThemeUiScale());
+    }
     GuiInit();
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();

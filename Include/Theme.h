@@ -35,6 +35,11 @@ UINT32 ThemeDisplayHeight(void);
 int ThemeHasDisplayPref(void);
 void ThemeSetDisplayMode(UINT32 Width, UINT32 Height);
 void ThemeClearDisplayMode(void);
+/* UI 整体缩放：50 / 100 / 150 / 200（高分放大、低分缩小） */
+UINT32 ThemeUiScale(void);
+void ThemeSetUiScale(UINT32 Percent);
+/* 运行时改缩放并重配后缓冲/桌面；失败 -1 */
+int ThemeApplyUiScaleLive(UINT32 Percent);
 /*
  * PR-G-hotres：尝试运行时切到 WxH（QEMU Bochs VGA）。
  * 成功 0 并重绘桌面；不支持/失败 -1（调用方仍可 ThemeSave 走重启路径）。

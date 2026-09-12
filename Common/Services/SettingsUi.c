@@ -19,7 +19,8 @@ typedef enum {
     SETTINGS_PAGE_SHELL_BG,
     SETTINGS_PAGE_FONT,
     SETTINGS_PAGE_DISPLAY,
-    SETTINGS_PAGE_LANGUAGE
+    SETTINGS_PAGE_LANGUAGE,
+    SETTINGS_PAGE_SCALE
 } SETTINGS_PAGE;
 
 typedef struct {
@@ -73,11 +74,14 @@ static const SETTINGS_MODE gModes[] = {
     { "1920x1080", 1920, 1080 },
 };
 
+static const UINT32 gScales[] = { 50, 100, 150, 200 };
+
 #define DESKTOP_COLOR_COUNT \
     ((int)(sizeof(gDesktopColors) / sizeof(gDesktopColors[0])))
 #define SHELL_COLOR_COUNT \
     ((int)(sizeof(gShellColors) / sizeof(gShellColors[0])))
 #define MODE_COUNT ((int)(sizeof(gModes) / sizeof(gModes[0])))
+#define SCALE_COUNT ((int)(sizeof(gScales) / sizeof(gScales[0])))
 
 static int FocusSettingsWindow(void) {
     int i;
@@ -253,11 +257,37 @@ static void PaintMenu(void) {
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_FONT), 0, 3);
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DISPLAY), 0, 4);
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANGUAGE), 0, 5);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_SCALE), 0, 6);
         Line[0] = 'N';
         Line[1] = 'o';
         Line[2] = 'w';
         Line[3] = ' ';
         FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
+        {
+            UINTN N = 0;
+            while (Line[N]) {
+                N++;
+            }
+            if (N + 12 < sizeof(Line)) {
+                Line[N++] = ' ';
+                Line[N++] = 's';
+                Line[N++] = 'c';
+                Line[N++] = 'a';
+                Line[N++] = 'l';
+                Line[N++] = 'e';
+                Line[N++] = '=';
+                {
+                    UINT32 Sc = ThemeUiScale();
+                    if (Sc >= 100) {
+                        Line[N++] = (char)('0' + (Sc / 100) % 10);
+                    }
+                    Line[N++] = (char)('0' + (Sc / 10) % 10);
+                    Line[N++] = (char)('0' + (Sc % 10));
+                    Line[N++] = '%';
+                    Line[N] = 0;
+                }
+            }
+        }
         if (ThemeHasDisplayPref()) {
             UINTN N = 0;
             while (Line[N]) {
@@ -358,6 +388,33 @@ static void PaintMenu(void) {
                      LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC),
                      COLOR_BLUE);
         }
+    } else if (gPage == SETTINGS_PAGE_SCALE) {
+        UINT32 CurScale = ThemeUiScale();
+        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_SCALE), COLOR_BLACK);
+        Y += 2;
+        for (i = 0; i < SCALE_COUNT; i++) {
+            Btn[0] = (gScales[i] == CurScale) ? '*' : ' ';
+            Btn[1] = ' ';
+            {
+                UINT32 Sc = gScales[i];
+                int P = 2;
+                if (Sc >= 100) {
+                    Btn[P++] = (char)('0' + (Sc / 100) % 10);
+                }
+                Btn[P++] = (char)('0' + (Sc / 10) % 10);
+                Btn[P++] = (char)('0' + (Sc % 10));
+                Btn[P++] = '%';
+                Btn[P] = 0;
+            }
+            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
+                          gScales[i] == CurScale, i + 1);
+        }
+        DrawHint(X0, &Y, MaxBottom, "50=small  100=normal  150/200=large",
+                 COLOR_DARK_GRAY);
+        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
+        if (gDisplayHint == 2) {
+            DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
+        }
     } else if (gPage == SETTINGS_PAGE_LANGUAGE) {
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_LANG), COLOR_BLACK);
         Y += 2;
@@ -397,6 +454,28 @@ static void ApplyFont(int Index) {
         return;
     }
     ThemeApply();
+}
+
+static void ApplyScaleChoice(int Index) {
+    static int sBusy;
+
+    if (Index < 0 || Index >= SCALE_COUNT) {
+        return;
+    }
+    if (sBusy) {
+        return;
+    }
+    sBusy = 1;
+    GuiInputLock(1);
+    if (ThemeApplyUiScaleLive(gScales[Index]) == 0) {
+        gDisplayHint = 2;
+        (void)ThemeSave();
+    } else {
+        gDisplayHint = 0;
+    }
+    GuiInputLock(0);
+    sBusy = 0;
+    PaintMenu();
 }
 
 static void ApplyDisplayChoice(int Index) {
@@ -547,6 +626,9 @@ void SettingsUiOnDigit(char Digit) {
         } else if (N == 5) {
             gPage = SETTINGS_PAGE_LANGUAGE;
             PaintMenu();
+        } else if (N == 6) {
+            gPage = SETTINGS_PAGE_SCALE;
+            PaintMenu();
         }
         return;
     }
@@ -571,6 +653,10 @@ void SettingsUiOnDigit(char Digit) {
     }
     if (gPage == SETTINGS_PAGE_DISPLAY) {
         ApplyDisplayChoice(N - 1);
+        return;
+    }
+    if (gPage == SETTINGS_PAGE_SCALE) {
+        ApplyScaleChoice(N - 1);
         return;
     }
     if (gPage == SETTINGS_PAGE_LANGUAGE) {

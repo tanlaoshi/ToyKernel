@@ -48,6 +48,10 @@ static UINT32  gBackPages;
 static int     gBackOn;
 /* 真机 boot mark：直写 scanout，避开后缓冲 Present 假死 */
 static int     gForceFront;
+/* UI 缩放：逻辑坐标画后缓冲，Present 最近邻贴到物理 GOP（50/100/150/200） */
+static UINT32  gPhysW;
+static UINT32  gPhysH;
+static UINT32  gUiScale = 100;
 
 /* 内容脏矩形 [gDx0,gDx1) x [gDy0,gDy1)；光标 XOR 单独跟踪，避免 AABB 并成近全屏 */
 static int     gDirty;
@@ -155,9 +159,53 @@ void VideoDrawEndFront(void) {
     gForceFront = 0;
 }
 
+static UINT32 NormalizeUiScale(UINT32 Percent) {
+    if (Percent <= 75) {
+        return 50;
+    }
+    if (Percent <= 125) {
+        return 100;
+    }
+    if (Percent <= 175) {
+        return 150;
+    }
+    return 200;
+}
+
+/* 逻辑分辨率 = 物理 * 100 / scale；上限约 8M 像素防 OOM */
+static void ApplyLogicalFromPhys(void) {
+    UINT32 Lw;
+    UINT32 Lh;
+    UINT32 Scale = gUiScale ? gUiScale : 100u;
+
+    if (gPhysW == 0 || gPhysH == 0) {
+        return;
+    }
+    Lw = (gPhysW * 100u) / Scale;
+    Lh = (gPhysH * 100u) / Scale;
+    if (Lw < 320) {
+        Lw = 320;
+    }
+    if (Lh < 240) {
+        Lh = 240;
+    }
+    while ((UINT64)Lw * (UINT64)Lh > 8ull * 1024ull * 1024ull) {
+        Lw = (Lw * 3u) / 4u;
+        Lh = (Lh * 3u) / 4u;
+        if (Lw < 320 || Lh < 240) {
+            Lw = gPhysW;
+            Lh = gPhysH;
+            gUiScale = 100;
+            break;
+        }
+    }
+    gScreen.Width = Lw;
+    gScreen.Height = Lh;
+}
+
 void VideoSet(VIDEO_CONFIG *VideoConfig) {
-    gScreen.Width = VideoConfig->HorizontalResolution;
-    gScreen.Height = VideoConfig->VerticalResolution;
+    gPhysW = VideoConfig->HorizontalResolution;
+    gPhysH = VideoConfig->VerticalResolution;
     gScreen.PixelsPerScanLine = VideoConfig->PixelsPerScanLine;
     gScreen.FrameBufferBase = VideoConfig->FrameBufferBase;
     gScreen.FrameBufferSize = VideoConfig->FrameBufferSize;
@@ -171,6 +219,40 @@ void VideoSet(VIDEO_CONFIG *VideoConfig) {
     gBackOn = 0;
     gDirty = 0;
     gCurDirty = 0;
+    gUiScale = NormalizeUiScale(gUiScale);
+    ApplyLogicalFromPhys();
+}
+
+UINT32 VideoGetUiScale(void) {
+    return gUiScale ? gUiScale : 100u;
+}
+
+void VideoGetPhysicalSize(UINT32 *Width, UINT32 *Height) {
+    if (Width) {
+        *Width = gPhysW;
+    }
+    if (Height) {
+        *Height = gPhysH;
+    }
+}
+
+/*
+ * 改 UI 缩放并重算逻辑分辨率；释放后缓冲（调用方再 InitBackbuffer）。
+ * Percent 归到 50/100/150/200。
+ */
+int VideoSetUiScale(UINT32 Percent) {
+    UINT32 Next = NormalizeUiScale(Percent);
+
+    if (gPhysW == 0 || gPhysH == 0) {
+        gUiScale = Next;
+        return -1;
+    }
+    VideoReleaseBackbuffer();
+    gUiScale = Next;
+    ApplyLogicalFromPhys();
+    gDirty = 0;
+    gCurDirty = 0;
+    return 0;
 }
 
 void VideoReleaseBackbuffer(void) {
@@ -306,7 +388,7 @@ UINT32 VideoBackbufferPages(void) {
     return gBackPages;
 }
 
-/* 将脏区 blit 到 GOP；无后缓冲时为空操作 */
+/* 将脏区 blit 到 GOP；无后缓冲时为空操作。scale=100 且逻辑=物理时 1:1 memcpy */
 static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
                             UINT64 FbBytes, int *DirtyOut, UINT32 *Dx0,
                             UINT32 *Dy0, UINT32 *Dx1, UINT32 *Dy1,
@@ -316,41 +398,134 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
     UINT64 RowOff;
     UINT64 RowBytes;
     UINT64 Flags;
+    int Scaled = (gUiScale != 100u) || (gScreen.Width != gPhysW) ||
+                 (gScreen.Height != gPhysH);
 
     *OutPartial = 0;
     if (X0 >= X1 || Y0 >= Y1) {
         return;
     }
-    RowBytes = (UINT64)(X1 - X0) * 4ull;
-    Y = Y0;
-    while (Y < Y1) {
-        ChunkEnd = Y + PRESENT_CHUNK_ROWS;
-        if (ChunkEnd > Y1) {
-            ChunkEnd = Y1;
-        }
-        Flags = HalIrqSave();
-        for (; Y < ChunkEnd; Y++) {
-            const UINT32 *Src;
-            UINT32 *Dst;
 
-            RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
-            if (RowOff + RowBytes > FbBytes) {
-                /* 其余行仍脏，下次 Present 续传 */
-                *Dx0 = X0;
-                *Dy0 = Y;
-                *Dx1 = X1;
-                *Dy1 = Y1;
-                *DirtyOut = 1;
-                *OutPartial = 1;
-                HalIrqRestore(Flags);
-                return;
+    if (!Scaled) {
+        RowBytes = (UINT64)(X1 - X0) * 4ull;
+        Y = Y0;
+        while (Y < Y1) {
+            ChunkEnd = Y + PRESENT_CHUNK_ROWS;
+            if (ChunkEnd > Y1) {
+                ChunkEnd = Y1;
             }
-            Src = &gBack[Y * gBackPitch + X0];
-            Dst = &gFront[Y * gFrontPitch + X0];
-            memcpy(Dst, Src, (UINTN)RowBytes);
+            Flags = HalIrqSave();
+            for (; Y < ChunkEnd; Y++) {
+                const UINT32 *Src;
+                UINT32 *Dst;
+
+                RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
+                if (RowOff + RowBytes > FbBytes) {
+                    *Dx0 = X0;
+                    *Dy0 = Y;
+                    *Dx1 = X1;
+                    *Dy1 = Y1;
+                    *DirtyOut = 1;
+                    *OutPartial = 1;
+                    HalIrqRestore(Flags);
+                    return;
+                }
+                Src = &gBack[Y * gBackPitch + X0];
+                Dst = &gFront[Y * gFrontPitch + X0];
+                memcpy(Dst, Src, (UINTN)RowBytes);
+            }
+            HalIrqRestore(Flags);
         }
-        HalIrqRestore(Flags);
-        /* 条带间隙开中断，让 xHCI MSI/软轮询有机会 Drain */
+        return;
+    }
+
+    /* 最近邻：逻辑脏区 → 物理矩形；按物理行条带 cli */
+    {
+        UINT32 Px0;
+        UINT32 Py0;
+        UINT32 Px1;
+        UINT32 Py1;
+        UINT32 Py;
+        UINT32 ChunkPy;
+
+        if (gPhysW == 0 || gPhysH == 0 || gScreen.Width == 0 ||
+            gScreen.Height == 0) {
+            return;
+        }
+        /*
+         * 上取整 + 外扩 2 物理像素：150%/200% 最近邻时否则光标移动会拖尾。
+         */
+        Px0 = (UINT32)(((UINT64)X0 * (UINT64)gPhysW) / (UINT64)gScreen.Width);
+        Py0 = (UINT32)(((UINT64)Y0 * (UINT64)gPhysH) / (UINT64)gScreen.Height);
+        Px1 = (UINT32)((((UINT64)X1 * (UINT64)gPhysW) + (UINT64)gScreen.Width - 1u) /
+                       (UINT64)gScreen.Width);
+        Py1 = (UINT32)((((UINT64)Y1 * (UINT64)gPhysH) + (UINT64)gScreen.Height - 1u) /
+                       (UINT64)gScreen.Height);
+        if (Px0 >= 2u) {
+            Px0 -= 2u;
+        } else {
+            Px0 = 0;
+        }
+        if (Py0 >= 2u) {
+            Py0 -= 2u;
+        } else {
+            Py0 = 0;
+        }
+        if (Px1 + 2u < gPhysW) {
+            Px1 += 2u;
+        } else {
+            Px1 = gPhysW;
+        }
+        if (Py1 + 2u < gPhysH) {
+            Py1 += 2u;
+        } else {
+            Py1 = gPhysH;
+        }
+        if (Px0 >= Px1 || Py0 >= Py1) {
+            return;
+        }
+        Py = Py0;
+        while (Py < Py1) {
+            ChunkPy = Py + PRESENT_CHUNK_ROWS;
+            if (ChunkPy > Py1) {
+                ChunkPy = Py1;
+            }
+            Flags = HalIrqSave();
+            for (; Py < ChunkPy; Py++) {
+                UINT32 Ly;
+                UINT32 Px;
+                UINT32 *Dst;
+
+                Ly = (UINT32)(((UINT64)Py * (UINT64)gScreen.Height) /
+                              (UINT64)gPhysH);
+                if (Ly >= gScreen.Height) {
+                    Ly = gScreen.Height - 1;
+                }
+                RowOff = ((UINT64)Py * (UINT64)gFrontPitch + (UINT64)Px0) * 4ull;
+                if (RowOff + (UINT64)(Px1 - Px0) * 4ull > FbBytes) {
+                    /* 映射回逻辑脏区续传 */
+                    *Dx0 = X0;
+                    *Dy0 = (UINT32)(((UINT64)Py * (UINT64)gScreen.Height) /
+                                    (UINT64)gPhysH);
+                    *Dx1 = X1;
+                    *Dy1 = Y1;
+                    *DirtyOut = 1;
+                    *OutPartial = 1;
+                    HalIrqRestore(Flags);
+                    return;
+                }
+                Dst = &gFront[Py * gFrontPitch + Px0];
+                for (Px = Px0; Px < Px1; Px++) {
+                    UINT32 Lx = (UINT32)(((UINT64)Px * (UINT64)gScreen.Width) /
+                                         (UINT64)gPhysW);
+                    if (Lx >= gScreen.Width) {
+                        Lx = gScreen.Width - 1;
+                    }
+                    Dst[Px - Px0] = gBack[Ly * gBackPitch + Lx];
+                }
+            }
+            HalIrqRestore(Flags);
+        }
     }
 }
 
@@ -375,12 +550,15 @@ void VideoPresent(void) {
      * 内容与光标分矩形 Present，避免 AABB 并成近全屏。
      * 大块按行条带 cli，条间开中断（G7：禁止长 cli 饿死 USB）。
      */
-    LayoutBytes = (UINT64)gFrontPitch * (UINT64)gScreen.Height * 4ull;
+    LayoutBytes = (UINT64)gFrontPitch * (UINT64)gPhysH * 4ull;
+    if (gPhysH == 0) {
+        LayoutBytes = (UINT64)gFrontPitch * (UINT64)gScreen.Height * 4ull;
+    }
     FbBytes = gScreen.FrameBufferSize;
     if (FbBytes == 0) {
         FbBytes = LayoutBytes;
-    } else if (gFrontPitch > gScreen.Width &&
-               FbBytes == (UINT64)gScreen.Width * (UINT64)gScreen.Height * 4ull &&
+    } else if (gFrontPitch > gPhysW && gPhysW != 0 &&
+               FbBytes == (UINT64)gPhysW * (UINT64)gPhysH * 4ull &&
                LayoutBytes > FbBytes) {
         FbBytes = LayoutBytes;
     }

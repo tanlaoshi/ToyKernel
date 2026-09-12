@@ -3,7 +3,7 @@
  *
  * 运行时颜色/字体优先读 TOYOS.DB；写盘时先 THEME.CFG 再 DB（QEMU edid 认 CFG）。
  * 分辨率 mode=：读时若 CFG 有则覆盖 DB（与 edid/Boot 权威一致，PR-D-res）。
- * 键：desktop / shell / font / mode（与 THEME.CFG 同名）。
+ * 键：desktop / shell / font / mode / scale（与 THEME.CFG 同名）。
  */
 #include "Theme.h"
 #include "UI.h"
@@ -21,6 +21,20 @@ static UINT32 gShellClientBg = COLOR_LIGHT_GRAY;
 static UINT32 gFontId;
 static UINT32 gModeW;
 static UINT32 gModeH;
+static UINT32 gUiScale = 100; /* 50 / 100 / 150 / 200 */
+
+static UINT32 NormalizeUiScale(UINT32 Percent) {
+    if (Percent <= 75) {
+        return 50;
+    }
+    if (Percent <= 125) {
+        return 100;
+    }
+    if (Percent <= 175) {
+        return 150;
+    }
+    return 200;
+}
 
 void ThemeInit(void) {
     gDesktopBg = COLOR_DARK_GRAY;
@@ -29,6 +43,7 @@ void ThemeInit(void) {
     gFontId = 2; /* Terminus 10x18；ThemeLoad 后再选 Sun */
     gModeW = 0;
     gModeH = 0;
+    gUiScale = 100;
     (void)FontSetById(gFontId);
 }
 
@@ -102,6 +117,28 @@ void ThemeSetDisplayMode(UINT32 Width, UINT32 Height) {
 void ThemeClearDisplayMode(void) {
     gModeW = 0;
     gModeH = 0;
+}
+
+UINT32 ThemeUiScale(void) {
+    return NormalizeUiScale(gUiScale);
+}
+
+void ThemeSetUiScale(UINT32 Percent) {
+    gUiScale = NormalizeUiScale(Percent);
+}
+
+int ThemeApplyUiScaleLive(UINT32 Percent) {
+    UINT32 Prev = ThemeUiScale();
+    UINT32 Next = NormalizeUiScale(Percent);
+
+    gUiScale = Next;
+    if (HalVideoSetUiScale(Next) != 0) {
+        gUiScale = Prev;
+        (void)HalVideoSetUiScale(Prev);
+        return -1;
+    }
+    GuiOnDisplayResize();
+    return 0;
 }
 
 int ThemeApplyDisplayLive(UINT32 Width, UINT32 Height) {
@@ -362,6 +399,13 @@ static void ApplyLine(const char *Line) {
             gModeW = W;
             gModeH = H;
         }
+        return;
+    }
+    Val = ValueAfterKey(Line, "scale");
+    if (Val) {
+        if (ParseDecU32(Val, &V, 0) == 0) {
+            gUiScale = NormalizeUiScale(V);
+        }
     }
 }
 
@@ -492,7 +536,7 @@ int ThemeLoad(void) {
     int ModeFromCfg;
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
-             ApplyDbKey("font") + ApplyDbKey("mode");
+             ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
@@ -515,12 +559,15 @@ int ThemeLoad(void) {
         gFontId = ThemeCompactFontId();
         (void)FontSetById(gFontId);
     }
+    gUiScale = NormalizeUiScale(gUiScale);
     DebugWrite("theme: desktop=");
     DebugHex32(gDesktopBg);
     DebugWrite(" shell=");
     DebugHex32(gShellClientBg);
     DebugWrite(" font=");
     DebugHex32(gFontId);
+    DebugWrite(" scale=");
+    DebugHex32(gUiScale);
     if (ThemeHasDisplayPref()) {
         DebugWrite(" mode=");
         DebugHex32(gModeW);
@@ -532,15 +579,17 @@ int ThemeLoad(void) {
 }
 
 int ThemeSave(void) {
-    char Buf[160];
+    char Buf[192];
     UINTN N = 0;
     char Hex[7];
     char FontVal[8];
     char ModeVal[24];
+    char ScaleVal[8];
     UINTN ModeLen = 0;
+    UINTN ScaleLen = 0;
     int i;
     int DbOk = 1;
-    static char sLastCfg[160];
+    static char sLastCfg[192];
     static UINTN sLastCfgN;
     static int sBusy;
 
@@ -564,6 +613,9 @@ int ThemeSave(void) {
         PutDec(ModeVal, gModeH, &ModeLen);
         ModeVal[ModeLen] = 0;
     }
+    ScaleLen = 0;
+    PutDec(ScaleVal, ThemeUiScale(), &ScaleLen);
+    ScaleVal[ScaleLen] = 0;
 
     /*
      * 先写 THEME.CFG：QEMU edid / ToyBoot 认 CFG；若先写 DB 再 CFG 失败，
@@ -618,6 +670,16 @@ int ThemeSave(void) {
         }
         Buf[N++] = '\n';
     }
+    Buf[N++] = 's';
+    Buf[N++] = 'c';
+    Buf[N++] = 'a';
+    Buf[N++] = 'l';
+    Buf[N++] = 'e';
+    Buf[N++] = '=';
+    for (i = 0; ScaleVal[i]; i++) {
+        Buf[N++] = ScaleVal[i];
+    }
+    Buf[N++] = '\n';
     Buf[N] = 0;
 
     /*
@@ -678,6 +740,9 @@ int ThemeSave(void) {
         }
     } else {
         (void)DbDelete("mode");
+    }
+    if (DbSet("scale", ScaleVal) != DB_OK) {
+        DbOk = 0;
     }
     if (DbEndBatch() != DB_OK) {
         DbOk = 0;

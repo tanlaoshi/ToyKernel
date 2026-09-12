@@ -35,6 +35,10 @@ UINT64 VideoFrameBufferSize(void);
 void VideoDrawBeginFront(void);
 void VideoDrawEndFront(void);
 void VideoGetSize(UINT32 *Width, UINT32 *Height);
+/* UI 整体缩放 50/100/150/200；逻辑分辨率见 GetSize，物理见 GetPhysicalSize */
+UINT32 VideoGetUiScale(void);
+void VideoGetPhysicalSize(UINT32 *Width, UINT32 *Height);
+int VideoSetUiScale(UINT32 Percent);
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略文字 clip，供光标等全屏叠层 */
 void VideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color);
