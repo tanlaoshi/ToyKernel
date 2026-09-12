@@ -324,15 +324,23 @@ void StallMs(UINT32 Ms) {
 int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     UINT64 T0;
     UINT64 Need;
+    UINT64 NextDrain;
 
     Need = (UINT64)Ms * 3000000ULL;
     T0 = ReadTsc();
+    NextDrain = T0;
     for (;;) {
         if (ReadMmio32(Addr) & Mask) {
             return 1;
         }
         if (ReadTsc() - T0 >= Need) {
             return 0;
+        }
+        /* 与 StallMs 一致：长等时 Drain，避免 msc scan/claim 饿死键鼠中断 IN */
+        if (!HalCpuIsHypervisor() && gXhciStarted && ReadTsc() >= NextDrain) {
+            ProcessEventsRealPc();
+            ServiceHidCompletions();
+            NextDrain = ReadTsc() + 3000000ULL;
         }
         __asm__ volatile ("pause");
     }
@@ -341,15 +349,22 @@ int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
 int WaitClearMs(UINT64 Addr, UINT32 Mask, UINT32 Ms) {
     UINT64 T0;
     UINT64 Need;
+    UINT64 NextDrain;
 
     Need = (UINT64)Ms * 3000000ULL;
     T0 = ReadTsc();
+    NextDrain = T0;
     for (;;) {
         if (!(ReadMmio32(Addr) & Mask)) {
             return 1;
         }
         if (ReadTsc() - T0 >= Need) {
             return 0;
+        }
+        if (!HalCpuIsHypervisor() && gXhciStarted && ReadTsc() >= NextDrain) {
+            ProcessEventsRealPc();
+            ServiceHidCompletions();
+            NextDrain = ReadTsc() + 3000000ULL;
         }
         __asm__ volatile ("pause");
     }
@@ -2391,7 +2406,29 @@ fail:
  * PR-H-msc-3：扫根口；跳过键鼠/hub 口；已 PED 则 Address+读 class 后 DisableSlot。
  * 不 Force PR、不 SetConfig、不 BOT；独立 EP0 环，不碰键鼠环。
  * 返回：打到 class 日志的口数；HC 未起则 -1。
+ *
+ * 真机：Address/Disable 邻口偶发把键鼠中断 EP 打成 Stopped；STOPPED 完成路径故意
+ * 不重投 → scan 后鼠标永久卡死。结束时 Sync+Queue 拉回。
  */
+static void HealHidAfterMscBusy(void) {
+    if (HalCpuIsHypervisor() || !gXhciStarted) {
+        return;
+    }
+    ProcessEventsRealPc();
+    ServiceHidCompletions();
+    if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+        if (SyncIntrDequeue(gMouseSlotId, gMouseIntrDci, gMouseIntrRing, &gMouseIntr,
+                            sizeof(gMouseIntrRing)) == 0) {
+            QueueMouseIntr();
+        }
+    }
+    if (gSlotId != 0 && gIntrDci != 0) {
+        if (SyncIntrDequeue(gSlotId, gIntrDci, gIntrRing, &gIntr, sizeof(gIntrRing)) == 0) {
+            QueueIntr();
+        }
+    }
+}
+
 int XhciMscScanPorts(void) {
     UINT32 P;
     int Found = 0;
@@ -2450,6 +2487,14 @@ int XhciMscScanPorts(void) {
                 DisableSlot(gMscScanSlot);
                 gMscScanSlot = 0;
             }
+            continue;
+        }
+        if (gMscScanSlot == gSlotId || gMscScanSlot == gMouseSlotId ||
+            gMscScanSlot == gHubSlotId) {
+            /* 不应发生；若发生则勿 DisableSlot（会清 HID 全局） */
+            BootLogHex("boot: msc scan slot clash=", gMscScanSlot, 2);
+            gMscScanSlot = 0;
+            gXferSlot = 0;
             continue;
         }
         if (gMscScanSlot <= DCBAA_SLOTS) {
@@ -2514,6 +2559,7 @@ int XhciMscScanPorts(void) {
         gMscScanSlot = 0;
     }
 
+    HealHidAfterMscBusy();
     BootLogHex("boot: msc scan done n=", (UINT32)Found, 2);
     return Found;
 }
@@ -2553,6 +2599,7 @@ int XhciMscClaimPorts(void) {
 
     /* 键盘已走 hub：先扫子口找 MSC，勿跳过整颗 hub 根口 */
     if (gHubSlotId != 0 && EnumHubChildrenForMsc()) {
+        HealHidAfterMscBusy();
         return 1;
     }
 
@@ -2687,12 +2734,14 @@ int XhciMscClaimPorts(void) {
                  */
                 if (HubBefore != 0 && Was != 0 && Was != HubBefore) {
                     if (ProbeSecondHubForMsc(Was, P, Speed)) {
+                        HealHidAfterMscBusy();
                         return 1;
                     }
                     continue;
                 }
                 if (ClaimHubOnRootPort(P, Speed, Was)) {
                     if (EnumHubChildrenForMsc()) {
+                        HealHidAfterMscBusy();
                         return 1;
                     }
                     /* HID 未占用此 hub：无 MSC 则放掉，试其它根口 */
@@ -2711,10 +2760,12 @@ int XhciMscClaimPorts(void) {
 
         /* FinishClaim 会再 GetDeviceDesc；描述已在 gCtrlBuf，直接走配置 */
         if (XhciMscFinishClaim(P, Speed)) {
+            HealHidAfterMscBusy();
             return 1;
         }
     }
 
     BootLog("boot: msc claim none\n");
+    HealHidAfterMscBusy();
     return 0;
 }
