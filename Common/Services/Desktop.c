@@ -289,9 +289,9 @@ static void LoadDesktopIcons(void) {
     }
     gRebootBmpReady = LoadBmpPath("Assets/Icons/bmp48/REBOOT.BMP", &gRebootBmp,
                                   ICON_FILE_MAX, "desktop: reboot");
-    /* 无独立图时仍可用 POWER，但优先 REBOOT 与关机区分 */
-    if (!gRebootBmpReady && gPowerBmpReady) {
-        /* 保持 Ready=0，绘制时回退色块/POWER 分支会区分 */
+    if (!gRebootBmpReady) {
+        gRebootBmpReady =
+            LoadBuiltinIcon(&gRebootBmp, gIconReboot48, "desktop: reboot");
     }
 }
 
@@ -802,14 +802,9 @@ static void DrawStartMenuRaw(void) {
                              &gPowerBmp);
             HasIcon = 1;
         } else if (i == 5 && gRebootBmpReady) {
-            /* 重启：独立图标 */
+            /* 重启：REBOOT.BMP 或内建 gIconReboot48 */
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gRebootBmp);
-            HasIcon = 1;
-        } else if (i == 5 && gPowerBmpReady) {
-            /* 无 REBOOT.BMP 时用色块区分，勿与关机同图 */
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00406080);
-            UiDrawRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, COLOR_WHITE);
             HasIcon = 1;
         }
         if (HasIcon) {
