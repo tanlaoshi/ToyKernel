@@ -125,7 +125,8 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - 顺带：4K Present 分脏矩形 + 条带 cli（Shell 多命令不再饿死 HID）；实心光标 save-under
 - **补丁**（同刀续）：第二根口 hub 上 U 盘 — `ProbeSecondHubForMsc`（勿 DisableSlot 外接 hub）；NUC 经 hub claim ok
 - 验收：`msc claim` 直插 / 外接 hub 后 `ready=1`；键鼠仍可用
-- **下一刀**：msc-5 INQUIRY + READ CAPACITY
+- **msc-5** ✅ TG 2026-09-13：Shell `msc capacity` — BOT INQUIRY + READ CAPACITY(10)；串口 blocks/bsize；**不**分区/FAT；NUC 外接 hub claim+capacity ok
+- **下一刀**：msc-6 BlockMux + mount
 
 ### H4：真机网卡范例（e1000）
 

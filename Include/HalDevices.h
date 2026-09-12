@@ -48,6 +48,10 @@ int HalUsbMscReady(void);
 int HalUsbMscScan(void);
 /* PR-H-msc-4：Shell msc claim */
 int HalUsbMscClaim(void);
+/* PR-H-msc-5：INQUIRY + READ CAPACITY */
+int HalUsbMscCapacity(void);
+UINT32 HalUsbMscBlockCount(void);
+UINT32 HalUsbMscBlockSize(void);
 /* 真机 PHOTO 后开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */

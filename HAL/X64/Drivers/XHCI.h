@@ -94,10 +94,11 @@ int XhciKeyboardSetLeds(UINT8 Leds);
  * 不扫口、不 Reset、不 Address；不碰 Drain 键鼠热路径。
  * PR-H-msc-3：XhciMscScanPorts — 非键鼠口读 class 后放弃（无 Force PR/SetConfig/BOT）。
  * PR-H-msc-4：XhciMscClaimPorts — 单口 SetConfig + Bulk；不 SCSI。
+ * PR-H-msc-5：XhciMscCapacity — BOT INQUIRY + READ CAPACITY(10)。
  */
 int XhciMscBringUp(void); /* claim 后 0，否则 -1（仍会 Init Bulk 环） */
 int XhciMscReady(void);   /* claim 后 1 */
-/* DirIn=1 Bulk IN；msc-4 已配 EP 仍不入队，恒 -1（SCSI→msc-5） */
+/* DirIn=1 Bulk IN；已 claim 才可传 */
 int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len);
 /* 返回打到 class 的口数；HC 未起 -1 */
 int XhciMscScanPorts(void);
@@ -105,5 +106,9 @@ int XhciMscScanPorts(void);
 int XhciMscClaimPorts(void);
 /* gMscScanSlot 已 Address：读配置 / SetConfig / Bulk；供根口与 hub 子口共用 */
 int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
+/* PR-H-msc-5：INQUIRY + READ CAPACITY；成功 0 */
+int XhciMscCapacity(void);
+UINT32 XhciMscBlockCount(void);
+UINT32 XhciMscBlockSize(void);
 
 #endif

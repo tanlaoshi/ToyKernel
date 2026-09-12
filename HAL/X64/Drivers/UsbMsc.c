@@ -1,7 +1,8 @@
 /*
- * UsbMsc.c — BOT 门面（PR-H-msc-2/3/4）
+ * UsbMsc.c — BOT 门面（PR-H-msc-2…5）
  *
- * Init：Bulk 环。Scan：class 日志。Claim：SetConfig+Bulk（无 SCSI）。
+ * Init：Bulk 环。Scan：class 日志。Claim：SetConfig+Bulk。
+ * Capacity：INQUIRY + READ CAPACITY(10)；不读分区、不挂 FAT。
  */
 #include "UsbMsc.h"
 #include "XHCI.h"
@@ -22,15 +23,23 @@ int UsbMscClaim(void) {
     return XhciMscClaimPorts();
 }
 
+int UsbMscCapacity(void) {
+    return XhciMscCapacity();
+}
+
 UINT32 UsbMscBlockCount(void) {
-    return 0;
+    return XhciMscBlockCount();
+}
+
+UINT32 UsbMscBlockSize(void) {
+    return XhciMscBlockSize();
 }
 
 int UsbMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
     (void)Lba;
     (void)Count;
     (void)Buffer;
-    return 0;
+    return 0; /* msc-6+ */
 }
 
 int UsbMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {

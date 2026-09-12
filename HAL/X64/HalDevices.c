@@ -53,6 +53,18 @@ int HalUsbMscClaim(void) {
     return UsbMscClaim();
 }
 
+int HalUsbMscCapacity(void) {
+    return UsbMscCapacity();
+}
+
+UINT32 HalUsbMscBlockCount(void) {
+    return UsbMscBlockCount();
+}
+
+UINT32 HalUsbMscBlockSize(void) {
+    return UsbMscBlockSize();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

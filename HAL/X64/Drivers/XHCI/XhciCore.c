@@ -85,7 +85,13 @@ UINT32 gMscBulkInDci;
 UINT32 gMscBulkOutDci;
 UINT16 gMscBulkInMps;
 UINT16 gMscBulkOutMps;
-int    gMscClaimed;       /* 1：已 SetConfig + Bulk EP；尚无 SCSI */
+int    gMscClaimed;       /* 1：已 SetConfig + Bulk EP */
+UINT32 gMscBlockCount;    /* PR-H-msc-5：READ CAPACITY 后扇区数 */
+UINT32 gMscBlockSize;
+int    gMscCapacityOk;
+volatile UINT32 gBulkDone;
+volatile UINT32 gBulkCode;
+volatile UINT32 gBulkRemain;
 UINT8  gMscCfgBuf[1024] __attribute__((aligned(64))); /* 配置描述符；勿用 256 截断 */
 UINT8  gMouseDevCtx[2048] __attribute__((aligned(64)));
 volatile UINT32 gMouseIntrDone;
@@ -500,6 +506,29 @@ void ProcessEvents(void) {
                 gXferRemain = Evt->Status & 0xFFFFFF;
                 gXferDone = 1;
                 Matched = 1; /* GET_REPORT/控制传输：勿记入 unmatched 刷屏 */
+            }
+            /* PR-H-msc-5：Bulk 完成（slot+DCI 或 TRB 落在 Bulk 环） */
+            if (!Matched && gMscScanSlot != 0 && EvtSlot == gMscScanSlot &&
+                ((gMscBulkInDci != 0 && Ep == gMscBulkInDci) ||
+                 (gMscBulkOutDci != 0 && Ep == gMscBulkOutDci))) {
+                gBulkCode = Code;
+                gBulkRemain = Evt->Status & 0xFFFFFF;
+                gBulkDone = 1;
+                Matched = 1;
+            }
+            if (!Matched) {
+                UINT64 BulkInLo = PointerToPhysical(gBulkInRing);
+                UINT64 BulkInHi = BulkInLo + sizeof(gBulkInRing);
+                UINT64 BulkOutLo = PointerToPhysical(gBulkOutRing);
+                UINT64 BulkOutHi = BulkOutLo + sizeof(gBulkOutRing);
+
+                if ((TrbPtr >= BulkInLo && TrbPtr < BulkInHi) ||
+                    (TrbPtr >= BulkOutLo && TrbPtr < BulkOutHi)) {
+                    gBulkCode = Code;
+                    gBulkRemain = Evt->Status & 0xFFFFFF;
+                    gBulkDone = 1;
+                    Matched = 1;
+                }
             }
             /*
              * 中断 EP：只认 slot+DCI，或完成 TRB 落在中断环内。
@@ -1780,12 +1809,232 @@ int XhciMscReady(void) {
     return gMscClaimed ? 1 : 0;
 }
 
-int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
-    (void)DirIn;
-    (void)Buf;
-    (void)Len;
-    /* PR-H-msc-4：已配 Bulk，故意不入队；SCSI 留给 msc-5 */
+static int WaitBulk(void) {
+    if (!HalCpuIsHypervisor()) {
+        UINT64 T0 = ReadTsc();
+        UINT64 Need = 500ULL * 3000000ULL; /* ~500ms：大 U 盘 INQUIRY 可慢 */
+
+        for (;;) {
+            ProcessEventsRealPc();
+            ServiceHidCompletions();
+            if (gBulkDone) {
+                return (gBulkCode == CC_SUCCESS || gBulkCode == CC_SHORT_PACKET) ? 0
+                                                                                : -1;
+            }
+            if (ReadTsc() - T0 >= Need) {
+                return -1;
+            }
+            __asm__ volatile ("pause");
+        }
+    }
+    {
+        int Timeout = 200000;
+
+        while (Timeout--) {
+            ProcessEvents();
+            ServiceHidCompletions();
+            if (gBulkDone) {
+                return (gBulkCode == CC_SUCCESS || gBulkCode == CC_SHORT_PACKET) ? 0
+                                                                                : -1;
+            }
+        }
+    }
     return -1;
+}
+
+/*
+ * PR-H-msc-5：Bulk 普通传输。DirIn=1 → Bulk IN 环；0 → Bulk OUT。
+ * 成功 0；失败 -1。短包算成功（CSW/INQUIRY 常见）。
+ */
+int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
+    XHCI_TRB *Ring;
+    RING_STATE *St;
+    UINT32 Dci;
+    UINT32 Ctrl;
+
+    if (!gMscClaimed || gMscScanSlot == 0 || Buf == 0 || Len == 0) {
+        return -1;
+    }
+    if (gMscBulkInDci == 0 || gMscBulkOutDci == 0) {
+        return -1;
+    }
+
+    if (DirIn) {
+        Ring = gBulkInRing;
+        St = &gBulkIn;
+        Dci = gMscBulkInDci;
+        Ctrl = TRB_TYPE(TRB_NORMAL) | TRB_IOC | TRB_ISP;
+    } else {
+        Ring = gBulkOutRing;
+        St = &gBulkOut;
+        Dci = gMscBulkOutDci;
+        Ctrl = TRB_TYPE(TRB_NORMAL) | TRB_IOC;
+    }
+
+    FlushDma(Buf, Len);
+    gBulkDone = 0;
+    gBulkCode = 0;
+    gBulkRemain = 0;
+    Enqueue(Ring, St, PointerToPhysical(Buf), Len, Ctrl);
+    FlushDma(Ring, sizeof(XHCI_TRB) * (St->Size ? St->Size : RING_SIZE));
+    RingDoorbell(gMscScanSlot, Dci);
+    if (WaitBulk() < 0) {
+        BootLogHex("boot: msc bulk fail cc=", gBulkCode, 2);
+        return -1;
+    }
+    FlushDma(Buf, Len);
+    return 0;
+}
+
+/*
+ * BOT：CBW → [DATA] → CSW。DataIn=1 时数据走 Bulk IN。
+ * 成功 0；失败 -1（不 ClearHalt，留给后续刀）。
+ */
+static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
+                  void *Data) {
+    UINT8 Cbw[32] __attribute__((aligned(64)));
+    UINT8 Csw[16] __attribute__((aligned(64)));
+    static UINT32 Tag;
+    UINT32 i;
+
+    if (!gMscClaimed) {
+        return -1;
+    }
+    if (CbLen == 0 || CbLen > 16) {
+        return -1;
+    }
+    if (DataLen != 0 && Data == 0) {
+        return -1;
+    }
+
+    Tag++;
+    ZeroMemory(Cbw, sizeof(Cbw));
+    Cbw[0] = 0x55;
+    Cbw[1] = 0x53;
+    Cbw[2] = 0x42;
+    Cbw[3] = 0x43; /* USBC */
+    Cbw[4] = (UINT8)(Tag);
+    Cbw[5] = (UINT8)(Tag >> 8);
+    Cbw[6] = (UINT8)(Tag >> 16);
+    Cbw[7] = (UINT8)(Tag >> 24);
+    Cbw[8] = (UINT8)(DataLen);
+    Cbw[9] = (UINT8)(DataLen >> 8);
+    Cbw[10] = (UINT8)(DataLen >> 16);
+    Cbw[11] = (UINT8)(DataLen >> 24);
+    Cbw[12] = DataIn ? 0x80u : 0x00u;
+    Cbw[13] = 0; /* LUN */
+    Cbw[14] = CbLen;
+    for (i = 0; i < CbLen; i++) {
+        Cbw[15 + i] = CbwCb[i];
+    }
+
+    if (XhciBulkXfer(0, Cbw, 31) < 0) {
+        BootLog("boot: msc bot cbw fail\n");
+        return -1;
+    }
+    if (DataLen != 0) {
+        if (XhciBulkXfer(DataIn ? 1 : 0, Data, DataLen) < 0) {
+            BootLog("boot: msc bot data fail\n");
+            return -1;
+        }
+    }
+    ZeroMemory(Csw, sizeof(Csw));
+    if (XhciBulkXfer(1, Csw, 13) < 0) {
+        BootLog("boot: msc bot csw fail\n");
+        return -1;
+    }
+    /* USBS */
+    if (Csw[0] != 0x55 || Csw[1] != 0x53 || Csw[2] != 0x42 || Csw[3] != 0x53) {
+        BootLog("boot: msc bot csw sig\n");
+        return -1;
+    }
+    if (Csw[12] != 0) {
+        BootLogHex("boot: msc bot status=", Csw[12], 2);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * PR-H-msc-5：INQUIRY + READ CAPACITY(10)。不读分区、不挂 FAT。
+ * 成功 0 并填 gMscBlockCount/Size；失败 -1。
+ */
+int XhciMscCapacity(void) {
+    UINT8 Inquiry[36] __attribute__((aligned(64)));
+    UINT8 Cap[8] __attribute__((aligned(64)));
+    UINT8 Cdb[16];
+    UINT32 LastLba;
+    UINT32 Bsz;
+
+    if (!gMscClaimed || gMscScanSlot == 0) {
+        BootLog("boot: msc capacity not claimed\n");
+        return -1;
+    }
+
+    gMscCapacityOk = 0;
+    gMscBlockCount = 0;
+    gMscBlockSize = 0;
+
+    ZeroMemory(Cdb, sizeof(Cdb));
+    Cdb[0] = 0x12; /* INQUIRY */
+    Cdb[4] = 36;
+    ZeroMemory(Inquiry, sizeof(Inquiry));
+    if (MscBot(Cdb, 6, 36, 1, Inquiry) < 0) {
+        BootLog("boot: msc inquiry fail\n");
+        return -1;
+    }
+    BootLogHex("boot: msc inquiry pdt=", Inquiry[0] & 0x1Fu, 2);
+    {
+        char Line[48];
+        int n = 0;
+        const char *P = "boot: msc vendor=";
+        int i;
+
+        while (*P && n < 20) {
+            Line[n++] = *P++;
+        }
+        for (i = 8; i < 16 && n < 46; i++) {
+            char C = (char)Inquiry[i];
+
+            if (C < 32 || C > 126) {
+                C = '.';
+            }
+            Line[n++] = C;
+        }
+        Line[n++] = '\n';
+        Line[n] = 0;
+        BootLog(Line);
+    }
+
+    ZeroMemory(Cdb, sizeof(Cdb));
+    Cdb[0] = 0x25; /* READ CAPACITY(10) */
+    ZeroMemory(Cap, sizeof(Cap));
+    if (MscBot(Cdb, 10, 8, 1, Cap) < 0) {
+        BootLog("boot: msc readcap fail\n");
+        return -1;
+    }
+    LastLba = ((UINT32)Cap[0] << 24) | ((UINT32)Cap[1] << 16) |
+              ((UINT32)Cap[2] << 8) | (UINT32)Cap[3];
+    Bsz = ((UINT32)Cap[4] << 24) | ((UINT32)Cap[5] << 16) |
+          ((UINT32)Cap[6] << 8) | (UINT32)Cap[7];
+    if (Bsz == 0) {
+        BootLog("boot: msc readcap bsz0\n");
+        return -1;
+    }
+    gMscBlockCount = LastLba + 1u;
+    gMscBlockSize = Bsz;
+    gMscCapacityOk = 1;
+    BootLogHex("boot: msc blocks=", gMscBlockCount, 8);
+    BootLogHex("boot: msc bsize=", gMscBlockSize, 8);
+    return 0;
+}
+
+UINT32 XhciMscBlockCount(void) {
+    return gMscCapacityOk ? gMscBlockCount : 0;
+}
+
+UINT32 XhciMscBlockSize(void) {
+    return gMscCapacityOk ? gMscBlockSize : 0;
 }
 
 /* 配置描述符中找 MSC Bulk IN/OUT（偏好 BOT；允许 UASP；兜底任一对 Bulk） */
@@ -2066,7 +2315,7 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
     BootLogHex("boot: msc claim epin=", EpIn, 2);
     BootLogHex("boot: msc claim epout=", EpOut, 2);
     BootLogHex("boot: msc claim route=", gMscRoute, 2);
-    BootLog("boot: msc claim bulk ok (no SCSI yet)\n");
+    BootLog("boot: msc claim bulk ok\n");
     return 1;
 
 fail:
@@ -2238,6 +2487,9 @@ int XhciMscClaimPorts(void) {
     gMscRoute = 0;
     gMscHubSlot = 0;
     gMscTtPort = 0;
+    gMscCapacityOk = 0;
+    gMscBlockCount = 0;
+    gMscBlockSize = 0;
 
     /* 键盘已走 hub：先扫子口找 MSC，勿跳过整颗 hub 根口 */
     if (gHubSlotId != 0 && EnumHubChildrenForMsc()) {

@@ -204,6 +204,12 @@ extern UINT32 gMscBulkOutDci;
 extern UINT16 gMscBulkInMps;
 extern UINT16 gMscBulkOutMps;
 extern int gMscClaimed;
+extern UINT32 gMscBlockCount;
+extern UINT32 gMscBlockSize;
+extern int gMscCapacityOk;
+extern volatile UINT32 gBulkDone;
+extern volatile UINT32 gBulkCode;
+extern volatile UINT32 gBulkRemain;
 extern UINT8 gMscCfgBuf[1024];
 
 extern volatile UINT32 gStatIntrEvt;

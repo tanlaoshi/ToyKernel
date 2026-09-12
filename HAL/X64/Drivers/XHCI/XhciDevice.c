@@ -178,6 +178,9 @@ void DisableSlot(UINT32 SlotId) {
         gMscPort = 0;
         gMscBulkInDci = 0;
         gMscBulkOutDci = 0;
+        gMscCapacityOk = 0;
+        gMscBlockCount = 0;
+        gMscBlockSize = 0;
     }
     if (gXferSlot == SlotId) {
         gXferSlot = 0;

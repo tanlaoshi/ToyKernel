@@ -63,6 +63,18 @@ int HalUsbMscClaim(void) {
     return -1;
 }
 
+int HalUsbMscCapacity(void) {
+    return -1;
+}
+
+UINT32 HalUsbMscBlockCount(void) {
+    return 0;
+}
+
+UINT32 HalUsbMscBlockSize(void) {
+    return 0;
+}
+
 void HalInputArmIrq(void) {
 }
 

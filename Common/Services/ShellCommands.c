@@ -52,7 +52,7 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-msc-4：msc | msc scan | msc claim；不自动认盘、不 SCSI */
+/* PR-H-msc-5：msc | msc scan | msc claim | msc capacity；不自动认盘、不挂 FAT */
 static void CommandMsc(int Argc, char **Argv) {
     int Rc;
 
@@ -82,7 +82,25 @@ static void CommandMsc(int Argc, char **Argv) {
         } else {
             ConsoleWrite("ok ready=");
             ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-            ConsoleWrite(" (SetConfig+Bulk; no SCSI/FAT; HID untouched)\n");
+            ConsoleWrite(" (SetConfig+Bulk; use: msc capacity; HID untouched)\n");
+        }
+        return;
+    }
+
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'c' && Argv[1][1] == 'a' &&
+        Argv[1][2] == 'p' && Argv[1][3] == 'a' && Argv[1][4] == 'c' &&
+        Argv[1][5] == 'i' && Argv[1][6] == 't' && Argv[1][7] == 'y' &&
+        Argv[1][8] == 0) {
+        Rc = HalUsbMscCapacity();
+        ConsoleWrite("msc: capacity ");
+        if (Rc < 0) {
+            ConsoleWrite("fail (need claim; no FAT)\n");
+        } else {
+            ConsoleWrite("ok blocks=");
+            ConsoleWriteHex32(HalUsbMscBlockCount());
+            ConsoleWrite(" bsize=");
+            ConsoleWriteHex32(HalUsbMscBlockSize());
+            ConsoleWrite(" (INQUIRY+READ CAPACITY; no partition/FAT; HID untouched)\n");
         }
         return;
     }
@@ -92,7 +110,7 @@ static void CommandMsc(int Argc, char **Argv) {
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
     ConsoleWrite(" ready=");
     ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-    ConsoleWrite(" (use: msc scan | msc claim)\n");
+    ConsoleWrite(" (use: msc scan | msc claim | msc capacity)\n");
 }
 
 static void CommandMemory(int Argc, char **Argv) {
@@ -1331,7 +1349,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
-    ConsoleRegister("msc", "USB MSC: msc | msc scan | msc claim (PR-H-msc-4)", CommandMsc);
+    ConsoleRegister("msc", "USB MSC: msc | msc scan | msc claim | msc capacity (PR-H-msc-5)", CommandMsc);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegisterAliasLine("memory", "show", "memory");
     ConsoleRegisterAliasLine("net", "show", "network");
