@@ -167,6 +167,10 @@ void DisableSlot(UINT32 SlotId) {
     }
     if (gMscScanSlot == SlotId) {
         gMscScanSlot = 0;
+        gMscClaimed = 0;
+        gMscPort = 0;
+        gMscBulkInDci = 0;
+        gMscBulkOutDci = 0;
     }
     if (gXferSlot == SlotId) {
         gXferSlot = 0;

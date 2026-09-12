@@ -49,6 +49,10 @@ int HalUsbMscScan(void) {
     return UsbMscScan();
 }
 
+int HalUsbMscClaim(void) {
+    return UsbMscClaim();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

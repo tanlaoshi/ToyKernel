@@ -121,8 +121,10 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 - **msc-1/2** ✅ TG：空壳 + Bulk API 壳（BringUp 恒失败）
 - **msc-3** ✅ TG 2026-09-12：Shell `msc scan` — 跳过键鼠/hub 口；已 PED 则 Address+读 class（含 class0 接口）后 **DisableSlot**；**不** Force PR / SetConfig / BOT；独立 `gMscScanEp0` 环
-- 验收：`msc scan` 后桌面键鼠仍可用；串口见 `boot: msc scan … class=` / `done n=`
-- **下一刀**：msc-4 `msc claim`（BOT Bulk）；仍不自动认盘
+- **msc-4** ✅ TG 2026-09-12：Shell `msc claim` — Force PR；hub 子口 / class-0 hub；SetConfig + Bulk IN/OUT；**不** SCSI/FAT；键鼠口跳过
+- 顺带：4K Present 分脏矩形 + 条带 cli（Shell 多命令不再饿死 HID）
+- 验收：`msc claim` 后桌面键鼠仍可用；串口见 `boot: msc claim ok` / `bulk ok`
+- **下一刀**：msc-5 INQUIRY + READ CAPACITY
 
 ### H4：真机网卡范例（e1000）
 

@@ -166,15 +166,24 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
     }
 }
 
+/*
+ * G7：只锁光标擦/画 + Present；中间绘制开中断。
+ * ComposeBusy：嵌套鼠标只改坐标，避免 XOR 光标与正文互踩。
+ * 4K：旧路径整段 cli + DirtyUnion(Shell∪远处光标)→近全屏 Present 饿死 USB。
+ */
 void GuiFrameBufferBegin(void) {
+    ComposeBegin();
     GfxIrqEnter();
     CursorRestore();
+    GfxIrqLeave();
 }
 
 void GuiFrameBufferEnd(void) {
+    GfxIrqEnter();
     CursorPaint();
     GfxPresent();
     GfxIrqLeave();
+    ComposeEnd();
 }
 
 void GuiCursorPaint(void) {

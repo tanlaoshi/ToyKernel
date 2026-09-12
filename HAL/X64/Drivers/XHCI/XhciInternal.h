@@ -192,6 +192,17 @@ extern UINT32 gMscScanSlot;
 extern UINT8 gMscScanDevCtx[2048];
 extern XHCI_TRB gMscScanEp0Ring[RING_SIZE];
 extern RING_STATE gMscScanEp0;
+/* PR-H-msc-4：claim 状态 */
+extern UINT32 gMscPort;
+extern UINT32 gMscRoute;
+extern UINT8 gMscHubSlot;
+extern UINT8 gMscTtPort;
+extern UINT32 gMscBulkInDci;
+extern UINT32 gMscBulkOutDci;
+extern UINT16 gMscBulkInMps;
+extern UINT16 gMscBulkOutMps;
+extern int gMscClaimed;
+extern UINT8 gMscCfgBuf[1024];
 
 extern volatile UINT32 gStatIntrEvt;
 extern volatile UINT32 gStatMouseEvt;
@@ -369,6 +380,8 @@ int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot);
 int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed);
 int EnumHubChildrenForKeyboard(void);
 int EnumHubChildrenForMouse(void);
+int EnumHubChildrenForMsc(void);
+int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
 
 int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);

@@ -52,7 +52,7 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-msc-3：msc | msc scan；不自动认盘 */
+/* PR-H-msc-4：msc | msc scan | msc claim；不自动认盘、不 SCSI */
 static void CommandMsc(int Argc, char **Argv) {
     int Rc;
 
@@ -70,12 +70,29 @@ static void CommandMsc(int Argc, char **Argv) {
         return;
     }
 
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'c' && Argv[1][1] == 'l' &&
+        Argv[1][2] == 'a' && Argv[1][3] == 'i' && Argv[1][4] == 'm' &&
+        Argv[1][5] == 0) {
+        Rc = HalUsbMscClaim();
+        ConsoleWrite("msc: claim ");
+        if (Rc < 0) {
+            ConsoleWrite("fail (no hc)\n");
+        } else if (Rc == 0) {
+            ConsoleWrite("none (no MSC bulk port; HID untouched)\n");
+        } else {
+            ConsoleWrite("ok ready=");
+            ConsoleWrite(HalUsbMscReady() ? "1" : "0");
+            ConsoleWrite(" (SetConfig+Bulk; no SCSI/FAT; HID untouched)\n");
+        }
+        return;
+    }
+
     Rc = HalUsbMscInit();
     ConsoleWrite("msc: bringup=");
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
     ConsoleWrite(" ready=");
     ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-    ConsoleWrite(" (use: msc scan)\n");
+    ConsoleWrite(" (use: msc scan | msc claim)\n");
 }
 
 static void CommandMemory(int Argc, char **Argv) {
@@ -1314,7 +1331,7 @@ void ShellCommandsRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister2("show", "info", "boot framebuffer info", CommandInfo);
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
-    ConsoleRegister("msc", "USB MSC: msc | msc scan (PR-H-msc-3)", CommandMsc);
+    ConsoleRegister("msc", "USB MSC: msc | msc scan | msc claim (PR-H-msc-4)", CommandMsc);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegisterAliasLine("memory", "show", "memory");
     ConsoleRegisterAliasLine("net", "show", "network");

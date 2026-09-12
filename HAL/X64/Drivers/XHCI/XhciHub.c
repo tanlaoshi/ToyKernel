@@ -428,6 +428,107 @@ int EnumHubChildrenForMouse(void) {
 }
 
 /*
+ * PR-H-msc-4：hub 子口找 MSC（Bulk）；跳过已占用键/鼠子口。
+ * Address → XhciMscFinishClaim（SetConfig+Bulk，无 SCSI）。
+ */
+int EnumHubChildrenForMsc(void) {
+    UINT8 Port;
+    UINT8 MaxP = gHubNumPorts;
+
+    if (gHubSlotId == 0 || gMscClaimed) {
+        return 0;
+    }
+    if (MaxP == 0 || MaxP > 15) {
+        MaxP = 8;
+    }
+    BootLog("boot: msc claim hub children\n");
+    for (Port = 1; Port <= MaxP; Port++) {
+        UINT32 St = 0;
+        UINT8 Speed;
+        volatile int D;
+        int t;
+
+        (void)HubSetPortFeat(Port, HUB_FEAT_PORT_POWER);
+        if (!HalCpuIsHypervisor()) {
+            StallMs(50);
+        } else {
+            for (D = 0; D < 40000; D++) {
+            }
+        }
+        if (HubGetPortStatus(Port, &St) < 0) {
+            continue;
+        }
+        if (!(St & HUB_PORT_CONNECTION)) {
+            continue;
+        }
+        if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
+            continue;
+        }
+        if ((gMouseRoute & 0xF) == (UINT32)Port && gMouseSlotId != 0) {
+            continue;
+        }
+        BootLogHex("boot: msc claim hub port=", Port, 2);
+        if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
+            continue;
+        }
+        for (t = 0; t < (HalCpuIsHypervisor() ? 50000 : 40); t++) {
+            if (HubGetPortStatus(Port, &St) < 0) {
+                break;
+            }
+            if (St & HUB_C_PORT_RESET) {
+                (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_RESET);
+                break;
+            }
+            if (!HalCpuIsHypervisor()) {
+                StallMs(5);
+            }
+        }
+        for (t = 0; t < (HalCpuIsHypervisor() ? 20000 : 40); t++) {
+            if (HubGetPortStatus(Port, &St) < 0) {
+                break;
+            }
+            if (St & HUB_C_PORT_CONNECTION) {
+                (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_CONNECTION);
+            }
+            if (St & HUB_PORT_ENABLE) {
+                break;
+            }
+            if (!HalCpuIsHypervisor()) {
+                StallMs(5);
+            }
+        }
+        if (!(St & HUB_PORT_ENABLE)) {
+            continue;
+        }
+        Speed = HubPortSpeed(St);
+        if (gMscScanSlot != 0) {
+            DisableSlot(gMscScanSlot);
+            gMscScanSlot = 0;
+        }
+        gMscRoute = (UINT32)Port;
+        gMscHubSlot = (UINT8)gHubSlotId;
+        gMscTtPort = Port;
+        if (!AddressDeviceOnPort(gHubRootPort, Speed, &gMscScanSlot, gMscScanDevCtx,
+                                 (UINT32)Port, (UINT8)gHubSlotId, Port, 0, 0)) {
+            if (gMscScanSlot != 0) {
+                DisableSlot(gMscScanSlot);
+                gMscScanSlot = 0;
+            }
+            BootLogHex("boot: msc claim hub addr fail port=", Port, 2);
+            continue;
+        }
+        if (gMscScanSlot <= DCBAA_SLOTS) {
+            gSlotEp0UsesKbdRing[gMscScanSlot] = 0;
+        }
+        if (XhciMscFinishClaim(gHubRootPort, Speed)) {
+            BootLog("boot: msc claim via hub\n");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
  * 认领根口 hub：SetConfig + hub desc；USB2 再 Evaluate Hub/MTT。
  * ExistingSlot：InitMouseOnPort 已 Address 的 hub，保留 slot 勿 Disable+重 Address
  * （重 Address 带 Hub 位常 cc=0x11；USB3 hub 亦不可设 Hub 位）。

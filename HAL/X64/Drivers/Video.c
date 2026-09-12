@@ -49,14 +49,23 @@ static int     gBackOn;
 /* 真机 boot mark：直写 scanout，避开后缓冲 Present 假死 */
 static int     gForceFront;
 
-/* 脏矩形 [gDx0,gDx1) x [gDy0,gDy1) */
+/* 内容脏矩形 [gDx0,gDx1) x [gDy0,gDy1)；光标 XOR 单独跟踪，避免 AABB 并成近全屏 */
 static int     gDirty;
 static UINT32  gDx0;
 static UINT32  gDy0;
 static UINT32  gDx1;
 static UINT32  gDy1;
+static int     gCurDirty;
+static UINT32  gCx0;
+static UINT32  gCy0;
+static UINT32  gCx1;
+static UINT32  gCy1;
 
-static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+/* 单次 Present 条带行数：cli 下 memcpy 过久会饿死 xHCI poll/MSI */
+#define PRESENT_CHUNK_ROWS 64u
+
+static void DirtyUnionInto(int *Dirty, UINT32 *Dx0, UINT32 *Dy0, UINT32 *Dx1,
+                           UINT32 *Dy1, UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 X1;
     UINT32 Y1;
 
@@ -80,26 +89,34 @@ static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     if (X >= X1 || Y >= Y1) {
         return;
     }
-    if (!gDirty) {
-        gDx0 = X;
-        gDy0 = Y;
-        gDx1 = X1;
-        gDy1 = Y1;
-        gDirty = 1;
+    if (!*Dirty) {
+        *Dx0 = X;
+        *Dy0 = Y;
+        *Dx1 = X1;
+        *Dy1 = Y1;
+        *Dirty = 1;
         return;
     }
-    if (X < gDx0) {
-        gDx0 = X;
+    if (X < *Dx0) {
+        *Dx0 = X;
     }
-    if (Y < gDy0) {
-        gDy0 = Y;
+    if (Y < *Dy0) {
+        *Dy0 = Y;
     }
-    if (X1 > gDx1) {
-        gDx1 = X1;
+    if (X1 > *Dx1) {
+        *Dx1 = X1;
     }
-    if (Y1 > gDy1) {
-        gDy1 = Y1;
+    if (Y1 > *Dy1) {
+        *Dy1 = Y1;
     }
+}
+
+static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    DirtyUnionInto(&gDirty, &gDx0, &gDy0, &gDx1, &gDy1, X, Y, W, H);
+}
+
+static void DirtyUnionCursor(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    DirtyUnionInto(&gCurDirty, &gCx0, &gCy0, &gCx1, &gCy1, X, Y, W, H);
 }
 
 static UINT32 *DrawBase(void) {
@@ -139,6 +156,7 @@ void VideoSet(VIDEO_CONFIG *VideoConfig) {
     gBackPages = 0;
     gBackOn = 0;
     gDirty = 0;
+    gCurDirty = 0;
 }
 
 void VideoReleaseBackbuffer(void) {
@@ -150,6 +168,7 @@ void VideoReleaseBackbuffer(void) {
     gBackPages = 0;
     gBackOn = 0;
     gDirty = 0;
+    gCurDirty = 0;
 }
 
 UINT64 VideoFrameBufferBase(void) {
@@ -262,6 +281,7 @@ void VideoSetBackbuffer(UINT32 *Buf, UINT32 Pages) {
      * 后缓冲内容以后续绘制为准。
      */
     gDirty = 0;
+    gCurDirty = 0;
 }
 
 int VideoBackbufferEnabled(void) {
@@ -272,56 +292,75 @@ UINT32 VideoBackbufferPages(void) {
     return gBackPages;
 }
 
-/* 将脏区（或全屏若从未标记）blit 到 GOP；无后缓冲时为空操作 */
-void VideoPresent(void) {
+/* 将脏区 blit 到 GOP；无后缓冲时为空操作 */
+static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
+                            UINT64 FbBytes, int *DirtyOut, UINT32 *Dx0,
+                            UINT32 *Dy0, UINT32 *Dx1, UINT32 *Dy1,
+                            int *OutPartial) {
     UINT32 Y;
+    UINT32 ChunkEnd;
+    UINT64 RowOff;
+    UINT64 RowBytes;
+    UINT64 Flags;
+
+    *OutPartial = 0;
+    if (X0 >= X1 || Y0 >= Y1) {
+        return;
+    }
+    RowBytes = (UINT64)(X1 - X0) * 4ull;
+    Y = Y0;
+    while (Y < Y1) {
+        ChunkEnd = Y + PRESENT_CHUNK_ROWS;
+        if (ChunkEnd > Y1) {
+            ChunkEnd = Y1;
+        }
+        Flags = HalIrqSave();
+        for (; Y < ChunkEnd; Y++) {
+            const UINT32 *Src;
+            UINT32 *Dst;
+
+            RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
+            if (RowOff + RowBytes > FbBytes) {
+                /* 其余行仍脏，下次 Present 续传 */
+                *Dx0 = X0;
+                *Dy0 = Y;
+                *Dx1 = X1;
+                *Dy1 = Y1;
+                *DirtyOut = 1;
+                *OutPartial = 1;
+                HalIrqRestore(Flags);
+                return;
+            }
+            Src = &gBack[Y * gBackPitch + X0];
+            Dst = &gFront[Y * gFrontPitch + X0];
+            memcpy(Dst, Src, (UINTN)RowBytes);
+        }
+        HalIrqRestore(Flags);
+        /* 条带间隙开中断，让 xHCI MSI/软轮询有机会 Drain */
+    }
+}
+
+void VideoPresent(void) {
     UINT32 X0;
     UINT32 Y0;
     UINT32 X1;
     UINT32 Y1;
     UINT64 FbBytes;
     UINT64 LayoutBytes;
-    UINT64 RowOff;
-    UINT64 RowBytes;
-    UINT64 Flags;
+    int Partial;
 
     if (!gBackOn || !gBack || !gFront) {
         gDirty = 0;
+        gCurDirty = 0;
         return;
     }
-    if (!gDirty) {
+    if (!gDirty && !gCurDirty) {
         return;
     }
     /*
-     * 关中断整段 blit：真机 poll 路径曾用 Busy 防重入，但 #PF/半途 return
-     * 会把 Busy 粘死 → 之后 Shell 字只写后缓冲、屏上永远空窗/不能「看见」打字。
-     * CLI 下不会嵌套 Present，不再需要 sticky Busy。
+     * 内容与光标分矩形 Present，避免 AABB 并成近全屏。
+     * 大块按行条带 cli，条间开中断（G7：禁止长 cli 饿死 USB）。
      */
-    Flags = HalIrqSave();
-    if (!gDirty) {
-        HalIrqRestore(Flags);
-        return;
-    }
-    X0 = gDx0;
-    Y0 = gDy0;
-    X1 = gDx1;
-    Y1 = gDy1;
-    if (X0 >= gScreen.Width || Y0 >= gScreen.Height) {
-        gDirty = 0;
-        HalIrqRestore(Flags);
-        return;
-    }
-    if (X1 > gScreen.Width) {
-        X1 = gScreen.Width;
-    }
-    if (Y1 > gScreen.Height) {
-        Y1 = gScreen.Height;
-    }
-    if (X0 >= X1 || Y0 >= Y1) {
-        gDirty = 0;
-        HalIrqRestore(Flags);
-        return;
-    }
     LayoutBytes = (UINT64)gFrontPitch * (UINT64)gScreen.Height * 4ull;
     FbBytes = gScreen.FrameBufferSize;
     if (FbBytes == 0) {
@@ -329,34 +368,47 @@ void VideoPresent(void) {
     } else if (gFrontPitch > gScreen.Width &&
                FbBytes == (UINT64)gScreen.Width * (UINT64)gScreen.Height * 4ull &&
                LayoutBytes > FbBytes) {
-        /*
-         * 常见固件：Size=Width*Height*4，但 PixelsPerScanLine>Width。
-         * 按 Size 卡行会误杀合法 pitch 寻址 → 客户区/提示符永不进 scanout。
-         */
         FbBytes = LayoutBytes;
     }
-    gDirty = 0;
-    RowBytes = (UINT64)(X1 - X0) * 4ull;
-    for (Y = Y0; Y < Y1; Y++) {
-        const UINT32 *Src;
-        UINT32 *Dst;
 
-        RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
-        if (RowOff + RowBytes > FbBytes) {
-            /* 其余行仍脏，下次 Present 续传（勿丢 Shell 文字） */
-            gDx0 = X0;
-            gDy0 = Y;
-            gDx1 = X1;
-            gDy1 = Y1;
-            gDirty = 1;
-            break;
+    if (gDirty) {
+        X0 = gDx0;
+        Y0 = gDy0;
+        X1 = gDx1;
+        Y1 = gDy1;
+        gDirty = 0;
+        if (X0 < gScreen.Width && Y0 < gScreen.Height) {
+            if (X1 > gScreen.Width) {
+                X1 = gScreen.Width;
+            }
+            if (Y1 > gScreen.Height) {
+                Y1 = gScreen.Height;
+            }
+            PresentRectRows(X0, Y0, X1, Y1, FbBytes, &gDirty, &gDx0, &gDy0,
+                            &gDx1, &gDy1, &Partial);
+            if (Partial) {
+                return;
+            }
         }
-        /* PR-G-present：按行整段拷，避免逐像素循环 */
-        Src = &gBack[Y * gBackPitch + X0];
-        Dst = &gFront[Y * gFrontPitch + X0];
-        memcpy(Dst, Src, (UINTN)RowBytes);
     }
-    HalIrqRestore(Flags);
+
+    if (gCurDirty) {
+        X0 = gCx0;
+        Y0 = gCy0;
+        X1 = gCx1;
+        Y1 = gCy1;
+        gCurDirty = 0;
+        if (X0 < gScreen.Width && Y0 < gScreen.Height) {
+            if (X1 > gScreen.Width) {
+                X1 = gScreen.Width;
+            }
+            if (Y1 > gScreen.Height) {
+                Y1 = gScreen.Height;
+            }
+            PresentRectRows(X0, Y0, X1, Y1, FbBytes, &gCurDirty, &gCx0, &gCy0,
+                            &gCx1, &gCy1, &Partial);
+        }
+    }
 }
 
 void VideoGetSize(UINT32 *Width, UINT32 *Height) {
@@ -565,7 +617,8 @@ void VideoXorPixelRaw(UINT32 X, UINT32 Y, UINT32 Mask) {
         return;
     }
     Fb[Y * Pitch + X] ^= Mask;
-    DirtyUnion(X, Y, 1, 1);
+    /* 勿 DirtyUnion 进内容脏区：4K 下 Shell∪远处光标会并成近全屏 Present */
+    DirtyUnionCursor(X, Y, 1, 1);
 }
 
 void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {

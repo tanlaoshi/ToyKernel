@@ -1,7 +1,7 @@
 /*
- * UsbMsc.c — BOT 门面（PR-H-msc-2/3）
+ * UsbMsc.c — BOT 门面（PR-H-msc-2/3/4）
  *
- * Init：BringUp 壳（恒失败）。Scan：委托 XhciMscScanPorts。
+ * Init：Bulk 环。Scan：class 日志。Claim：SetConfig+Bulk（无 SCSI）。
  */
 #include "UsbMsc.h"
 #include "XHCI.h"
@@ -16,6 +16,10 @@ int UsbMscReady(void) {
 
 int UsbMscScan(void) {
     return XhciMscScanPorts();
+}
+
+int UsbMscClaim(void) {
+    return XhciMscClaimPorts();
 }
 
 UINT32 UsbMscBlockCount(void) {
