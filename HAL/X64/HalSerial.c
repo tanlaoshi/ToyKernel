@@ -290,17 +290,10 @@ void HalSerialGopMute(int Mute) {
 }
 
 /*
- * 真机 boot 进度：ring 始终；UART 受通道；无 COM 且未 Mute 才直写 front
- *（屏上黄字不因模块 quiet 而消失，便于 PHOTO）。
+ * 真机 boot 进度：ring 始终；UART 受通道；无 COM 且未 Mute 时并入同一路
+ * 白字滚动 boot log（勿再单独黄字盖顶行，避免蓝/灰/黑多段日志感）。
  */
 void HalSerialBootMarkChannel(int Channel, const char *Text) {
-    UINT32 W;
-    UINT32 H;
-    UINT32 LineH;
-    UINT32 Y;
-    char Line[160];
-    UINTN N;
-
     if (!Text) {
         return;
     }
@@ -315,25 +308,9 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (!gVideoUp || gPhotoHold || gGopMute) {
         return;
     }
-    N = 0;
-    while (Text[N] && Text[N] != '\n' && N + 1 < sizeof(Line)) {
-        Line[N] = Text[N];
-        N++;
+    if (gGopMirror) {
+        GopWrite(Text);
     }
-    Line[N] = '\0';
-    LineH = BootLogLineH();
-    Y = BootLogBodyY(LineH);
-    HalVideoGetSize(&W, &H);
-    if (W == 0) {
-        W = 1024;
-    }
-    if (W > 960) {
-        W = 960;
-    }
-    HalVideoDrawBeginFront();
-    HalVideoFillRect(0, Y, W, LineH + 2, 0x00000000u);
-    HalVideoDrawStringAt(BOOT_LOG_X, Y, Line, 0x00FFFF00u);
-    HalVideoDrawEndFront();
 }
 
 void HalSerialBootMark(const char *Text) {

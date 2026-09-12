@@ -253,8 +253,12 @@ void BeginDragBackups(int DragIdx) {
             continue;
         }
         EnsureWindowBackupBuf(i);
-        /* ForceFull：重叠区也要完整备份，ClearOld 才能正确露底 */
-        BackupWindowAtEx(i, 1);
+        /*
+         * ForceFull 只对「帧缓冲上可见」的窗：已被上层盖住时整窗 ReadRect
+         * 会把前景烙进 gWinBackup，ClearOld 露底时出现拖动烙印。
+         * 遮挡窗走非 ForceFull，重叠像素保留先前干净备份。
+         */
+        BackupWindowAtEx(i, !WindowOccludedByOther(i));
     }
     if (!gWinBackupValid[DragIdx]) {
         DebugWrite("gui: drag backup invalid\n");

@@ -20,7 +20,7 @@ void KernelMain(void) {
     /* H0：进核即改像素（在开分页 / 驱动 Probe 之前），真机卡死时可区分 Boot vs Kernel */
     if (Info && Info->FrameBufferSize != 0) {
         FontInit(); /* GOP 日志/DrawString 依赖字体表；video 模块里会再 Init 一次 */
-        HalVideoClearScreen(0x00204060u);
+        HalVideoClearScreen(0x00000000u); /* 与 on-screen boot log 同底，勿蓝/灰分段 */
         HalVideoPresent();
         HalSerialGopEnable();
         ToyLogBoot("boot: KernelMain live\n");

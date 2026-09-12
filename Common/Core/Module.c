@@ -13,7 +13,7 @@ static void ModLog(const char *Name, const char *Suffix) {
     ToyLogBoot(Suffix);
 }
 
-/* 真机 bring-up：进度改走黄字 boot log，不再画左上角色块 */
+/* 真机 bring-up：进度走统一 boot log，不再画左上角色块 */
 static void ModProgressMark(int Step) {
     (void)Step;
 }

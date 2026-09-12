@@ -74,11 +74,15 @@ static int InitializeVideo(void) {
     /* PR-G-fb-wc：PAT PA1=WC，仅 LFB 映成 PWT（xHCI 仍 PTE_MMIO/UC） */
     HalVideoEnableFbWc();
     HalVideoInitBackbuffer();
-    HalVideoClearScreen(ThemeDesktopBackground());
+    /*
+     * 开机日志统一黑底滚动；勿 Theme 深灰清屏造成「蓝→灰→黑」三段。
+     * 桌面底色由 gui 进桌面时再画。
+     */
+    HalVideoClearScreen(0x00000000u);
     /* 再清一遍顶带，去掉固件/进度条残留色块 */
     HalVideoGetSize(&W, &H);
     if (W > 0) {
-        HalVideoFillRect(0, 0, W, 64, ThemeDesktopBackground());
+        HalVideoFillRect(0, 0, W, 64, 0x00000000u);
     }
     HalVideoPresent();
     HalSerialGopEnable();
