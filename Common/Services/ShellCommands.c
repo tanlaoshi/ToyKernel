@@ -65,7 +65,7 @@ static void CommandMsc(int Argc, char **Argv) {
         } else {
             ConsoleWrite("ok n=");
             ConsoleWriteHex32((UINT32)Rc);
-            ConsoleWrite(" (class log only; no Force PR/SetConfig/BOT; HID untouched)\n");
+            ConsoleWrite(" (PORTSC only; no Address; claim for class/BOT)\n");
         }
         return;
     }

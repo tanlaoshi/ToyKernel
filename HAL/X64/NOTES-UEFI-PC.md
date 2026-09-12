@@ -120,7 +120,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 ### H-msc：USB MSC（分 PR）
 
 - **msc-1/2** ✅ TG：空壳 + Bulk API 壳（BringUp 恒失败）
-- **msc-3** ✅ TG 2026-09-12：Shell `msc scan` — 跳过键鼠/hub 口；已 PED 则 Address+读 class（含 class0 接口）后 **DisableSlot**；**不** Force PR / SetConfig / BOT；独立 `gMscScanEp0` 环
+- **msc-3** ✅ TG 2026-09-12（2026-09-13 热修）：Shell `msc scan` — **只读 PORTSC**（CCS/PED/speed）；**不** Address/Disable（真机 PED 残留口 Address 会卡命令环→鼠标死）；class/BOT 留给 `msc claim`；独立 `gMscScanEp0` 环仍供 claim
 - **msc-4** ✅ TG 2026-09-12：Shell `msc claim` — Force PR；hub 子口 / class-0 hub；SetConfig + Bulk IN/OUT；**不** SCSI/FAT；键鼠口跳过
 - 顺带：4K Present 分脏矩形 + 条带 cli（Shell 多命令不再饿死 HID）；实心光标 save-under
 - **补丁**（同刀续）：第二根口 hub 上 U 盘 — `ProbeSecondHubForMsc`（勿 DisableSlot 外接 hub）；NUC 经 hub claim ok

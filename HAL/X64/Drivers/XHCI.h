@@ -92,7 +92,7 @@ int XhciKeyboardSetLeds(UINT8 Leds);
 /*
  * PR-H-msc-2：Bulk/MSC API 壳。仅静态环 + 恒失败入口；
  * 不扫口、不 Reset、不 Address；不碰 Drain 键鼠热路径。
- * PR-H-msc-3：XhciMscScanPorts — 非键鼠口读 class 后放弃（无 Force PR/SetConfig/BOT）。
+ * PR-H-msc-3：XhciMscScanPorts — 非键鼠口 PORTSC 清点（无 Address；class 见 claim）。
  * PR-H-msc-4：XhciMscClaimPorts — 单口 SetConfig + Bulk；不 SCSI。
  * PR-H-msc-5：XhciMscCapacity — BOT INQUIRY + READ CAPACITY(10)。
  */

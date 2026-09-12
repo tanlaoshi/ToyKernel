@@ -2328,9 +2328,9 @@ fail:
 }
 
 /*
- * PR-H-msc-3：扫根口；跳过键鼠/hub 口；已 PED 则 Address+读 class 后 DisableSlot。
- * 不 Force PR、不 SetConfig、不 BOT；独立 EP0 环，不碰键鼠环。
- * 返回：打到 class 日志的口数；HC 未起则 -1。
+ * PR-H-msc-3（热修）：只读根口 PORTSC 清点候选，**禁止 Address/Disable**。
+ * NUC：未 Force PR 的 PED 口（如 0x11）Address 命令超时 → 命令环 sick →
+ * MSI irq-stall → 鼠标假死。class/VID 留给 msc claim（可 Force PR）。
  */
 int XhciMscScanPorts(void) {
     UINT32 P;
@@ -2341,21 +2341,11 @@ int XhciMscScanPorts(void) {
         return -1;
     }
 
-    BootLog("boot: msc scan begin\n");
-    if (gMscScanSlot != 0 && !gMscClaimed) {
-        DisableSlot(gMscScanSlot);
-        gMscScanSlot = 0;
-    }
+    BootLog("boot: msc scan begin (portsc only)\n");
 
     for (P = 1; P <= gMaxPorts && P <= 32u; P++) {
         UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(P));
         UINT8 Speed;
-        UINT8 Class;
-        UINT8 Sub;
-        UINT8 Proto;
-        UINT16 Vid;
-        UINT16 Pid;
-        USB_DEVICE_DESCRIPTOR *Dev;
 
         if (!(Ps & PORTSC_CCS)) {
             continue;
@@ -2376,82 +2366,17 @@ int XhciMscScanPorts(void) {
             BootLogHex("boot: msc scan skip claimed port=", P, 2);
             continue;
         }
-        if (!(Ps & PORTSC_PED)) {
-            /* 故意不 Force PR：留给 msc-4 claim */
-            BootLogHex("boot: msc scan skip not PED port=", P, 2);
-            continue;
-        }
 
         Speed = PortSpeed(Ps);
-        if (!AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx, 0, 0, 0, 0,
-                                 0)) {
-            BootLogHex("boot: msc scan addr fail port=", P, 2);
-            if (gMscScanSlot != 0) {
-                DisableSlot(gMscScanSlot);
-                gMscScanSlot = 0;
-            }
-            continue;
-        }
-        if (gMscScanSlot <= DCBAA_SLOTS) {
-            gSlotEp0UsesKbdRing[gMscScanSlot] = 0;
-        }
-
-        gXferSlot = gMscScanSlot;
-        if (GetDeviceDesc() < 0) {
-            BootLogHex("boot: msc scan desc fail port=", P, 2);
-            DisableSlot(gMscScanSlot);
-            gMscScanSlot = 0;
-            continue;
-        }
-
-        Dev = (USB_DEVICE_DESCRIPTOR *)(void *)gCtrlBuf;
-        Class = Dev->bDeviceClass;
-        Sub = Dev->bDeviceSubClass;
-        Proto = Dev->bDeviceProtocol;
-        Vid = Dev->idVendor;
-        Pid = Dev->idProduct;
-
-        if (Class == 0) {
-            if (GetDesc(0x0200, 0, 9, gCtrlBuf) == 0) {
-                UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
-                if (Total < 9) {
-                    Total = 9;
-                }
-                if (Total > sizeof(gCtrlBuf)) {
-                    Total = (UINT16)sizeof(gCtrlBuf);
-                }
-                if (GetDesc(0x0200, 0, Total, gCtrlBuf) == 0) {
-                    UINT16 Off = 0;
-                    while (Off + 9 <= Total) {
-                        UINT8 Len = gCtrlBuf[Off];
-                        UINT8 Type = gCtrlBuf[Off + 1];
-                        if (Len < 2 || Off + Len > Total) {
-                            break;
-                        }
-                        if (Type == 4 && Len >= 9) {
-                            Class = gCtrlBuf[Off + 5];
-                            Sub = gCtrlBuf[Off + 6];
-                            Proto = gCtrlBuf[Off + 7];
-                            break;
-                        }
-                        Off = (UINT16)(Off + Len);
-                    }
-                }
-            }
-        }
-
         BootLogHex("boot: msc scan port=", P, 2);
-        BootLogHex("boot: msc scan class=", Class, 2);
-        BootLogHex("boot: msc scan sub=", Sub, 2);
-        BootLogHex("boot: msc scan proto=", Proto, 2);
-        BootLogHex("boot: msc scan vid=", Vid, 4);
-        BootLogHex("boot: msc scan pid=", Pid, 4);
+        BootLogHex("boot: msc scan speed=", Speed, 1);
+        BootLogHex("boot: msc scan ped=", (Ps & PORTSC_PED) ? 1u : 0u, 1);
+        BootLogHex("boot: msc scan portsc=", Ps, 8);
+        if (!(Ps & PORTSC_PED)) {
+            BootLog("boot: msc scan note: claim will Force PR\n");
+            gPortNeedForcePr |= (1u << P);
+        }
         Found++;
-
-        /* Disable 后口常仍 PED；下次 claim/Address 须 Force PR，否则 cc=0x04 */
-        gPortNeedForcePr |= (1u << P);
-        DisableSlot(gMscScanSlot);
-        gMscScanSlot = 0;
     }
 
     BootLogHex("boot: msc scan done n=", (UINT32)Found, 2);
