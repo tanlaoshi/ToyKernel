@@ -1,9 +1,9 @@
 /*
  * XhciInternal.h — PR-H-xhci-split-1：xHCI 内部共享（宏/类型/extern/共享声明）
  *
- * 对外仍用 Drivers/XHCI.h。本头供 Drivers/XHCI.c 与后续拆分出的 .c 共用。
- * split-2 起：各 .c 直接 #include；全局非 static 定义在归属文件，此处 extern。
- * 共享函数声明供跨文件调用；尚未搬走的实现仍在 XHCI.c（非 static）。
+ * 对外仍用 Drivers/XHCI.h。本头供 Drivers/XHCI/ 下各 .c 共用。
+ * split-8：单体 Drivers/XHCI.c 已删；全局定义主要在 XhciCore.c（Diag/统计等见各模块）。
+ * 共享函数声明供跨文件调用。
  */
 #ifndef XHCI_INTERNAL_H
 #define XHCI_INTERNAL_H
@@ -117,7 +117,7 @@ typedef struct {
     UINT32 Size; /* TRB 个数（含末尾 LINK） */
 } RING_STATE;
 
-/* ---- 全局（定义仍在 XHCI.c；拆文件后按 XHCI拆分.md §五 分置） ---- */
+/* ---- 全局（定义主要在 XhciCore.c；按 XHCI拆分.md §五 可再分置） ---- */
 extern UINT64 gCapabilityBase;
 extern UINT64 gOperationalBase;
 extern UINT64 gDoorbellBase;
@@ -272,7 +272,7 @@ extern UINT32 gXferCode;
 extern UINT32 gXferRemain;
 extern volatile UINT32 gIntrDone;
 
-/* ---- 共享函数（实现仍在 XHCI.c；后续按模块搬走） ---- */
+/* ---- 共享函数（实现分布于 Drivers/XHCI/ 各 .c） ---- */
 UINT32 ReadMmio32(UINT64 Addr);
 void WriteMmio32(UINT64 Addr, UINT32 Value);
 void WriteMmio64(UINT64 Addr, UINT64 Value);
