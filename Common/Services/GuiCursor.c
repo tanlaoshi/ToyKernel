@@ -1,17 +1,16 @@
 /*
- * GuiCursor.c — PR-R2：鼠标光标（XOR，无 save-under）
+ * GuiCursor.c — PR-R2：鼠标光标（save-under 实心十字）
  *
- * 真机跟手：旧 save-under 每移一次 ReadPixel 一整框 + Present，极卡。
- * XOR 再画一次即擦除；与 GuiFrameBufferBegin/End 仍配合（先擦再绘再画上）。
- * 尺寸随 gScreenHeight 相对 1080p 缩放（4K 更大，1080 保持原手感）。
+ * XOR(0xFFFFFF) 在未聚焦标题栏 COLOR_GRAY(0x808080) 上几乎不可见
+ * （^ 后 ≈ 0x7F7F7F），看起来像「被标题栏盖住」；聚焦蓝栏则成亮黄。
+ * 改为读下底层 → 画黑边白芯 → 擦除写回；脏区走 CursorOverlay，
+ * 不与 Shell 内容并 AABB（保 4K Present 热修）。
  */
 #include "GuiPriv.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "UI.h"
 #include "FilesUi.h"
-
-#define CURSOR_XOR_MASK 0x00FFFFFFu
 
 /* 臂长：1080→6，2160→12；线半宽：1080→0（1px），2160→1（3px） */
 static void CursorMetrics(int *Half, int *Thick) {
@@ -47,7 +46,8 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     UINT32 Ey;
 
     CursorMetrics(&Half, &Thick);
-    Ext = (UINT32)(Half + Thick);
+    /* 须含黑描边外扩，否则描边像素不在 gUnder 内 → 移动留黑尾巴 */
+    Ext = (UINT32)(Half + Thick + CURSOR_OUTLINE);
     *Sx = Cx >= Ext ? Cx - Ext : 0;
     *Sy = Cy >= Ext ? Cy - Ext : 0;
     Ex = Cx + Ext + 1;
@@ -62,10 +62,20 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     *Sh = Ey - *Sy;
 }
 
+static void PutCursorPx(int Px, int Py, UINT32 Color) {
+    if (Px < 0 || Py < 0) {
+        return;
+    }
+    if ((UINT32)Px >= gScreenWidth || (UINT32)Py >= gScreenHeight) {
+        return;
+    }
+    HalVideoDrawPixelRaw((UINT32)Px, (UINT32)Py, Color);
+}
+
 /*
- * 粗十字：横条画满，竖条跳过与横条重叠的中心带，避免 XOR 两次抵消。
+ * 粗十字：先黑描边再白芯，任意底色（含未聚焦灰标题栏）都压在最上层。
  */
-static void XorCursorAt(UINT32 X, UINT32 Y) {
+static void DrawCursorGlyph(UINT32 X, UINT32 Y) {
     int Half;
     int Thick;
     int i;
@@ -73,45 +83,50 @@ static void XorCursorAt(UINT32 X, UINT32 Y) {
 
     CursorMetrics(&Half, &Thick);
 
-    for (t = -Thick; t <= Thick; t++) {
-        int Py = (int)Y + t;
-        if (Py < 0 || (UINT32)Py >= gScreenHeight) {
-            continue;
+    /* 黑描边（外扩 CURSOR_OUTLINE） */
+    for (t = -(Thick + CURSOR_OUTLINE); t <= (Thick + CURSOR_OUTLINE); t++) {
+        for (i = -(Half + CURSOR_OUTLINE); i <= (Half + CURSOR_OUTLINE); i++) {
+            PutCursorPx((int)X + i, (int)Y + t, COLOR_BLACK);
         }
-        for (i = -Half; i <= Half; i++) {
-            int Px = (int)X + i;
-            if (Px >= 0 && (UINT32)Px < gScreenWidth) {
-                HalVideoXorPixelRaw((UINT32)Px, (UINT32)Py, CURSOR_XOR_MASK);
+    }
+    for (t = -(Thick + CURSOR_OUTLINE); t <= (Thick + CURSOR_OUTLINE); t++) {
+        for (i = -(Half + CURSOR_OUTLINE); i <= (Half + CURSOR_OUTLINE); i++) {
+            if (i >= -(Thick + CURSOR_OUTLINE) && i <= (Thick + CURSOR_OUTLINE)) {
+                continue;
             }
+            PutCursorPx((int)X + t, (int)Y + i, COLOR_BLACK);
+        }
+    }
+    /* 白芯 */
+    for (t = -Thick; t <= Thick; t++) {
+        for (i = -Half; i <= Half; i++) {
+            PutCursorPx((int)X + i, (int)Y + t, COLOR_WHITE);
         }
     }
     for (t = -Thick; t <= Thick; t++) {
-        int Px = (int)X + t;
-        if (Px < 0 || (UINT32)Px >= gScreenWidth) {
-            continue;
-        }
         for (i = -Half; i <= Half; i++) {
-            int Py;
             if (i >= -Thick && i <= Thick) {
                 continue;
             }
-            Py = (int)Y + i;
-            if (Py >= 0 && (UINT32)Py < gScreenHeight) {
-                HalVideoXorPixelRaw((UINT32)Px, (UINT32)Py, CURSOR_XOR_MASK);
-            }
+            PutCursorPx((int)X + t, (int)Y + i, COLOR_WHITE);
         }
     }
 }
 
 void DrawCursorAt(UINT32 X, UINT32 Y) {
-    XorCursorAt(X, Y);
+    DrawCursorGlyph(X, Y);
 }
 
 void CursorRestore(void) {
     if (!gCursorVisible) {
         return;
     }
-    XorCursorAt(gCursorX, gCursorY);
+    if (gSaveW > 0 && gSaveH > 0 &&
+        gSaveW <= (UINT32)CURSOR_BOX && gSaveH <= (UINT32)CURSOR_BOX) {
+        HalVideoCursorOverlayBegin();
+        HalVideoWriteRect(gSaveX, gSaveY, gSaveW, gSaveH, gUnder);
+        HalVideoCursorOverlayEnd();
+    }
     gCursorVisible = 0;
 }
 
@@ -119,10 +134,16 @@ void CursorPaint(void) {
     if (gCursorVisible) {
         CursorRestore();
     }
-    XorCursorAt(gCursorX, gCursorY);
-    gCursorVisible = 1;
-    /* gSave* 仍更新，供调试/兼容；XOR 路径不再读 gUnder */
     CursorBox(gCursorX, gCursorY, &gSaveX, &gSaveY, &gSaveW, &gSaveH);
+    if (gSaveW == 0 || gSaveH == 0 ||
+        gSaveW > (UINT32)CURSOR_BOX || gSaveH > (UINT32)CURSOR_BOX) {
+        return;
+    }
+    HalVideoCursorOverlayBegin();
+    HalVideoReadRect(gSaveX, gSaveY, gSaveW, gSaveH, gUnder);
+    DrawCursorGlyph(gCursorX, gCursorY);
+    HalVideoCursorOverlayEnd();
+    gCursorVisible = 1;
 }
 
 void CursorMove(UINT32 X, UINT32 Y) {
@@ -168,7 +189,7 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
 
 /*
  * G7：只锁光标擦/画 + Present；中间绘制开中断。
- * ComposeBusy：嵌套鼠标只改坐标，避免 XOR 光标与正文互踩。
+ * ComposeBusy：嵌套鼠标只改坐标，避免光标与正文互踩。
  * 4K：旧路径整段 cli + DirtyUnion(Shell∪远处光标)→近全屏 Present 饿死 USB。
  */
 void GuiFrameBufferBegin(void) {

@@ -38,6 +38,9 @@ void HalVideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略客户区 clip（鼠标光标） */
 void HalVideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color);
 void HalVideoXorPixelRaw(UINT32 X, UINT32 Y, UINT32 Mask);
+/* 光标 save-under / 实心绘制：脏区走光标矩形，避免与 Shell 并成近全屏 */
+void HalVideoCursorOverlayBegin(void);
+void HalVideoCursorOverlayEnd(void);
 UINT32 HalVideoReadPixel(UINT32 X, UINT32 Y);
 void HalVideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color);
 void HalVideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,

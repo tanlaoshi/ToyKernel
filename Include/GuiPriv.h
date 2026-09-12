@@ -17,13 +17,14 @@
 #define CLOSE_MARGIN 6
 /*
  * 光标随分辨率缩放（基准 1080p：臂长 6、线宽 1px）。
- * 2160p ≈ 2×；gUnder 按上限预留。
+ * 2160p ≈ 2×；gUnder 按上限预留（含黑描边外扩 1px）。
  */
 #define CURSOR_HALF_BASE 6
 #define CURSOR_REF_H     1080u
 #define CURSOR_HALF_MAX  24
 #define CURSOR_THICK_MAX 3
-#define CURSOR_EXT_MAX   (CURSOR_HALF_MAX + CURSOR_THICK_MAX)
+#define CURSOR_OUTLINE   1
+#define CURSOR_EXT_MAX   (CURSOR_HALF_MAX + CURSOR_THICK_MAX + CURSOR_OUTLINE)
 #define CURSOR_BOX       (CURSOR_EXT_MAX * 2 + 1)
 
 typedef struct {

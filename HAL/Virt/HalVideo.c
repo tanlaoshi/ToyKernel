@@ -110,6 +110,14 @@ void HalVideoXorPixelRaw(UINT32 X, UINT32 Y, UINT32 Mask) {
     VideoXorPixelRaw(X, Y, Mask);
 }
 
+void HalVideoCursorOverlayBegin(void) {
+    VideoCursorOverlayBegin();
+}
+
+void HalVideoCursorOverlayEnd(void) {
+    VideoCursorOverlayEnd();
+}
+
 UINT32 HalVideoReadPixel(UINT32 X, UINT32 Y) {
     return VideoReadPixel(X, Y);
 }

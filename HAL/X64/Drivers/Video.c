@@ -60,6 +60,8 @@ static UINT32  gCx0;
 static UINT32  gCy0;
 static UINT32  gCx1;
 static UINT32  gCy1;
+/* 光标叠层绘制：DirtyUnion 改记光标矩形 */
+static int     gCursorOverlay;
 
 /* 单次 Present 条带行数：cli 下 memcpy 过久会饿死 xHCI poll/MSI */
 #define PRESENT_CHUNK_ROWS 64u
@@ -112,11 +114,23 @@ static void DirtyUnionInto(int *Dirty, UINT32 *Dx0, UINT32 *Dy0, UINT32 *Dx1,
 }
 
 static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    if (gCursorOverlay) {
+        DirtyUnionInto(&gCurDirty, &gCx0, &gCy0, &gCx1, &gCy1, X, Y, W, H);
+        return;
+    }
     DirtyUnionInto(&gDirty, &gDx0, &gDy0, &gDx1, &gDy1, X, Y, W, H);
 }
 
 static void DirtyUnionCursor(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     DirtyUnionInto(&gCurDirty, &gCx0, &gCy0, &gCx1, &gCy1, X, Y, W, H);
+}
+
+void VideoCursorOverlayBegin(void) {
+    gCursorOverlay = 1;
+}
+
+void VideoCursorOverlayEnd(void) {
+    gCursorOverlay = 0;
 }
 
 static UINT32 *DrawBase(void) {

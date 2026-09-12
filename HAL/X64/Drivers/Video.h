@@ -39,6 +39,9 @@ void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color);
 /* 忽略文字 clip，供光标等全屏叠层 */
 void VideoDrawPixelRaw(UINT32 X, UINT32 Y, UINT32 Color);
 void VideoXorPixelRaw(UINT32 X, UINT32 Y, UINT32 Mask);
+/* 光标叠层：后续 DrawPixelRaw/WriteRect 记入光标脏区（勿并进内容 AABB） */
+void VideoCursorOverlayBegin(void);
+void VideoCursorOverlayEnd(void);
 UINT32 VideoReadPixel(UINT32 X, UINT32 Y);
 void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color);
 void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
