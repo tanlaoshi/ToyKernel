@@ -80,6 +80,7 @@ UINT32 gMscPort;          /* PR-H-msc-4：claim 时根口（hub 子设备亦记 
 UINT32 gMscRoute;
 UINT8  gMscHubSlot;
 UINT8  gMscTtPort;
+UINT32 gMscProbeHubSlot;
 UINT32 gMscBulkInDci;
 UINT32 gMscBulkOutDci;
 UINT16 gMscBulkInMps;
@@ -2368,6 +2369,16 @@ int XhciMscClaimPorts(void) {
 
                 gMscScanSlot = 0;
                 BootLogHex("boot: msc claim hub on root=", P, 2);
+                /*
+                 * 已有 HID hub 时 ClaimHubOnRootPort 会 DisableSlot(Was)，
+                 * 正是外接第二 hub（U 盘所在）→ none + 长时间 Stall 像卡死。
+                 */
+                if (HubBefore != 0 && Was != 0 && Was != HubBefore) {
+                    if (ProbeSecondHubForMsc(Was, P, Speed)) {
+                        return 1;
+                    }
+                    continue;
+                }
                 if (ClaimHubOnRootPort(P, Speed, Was)) {
                     if (EnumHubChildrenForMsc()) {
                         return 1;

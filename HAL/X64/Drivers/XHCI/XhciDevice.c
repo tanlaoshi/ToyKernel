@@ -21,7 +21,11 @@ UINT16 SpeedMps(UINT8 Speed) {
  * hub Slot 仍 Hub=1 且鼠 epst=Running，但 TT 中断 IN 永不完成 → PHOTO m=0。
  */
 void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut) {
-    if (SlotId != 0 && SlotId == gHubSlotId) {
+    if (SlotId != 0 && SlotId == gMscProbeHubSlot) {
+        /* 第二 hub MSC probe：Address 时已用 msc EP0 环 */
+        *RingOut = gMscScanEp0Ring;
+        *StOut = &gMscScanEp0;
+    } else if (SlotId != 0 && SlotId == gHubSlotId) {
         *RingOut = gHubEp0Ring;
         *StOut = &gHubEp0;
     } else if (SlotId != 0 && SlotId == gMscScanSlot) {
@@ -164,6 +168,9 @@ void DisableSlot(UINT32 SlotId) {
     }
     if (gHubSlotId == SlotId) {
         gHubSlotId = 0;
+    }
+    if (gMscProbeHubSlot == SlotId) {
+        gMscProbeHubSlot = 0;
     }
     if (gMscScanSlot == SlotId) {
         gMscScanSlot = 0;

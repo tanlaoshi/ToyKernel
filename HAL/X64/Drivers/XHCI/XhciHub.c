@@ -442,6 +442,8 @@ int EnumHubChildrenForMsc(void) {
         MaxP = 8;
     }
     BootLog("boot: msc claim hub children\n");
+    BootLogHex("boot: msc claim hub slot=", gHubSlotId, 2);
+    BootLogHex("boot: msc claim hub nports=", MaxP, 2);
     for (Port = 1; Port <= MaxP; Port++) {
         UINT32 St = 0;
         UINT8 Speed;
@@ -450,9 +452,9 @@ int EnumHubChildrenForMsc(void) {
 
         (void)HubSetPortFeat(Port, HUB_FEAT_PORT_POWER);
         if (!HalCpuIsHypervisor()) {
-            StallMs(50);
+            StallMs(20);
         } else {
-            for (D = 0; D < 40000; D++) {
+            for (D = 0; D < 20000; D++) {
             }
         }
         if (HubGetPortStatus(Port, &St) < 0) {
@@ -498,6 +500,7 @@ int EnumHubChildrenForMsc(void) {
             }
         }
         if (!(St & HUB_PORT_ENABLE)) {
+            BootLogHex("boot: msc claim hub not en port=", Port, 2);
             continue;
         }
         Speed = HubPortSpeed(St);
@@ -525,6 +528,84 @@ int EnumHubChildrenForMsc(void) {
             return 1;
         }
     }
+    return 0;
+}
+
+/*
+ * HID 已占用 gHubSlotId 时，外接第二 hub（ExistingSlot）带 U 盘：
+ * 勿走 ClaimHubOnRootPort（会 DisableSlot 第二 hub）。临时切 gHub* 扫 MSC。
+ */
+int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed) {
+    UINT32 SavedSlot = gHubSlotId;
+    UINT32 SavedRoot = gHubRootPort;
+    UINT8 SavedPorts = gHubNumPorts;
+    UINT8 SavedSpeed = gHubSpeed;
+    UINT8 SavedMtt = gHubMtt;
+    UINT8 SavedTtt = gHubTtt;
+    UINT8 Nports = 4;
+    int Usb2Hub = (Speed < 4);
+    int Ok;
+
+    if (HubSlot == 0 || HubSlot == gHubSlotId) {
+        return EnumHubChildrenForMsc();
+    }
+
+    BootLogHex("boot: msc claim 2nd hub slot=", HubSlot, 2);
+    BootLogHex("boot: msc claim 2nd hub root=", RootPort, 2);
+
+    /* Ep0 走 msc 环，勿 InitRing(gHubEp0) 毁掉 HID hub dequeue */
+    gMscProbeHubSlot = HubSlot;
+    gHubSlotId = HubSlot;
+    gHubRootPort = RootPort;
+    gHubSpeed = Speed;
+    gXferSlot = HubSlot;
+    gEp0Mps = SpeedMps(Speed);
+    RecoverEp0(HubSlot);
+    HubNoteMttFromDevDesc(Speed);
+
+    if (!FinishHubSetup(&Nports)) {
+        BootLog("boot: msc claim 2nd hub cfg fail\n");
+        DisableSlot(HubSlot);
+        gMscProbeHubSlot = 0;
+        gHubSlotId = SavedSlot;
+        gHubRootPort = SavedRoot;
+        gHubNumPorts = SavedPorts;
+        gHubSpeed = SavedSpeed;
+        gHubMtt = SavedMtt;
+        gHubTtt = SavedTtt;
+        return 0;
+    }
+    if (Usb2Hub && !EvaluateHubSlot(HubSlot, RootPort, Speed, Nports)) {
+        BootLog("boot: msc claim 2nd hub eval skip\n");
+    }
+
+    Ok = EnumHubChildrenForMsc();
+    gMscProbeHubSlot = 0;
+
+    if (Ok) {
+        BootLog("boot: msc claim 2nd hub keep parent\n");
+        if (SavedSlot != 0) {
+            gHubSlotId = SavedSlot;
+            gHubRootPort = SavedRoot;
+            gHubNumPorts = SavedPorts;
+            gHubSpeed = SavedSpeed;
+            gHubMtt = SavedMtt;
+            gHubTtt = SavedTtt;
+        }
+        return 1;
+    }
+
+    BootLog("boot: msc claim 2nd hub no msc\n");
+    DisableSlot(HubSlot);
+    gHubSlotId = SavedSlot;
+    gHubRootPort = SavedRoot;
+    gHubNumPorts = SavedPorts;
+    gHubSpeed = SavedSpeed;
+    gHubMtt = SavedMtt;
+    gHubTtt = SavedTtt;
+    gMscRoute = 0;
+    gMscHubSlot = 0;
+    gMscTtPort = 0;
     return 0;
 }
 

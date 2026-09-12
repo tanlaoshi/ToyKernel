@@ -197,6 +197,8 @@ extern UINT32 gMscPort;
 extern UINT32 gMscRoute;
 extern UINT8 gMscHubSlot;
 extern UINT8 gMscTtPort;
+/* 临时第二根口 hub（MSC probe）：Ep0 走 gMscScanEp0Ring，勿抢 HID gHubEp0Ring */
+extern UINT32 gMscProbeHubSlot;
 extern UINT32 gMscBulkInDci;
 extern UINT32 gMscBulkOutDci;
 extern UINT16 gMscBulkInMps;
@@ -381,6 +383,12 @@ int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed);
 int EnumHubChildrenForKeyboard(void);
 int EnumHubChildrenForMouse(void);
 int EnumHubChildrenForMsc(void);
+/*
+ * 已有 HID hub 时：外接第二颗根口 hub（带 U 盘）勿 ClaimHubOnRootPort
+ * （其会 DisableSlot 掉 ExistingSlot）。临时切 gHub* 扫子口 MSC，成功则
+ * 保留第二 hub slot 作 gMscHubSlot 父；失败则 Disable 第二 hub 并恢复 HID hub。
+ */
+int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed);
 int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
 
 int InitMouseOnPort(UINT32 Port1);
