@@ -1,8 +1,8 @@
 /*
- * BlockMsc.c — USB MSC 经 Driver Block（PR-H-msc-1 空壳）
+ * BlockMsc.c — USB MSC 经 Driver Block（PR-H-msc）
  *
- * Bind 只登记，不安装 Mux（避免改写 Primary 后端）。
- * Probe 看 UsbMscReady()，本刀恒为 0。
+ * Bind 只登记，不自动 Install Mux（默认启动不认盘）。
+ * Shell `msc mount` → BlockMscBackend + BlockMuxInstallMsc + remount。
  */
 #include "Block.h"
 #include "Driver.h"
@@ -36,6 +36,10 @@ static const BLOCK_BACKEND gMscBackend = {
     .Flush = 0,
 };
 
+const BLOCK_BACKEND *BlockMscBackend(void) {
+    return &gMscBackend;
+}
+
 static int MscDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     (void)Self;
     (void)BusCtx;
@@ -50,9 +54,8 @@ static int MscDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
 
 static int MscDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    /* PR-H-msc-1/2：不 BlockMuxInstallMsc，保持 AHCI/NVMe 后端不变 */
-    DebugWrite("msc: PR-H-msc-1 scaffold (no mux)\n");
-    (void)gMscBackend;
+    /* PR-H-msc-6：仍不自动 Mux；显式 msc mount */
+    DebugWrite("msc: bound (mux on msc mount)\n");
     return 0;
 }
 

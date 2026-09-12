@@ -95,6 +95,7 @@ int XhciKeyboardSetLeds(UINT8 Leds);
  * PR-H-msc-3：XhciMscScanPorts — 非键鼠口读 class 后放弃（无 Force PR/SetConfig/BOT）。
  * PR-H-msc-4：XhciMscClaimPorts — 单口 SetConfig + Bulk；不 SCSI。
  * PR-H-msc-5：XhciMscCapacity — BOT INQUIRY + READ CAPACITY(10)。
+ * PR-H-msc-6：XhciMscReadSectors — BOT READ(10)。
  */
 int XhciMscBringUp(void); /* claim 后 0，否则 -1（仍会 Init Bulk 环） */
 int XhciMscReady(void);   /* claim 后 1 */
@@ -110,5 +111,7 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
 int XhciMscCapacity(void);
 UINT32 XhciMscBlockCount(void);
 UINT32 XhciMscBlockSize(void);
+/* PR-H-msc-6：BOT READ(10)；成功 1，失败 0（对齐其它 Block 后端） */
+int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 
 #endif

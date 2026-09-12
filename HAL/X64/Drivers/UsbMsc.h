@@ -5,6 +5,7 @@
  * PR-H-msc-3：UsbMscScan → 非键鼠口 class 日志后放弃。
  * PR-H-msc-4：UsbMscClaim → 单口 SetConfig + Bulk；不 SCSI。
  * PR-H-msc-5：UsbMscCapacity → INQUIRY + READ CAPACITY(10)。
+ * PR-H-msc-6：UsbMscReadSectors → BOT READ(10)；写仍失败。
  */
 #ifndef USB_MSC_H
 #define USB_MSC_H

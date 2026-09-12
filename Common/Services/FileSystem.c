@@ -605,6 +605,11 @@ static int MountAllVolumes(void) {
     return 1;
 }
 
+/* PR-H-msc-6：Block 后端变更后重挂（不自动认盘） */
+int FileSystemRemountVolumes(void) {
+    return MountAllVolumes();
+}
+
 int FileSystemInit(void) {
     VFS_SERVICE_OPS Svc;
 

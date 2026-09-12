@@ -2037,6 +2037,66 @@ UINT32 XhciMscBlockSize(void) {
     return gMscCapacityOk ? gMscBlockSize : 0;
 }
 
+/*
+ * PR-H-msc-6：BOT READ(10)。仅支持 512B 逻辑块（与 BLOCK_SECTOR_SIZE 对齐）。
+ * 成功 1；失败 0。
+ */
+int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
+    UINT8 *Ptr = (UINT8 *)Buffer;
+    UINT32 Done = 0;
+    UINT32 Bsz;
+
+    if (!Buffer || Count == 0) {
+        return 0;
+    }
+    if (!gMscClaimed || gMscScanSlot == 0) {
+        return 0;
+    }
+    if (!gMscCapacityOk) {
+        if (XhciMscCapacity() != 0) {
+            return 0;
+        }
+    }
+    Bsz = gMscBlockSize;
+    if (Bsz != 512u) {
+        BootLogHex("boot: msc read bad bsize=", Bsz, 8);
+        return 0;
+    }
+    if (Lba >= gMscBlockCount) {
+        return 0;
+    }
+    if (Count > gMscBlockCount - Lba) {
+        Count = gMscBlockCount - Lba;
+    }
+
+    while (Done < Count) {
+        UINT8 Cdb[16];
+        UINT32 Chunk = Count - Done;
+        UINT32 Bytes;
+        UINT32 CurLba = Lba + Done;
+
+        /* 单次 BOT 数据 ≤ 4KiB，减轻 Bulk 超时 */
+        if (Chunk > 8u) {
+            Chunk = 8u;
+        }
+        Bytes = Chunk * Bsz;
+        ZeroMemory(Cdb, sizeof(Cdb));
+        Cdb[0] = 0x28; /* READ(10) */
+        Cdb[2] = (UINT8)(CurLba >> 24);
+        Cdb[3] = (UINT8)(CurLba >> 16);
+        Cdb[4] = (UINT8)(CurLba >> 8);
+        Cdb[5] = (UINT8)(CurLba);
+        Cdb[7] = (UINT8)(Chunk >> 8);
+        Cdb[8] = (UINT8)(Chunk);
+        if (MscBot(Cdb, 10, Bytes, 1, Ptr + (Done * Bsz)) < 0) {
+            BootLogHex("boot: msc read10 fail lba=", CurLba, 8);
+            return 0;
+        }
+        Done += Chunk;
+    }
+    return 1;
+}
+
 /* 配置描述符中找 MSC Bulk IN/OUT（偏好 BOT；允许 UASP；兜底任一对 Bulk） */
 static int ParseMscBulk(UINT8 *Cfg, UINT16 Total, UINT8 *OutIface,
                        UINT8 *EpIn, UINT16 *MpsIn, UINT8 *EpOut, UINT16 *MpsOut) {

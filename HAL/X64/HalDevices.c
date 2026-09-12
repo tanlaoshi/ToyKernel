@@ -11,12 +11,15 @@
 #include "InputPs2.h"
 #include "Net.h"
 #include "UsbMsc.h"
+#include "BlockMux.h"
+#include "Block.h"
 
 /* BlockAta / BlockAhci（H1）/ BlockNvme（H5） */
 void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
-void MscDriverRegister(void); /* PR-H-msc：空壳注册；认盘在后续 PR */
+void MscDriverRegister(void); /* PR-H-msc：Bind 不自动 Mux */
+const BLOCK_BACKEND *BlockMscBackend(void);
 void E1000DriverRegister(void);
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -63,6 +66,33 @@ UINT32 HalUsbMscBlockCount(void) {
 
 UINT32 HalUsbMscBlockSize(void) {
     return UsbMscBlockSize();
+}
+
+/*
+ * PR-H-msc-6：已 claim 后安装 Mux 并重 Probe。
+ * 成功 0；-1 未 claim；-2 capacity/bsize；-3 无盘。
+ * 调用方再 FileSystemRemountVolumes（不自动挂）。
+ */
+int HalUsbMscMount(void) {
+    int N;
+
+    if (!UsbMscReady()) {
+        return -1;
+    }
+    if (UsbMscBlockCount() == 0) {
+        if (UsbMscCapacity() != 0) {
+            return -2;
+        }
+    }
+    if (UsbMscBlockSize() != 512u) {
+        return -2;
+    }
+    BlockMuxInstallMsc(BlockMscBackend());
+    N = HalBlockInit();
+    if (N <= 0) {
+        return -3;
+    }
+    return 0;
 }
 
 void HalInputArmIrq(void) {

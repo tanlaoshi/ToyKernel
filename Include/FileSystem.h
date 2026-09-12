@@ -14,6 +14,8 @@
 #define FS_VOL_NAME_MAX 8
 
 int FileSystemInit(void);
+/* PR-H-msc-6：重新扫描 Block 盘并挂 FAT（Shell msc mount） */
+int FileSystemRemountVolumes(void);
 
 /* 卷数；下标 0..Count-1 */
 int FileSystemVolCount(void);
