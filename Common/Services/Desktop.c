@@ -1177,12 +1177,15 @@ void DesktopTickClock(void) {
     } else if (!gClockValid) {
         return;
     }
-    HalVideoDrawBeginFront();
+    /*
+     * 勿 BeginFront：UI scale≠100 时逻辑坐标直写物理 GOP →
+     * 屏幕中部出现「更细」假任务栏，鼠标 Present 像橡皮擦掉。
+     * 走后缓冲 + Present（含缩放）与桌面其它绘制一致。
+     */
     DrawTaskbarRaw();
     if (gMenuOpen) {
         DrawStartMenuRaw();
     }
-    HalVideoDrawEndFront();
     HalVideoPresent();
 }
 

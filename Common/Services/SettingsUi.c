@@ -98,6 +98,63 @@ static int FocusSettingsWindow(void) {
     return 0;
 }
 
+static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B);
+
+/*
+ * Settings「Now」：物理分辨率（GOP 真值）。UI scale 只改逻辑坐标，
+ * 4K+200% 时逻辑常为 1920x1080，不能当成「当前显示器模式」。
+ */
+static void FormatNowDisplay(char *Out, UINTN Max) {
+    UINT32 PhysW = 0;
+    UINT32 PhysH = 0;
+    UINT32 LogW = 0;
+    UINT32 LogH = 0;
+    UINT32 Sc;
+    UINTN N = 0;
+
+    if (Max == 0) {
+        return;
+    }
+    HalVideoGetPhysicalSize(&PhysW, &PhysH);
+    HalVideoGetSize(&LogW, &LogH);
+    if (PhysW == 0 || PhysH == 0) {
+        PhysW = LogW;
+        PhysH = LogH;
+    }
+    Out[0] = 'N';
+    Out[1] = 'o';
+    Out[2] = 'w';
+    Out[3] = ' ';
+    FormatUxU(Out + 4, Max > 4 ? Max - 4 : 0, PhysW, PhysH);
+    while (Out[N]) {
+        N++;
+    }
+    Sc = ThemeUiScale();
+    if (N + 12 < Max) {
+        Out[N++] = ' ';
+        Out[N++] = 's';
+        Out[N++] = 'c';
+        Out[N++] = 'a';
+        Out[N++] = 'l';
+        Out[N++] = 'e';
+        Out[N++] = '=';
+        if (Sc >= 100) {
+            Out[N++] = (char)('0' + (Sc / 100) % 10);
+        }
+        Out[N++] = (char)('0' + (Sc / 10) % 10);
+        Out[N++] = (char)('0' + (Sc % 10));
+        Out[N++] = '%';
+        Out[N] = 0;
+    }
+    if (Sc != 100 && (LogW != PhysW || LogH != PhysH) && N + 16 < Max) {
+        Out[N++] = ' ';
+        Out[N++] = 'U';
+        Out[N++] = 'I';
+        Out[N++] = ' ';
+        FormatUxU(Out + N, Max - N, LogW, LogH);
+    }
+}
+
 static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {
     UINTN N = 0;
     char Tmp[8];
@@ -249,7 +306,6 @@ static void PaintMenu(void) {
     Y += 4;
 
     if (gPage == SETTINGS_PAGE_MAIN) {
-        HalVideoGetSize(&NowW, &NowH);
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_MAIN), COLOR_BLACK);
         Y += 2;
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DESKTOP_BG), 0, 1);
@@ -258,36 +314,7 @@ static void PaintMenu(void) {
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DISPLAY), 0, 4);
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANGUAGE), 0, 5);
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_SCALE), 0, 6);
-        Line[0] = 'N';
-        Line[1] = 'o';
-        Line[2] = 'w';
-        Line[3] = ' ';
-        FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
-        {
-            UINTN N = 0;
-            while (Line[N]) {
-                N++;
-            }
-            if (N + 12 < sizeof(Line)) {
-                Line[N++] = ' ';
-                Line[N++] = 's';
-                Line[N++] = 'c';
-                Line[N++] = 'a';
-                Line[N++] = 'l';
-                Line[N++] = 'e';
-                Line[N++] = '=';
-                {
-                    UINT32 Sc = ThemeUiScale();
-                    if (Sc >= 100) {
-                        Line[N++] = (char)('0' + (Sc / 100) % 10);
-                    }
-                    Line[N++] = (char)('0' + (Sc / 10) % 10);
-                    Line[N++] = (char)('0' + (Sc % 10));
-                    Line[N++] = '%';
-                    Line[N] = 0;
-                }
-            }
-        }
+        FormatNowDisplay(Line, sizeof(Line));
         if (ThemeHasDisplayPref()) {
             UINTN N = 0;
             while (Line[N]) {
@@ -360,7 +387,10 @@ static void PaintMenu(void) {
         HasPref = ThemeHasDisplayPref();
         PrefW = ThemeDisplayWidth();
         PrefH = ThemeDisplayHeight();
-        HalVideoGetSize(&NowW, &NowH);
+        HalVideoGetPhysicalSize(&NowW, &NowH);
+        if (NowW == 0 || NowH == 0) {
+            HalVideoGetSize(&NowW, &NowH);
+        }
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DISPLAY), COLOR_BLACK);
         Y += 2;
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, "Auto", !HasPref, 1);
@@ -368,11 +398,7 @@ static void PaintMenu(void) {
             int Mark = HasPref && gModes[i].W == PrefW && gModes[i].H == PrefH;
             DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, gModes[i].Label, Mark, 2 + i);
         }
-        Line[0] = 'N';
-        Line[1] = 'o';
-        Line[2] = 'w';
-        Line[3] = ' ';
-        FormatUxU(Line + 4, sizeof(Line) - 4, NowW, NowH);
+        FormatNowDisplay(Line, sizeof(Line));
         DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
         if (HasPref && (PrefW != NowW || PrefH != NowH)) {
             /* VM：Guest reboot 不改 QEMU edid；真机：Boot 忽略 THEME.CFG mode= */

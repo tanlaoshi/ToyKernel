@@ -824,21 +824,12 @@ void GuiOnDisplayResize(void) {
     }
 
     DesktopOnDisplayResize();
-    GuiRedraw();
-    /* 热切持锁时勿重画 Settings：避免半成品 hit 与解锁后误点 */
-    if (!GuiInputLocked()) {
-        if (GuiFocusKind() == GUI_WIN_SETTINGS) {
-            SettingsUiRepaint();
-        } else if (GuiFocusKind() == GUI_WIN_STORE) {
-            StoreUiRepaint();
-        } else if (GuiFocusKind() == GUI_WIN_FILES) {
-            FilesUiRepaint();
-        } else if (GuiFocusKind() == GUI_WIN_EDIT) {
-            EditUiRepaint();
-        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
-            GuiConsoleOpsPaintShellWindow(GuiFocusIndex());
-        }
-    }
+    /*
+     * 必须全窗合成（含客户区）。勿仅 GuiRedraw 画 chrome：
+     * Settings 改 scale 时常持 GuiInputLock，旧逻辑会跳过内容重绘 →
+     * 其它窗用户区空白。Compose 不受 lock 影响（lock 只挡点击）。
+     */
+    GuiComposeThemeScene();
     DebugWrite("gui: display resize ");
     DebugHex32(gScreenWidth);
     DebugWrite("x");
