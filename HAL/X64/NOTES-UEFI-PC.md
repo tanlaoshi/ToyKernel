@@ -128,7 +128,8 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - 验收：`msc claim` 直插 / 外接 hub 后 `ready=1`；键鼠仍可用
 - **msc-5** ✅ TG 2026-09-13：Shell `msc capacity` — BOT INQUIRY + READ CAPACITY(10)；串口 blocks/bsize；**不**分区/FAT；NUC 外接 hub claim+capacity ok
 - **msc-6** ✅ `40e0a89`：`msc mount` = Mux + RemountVolumes；仅 512B；启动仍不自动挂
-- **下一刀**：PR-H-msc-7（可选自动挂；见路线图 ★）
+- **msc-7a** ✅ `6260e01`：`usb` 在 `file-system` 前；不 auto
+- **下一刀**：**msc-7b**（Live 默认 FS 前 auto；文件浏览器 TOYOS；`msc=0` 可关；见路线图 ★）
 
 ### H4：真机网卡范例（e1000）
 
