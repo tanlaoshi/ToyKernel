@@ -77,7 +77,11 @@ void XhciDrainEvents(void) {
 
     /* PR-H-xhci-irq：有 IRQ 证据才维持轻量 Drain；停滞则回 poll */
     if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
-        if (gStatIrq != sLastIrq) {
+        if (gXhciCmdWaiting) {
+            /* WaitCommand 自己在吃事件环，IRQ 计数不涨属正常，勿 fallback */
+            sIrqStall = 0;
+            Passes = 1;
+        } else if (gStatIrq != sLastIrq) {
             sLastIrq = gStatIrq;
             sIrqStall = 0;
         } else if (++sIrqStall > 200000u) {

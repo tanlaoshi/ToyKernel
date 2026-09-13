@@ -287,6 +287,7 @@ extern volatile UINT32 gCmdDone;
 extern UINT32 gCmdCode;
 extern UINT32 gCmdSlot;
 extern UINT32 gXhciCmdSick;
+extern UINT32 gXhciCmdWaiting; /* WaitCommand 中：禁 irq-stall fallback */
 extern volatile UINT32 gXferDone;
 extern UINT32 gXferCode;
 extern UINT32 gXferRemain;

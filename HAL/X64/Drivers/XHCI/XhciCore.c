@@ -186,6 +186,7 @@ volatile UINT32 gCmdDone;
 UINT32 gCmdCode;
 UINT32 gCmdSlot;
 UINT32 gXhciCmdSick; /* 命令环超时未恢复：禁再发命令 */
+UINT32 gXhciCmdWaiting; /* 1：WaitCommand 中，Drain 勿判 irq-stall */
 volatile UINT32 gXferDone;
 UINT32 gXferCode;
 UINT32 gXferRemain;
@@ -701,13 +702,16 @@ void ServiceHidCompletions(void);
 int WaitCommand(int Timeout) {
     if (!HalCpuIsHypervisor()) {
         UINT64 T0 = ReadTsc();
-        UINT64 Need = 300ULL * 3000000ULL; /* ~300ms */
+        /* Force PR 后 EnableSlot 真机可 >300ms；过短会误超时→CA→HID 伤 */
+        UINT64 Need = 800ULL * 3000000ULL; /* ~800ms */
         UINT64 Mid = Need / 2;
         (void)Timeout;
+        gXhciCmdWaiting = 1;
         while (ReadTsc() - T0 < Need) {
             ProcessEventsRealPc();
             ServiceHidCompletions();
             if (gCmdDone) {
+                gXhciCmdWaiting = 0;
                 return (gCmdCode == CC_SUCCESS) ? 0 : -1;
             }
             if ((ReadTsc() - T0) >= Mid) {
@@ -716,6 +720,7 @@ int WaitCommand(int Timeout) {
             }
             __asm__ volatile ("pause");
         }
+        gXhciCmdWaiting = 0;
         return -1;
     }
     while (Timeout--) {
@@ -872,6 +877,8 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
 
     for (Attempt = 0; Attempt < 2; Attempt++) {
         gCmdDone = 0;
+        gCmdCode = 0;
+        gCmdSlot = 0;
         Enqueue(gCmdRingLive, &gCmd, Param, 0, Control | TRB_IOC);
         RingDoorbell(0, 0);
         Fence();
@@ -896,6 +903,13 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
 
         DiagChk(Name, 0, "event+cc=1", RealPc ? ReadMmio32(gOperationalBase + 4) : 0, 8);
         RecoverCommandRing();
+        /* CA 后重武装键鼠中断，避免 Recover 吞掉完成却未再投递 */
+        if (gSlotId != 0 && gIntrDci != 0) {
+            QueueIntr();
+        }
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+            QueueMouseIntr();
+        }
         if (Attempt == 0) {
             BootLog("xhci retry after cmd recover\n");
         }
@@ -2398,6 +2412,7 @@ int XhciMscScanPorts(void) {
  */
 int XhciMscClaimPorts(void) {
     UINT32 P;
+    int Ok = 0;
 
     if (!gXhciStarted || gOperationalBase == 0 || gMaxPorts == 0) {
         BootLog("boot: msc claim no hc\n");
@@ -2409,11 +2424,20 @@ int XhciMscClaimPorts(void) {
     }
 
     BootLog("boot: msc claim begin\n");
-    /* 上次 Address 超时留下的 sick 会让本轮 EnableSlot 全秒败 */
+    /*
+     * 12:40 成功：Force !PED 0x05 → EnableSlot（可需 Recover 重试）→ hub → MSC。
+     * soft-fail 会留下挂起 TRB → irq-stall；恢复为正常 CA+重试，并重武装 HID。
+     */
     if (gXhciCmdSick) {
         BootLog("boot: msc claim recover cmd sick\n");
         RecoverCommandRing();
         gXhciCmdSick = 0;
+        if (gSlotId != 0 && gIntrDci != 0) {
+            QueueIntr();
+        }
+        if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+            QueueMouseIntr();
+        }
     }
     (void)XhciMscBringUp();
 
@@ -2430,9 +2454,10 @@ int XhciMscClaimPorts(void) {
     gMscBlockCount = 0;
     gMscBlockSize = 0;
 
-    /* 键盘已走 hub：先扫子口找 MSC，勿跳过整颗 hub 根口 */
+    /* 键盘/鼠已走 hub：先扫子口找 MSC（与 U 盘同 hub 时） */
     if (gHubSlotId != 0 && EnumHubChildrenForMsc()) {
-        return 1;
+        Ok = 1;
+        goto done;
     }
 
     for (P = 1; P <= gMaxPorts && P <= 32u; P++) {
@@ -2457,28 +2482,20 @@ int XhciMscClaimPorts(void) {
         }
 
         /*
-         * !PED → Force PR。已 PED 的 SS 口（NUC 0x11）直接 Address 易命令超时→sick，
-         * 本轮先跳过；需要时下轮再 Force（gPortNeedForcePr）。
-         * FS/HS 无 PED 的 hub/U 盘口照常 Force（与「hub 上 claim ok」路径一致）。
+         * 只 Force/Address 尚无 PED 的口（NUC 外接 hub 0x05/0x08 典型 PORTSC）。
+         * 已 PED（含陈旧 SS 0x11）一律跳过——Address 超时曾弄死命令环/鼠标。
          */
-        Force = 0;
-        if (!(Ps & PORTSC_PED)) {
-            Force = 1;
-        } else if (gPortNeedForcePr & (1u << P)) {
-            Force = 1;
-        } else if (PortSpeed(Ps) >= 4) {
-            BootLogHex("boot: msc claim skip stale SS PED port=", P, 2);
-            gPortNeedForcePr |= (1u << P);
+        if (Ps & PORTSC_PED) {
+            BootLogHex("boot: msc claim skip PED port=", P, 2);
             continue;
         }
-        BootLogHex(Force ? "boot: msc claim reset force port="
-                         : "boot: msc claim reset port=",
-                   P, 2);
+        Force = 1;
+        BootLogHex("boot: msc claim reset force port=", P, 2);
         if (!ResetPortEx(P, Force)) {
             BootLogHex("boot: msc claim reset fail port=", P, 2);
             continue;
         }
-        if (Force && !HalCpuIsHypervisor()) {
+        if (!HalCpuIsHypervisor()) {
             StallMs(100);
         }
         Ps = ReadMmio32(gOperationalBase + PortReg(P));
@@ -2496,31 +2513,14 @@ int XhciMscClaimPorts(void) {
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
         }
-        if (!AddrOk && !Force && (gCmdCode == 4 || gCmdCode == 0x11)) {
-            BootLogHex("boot: msc claim addr retry force port=", P, 2);
-            gPortNeedForcePr |= (1u << P);
-            if (ResetPortEx(P, 1)) {
-                if (!HalCpuIsHypervisor()) {
-                    StallMs(100);
-                }
-                Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
-                AddrOk = AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx,
-                                             0, 0, 0, 0, 0);
-                if (!AddrOk && gMscScanSlot != 0) {
-                    DisableSlot(gMscScanSlot);
-                    gMscScanSlot = 0;
-                }
-            }
-        }
         gDiagQuiet = QuietSave;
         if (!AddrOk) {
             BootLogHex("boot: msc claim addr fail port=", P, 2);
             BootLogHex("boot: msc claim addr cc=", gCmdCode, 2);
             gPortNeedForcePr |= (1u << P);
             if (gXhciCmdSick) {
-                BootLog("boot: msc claim cmd sick, recover+continue\n");
-                RecoverCommandRing();
-                gXhciCmdSick = 0;
+                BootLog("boot: msc claim abort (cmd sick)\n");
+                break;
             }
             continue;
         }
@@ -2582,13 +2582,15 @@ int XhciMscClaimPorts(void) {
                  */
                 if (HubBefore != 0 && Was != 0 && Was != HubBefore) {
                     if (ProbeSecondHubForMsc(Was, P, Speed)) {
-                        return 1;
+                        Ok = 1;
+                        goto done;
                     }
                     continue;
                 }
                 if (ClaimHubOnRootPort(P, Speed, Was)) {
                     if (EnumHubChildrenForMsc()) {
-                        return 1;
+                        Ok = 1;
+                        goto done;
                     }
                     /* HID 未占用此 hub：无 MSC 则放掉，试其它根口 */
                     if (HubBefore == 0 && gHubSlotId != 0 && gHubRootPort == P) {
@@ -2606,10 +2608,19 @@ int XhciMscClaimPorts(void) {
 
         /* FinishClaim 会再 GetDeviceDesc；描述已在 gCtrlBuf，直接走配置 */
         if (XhciMscFinishClaim(P, Speed)) {
-            return 1;
+            Ok = 1;
+            goto done;
         }
     }
 
     BootLog("boot: msc claim none\n");
-    return 0;
+
+done:
+    if (gSlotId != 0 && gIntrDci != 0) {
+        QueueIntr();
+    }
+    if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+        QueueMouseIntr();
+    }
+    return Ok;
 }
