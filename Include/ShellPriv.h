@@ -8,5 +8,8 @@
 
 void ShellCmdUsbRegister(void);
 void ShellCmdNetRegister(void);
+void ShellCmdSystemRegister(void);
+void ShellCmdSystemRegisterVirtMin(void);
+void ShellCmdFsUiRegister(void);
 
 #endif
