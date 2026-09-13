@@ -6,11 +6,9 @@
  *   2) COM1 TX：Probe 到才 SerialWrite；没有则不碰 UART
  *   3) COM1 RX→Shell 保留（CoolTerm）；Tasks 每轮限量读，勿抽干堵死 USB
  *   4) GOP：Mute 期间禁止一切帧缓冲写（含 BootMark）；进调度前关镜像
+ *   5) 开机屏：单视口上滚（勿整页清屏）；只画 BOOT 关键行（类 Ubuntu）
  *
- * 「插串口才能打字」真因（非 UART 叫醒）：
- *   有 COM1 → BootMark/Write 只走串口，xHCI 枚举期零帧缓冲 I/O；
- *   无 COM1 → 旧逻辑仍 BootMark 直写 front / Write→Present，与 poll/DMA 打架
- *   → PHOTO k=0。Mute 必须同时挡住 BootMark。
+ * xHCI 枚举期 Mute 必须挡住 BootMark/Present，避免与 poll/DMA 打架。
  */
 #include "HalSerial.h"
 #include "HalVideo.h"
@@ -54,15 +52,36 @@ static UINT32 BootLogBodyY(UINT32 LineH) {
     return BOOT_LOG_TITLE_Y + LineH + 8;
 }
 
-static void BootLogClearBody(UINT32 W, UINT32 H, UINT32 LineH) {
+/* 屏上只留 BOOT 通道（[mod]、关键 boot:）；SMP/MEM/USB 细日志留 ring/串口 */
+static int ChannelGopOn(int Channel) {
+    return Channel == TOY_SLOG_BOOT;
+}
+
+/*
+ * Ubuntu 式上滚：body 整体上移一行，底行清空；保留顶栏标题。
+ * 真机 boot 直写 front，勿 Present。
+ */
+static void BootLogScrollUp(UINT32 W, UINT32 H, UINT32 LineH) {
     UINT32 BodyY = BootLogBodyY(LineH);
+    UINT32 Bottom;
+    UINT32 Height;
+
     if (W == 0) {
         W = 1024;
     }
-    if (H > BodyY) {
-        HalVideoFillRect(0, BodyY, W, H - BodyY, 0x00000000u);
+    if (H <= BodyY + LineH + BOOT_LOG_MARGIN) {
+        return;
     }
-    gBootLogY = BodyY;
+    Bottom = H - BOOT_LOG_MARGIN;
+    if (Bottom <= BodyY + LineH) {
+        return;
+    }
+    Height = Bottom - BodyY - LineH;
+    HalVideoDrawBeginFront();
+    HalVideoCopyRect(0, BodyY + LineH, 0, BodyY, W, Height);
+    HalVideoFillRect(0, Bottom - LineH, W, LineH, 0x00000000u);
+    HalVideoDrawEndFront();
+    gBootLogY = Bottom - LineH;
 }
 
 static void RingAppend(const char *Text) {
@@ -94,8 +113,7 @@ static void GopBannerOnce(void) {
     LineH = BootLogLineH();
     HalVideoClearClip();
     HalVideoFillRect(0, 0, W, BootLogBodyY(LineH), 0x00000000u);
-    HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y,
-                         "ToyOS on-screen boot log", 0x00FFFF00u);
+    HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y, "ToyOS boot", 0x00FFFF00u);
     gBootLogY = BootLogBodyY(LineH);
     gLineLen = 0;
     gGopBanner = 1;
@@ -121,19 +139,18 @@ static void GopFlushLine(void) {
     if (H == 0) {
         H = 768;
     }
-    /* 整行字形必须在 Limit 之上；宁可提前卷屏也不出半截字 */
+    /* 整行字形必须在 Limit 之上；满则上滚一行，勿整页清黑 */
     Limit = (H > LineH + BOOT_LOG_MARGIN) ? (H - LineH - BOOT_LOG_MARGIN) : BootLogBodyY(LineH);
     if (gBootLogY > Limit) {
         if (gGopBatch || gPhotoHold) {
-            /* 拍照/读秒：停笔，保留已画白字（勿 ClearBody） */
+            /* 拍照/读秒：停笔，保留已画白字 */
             gLineLen = 0;
             return;
         }
-        BootLogClearBody(W, H, LineH);
-        /* 勿 Present：无 COM 镜像路径上 Present 与真机 xHCI 打架 */
+        BootLogScrollUp(W, H, LineH);
     }
     /*
-     * 无 COM1 的 boot 镜像：直写 front，禁止 Present。
+     * boot 镜像：直写 front，禁止 Present。
      * Present/后缓冲 blit 曾与真机 xHCI poll 互斥 →「拔串口键盘死」。
      */
     HalVideoDrawBeginFront();
@@ -185,7 +202,7 @@ void HalSerialInit(void) {
 #endif
     } else {
         SerialWrite("boot: COM1 serial ok\n");
-        RingAppend("boot: COM1 ok (also on-screen log)\n");
+        RingAppend("boot: COM1 ok\n");
     }
 }
 
@@ -198,12 +215,11 @@ void HalSerialGopEnable(void) {
     gGopBanner = 0;
     gBootLogY = BOOT_LOG_TITLE_Y + 24;
     gLineLen = 0;
-    if (gRingLen > 0) {
-        gRing[gRingLen] = '\0';
-        GopWrite(gRing);
-    } else {
-        GopBannerOnce();
-    }
+    /*
+     * 勿把整段 ring（SMP hello / MEM 细节）一次性刷屏——会翻多「页」。
+     * 只起横幅；之后 BOOT 通道与 BootMark 单视口上滚。
+     */
+    GopBannerOnce();
 }
 
 const char *HalSerialLogText(void) {
@@ -243,21 +259,25 @@ static int ChannelUartOn(int Channel) {
 #endif
 }
 
+static void GopMirrorLine(const char *Text) {
+    if (!Text || !gGopMirror || !gVideoUp || gGopMute || gPhotoHold) {
+        return;
+    }
+    GopWrite(Text);
+}
+
 void HalSerialWriteChannel(int Channel, const char *Text) {
     if (!Text) {
         return;
     }
-    /* ring 始终收（PHOTO / Desktop）；UART / 无 COM 镜像受通道约束 */
+    /* ring 始终收（PHOTO / Desktop） */
     RingAppend(Text);
-    if (SerialPresent()) {
-        if (ChannelUartOn(Channel)) {
-            SerialWrite(Text);
-        }
-        return;
+    if (SerialPresent() && ChannelUartOn(Channel)) {
+        SerialWrite(Text);
     }
-    if (ChannelUartOn(Channel) && gGopMirror && gVideoUp && !gGopMute &&
-        !gPhotoHold) {
-        GopWrite(Text);
+    /* 屏：仅 BOOT；有无 COM1 都画（Mute 期除外） */
+    if (ChannelGopOn(Channel)) {
+        GopMirrorLine(Text);
     }
 }
 
@@ -290,26 +310,19 @@ void HalSerialGopMute(int Mute) {
 }
 
 /*
- * 真机 boot 进度：ring 始终；UART 受通道；无 COM 且未 Mute 时并入同一路
- * 白字滚动 boot log（勿再单独黄字盖顶行，避免蓝/灰/黑多段日志感）。
+ * 真机 boot 进度：ring 始终；UART 受通道；屏上并入同路上滚 boot log。
+ * USB BootMark（键鼠里程碑）也上屏；细日志应走 ToyLogUsb 不上屏。
  */
 void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (!Text) {
         return;
     }
     RingAppend(Text);
-    if (SerialPresent()) {
-        if (ChannelUartOn(Channel)) {
-            SerialWrite(Text);
-        }
-        return;
+    if (SerialPresent() && ChannelUartOn(Channel)) {
+        SerialWrite(Text);
     }
-    /* Mute/PHOTO：与「有串口」同形——不上屏，等 PHOTO 刷 ring */
-    if (!gVideoUp || gPhotoHold || gGopMute) {
-        return;
-    }
-    if (gGopMirror) {
-        GopWrite(Text);
+    if (Channel == TOY_SLOG_BOOT || Channel == TOY_SLOG_USB) {
+        GopMirrorLine(Text);
     }
 }
 
@@ -425,7 +438,7 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     }
 
     /*
-     * 必须 Mute：44b1633 在 PHOTO 中 Present/后缓冲 blit 会与真机 xHCI poll
+     * 必须 Mute：PHOTO 中 Present/后缓冲 blit 会与真机 xHCI poll
      * 打架 → k= 一直为 0。无串口时改为直写 front（BeginFront），不 Present。
      */
     gPhotoHold = 1;

@@ -160,11 +160,7 @@ void SmpApEntry(void) {
     /* AP 验证用慢定时器，避免 QEMU 下高频 IRQ 拖死启动路径 */
     *(volatile UINT32 *)(UINTN)(LAPIC_BASE + 0x380) = 5000000u;
 
-    SmpLog("smp: hello cpu=");
-    SmpLogHex32(Logical);
-    SmpLog(" apic=");
-    SmpLogHex32(Id);
-    SmpLog("\n");
+    (void)Id; /* 每核 hello 刷屏；汇总见 APs started */
     gApHelloCount++;
     __asm__ volatile ("" ::: "memory");
     Param->Ready = SMP_READY_MAGIC;
@@ -373,14 +369,7 @@ int HalSmpStartApplicationProcessors(void) {
             DelayLoops(20000);
         }
     }
-    SmpLog("smp: ticks");
-    for (i = 0; i < gCpuCount && i < HAL_MAX_CPUS; i++) {
-        SmpLog(" cpu");
-        SmpLogHex32((UINT32)i);
-        SmpLog("=");
-        SmpLogHex64(gCpuTicks[i]);
-    }
-    SmpLog("\n");
+    /* 逐核 ticks 过长；需要时再开 SERIAL_SMP 细查 */
     if (Started == 0 && Count > 1) {
         SmpLog("smp: continue single-CPU (AP failed)\n");
     }
