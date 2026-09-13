@@ -16,6 +16,16 @@ void XhciIrq(void) {
     int RealPc = !HalCpuIsHypervisor();
 
     gStatIrq++;
+    /*
+     * WaitCommand 独占事件环：并发 ProcessEvents 会弄乱 CCS/ERDP，
+     * EnableSlot 完成事件被吃掉 → done=0 → CA → cmd sick → 鼠假死。
+     */
+    if (gXhciCmdWaiting) {
+        if (gRuntimeBase != 0) {
+            ImClearPending();
+        }
+        return;
+    }
     SpinLockAcquire(&gHidQueueLock);
     if (RealPc) {
         ProcessEventsRealPc();
@@ -75,13 +85,15 @@ void XhciDrainEvents(void) {
 
     gStatDrain++;
 
+    /* WaitCommand 独占事件环；勿与 Drain 并发 ProcessEvents（CCS 竞态） */
+    if (gXhciCmdWaiting) {
+        sIrqStall = 0;
+        return;
+    }
+
     /* PR-H-xhci-irq：有 IRQ 证据才维持轻量 Drain；停滞则回 poll */
     if (gIrqMode == XHCI_IRQ_MODE_IRQ) {
-        if (gXhciCmdWaiting) {
-            /* WaitCommand 自己在吃事件环，IRQ 计数不涨属正常，勿 fallback */
-            sIrqStall = 0;
-            Passes = 1;
-        } else if (gStatIrq != sLastIrq) {
+        if (gStatIrq != sLastIrq) {
             sLastIrq = gStatIrq;
             sIrqStall = 0;
         } else if (++sIrqStall > 200000u) {
