@@ -309,6 +309,7 @@ int WaitClear(UINT64 Addr, UINT32 Mask, int Timeout);
 int WaitSet(UINT64 Addr, UINT32 Mask, int Timeout);
 int WaitSetMs(UINT64 Addr, UINT32 Mask, UINT32 Ms);
 int WaitClearMs(UINT64 Addr, UINT32 Mask, UINT32 Ms);
+int MapXhciDma(UINT64 Phys, UINTN Bytes);
 
 void InitRing(XHCI_TRB *Ring, RING_STATE *St, UINT32 Size);
 void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status, UINT32 Control);
