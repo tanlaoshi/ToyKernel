@@ -39,6 +39,29 @@ static void CommandNet(int Argc, char **Argv) {
     ConsoleWrite(IpBuf);
     ConsoleWrite("/24 gw 10.0.2.2 (QEMU user)\n");
     {
+        int Up = 0;
+        UINT32 Mbps = 0;
+        int Fd = 0;
+
+        if (HalNetGetLinkInfo(&Up, &Mbps, &Fd)) {
+            ConsoleWrite("link ");
+            ConsoleWrite(Up ? "up" : "down");
+            if (Up) {
+                if (Mbps == 1000u) {
+                    ConsoleWrite(" 1000");
+                } else if (Mbps == 100u) {
+                    ConsoleWrite(" 100");
+                } else if (Mbps == 10u) {
+                    ConsoleWrite(" 10");
+                } else {
+                    ConsoleWrite(" ?");
+                }
+                ConsoleWrite(Fd ? "/FD" : "/HD");
+            }
+            ConsoleWrite("\n");
+        }
+    }
+    {
         UINT32 TxDone = 0;
         UINT32 RxFrames = 0;
         HalNetGetStats(&TxDone, &RxFrames);

@@ -142,6 +142,13 @@ void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
     ToyDriverNetGetStats(TxDone, RxFrames);
 }
 
+int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
+    (void)Up;
+    (void)Mbps;
+    (void)FullDuplex;
+    return 0;
+}
+
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
     return ToyDriverNetSendIp(DstIp, Proto, Payload, PayloadLen);
 }

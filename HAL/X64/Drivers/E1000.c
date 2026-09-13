@@ -45,7 +45,10 @@
 #define E1000_CTRL_SLU        (1u << 6)
 #define E1000_CTRL_RST        (1u << 26)
 
+#define E1000_STATUS_FD       (1u << 0)  /* Full Duplex */
 #define E1000_STATUS_LU       (1u << 1)
+#define E1000_STATUS_SPEED_SHIFT 6
+#define E1000_STATUS_SPEED_MASK  (3u << E1000_STATUS_SPEED_SHIFT)
 
 #define E1000_EERD_START      (1u << 0)
 #define E1000_EERD_DONE       (1u << 1)
@@ -342,6 +345,47 @@ int E1000Ready(void) {
 
 void E1000GetMac(UINT8 Mac[6]) {
     CopyMemory(Mac, gMac, 6);
+}
+
+/*
+ * PR-H4e-2：读 STATUS 链路/速度/双工（8254x / 82574 编码一致）。
+ * 成功 0；未就绪 -1。Mbps=0 表示未知。
+ */
+int E1000GetLink(int *UpOut, UINT32 *MbpsOut, int *FullDuplexOut) {
+    UINT32 St;
+    UINT32 Sp;
+    UINT32 Mbps = 0;
+
+    if (!gReady || !gBar) {
+        return -1;
+    }
+    St = MmioR32(E1000_REG_STATUS);
+    Sp = (St & E1000_STATUS_SPEED_MASK) >> E1000_STATUS_SPEED_SHIFT;
+    if (Sp == 0u) {
+        Mbps = 10;
+    } else if (Sp == 1u) {
+        Mbps = 100;
+    } else if (Sp == 2u) {
+        Mbps = 1000;
+    }
+    if (UpOut) {
+        *UpOut = (St & E1000_STATUS_LU) ? 1 : 0;
+    }
+    if (MbpsOut) {
+        *MbpsOut = Mbps;
+    }
+    if (FullDuplexOut) {
+        *FullDuplexOut = (St & E1000_STATUS_FD) ? 1 : 0;
+    }
+    return 0;
+}
+
+/* 82574 → "e1000e"；其它 → "e1000" */
+const char *E1000ChipName(void) {
+    if (gPciDid == E1000_DID_82574L) {
+        return "e1000e";
+    }
+    return "e1000";
 }
 
 int E1000Setup(void) {

@@ -11,6 +11,7 @@
 #include "InputPs2.h"
 #include "Net.h"
 #include "UsbMsc.h"
+#include "E1000.h"
 
 /* BlockAta / BlockAhci（H1）/ BlockNvme（H5） */
 void AtaDriverRegister(void);
@@ -151,6 +152,17 @@ int HalNetPing(const char *Host, int TimeoutMs) {
 
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
     ToyDriverNetGetStats(TxDone, RxFrames);
+}
+
+/* PR-H4e-2：仅 e1000/e1000e；virtio 返回 0（Shell 可省略链路行） */
+int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
+    if (!E1000Ready()) {
+        return 0;
+    }
+    if (E1000GetLink(Up, Mbps, FullDuplex) != 0) {
+        return 0;
+    }
+    return 1;
 }
 
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {

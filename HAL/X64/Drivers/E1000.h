@@ -12,6 +12,9 @@
 int E1000Setup(void);
 int E1000Ready(void);
 void E1000GetMac(UINT8 Mac[6]);
+/* PR-H4e-2：STATUS 链路；成功 0 */
+int E1000GetLink(int *UpOut, UINT32 *MbpsOut, int *FullDuplexOut);
+const char *E1000ChipName(void);
 int E1000SendFrame(const UINT8 *Frame, UINTN Len);
 /* 轮询 RX；每帧回调 NetInputFrame（由 Net.c 导出） */
 void E1000Poll(void);

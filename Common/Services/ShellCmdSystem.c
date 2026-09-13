@@ -309,6 +309,27 @@ static void CommandLsdev(int Argc, char **Argv) {
         ConsoleWrite(Inst->Driver->Name);
         ConsoleWrite("  ");
         ConsoleWrite(DriverClassName(Inst->Driver->Class));
+        /* PR-H4e-2：net + e1000* 时附链路 */
+        if (Inst->Driver->Class == TOY_DRIVER_CLASS_NET) {
+            int Up = 0;
+            UINT32 Mbps = 0;
+            int Fd = 0;
+
+            if (HalNetGetLinkInfo(&Up, &Mbps, &Fd)) {
+                ConsoleWrite("  link=");
+                ConsoleWrite(Up ? "up" : "down");
+                if (Up) {
+                    if (Mbps == 1000u) {
+                        ConsoleWrite(" 1000");
+                    } else if (Mbps == 100u) {
+                        ConsoleWrite(" 100");
+                    } else if (Mbps == 10u) {
+                        ConsoleWrite(" 10");
+                    }
+                    ConsoleWrite(Fd ? "/FD" : "/HD");
+                }
+            }
+        }
         ConsoleWrite("\n");
     }
 }
