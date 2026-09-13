@@ -689,12 +689,9 @@ int XhciMscClaimPorts(void) {
 
     BootLog("boot: msc claim begin\n");
     /*
-     * claim 前退回 poll：irq 模式下 Drain/XhciIrq 与 WaitCommand 抢事件环，
-     * Force PR 后 EnableSlot 完成易丢失 → cmd sick。
+     * excl-3：不再 FallbackToPoll("msc-claim")。
+     * 事件环由 excl-1/2 单消费者 + 消费锁串行；claim 保持 dual/irq。
      */
-    if (gIrqMode != XHCI_IRQ_MODE_POLL) {
-        XhciFallbackToPoll("msc-claim");
-    }
     /*
      * 12:40 成功：Force !PED 0x05 → EnableSlot（可需 Recover 重试）→ hub → MSC。
      * soft-fail 会留下挂起 TRB → irq-stall；恢复为正常 CA+重试，并重武装 HID。

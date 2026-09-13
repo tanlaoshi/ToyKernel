@@ -79,15 +79,27 @@ void XhciDrainEvents(void) {
             sLastIrq = gStatIrq;
             sIrqStall = 0;
         } else if (++sIrqStall > 200000u) {
-            sIrqStall = 0;
-            XhciFallbackToPoll("irq-stall");
-            /* Fallback 已 Drain；下面按 POLL 再走一轮无妨 */
+            /*
+             * Drain×1 常清 IP → q 可不涨，但仍在 ProcessEvents。
+             * 环仍前进则复位计数，避免 excl-3 真机误 fallback irq-stall。
+             */
+            static UINT32 sLastEvt;
+            if (gStatEvtRing != sLastEvt) {
+                sLastEvt = gStatEvtRing;
+                sIrqStall = 0;
+            } else {
+                sIrqStall = 0;
+                XhciFallbackToPoll("irq-stall");
+            }
         } else {
             Passes = 1; /* 减 poll */
         }
     } else if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
-        /* q 涨起来后再升 IRQ（懒升；真机 q=0 永留 dual） */
-        if (gStatIrq >= 3u && gUseIrq) {
+        /*
+         * 懒升 IRQ：仅 QEMU。真机永留 dual（Drain×32 backup）；
+         * 归档 PR-H-xhci-irq：真机 q 再大也不升，否则易误 irq-stall。
+         */
+        if (HalCpuIsHypervisor() && gStatIrq >= 3u && gUseIrq) {
             gIrqMode = XHCI_IRQ_MODE_IRQ;
             sLastIrq = gStatIrq;
             sIrqStall = 0;
