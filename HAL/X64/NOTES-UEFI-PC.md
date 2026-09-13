@@ -141,8 +141,15 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - 课堂：`TOY_NET=e1000 ./smoke-boot.sh` → `boot: e1000`；默认 virtio 不回归
 - **无卡不挡桌面**；`lsdev` 见 `e1000`
 - **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
-- **下一刀**：**H4e-2**（链路/速度可读）
+- **H4e-2/3** 暂缓（路线图优先 **evt-excl** 单消费者）
 - **未做**：Realtek、无线、MSI（→ H4e-3）
+
+### H-xhci-evt-excl：事件环单消费者（进行中）
+
+- 细则：[`../../Documents/XHCI事件环单消费者.md`](../../Documents/XHCI事件环单消费者.md)
+- **excl-1** ✅ TG：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
+- **excl-2** ← JX：`gEvtConsumerLock` + ProcessEventsLocked
+- 目标 excl-3：claim 保持 dual；NUC 必测
 
 **机型笔记**（贡献者追加一行即可）：
 
