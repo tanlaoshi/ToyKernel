@@ -198,7 +198,7 @@ cd ../ToyImage && ./smoke-boot.sh
 
 ## 七、与其它柱关系
 
-- **H4e-2…** 暂缓，本柱优先。  
+- **H4e** 已可续：H4e-2 本地；H4e-3←JX（勿与 xHCI 同 PR）。  
 - **msc-6…8** 已 TG；本柱只改 claim 时 xHCI 模式让步，**不改**挂载语义。  
 - 搬家约束见 [`大文件拆分.md`](大文件拆分.md) / [`XHCI拆分2.md`](XHCI拆分2.md)：本柱**不**搬 BSS。
 
