@@ -130,7 +130,9 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **msc-6** ✅ `40e0a89`：`msc mount` = Mux + RemountVolumes；仅 512B；启动仍不自动挂
 - **msc-7a** ✅ `6260e01`：`usb` 在 `file-system` 前；不 auto
 - **msc-7b** ✅ `4e8e0ee`：FS 前 Live 默认 auto；`THEME msc=0` / `MSC.OFF` 关；无盘 soft-fail
-- **下一刀**：**msc-8**（QEMU usb-storage smoke；见路线图 ★）
+- **msc-8** ✅ `5145e47`：`TOY_USB_MSC=1` / `./smoke-msc.sh`；QEMU 可 claim 已 PED；真机仍跳过陈旧 PED
+- **课堂**：`cd ToyImage && ./smoke-msc.sh` → `boot: msc auto mux ok`
+- **里程碑 tag**：`v1.0.0-nuc-live`（NUC Live：桌面 + TOYOS）；下一刀见路线图缺口
 
 ### H4：真机网卡范例（e1000）
 
