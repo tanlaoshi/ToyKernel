@@ -327,7 +327,12 @@ int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
 UINT8 *InSlot(void);
 UINT8 *InEp(UINT32 Dci);
 
+void TakeLegacy(void);
+void HaltControllerQuiet(void);
 int ResetController(void);
+int HaltOnly(void);
+void BootMarkRs(char Kind, char Stage);
+int StartController(UINT32 MaxSlots);
 int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut);
 void RecoverCommandRing(void);
 int WaitCommand(int Timeout);
