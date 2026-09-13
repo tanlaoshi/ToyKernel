@@ -2409,6 +2409,12 @@ int XhciMscClaimPorts(void) {
     }
 
     BootLog("boot: msc claim begin\n");
+    /* 上次 Address 超时留下的 sick 会让本轮 EnableSlot 全秒败 */
+    if (gXhciCmdSick) {
+        BootLog("boot: msc claim recover cmd sick\n");
+        RecoverCommandRing();
+        gXhciCmdSick = 0;
+    }
     (void)XhciMscBringUp();
 
     if (gMscScanSlot != 0) {
@@ -2451,16 +2457,28 @@ int XhciMscClaimPorts(void) {
         }
 
         /*
-         * 真机：陈旧 PED 上直接 Address 会命令超时（NUC 0x11）→ irq-stall。
-         * MSC 根口认领一律 Force PR，再 Address。
+         * !PED → Force PR。已 PED 的 SS 口（NUC 0x11）直接 Address 易命令超时→sick，
+         * 本轮先跳过；需要时下轮再 Force（gPortNeedForcePr）。
+         * FS/HS 无 PED 的 hub/U 盘口照常 Force（与「hub 上 claim ok」路径一致）。
          */
-        Force = 1;
-        BootLogHex("boot: msc claim reset force port=", P, 2);
+        Force = 0;
+        if (!(Ps & PORTSC_PED)) {
+            Force = 1;
+        } else if (gPortNeedForcePr & (1u << P)) {
+            Force = 1;
+        } else if (PortSpeed(Ps) >= 4) {
+            BootLogHex("boot: msc claim skip stale SS PED port=", P, 2);
+            gPortNeedForcePr |= (1u << P);
+            continue;
+        }
+        BootLogHex(Force ? "boot: msc claim reset force port="
+                         : "boot: msc claim reset port=",
+                   P, 2);
         if (!ResetPortEx(P, Force)) {
             BootLogHex("boot: msc claim reset fail port=", P, 2);
             continue;
         }
-        if (!HalCpuIsHypervisor()) {
+        if (Force && !HalCpuIsHypervisor()) {
             StallMs(100);
         }
         Ps = ReadMmio32(gOperationalBase + PortReg(P));
@@ -2478,14 +2496,31 @@ int XhciMscClaimPorts(void) {
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
         }
+        if (!AddrOk && !Force && (gCmdCode == 4 || gCmdCode == 0x11)) {
+            BootLogHex("boot: msc claim addr retry force port=", P, 2);
+            gPortNeedForcePr |= (1u << P);
+            if (ResetPortEx(P, 1)) {
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(100);
+                }
+                Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
+                AddrOk = AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx,
+                                             0, 0, 0, 0, 0);
+                if (!AddrOk && gMscScanSlot != 0) {
+                    DisableSlot(gMscScanSlot);
+                    gMscScanSlot = 0;
+                }
+            }
+        }
         gDiagQuiet = QuietSave;
         if (!AddrOk) {
             BootLogHex("boot: msc claim addr fail port=", P, 2);
             BootLogHex("boot: msc claim addr cc=", gCmdCode, 2);
             gPortNeedForcePr |= (1u << P);
             if (gXhciCmdSick) {
-                BootLog("boot: msc claim abort (cmd sick)\n");
-                break;
+                BootLog("boot: msc claim cmd sick, recover+continue\n");
+                RecoverCommandRing();
+                gXhciCmdSick = 0;
             }
             continue;
         }
