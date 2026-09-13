@@ -147,7 +147,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 ### H-xhci-evt-excl：事件环单消费者（进行中）
 
 - 细则：[`../../Documents/XHCI事件环单消费者.md`](../../Documents/XHCI事件环单消费者.md)
-- **excl-1** ✅ TG：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
+- **excl-1** ✅ TG `7c28c51`：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
 - **excl-2** ← JX：`gEvtConsumerLock` + ProcessEventsLocked
 - 目标 excl-3：claim 保持 dual；NUC 必测
 
