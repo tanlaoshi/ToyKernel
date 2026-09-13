@@ -65,7 +65,7 @@ void HalInputInitMouseDeferred(void);
 /* PHOTO→桌面：清空鼠队列并对齐累加坐标 */
 void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 void HalInputPoll(void);
-/* PHOTO：t=任意xfer i=键鼠匹配 k/m推送 u未匹配 s=slot.ep c完成码 r环事件 d=Drain */
+/* PHOTO：t=任意xfer i=键鼠匹配 k/m推送 u未匹配 s=slot.ep c完成码 r环事件 d=Drain q=IRQ x=独占跳过 */
 void HalInputDiagFormat(char *Buf, int Max);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);

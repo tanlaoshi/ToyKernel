@@ -1,6 +1,7 @@
 /*
  * XhciCommand.c — PR-H-xhci-core-split-3：Command / Recover / WaitCommand
  * PR-H-xhci-evt-excl-1：门铃与等待同属独占窗
+ * PR-H-xhci-evt-excl-4：Recover 全程独占；sick 前再 Recover 清挂起 TRB
  */
 #include "XHCI/XhciInternal.h"
 
@@ -52,6 +53,7 @@ int WaitCommand(int Timeout) {
 
 /*
  * 命令超时恢复：CA 中止命令环，排空事件，再同步 enqueue。
+ * excl-4：CA→排空→重建 全程独占（含 WaitClearMs，避免 StallMs 抢环）。
  * 私有环可 InitRing；固件环只按 CRCR dequeue 重解析，勿盲目清环/切软环。
  */
 void RecoverCommandRing(void) {
@@ -68,6 +70,11 @@ void RecoverCommandRing(void) {
     ToyBootMarkUsb("boot: xhci cmd recover\n");
     BootLog("boot: xhci command timeout, recovering...\n");
 
+    if (!XhciEventIsExclusive()) {
+        XhciEventEnterExclusive();
+        Own = 1;
+    }
+
     Cr = ReadMmio64(gOperationalBase + 0x18);
     Ptr = Cr & ~0x3FULL;
     Rcs = (UINT32)(Cr & 1u);
@@ -81,15 +88,9 @@ void RecoverCommandRing(void) {
         }
     }
 
-    if (!XhciEventIsExclusive()) {
-        XhciEventEnterExclusive();
-        Own = 1;
-    }
     for (i = 0; i < 64; i++) {
         ProcessEvents();
-    }
-    if (Own) {
-        XhciEventLeaveExclusive();
+        ServiceHidCompletions();
     }
 
     Cr = ReadMmio64(gOperationalBase + 0x18);
@@ -122,7 +123,13 @@ void RecoverCommandRing(void) {
     }
 
     gCmdDone = 0;
+    gCmdCode = 0;
+    /* 勿把未完成的命令完成误当成下一笔 */
     ToyBootMarkUsb("boot: xhci cmd ring recovered\n");
+
+    if (Own) {
+        XhciEventLeaveExclusive();
+    }
 }
 
 /* 提交一条命令 TRB 并等待完成；超时则 CA 恢复并重试一次 */
@@ -179,6 +186,17 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
         }
     }
     DiagChkStr(Name, 0, "ok after retry", "fail");
+    /*
+     * excl-4：第二次仍超时 → 再 Recover 一次，勿把挂起命令 TRB 留在环上
+     *（曾致 irq-stall / 鼠假死），然后再标 sick。
+     */
+    RecoverCommandRing();
+    if (gSlotId != 0 && gIntrDci != 0) {
+        QueueIntr();
+    }
+    if (gMouseSlotId != 0 && gMouseIntrDci != 0) {
+        QueueMouseIntr();
+    }
     gXhciCmdSick = 1;
     BootLog("boot: xhci cmd sick (timeout)\n");
     return -1;

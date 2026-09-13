@@ -885,8 +885,8 @@ int XhciMscClaimPorts(void) {
 
 done:
     /*
-     * EnableSlot 超时 → cmd sick + 挂起 TRB → irq-stall 鼠标假死。
-     * 与 split 前 b6b98d9 一致：Recover + 清 sick + poll fallback + 重武装 HID。
+     * EnableSlot 超时 → cmd sick。excl-4：Command() 标 sick 前已 Recover+重武装 HID。
+     * 此处再 Recover 清 sick，并 poll fallback（硬失败兜底；非 msc-claim 路径）。
      */
     if (gXhciCmdSick) {
         BootLog("boot: msc claim recover after sick\n");

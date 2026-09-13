@@ -79,7 +79,7 @@ void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 /* dual/irq 失败时切回 poll 备份 */
 void XhciFallbackToPoll(const char *Why);
 XHCI_IRQ_MODE XhciIrqMode(void);
-void XhciDiagFormat(char *Buf, int Max); /* PHOTO/Shell：mode= + t/i/k/m/u/s/c/r/d/q */
+void XhciDiagFormat(char *Buf, int Max); /* PHOTO/Shell：mode= + t/i/k/m/u/s/c/r/d/q/x */
 void XhciDiagLogArms(void);              /* slot/DCI 期望值 */
 void XhciIrq(void);
 void XhciDrainEvents(void);

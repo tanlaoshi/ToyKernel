@@ -10,7 +10,7 @@
 
 /* PR-H-xhci-stat：Shell 可查 mode= + t/i/k/m…（与 PHOTO 同行格式） */
 static void CommandXhci(int Argc, char **Argv) {
-    char Diag[120];
+    char Diag[144];
 
     (void)Argc;
     (void)Argv;

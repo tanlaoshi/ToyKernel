@@ -159,9 +159,9 @@ void BootLog(const char *Text) {
 void XhciDiagFormat(char *Buf, int Max) {
     char Dig[12];
     int N = 0;
-    UINT32 V[9];
+    UINT32 V[10];
     int vi;
-    const char *Tags = "tikmucrdq";
+    const char *Tags = "tikmucrdqx"; /* x=独占窗跳过 IRQ（excl-4） */
     const char *Mode;
 
     if (!Buf || Max < 8) {
@@ -186,8 +186,9 @@ void XhciDiagFormat(char *Buf, int Max) {
     V[6] = gStatEvtRing;
     V[7] = gStatDrain;
     V[8] = gStatIrq;
+    V[9] = gStatIrqSkipped;
     Buf[N] = 0;
-    for (vi = 0; vi < 9 && N + 14 < Max; vi++) {
+    for (vi = 0; vi < 10 && N + 14 < Max; vi++) {
         int t = 0;
         UINT32 X = V[vi];
         /* c 与 se 之间插入 se=；c 在 Tags[5] */
