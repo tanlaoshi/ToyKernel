@@ -1,5 +1,5 @@
 /*
- * Console.c — 简易命令行 Shell
+ * Console.c — 简易命令行 Shell（行缓冲见 ConsoleScroll.c）
  *
  * 维护输入行缓冲与命令表，解析空格分隔参数后分发给 Handler。
  * 内置 help / clear / echo；其他模块通过 ConsoleRegister / Register2 扩展。
@@ -9,6 +9,7 @@
  * 由本文件配合 Gui 做 clip/备份同步）；不直接调用 HalSerial/HalVideo。
  */
 #include "Console.h"
+#include "ConsolePriv.h"
 #include "UI.h"
 #include "Hal.h"
 #include "Gui.h"
@@ -29,10 +30,6 @@
 #define USER_ALIAS_MAX 16
 #define USER_ALIAS_NAME 20
 #define USER_ALIAS_WORD 16
-/* PR-I2 补：Shell 行缓冲滚动（替代破坏性像素平移） */
-#define SB_LINES 64
-#define SB_COLS  120
-
 typedef struct {
     const char *Name;
     const char *Help;
@@ -72,14 +69,6 @@ static int gWaitPrompt;
 static int gPromptSuspend;
 static int gAtLineStart = 1;
 
-/* 已完成行环形缓冲；gViewOff>0 表示向上查看历史 */
-static char gSb[SB_LINES][SB_COLS];
-static int gSbCount;
-static int gSbNext;
-static int gViewOff;
-static char gAcc[SB_COLS];
-static int gAccLen;
-
 /* 比较两个 C 字符串是否相等 */
 static int StrEq(const char *A, const char *B) {
     while (*A && *B) {
@@ -92,167 +81,8 @@ static int StrEq(const char *A, const char *B) {
     return *A == *B;
 }
 
-static void ConsoleDrawString(const char *Text, UINT32 Color);
-static void ConsoleDrawChar(char C, UINT32 Color);
-
-static void ConsoleSbReset(void) {
-    gSbCount = 0;
-    gSbNext = 0;
-    gViewOff = 0;
-    gAccLen = 0;
-    gAcc[0] = 0;
-}
-
-static void ConsoleSbPushLine(void) {
-    int i;
-
-    for (i = 0; i < SB_COLS - 1 && i < gAccLen; i++) {
-        gSb[gSbNext][i] = gAcc[i];
-    }
-    gSb[gSbNext][i] = 0;
-    gSbNext = (gSbNext + 1) % SB_LINES;
-    if (gSbCount < SB_LINES) {
-        gSbCount++;
-    }
-    gAccLen = 0;
-    gAcc[0] = 0;
-}
-
-static void ConsoleSbFeedChar(char C) {
-    if (C == '\n') {
-        ConsoleSbPushLine();
-        return;
-    }
-    if (C < 32 || C == 127) {
-        return;
-    }
-    if (gAccLen + 1 >= SB_COLS) {
-        ConsoleSbPushLine();
-    }
-    if (gAccLen + 1 < SB_COLS) {
-        gAcc[gAccLen++] = C;
-        gAcc[gAccLen] = 0;
-    }
-}
-
-static void ConsoleSbFeed(const char *Text) {
-    if (!Text) {
-        return;
-    }
-    while (*Text) {
-        ConsoleSbFeedChar(*Text++);
-    }
-}
-
-static void ConsoleSbBackspace(void) {
-    if (gAccLen > 0) {
-        gAccLen--;
-        gAcc[gAccLen] = 0;
-    }
-}
-
-static const char *ConsoleSbLine(int OldestIndex) {
-    int Idx;
-
-    if (OldestIndex < 0 || OldestIndex >= gSbCount) {
-        return "";
-    }
-    Idx = gSbNext - gSbCount + OldestIndex;
-    while (Idx < 0) {
-        Idx += SB_LINES;
-    }
-    Idx %= SB_LINES;
-    return gSb[Idx];
-}
-
-static void ConsoleSbPaint(void) {
-    UINT32 Cx;
-    UINT32 Cy;
-    UINT32 Cw;
-    UINT32 Ch;
-    UINT32 Bg;
-    UINT32 LineH;
-    int Vis;
-    int Start;
-    int End;
-    int i;
-
-    if (!GuiShellAcceptsInput()) {
-        return;
-    }
-    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Ch == 0) {
-        return;
-    }
-    LineH = FontAdvanceY();
-    if (LineH < 8) {
-        LineH = 16;
-    }
-    Vis = (int)(Ch / LineH);
-    if (Vis < 1) {
-        Vis = 1;
-    }
-
-    GuiFocusClearClient();
-    GuiFocusHome();
-
-    End = gSbCount - gViewOff;
-    if (End < 0) {
-        End = 0;
-    }
-    if (End > gSbCount) {
-        End = gSbCount;
-    }
-    Start = End - Vis;
-    if (gViewOff == 0 && gAccLen > 0) {
-        /* 末行留给当前未完成行 */
-        Start = End - (Vis - 1);
-    }
-    if (Start < 0) {
-        Start = 0;
-    }
-
-    for (i = Start; i < End; i++) {
-        const char *L = ConsoleSbLine(i);
-        /* 历史行里的提示符也保持青色 */
-        if (L[0] == 't' && L[1] == 'o' && L[2] == 'y' && L[3] == 'o' &&
-            L[4] == 's' && L[5] == '>' && L[6] == ' ') {
-            ConsoleDrawString("toyos> ", COLOR_CYAN);
-            if (L[7]) {
-                ConsoleDrawString(L + 7, COLOR_WHITE);
-            }
-        } else {
-            ConsoleDrawString(L, COLOR_WHITE);
-        }
-        ConsoleDrawString("\n", COLOR_WHITE);
-    }
-    if (gViewOff == 0 && gAccLen > 0) {
-        if (gAcc[0] == 't' && gAcc[1] == 'o' && gAcc[2] == 'y' && gAcc[3] == 'o' &&
-            gAcc[4] == 's' && gAcc[5] == '>' && gAcc[6] == ' ') {
-            ConsoleDrawString("toyos> ", COLOR_CYAN);
-            if (gAcc[7]) {
-                ConsoleDrawString(gAcc + 7, COLOR_WHITE);
-            }
-        } else {
-            ConsoleDrawString(gAcc, COLOR_WHITE);
-        }
-    }
-
-    GuiFocusSave();
-    HalVideoClearClip();
-    GuiBackupFocusWindow();
-}
-
-/* 若正在看历史，先回到底部再继续输出/输入 */
-static void ConsoleSbEnsureLive(void) {
-    if (gViewOff == 0) {
-        return;
-    }
-    gViewOff = 0;
-    ConsoleSbPaint();
-}
-
 /* 帧缓冲绘制：先擦掉光标 → 写字 → 再画回光标 */
-static void ConsoleDrawString(const char *Text, UINT32 Color) {
+void ConsoleDrawString(const char *Text, UINT32 Color) {
     UINT32 X0;
     UINT32 Y0;
     UINT32 X1;
@@ -308,7 +138,7 @@ static void ConsoleDrawString(const char *Text, UINT32 Color) {
     GuiFrameBufferEnd();
 }
 
-static void ConsoleDrawChar(char C, UINT32 Color) {
+void ConsoleDrawChar(char C, UINT32 Color) {
     UINT32 X;
     UINT32 Y;
 
@@ -1195,54 +1025,6 @@ void ConsoleOnShellOpened(void) {
         return;
     }
     ConsolePaintShellWindow(GuiFocusIndex());
-}
-
-void ConsoleOnWheel(INT8 Wheel) {
-    UINT32 Cx;
-    UINT32 Cy;
-    UINT32 Cw;
-    UINT32 Ch;
-    UINT32 Bg;
-    UINT32 LineH;
-    int Vis;
-    int MaxOff;
-    int Next;
-
-    if (Wheel == 0 || !GuiShellAcceptsInput()) {
-        return;
-    }
-    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Cw == 0 || Ch == 0) {
-        return;
-    }
-    LineH = FontAdvanceY();
-    if (LineH < 8) {
-        LineH = 16;
-    }
-    Vis = (int)(Ch / LineH);
-    if (Vis < 1) {
-        Vis = 1;
-    }
-    /* 正滚轮 = 看更早的行 → 增大 gViewOff */
-    MaxOff = gSbCount - Vis;
-    if (gAccLen > 0 && MaxOff > 0) {
-        /* 留一行给当前输入时，历史上限略紧 */
-        MaxOff = gSbCount - (Vis - 1);
-    }
-    if (MaxOff < 0) {
-        MaxOff = 0;
-    }
-    Next = gViewOff + (int)Wheel;
-    if (Next < 0) {
-        Next = 0;
-    }
-    if (Next > MaxOff) {
-        Next = MaxOff;
-    }
-    if (Next == gViewOff) {
-        return;
-    }
-    gViewOff = Next;
-    ConsoleSbPaint();
 }
 
 /* PR-G8：主题合成时按窗下标画 Shell，不要求当前可输入/未遮挡 */
