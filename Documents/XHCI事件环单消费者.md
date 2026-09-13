@@ -170,9 +170,14 @@ cd ../ToyImage && TOY_USB_MSC=1 ./smoke-msc.sh
 
 ---
 
-### （可选）PR-H-xhci-evt-excl-4
+### （可选）PR-H-xhci-evt-excl-4（✅ TG a01c351）
 
-Recover 全程独占；sick 不留挂起 TRB；PHOTO 展示 skipped 计数。诱导 recover 后无 irq-stall。
+**已做**：
+- `RecoverCommandRing`：CA→排空→重建 **全程** `EnterExclusive`（含 WaitClearMs）。
+- `Command` 二次超时标 sick **前**再 Recover + 重武装 HID（不留挂起命令 TRB）。
+- PHOTO / `show xhci`：计数增加 **`x=`** = `gStatIrqSkipped`。
+
+**回归**：`smoke-boot` + `TOY_USB_MSC=1 smoke-msc`；`show xhci` 可见 `x=`。
 
 ---
 
@@ -206,4 +211,4 @@ cd ../ToyImage && ./smoke-boot.sh
 | 1 | **excl-1** | 独占 API + 门铃同窗 + 全 Wait* + 守门；保留 claim→poll | ✅ TG `7c28c51` |
 | 2 | **excl-2** | `gEvtConsumerLock` + ProcessEventsLocked | ✅ TG `e982dd6` |
 | 3 | **excl-3** | 去掉 `fallback msc-claim`；真机永留 dual | ✅ TG `c26117c` |
-| 4 | excl-4 | Recover/sick/PHOTO（可选） | ⬜ |
+| 4 | excl-4 | Recover/sick/PHOTO `x=`（可选） | ✅ TG a01c351 |
