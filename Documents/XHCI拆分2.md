@@ -74,8 +74,8 @@ HAL/X64/Drivers/XHCI/
 | 2 | **PR-H-xhci-core-split-2** | `XhciRing.c`：Init/Enqueue/Doorbell/Dcbaa/`ResolveFwCmdRing` | 不搬 `ProcessEvents*`；不搬环缓冲全局 | 同上 | ✅ `4f4df06` |
 | 3 | **PR-H-xhci-core-split-3** | `XhciCommand.c`：`Command` / `Recover` / `WaitCommand` | 不改 Wait 独占事件环语义 | 同上；claim 路径勿回归 | ✅ `f771367` |
 | 4 | **PR-H-xhci-core-split-4** | `XhciTransfer.c`：`WaitTransfer` / `ServiceHidCompletions` | 不搬 xfer 全局 | 键鼠 IN | ✅ `5ab4c18` |
-| 5 | **PR-H-xhci-core-split-5** | `XhciController.c`：Reset/Halt/Start/TakeLegacy/BootMarkRs | **不**抽 `XhciInit` | QEMU + 建议 NUC 键鼠 | ⬜ ← **JX** |
-| 6 | **PR-H-xhci-core-split-6** | `XhciKeyboard.c` + `SetupHidDevice`→`XhciDevice.c` | 不搬 kbd 队列全局 | QEMU + NUC 键鼠 | ⬜ |
+| 5 | **PR-H-xhci-core-split-5** | `XhciController.c`：Reset/Halt/Start/TakeLegacy/BootMarkRs | **不**抽 `XhciInit` | QEMU + 建议 NUC 键鼠 | ✅ `8456d0a` |
+| 6 | **PR-H-xhci-core-split-6** | `XhciKeyboard.c` + `SetupHidDevice`→`XhciDevice.c` | 不搬 kbd 队列全局 | QEMU + NUC 键鼠 | ⬜ ← **JX** |
 
 **本柱完成后** → 路线图 ★ 回到 **PR-H-msc-6**。
 
@@ -115,3 +115,5 @@ HAL/X64/Drivers/XHCI/
 | 2026-09-13 | TG：xhci-core-split-3 → ToyImage Kernel sync |
 | 2026-09-13 | **PR-H-xhci-core-split-4**：`5ab4c18` — `XhciTransfer.c`；`XhciCore.c` ~1083；build+smoke 过 |
 | 2026-09-13 | TG：xhci-core-split-4 → ToyImage Kernel sync |
+| 2026-09-13 | **PR-H-xhci-core-split-5**：`8456d0a` — `XhciController.c`；`XhciCore.c` ~795；build+smoke 过 |
+| 2026-09-13 | TG：xhci-core-split-5 → ToyImage Kernel sync |
