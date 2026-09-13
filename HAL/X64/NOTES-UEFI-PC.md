@@ -140,7 +140,9 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - PCI 8086:100E 等；TX/RX ring 轮询；无中断
 - 课堂：`TOY_NET=e1000 ./smoke-boot.sh` → `boot: e1000`；默认 virtio 不回归
 - **无卡不挡桌面**；`lsdev` 见 `e1000`
-- **未做**：Realtek、无线、MSI
+- **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
+- **下一刀**：**H4e-2**（链路/速度可读）
+- **未做**：Realtek、无线、MSI（→ H4e-3）
 
 **机型笔记**（贡献者追加一行即可）：
 
