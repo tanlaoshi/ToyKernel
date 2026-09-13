@@ -1,8 +1,8 @@
 /*
- * E1000.c — 最小 Intel e1000 轮询驱动（PR-H4）
+ * E1000.c — Intel e1000 / e1000e 轮询驱动（PR-H4 + PR-H4e-1）
  *
- * QEMU: -device e1000,netdev=n0
- * 同步 TX + RX ring；无中断。无卡时 Setup 失败，不挡桌面。
+ * QEMU: -device e1000 | -device e1000e
+ * 同步 TX + RX ring；无中断 / 无 MSI。无卡或无链路时 Setup 失败，不挡桌面。
  */
 #include "E1000.h"
 #include "PCIe.h"
@@ -15,6 +15,9 @@
 #include "ToySerialLog.h"
 
 #define E1000_VENDOR          0x8086u
+#define E1000_DID_82540EM     0x100Eu /* QEMU -device e1000 */
+#define E1000_DID_82574L      0x10D3u /* QEMU -device e1000e */
+
 #define E1000_REG_CTRL        0x0000u
 #define E1000_REG_STATUS      0x0008u
 #define E1000_REG_EEC         0x0010u
@@ -41,6 +44,16 @@
 
 #define E1000_CTRL_SLU        (1u << 6)
 #define E1000_CTRL_RST        (1u << 26)
+
+#define E1000_STATUS_LU       (1u << 1)
+
+#define E1000_EERD_START      (1u << 0)
+#define E1000_EERD_DONE       (1u << 1)
+#define E1000_EERD_ADDR_SHIFT 2
+#define E1000_EERD_DATA_SHIFT 16
+/* 82540 旧式：DONE=bit4，ADDR=bits15:8 */
+#define E1000_EERD_DONE_LEGACY (1u << 4)
+#define E1000_EERD_ADDR_LEGACY_SHIFT 8
 
 #define E1000_RCTL_EN         (1u << 1)
 #define E1000_RCTL_SBP        (1u << 2)
@@ -87,15 +100,16 @@ typedef struct {
 } __attribute__((packed)) E1000_TX_DESC;
 
 static const UINT16 gE1000Ids[] = {
-    0x100E, /* 82540EM — QEMU e1000 */
-    0x100F, /* 82545EM */
-    0x10D3, /* 82574L — e1000e */
-    0x10F5, /* 82567LM */
+    E1000_DID_82540EM, /* 82540EM — QEMU e1000 */
+    0x100F,            /* 82545EM */
+    E1000_DID_82574L,  /* 82574L — e1000e */
+    0x10F5,            /* 82567LM */
     0
 };
 
 static volatile UINT8 *gBar;
 static UINT64 gBarPhys;
+static UINT16 gPciDid;
 static E1000_RX_DESC *gRxRing;
 static E1000_TX_DESC *gTxRing;
 static UINT8 *gRxBufs;
@@ -134,7 +148,8 @@ static void CopyMemory(void *Dst, const void *Src, UINTN Len) {
     }
 }
 
-static int PciFindE1000(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut) {
+static int PciFindE1000(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut,
+                        UINT16 *DidOut) {
     int B;
     int D;
     int F;
@@ -182,6 +197,9 @@ static int PciFindE1000(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut) {
                 *Dev = (UINT8)D;
                 *Fn = (UINT8)F;
                 *BarOut = Bar;
+                if (DidOut) {
+                    *DidOut = Did;
+                }
                 return 1;
             }
         }
@@ -189,29 +207,133 @@ static int PciFindE1000(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut) {
     return 0;
 }
 
+/* 82571+/82574 EERD：START + ADDR<<2，DONE=bit1，DATA=bits31:16 */
+static int EepromReadWordE1000e(UINT16 Addr, UINT16 *Out) {
+    UINT32 Val;
+    int Spin;
+
+    MmioW32(E1000_REG_EERD,
+            E1000_EERD_START | ((UINT32)Addr << E1000_EERD_ADDR_SHIFT));
+    Spin = 100000;
+    while (Spin-- > 0) {
+        Val = MmioR32(E1000_REG_EERD);
+        if (Val & E1000_EERD_DONE) {
+            *Out = (UINT16)(Val >> E1000_EERD_DATA_SHIFT);
+            return 1;
+        }
+        HalCpuRelax();
+    }
+    return 0;
+}
+
+/* 82540 旧 EERD：ADDR<<8，DONE=bit4 */
+static int EepromReadWordLegacy(UINT16 Addr, UINT16 *Out) {
+    UINT32 Val;
+    int Spin;
+
+    MmioW32(E1000_REG_EERD,
+            E1000_EERD_START | ((UINT32)Addr << E1000_EERD_ADDR_LEGACY_SHIFT));
+    Spin = 100000;
+    while (Spin-- > 0) {
+        Val = MmioR32(E1000_REG_EERD);
+        if (Val & E1000_EERD_DONE_LEGACY) {
+            *Out = (UINT16)(Val >> E1000_EERD_DATA_SHIFT);
+            return 1;
+        }
+        HalCpuRelax();
+    }
+    return 0;
+}
+
+static int EepromReadWord(UINT16 Addr, UINT16 *Out) {
+    if (gPciDid == E1000_DID_82574L || gPciDid == 0x10F5) {
+        if (EepromReadWordE1000e(Addr, Out)) {
+            return 1;
+        }
+    }
+    if (EepromReadWordLegacy(Addr, Out)) {
+        return 1;
+    }
+    if (gPciDid != E1000_DID_82574L && gPciDid != 0x10F5) {
+        return EepromReadWordE1000e(Addr, Out);
+    }
+    return 0;
+}
+
+static int MacFromEeprom(void) {
+    UINT16 W0;
+    UINT16 W1;
+    UINT16 W2;
+
+    if (!EepromReadWord(0, &W0) || !EepromReadWord(1, &W1) ||
+        !EepromReadWord(2, &W2)) {
+        return 0;
+    }
+    if ((W0 | W1 | W2) == 0 || (W0 == 0xFFFF && W1 == 0xFFFF && W2 == 0xFFFF)) {
+        return 0;
+    }
+    gMac[0] = (UINT8)(W0 & 0xFF);
+    gMac[1] = (UINT8)(W0 >> 8);
+    gMac[2] = (UINT8)(W1 & 0xFF);
+    gMac[3] = (UINT8)(W1 >> 8);
+    gMac[4] = (UINT8)(W2 & 0xFF);
+    gMac[5] = (UINT8)(W2 >> 8);
+    MmioW32(E1000_REG_RAL,
+            (UINT32)gMac[0] | ((UINT32)gMac[1] << 8) |
+            ((UINT32)gMac[2] << 16) | ((UINT32)gMac[3] << 24));
+    MmioW32(E1000_REG_RAH,
+            (UINT32)gMac[4] | ((UINT32)gMac[5] << 8) | (1u << 31));
+    return 1;
+}
+
+static void ProgramClassroomMac(void) {
+    gMac[0] = 0x52;
+    gMac[1] = 0x54;
+    gMac[2] = 0x00;
+    gMac[3] = 0x12;
+    gMac[4] = 0x34;
+    gMac[5] = 0x56;
+    MmioW32(E1000_REG_RAL,
+            (UINT32)gMac[0] | ((UINT32)gMac[1] << 8) |
+            ((UINT32)gMac[2] << 16) | ((UINT32)gMac[3] << 24));
+    MmioW32(E1000_REG_RAH,
+            (UINT32)gMac[4] | ((UINT32)gMac[5] << 8) | (1u << 31));
+}
+
 static void ReadMac(void) {
     UINT32 Ral = MmioR32(E1000_REG_RAL);
     UINT32 Rah = MmioR32(E1000_REG_RAH);
+
     gMac[0] = (UINT8)(Ral & 0xFF);
     gMac[1] = (UINT8)((Ral >> 8) & 0xFF);
     gMac[2] = (UINT8)((Ral >> 16) & 0xFF);
     gMac[3] = (UINT8)((Ral >> 24) & 0xFF);
     gMac[4] = (UINT8)(Rah & 0xFF);
     gMac[5] = (UINT8)((Rah >> 8) & 0xFF);
-    /* 全 0 时给课堂假 MAC，避免 ARP 怪状 */
-    if ((Ral | (Rah & 0xFFFFu)) == 0) {
-        gMac[0] = 0x52;
-        gMac[1] = 0x54;
-        gMac[2] = 0x00;
-        gMac[3] = 0x12;
-        gMac[4] = 0x34;
-        gMac[5] = 0x56;
-        MmioW32(E1000_REG_RAL,
-                (UINT32)gMac[0] | ((UINT32)gMac[1] << 8) |
-                ((UINT32)gMac[2] << 16) | ((UINT32)gMac[3] << 24));
-        MmioW32(E1000_REG_RAH,
-                (UINT32)gMac[4] | ((UINT32)gMac[5] << 8) | (1u << 31));
+    if ((Ral | (Rah & 0xFFFFu)) != 0) {
+        return;
     }
+    /* RAL 空：试 NVM（82574 常见），再课堂假 MAC */
+    (void)MmioR32(E1000_REG_EEC);
+    if (MacFromEeprom()) {
+        DebugWrite("e1000: mac from nvm\n");
+        return;
+    }
+    ProgramClassroomMac();
+    DebugWrite("e1000: mac classroom fallback\n");
+}
+
+/* 等 STATUS.LU；超时返回 0（Setup soft-fail，不挡桌面） */
+static int WaitLinkUp(void) {
+    int Spin = 2000000;
+
+    while (Spin-- > 0) {
+        if (MmioR32(E1000_REG_STATUS) & E1000_STATUS_LU) {
+            return 1;
+        }
+        HalCpuRelax();
+    }
+    return 0;
 }
 
 int E1000Ready(void) {
@@ -227,6 +349,7 @@ int E1000Setup(void) {
     UINT8 Dev;
     UINT8 Fn;
     UINT64 Bar;
+    UINT16 Did = 0;
     UINT8 *Mem;
     UINT64 Phys;
     UINT32 i;
@@ -238,9 +361,10 @@ int E1000Setup(void) {
     if (!VirtualMemoryEnabled()) {
         return 0;
     }
-    if (!PciFindE1000(&Bus, &Dev, &Fn, &Bar)) {
+    if (!PciFindE1000(&Bus, &Dev, &Fn, &Bar, &Did)) {
         return 0;
     }
+    gPciDid = Did;
 
     if (VirtualMemoryMapRange(Bar, Bar, 0x20000, PTE_PRESENT | PTE_WRITABLE) != 0) {
         DebugWrite("e1000: map BAR failed\n");
@@ -249,7 +373,7 @@ int E1000Setup(void) {
     gBarPhys = Bar;
     gBar = (volatile UINT8 *)(UINTN)Bar;
 
-    /* 复位 */
+    /* 复位；保持 IMC 全掩（本刀无 MSI） */
     MmioW32(E1000_REG_IMC, 0xFFFFFFFFu);
     MmioW32(E1000_REG_CTRL, MmioR32(E1000_REG_CTRL) | E1000_CTRL_RST);
     Spin = 100000;
@@ -310,9 +434,24 @@ int E1000Setup(void) {
             E1000_TCTL_EN | E1000_TCTL_PSP |
             (0x10u << E1000_TCTL_CT_SHIFT) | (0x40u << E1000_TCTL_COLD_SHIFT));
 
+    if (!WaitLinkUp()) {
+        ToyLogNet("boot: e1000 link timeout\n");
+        DebugWrite("e1000: STATUS.LU timeout\n");
+        /* soft-fail：不置 gReady，桌面仍起 */
+        gBar = 0;
+        gPciDid = 0;
+        return 0;
+    }
+
     gReady = 1;
-    ToyLogNet("boot: e1000\n");
-    DebugWrite("e1000: bar=");
+    if (gPciDid == E1000_DID_82574L) {
+        ToyLogNet("boot: e1000e\n");
+    } else {
+        ToyLogNet("boot: e1000\n");
+    }
+    DebugWrite("e1000: did=");
+    DebugHex32((UINT32)gPciDid);
+    DebugWrite(" bar=");
     DebugHex32((UINT32)gBarPhys);
     DebugWrite("\n");
     (void)Bus;

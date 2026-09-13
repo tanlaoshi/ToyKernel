@@ -1,7 +1,8 @@
 /*
- * E1000.h — Intel 8254x/e1000 MMIO L2（PR-H4）
+ * E1000.h — Intel 8254x / 82574 L2（PR-H4 / PR-H4e-1）
  *
- * 仅以太网帧收发；ARP/ICMP 仍在 Net.c。PCI 8086:100E 等。
+ * 仅以太网帧收发；ARP/ICMP 仍在 Net.c。轮询，无 MSI。
+ * QEMU：e1000（82540）或 e1000e（82574 Did=10D3）。
  */
 #ifndef E1000_H
 #define E1000_H
