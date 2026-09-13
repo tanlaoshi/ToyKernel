@@ -142,6 +142,9 @@ int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
     if (!Ok) {
         BootLogHex("boot: xhci addr cc=", gCmdCode, 2);
         EnumWhy("boot: why=address fail\n");
+        if (gXhciCmdSick && SlotOut) {
+            *SlotOut = 0;
+        }
         return 0;
     }
     return 1;

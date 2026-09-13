@@ -185,6 +185,7 @@ UINT8  gSlotEp0UsesKbdRing[DCBAA_SLOTS + 1];
 volatile UINT32 gCmdDone;
 UINT32 gCmdCode;
 UINT32 gCmdSlot;
+UINT32 gXhciCmdSick; /* 命令环超时未恢复：禁再发命令 */
 volatile UINT32 gXferDone;
 UINT32 gXferCode;
 UINT32 gXferRemain;
@@ -865,6 +866,10 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
     int Attempt;
     const char *Name = CmdTrbName(Control);
 
+    if (gXhciCmdSick) {
+        return -1;
+    }
+
     for (Attempt = 0; Attempt < 2; Attempt++) {
         gCmdDone = 0;
         Enqueue(gCmdRingLive, &gCmd, Param, 0, Control | TRB_IOC);
@@ -880,6 +885,7 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
                 DiagChk("EnableSlot.slot", *SlotOut != 0 && *SlotOut <= gDcbaaMaxSlot,
                         "slot=1..N", *SlotOut, 2);
             }
+            gXhciCmdSick = 0;
             return 0;
         }
 
@@ -895,6 +901,8 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
         }
     }
     DiagChkStr(Name, 0, "ok after retry", "fail");
+    gXhciCmdSick = 1;
+    BootLog("boot: xhci cmd sick (timeout)\n");
     return -1;
 }
 
@@ -2442,19 +2450,18 @@ int XhciMscClaimPorts(void) {
             continue; /* 子口已在上面 EnumHubChildrenForMsc 试过 */
         }
 
-        Force = (gPortNeedForcePr & (1u << P)) ? 1 : 0;
-        if (!(Ps & PORTSC_PED)) {
-            Force = 1;
-        }
-        BootLogHex(Force ? "boot: msc claim reset force port="
-                         : "boot: msc claim reset port=",
-                   P, 2);
+        /*
+         * 真机：陈旧 PED 上直接 Address 会命令超时（NUC 0x11）→ irq-stall。
+         * MSC 根口认领一律 Force PR，再 Address。
+         */
+        Force = 1;
+        BootLogHex("boot: msc claim reset force port=", P, 2);
         if (!ResetPortEx(P, Force)) {
             BootLogHex("boot: msc claim reset fail port=", P, 2);
             continue;
         }
-        if (Force && !HalCpuIsHypervisor()) {
-            StallMs(20);
+        if (!HalCpuIsHypervisor()) {
+            StallMs(100);
         }
         Ps = ReadMmio32(gOperationalBase + PortReg(P));
         if (!(Ps & PORTSC_PED) || !(Ps & PORTSC_CCS)) {
@@ -2471,27 +2478,15 @@ int XhciMscClaimPorts(void) {
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
         }
-        if (!AddrOk && !Force && (gCmdCode == 4 || gCmdCode == 0x11)) {
-            BootLogHex("boot: msc claim addr retry force port=", P, 2);
-            gPortNeedForcePr |= (1u << P);
-            if (ResetPortEx(P, 1)) {
-                if (!HalCpuIsHypervisor()) {
-                    StallMs(20);
-                }
-                Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
-                AddrOk = AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx,
-                                             0, 0, 0, 0, 0);
-                if (!AddrOk && gMscScanSlot != 0) {
-                    DisableSlot(gMscScanSlot);
-                    gMscScanSlot = 0;
-                }
-            }
-        }
         gDiagQuiet = QuietSave;
         if (!AddrOk) {
             BootLogHex("boot: msc claim addr fail port=", P, 2);
             BootLogHex("boot: msc claim addr cc=", gCmdCode, 2);
             gPortNeedForcePr |= (1u << P);
+            if (gXhciCmdSick) {
+                BootLog("boot: msc claim abort (cmd sick)\n");
+                break;
+            }
             continue;
         }
         if (gMscScanSlot <= DCBAA_SLOTS) {

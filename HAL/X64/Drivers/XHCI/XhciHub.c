@@ -450,26 +450,32 @@ int EnumHubChildrenForMsc(void) {
         volatile int D;
         int t;
 
+        /* 与键盘 hub 枚举一致：上电后等足，否则 CCS 仍 0 → claim none */
         (void)HubSetPortFeat(Port, HUB_FEAT_PORT_POWER);
         if (!HalCpuIsHypervisor()) {
-            StallMs(20);
+            StallMs(100);
         } else {
-            for (D = 0; D < 20000; D++) {
+            for (D = 0; D < 80000; D++) {
             }
         }
         if (HubGetPortStatus(Port, &St) < 0) {
+            BootLogHex("boot: msc claim hub status fail port=", Port, 2);
             continue;
         }
         if (!(St & HUB_PORT_CONNECTION)) {
+            BootLogHex("boot: msc claim hub empty port=", Port, 2);
             continue;
         }
         if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
+            BootLogHex("boot: msc claim hub skip kbd port=", Port, 2);
             continue;
         }
         if ((gMouseRoute & 0xF) == (UINT32)Port && gMouseSlotId != 0) {
+            BootLogHex("boot: msc claim hub skip mouse port=", Port, 2);
             continue;
         }
         BootLogHex("boot: msc claim hub port=", Port, 2);
+        BootLogHex("boot: msc claim hub st=", St, 4);
         if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
             continue;
         }

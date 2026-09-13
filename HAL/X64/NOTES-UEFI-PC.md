@@ -124,6 +124,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **msc-4** ✅ TG 2026-09-12：Shell `msc claim` — Force PR；hub 子口 / class-0 hub；SetConfig + Bulk IN/OUT；**不** SCSI/FAT；键鼠口跳过
 - 顺带：4K Present 分脏矩形 + 条带 cli（Shell 多命令不再饿死 HID）；实心光标 save-under
 - **补丁**（同刀续）：第二根口 hub 上 U 盘 — `ProbeSecondHubForMsc`（勿 DisableSlot 外接 hub）；NUC 经 hub claim ok
+- **补丁**（2026-09-13）：hub 子口 PORT_POWER 等 **100ms**；MSC 根口 **一律 Force PR**；命令环 sick 则 abort
 - 验收：`msc claim` 直插 / 外接 hub 后 `ready=1`；键鼠仍可用
 - **msc-5** ✅ TG 2026-09-13：Shell `msc capacity` — BOT INQUIRY + READ CAPACITY(10)；串口 blocks/bsize；**不**分区/FAT；NUC 外接 hub claim+capacity ok
 - **下一刀**：msc-6 BlockMux + mount

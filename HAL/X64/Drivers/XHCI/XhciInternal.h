@@ -286,6 +286,7 @@ extern UINT8 gSlotEp0UsesKbdRing[DCBAA_SLOTS + 1];
 extern volatile UINT32 gCmdDone;
 extern UINT32 gCmdCode;
 extern UINT32 gCmdSlot;
+extern UINT32 gXhciCmdSick;
 extern volatile UINT32 gXferDone;
 extern UINT32 gXferCode;
 extern UINT32 gXferRemain;
