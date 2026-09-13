@@ -150,7 +150,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **excl-1** ✅ TG `7c28c51`：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
 - **excl-2** ✅ TG `e982dd6`：`gEvtConsumerLock` + ProcessEventsLocked；Irq/Drain 与 HID 锁分离
 - **excl-3** ✅ TG `c26117c`：删 `fallback msc-claim`；真机永留 dual；irq-stall 认 `gStatEvtRing` 前进
-- **excl-4** ✅ TG a01c351：Recover 全程独占；sick 前再 Recover；PHOTO/`show xhci` 有 `x=` skipped
+- **excl-4** ✅ TG `a01c351`：Recover 全程独占；sick 前再 Recover；PHOTO/`show xhci` 有 `x=` skipped
 
 **机型笔记**（贡献者追加一行即可）：
 
