@@ -2,7 +2,7 @@
  * XhciInternal.h — PR-H-xhci-split-1：xHCI 内部共享（宏/类型/extern/共享声明）
  *
  * 对外仍用 Drivers/XHCI.h。本头供 Drivers/XHCI/ 下各 .c 共用。
- * split-8：单体 Drivers/XHCI.c 已删；全局定义主要在 XhciCore.c（Diag/统计等见各模块）。
+ * split-8：单体 Drivers/XHCI.c 已删；全局定义主要在 XhciCore.c（MSC→XhciMsc、事件→XhciEvent；勿迁 BSS）。
  * 共享函数声明供跨文件调用。
  */
 #ifndef XHCI_INTERNAL_H
