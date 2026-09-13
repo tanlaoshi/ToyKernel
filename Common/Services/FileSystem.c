@@ -624,8 +624,34 @@ int FileSystemRemountVolumes(void) {
     return 1;
 }
 
+/* PR-H-msc-7b：卷上 MSC.OFF 或 THEME.CFG 含 msc=0 → 关 auto */
+static int MscPolicySaysOff(void) {
+    UINT8 Buf[512];
+    UINTN Sz = 0;
+    UINTN i;
+
+    if (FileSystemReadFile("MSC.OFF", Buf, 1, &Sz) == FAT_OK) {
+        return 1;
+    }
+    Sz = 0;
+    if (FileSystemReadFile("THEME.CFG", Buf, sizeof(Buf) - 1, &Sz) != FAT_OK) {
+        return 0;
+    }
+    Buf[Sz] = 0;
+    for (i = 0; i + 5 <= Sz; i++) {
+        if (Buf[i] == 'm' && Buf[i + 1] == 's' && Buf[i + 2] == 'c' &&
+            Buf[i + 3] == '=' && Buf[i + 4] == '0') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int FileSystemInit(void) {
     VFS_SERVICE_OPS Svc;
+    int Auto;
+    int HaveVols = 0;
+    int MuxOk = 0;
 
     if (VfsRegister(FatFsOps()) != 0) {
         DebugWrite("FS: VfsRegister(fat) failed\n");
@@ -635,13 +661,53 @@ int FileSystemInit(void) {
         DebugWrite("FS: VfsRegister(res) failed\n");
         return 0;
     }
-    if (HalBlockInit() <= 0) {
-        DebugWrite("FS: no block device (RES-only possible)\n");
+
+    /*
+     * PR-H-msc-7b：Live 默认 FS 前 auto（claim→Mux），再一次 MountAllVolumes。
+     * 若主盘已有卷且 MSC.OFF / THEME msc=0 → 关 auto（调试）。
+     */
+    Auto = HalUsbMscAutoEnabled();
+    if (HalBlockInit() > 0 && MountAllVolumes()) {
+        HaveVols = 1;
+        if (Auto && MscPolicySaysOff()) {
+            Auto = 0;
+            HalUsbMscAutoSet(0);
+            HalConsoleWriteSerial("boot: msc auto off (msc=0/MSC.OFF)\n");
+        }
+    } else {
+        DebugWrite("FS: no primary volumes yet (Live USB path ok)\n");
     }
-    if (!MountAllVolumes()) {
+
+    if (Auto) {
+        if (HalUsbMscAutoBeforeFs() == 0) {
+            MuxOk = 1;
+            if (BlockInit() <= 0) {
+                DebugWrite("FS: BlockInit after msc auto failed\n");
+            }
+            if (!MountAllVolumes()) {
+                DebugWrite("FS: mount after msc auto failed\n");
+                if (!HaveVols) {
+                    return 0;
+                }
+            } else {
+                HaveVols = 1;
+            }
+        }
+    }
+
+    if (!HaveVols && !MuxOk) {
+        if (HalBlockInit() <= 0) {
+            DebugWrite("FS: no block device (RES-only possible)\n");
+        }
+        if (!MountAllVolumes()) {
+            DebugWrite("FS: no volumes mounted\n");
+            return 0;
+        }
+    } else if (!HaveVols) {
         DebugWrite("FS: no volumes mounted\n");
         return 0;
     }
+
     Svc.ReadFile = FileSystemReadFile;
     Svc.WriteFile = FileSystemWriteFile;
     Svc.ListEntries = FileSystemListEntries;

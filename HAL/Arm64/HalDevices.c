@@ -57,6 +57,18 @@ int HalUsbMscMount(void) {
     return -1;
 }
 
+int HalUsbMscAutoEnabled(void) {
+    return 0;
+}
+
+void HalUsbMscAutoSet(int On) {
+    (void)On;
+}
+
+int HalUsbMscAutoBeforeFs(void) {
+    return 1;
+}
+
 void HalInputArmIrq(void) {
 }
 

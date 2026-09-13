@@ -122,13 +122,15 @@ static void CommandMsc(int Argc, char **Argv) {
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
     ConsoleWrite(" ready=");
     ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-    ConsoleWrite(" (use: msc scan | claim | capacity | mount)\n");
+    ConsoleWrite(" auto=");
+    ConsoleWrite(HalUsbMscAutoEnabled() ? "1" : "0");
+    ConsoleWrite(" (scan|claim|capacity|mount; auto=THEME msc=0|MSC.OFF)\n");
 }
 
 void ShellCmdUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
     ConsoleRegister("msc",
-                    "USB MSC: msc | scan | claim | capacity | mount (PR-H-msc-6)",
+                    "USB MSC: scan|claim|capacity|mount; boot auto (msc-7b)",
                     CommandMsc);
     ConsoleRegisterAliasLine("xhci", "show", "xhci");
 }

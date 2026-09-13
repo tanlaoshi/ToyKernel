@@ -69,6 +69,18 @@ int HalUsbMscMount(void) {
     return UsbMscMount();
 }
 
+int HalUsbMscAutoEnabled(void) {
+    return UsbMscAutoEnabled();
+}
+
+void HalUsbMscAutoSet(int On) {
+    UsbMscAutoSet(On);
+}
+
+int HalUsbMscAutoBeforeFs(void) {
+    return UsbMscAutoBeforeFs();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }
