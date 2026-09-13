@@ -97,7 +97,7 @@ static int InitializeCpu(void) {
     }
     HalTimerInit();
     HalSyscallInit();
-    /* virt：仍在此挂 virtio-input；x86 真机延后到 gui 后的 usb 模块（与 main 一致） */
+    /* virt：仍在此挂 virtio-input；x86 真机在 file-system 前的 usb 模块（PR-H-msc-7a） */
     if (HalPlatformIsVirtSerialConsole()) {
         (void)HalUsbInit();
     }
@@ -230,7 +230,7 @@ static int InitializeConsole(void) {
     return 0;
 }
 
-/* x86 全量：usb 在 gui 前，便于桌面叠画探测结果（与 main 一致） */
+/* x86 全量：PR-H-msc-7a — usb（xHCI/HID）在 file-system 之前，供 7b FS 前 auto */
 static const MODULE gModulesFull[] = {
     { "serial",  InitializeSerial },
     { "memory",     InitializePhysicalMemory },
@@ -239,9 +239,9 @@ static const MODULE gModulesFull[] = {
     { "video",   InitializeVideo },
     { "cpu",     InitializeCpu },
     { "smp",     InitializeSmp },
+    { "usb",     InitializeUsb },
     { "file-system",      InitializeFileSystem },
     { "network",     InitializeNetwork },
-    { "usb",     InitializeUsb },
     { "gui",     InitializeGui },
     { "scheduler",   InitializeScheduler },
     { "console", InitializeConsole },
