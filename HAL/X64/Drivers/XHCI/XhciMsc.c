@@ -736,10 +736,10 @@ int XhciMscClaimPorts(void) {
         }
 
         /*
-         * 只 Force/Address 尚无 PED 的口（NUC 外接 hub 0x05/0x08 典型 PORTSC）。
-         * 已 PED（含陈旧 SS 0x11）一律跳过——Address 超时曾弄死命令环/鼠标。
+         * 真机：只 Force/Address 尚无 PED 的口（陈旧 SS PED 曾 Address 超时弄死命令环）。
+         * QEMU usb-storage 常已 PED：hypervisor 上仍试 Force PR + Address（msc-8）。
          */
-        if (Ps & PORTSC_PED) {
+        if ((Ps & PORTSC_PED) && !HalCpuIsHypervisor()) {
             BootLogHex("boot: msc claim skip PED port=", P, 2);
             continue;
         }
