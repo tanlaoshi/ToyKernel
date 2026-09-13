@@ -1,6 +1,7 @@
 /*
  * XhciEvent.c — PR-H-xhci-msc-split-2：事件环 ProcessEvents*
  * PR-H-xhci-evt-excl-1：独占窗 API（门铃/Wait 同消费者）
+ * PR-H-xhci-evt-excl-2：gEvtConsumerLock + ProcessEventsLocked
  *
  * DMA/环全局仍在 XhciCore.c（勿迁 BSS）。
  */
@@ -29,8 +30,8 @@ int XhciEventIsExclusive(void) {
     return gEvtExclusiveDepth > 0 ? 1 : 0;
 }
 
-/* 处理事件环中所有待处理 TRB（命令完成、传输完成） */
-void ProcessEvents(void) {
+/* 处理事件环中所有待处理 TRB（命令完成、传输完成）；调用方负责串行 */
+void ProcessEventsLocked(void) {
     int Progress = 0;
     UINT32 EvtSize = gEvtRingSize ? gEvtRingSize : EVT_SIZE;
     int Guard = 0;
@@ -235,34 +236,46 @@ void ProcessEvents(void) {
     }
 }
 
+void ProcessEvents(void) {
+    SpinLockAcquire(&gEvtConsumerLock);
+    ProcessEventsLocked();
+    SpinLockRelease(&gEvtConsumerLock);
+}
+
 /*
  * 真机：USBSTS.EINT 已置但 Cycle 对不上时，仅当环头 Cycle==~CCS 才翻一次。
  * 旧逻辑见 EINT 就翻：PCD/粘住 EINT 会把 CCS 永久弄反 → 中断完成永远吃不到，
  * 却仍可能靠碰巧/翻回来吃到部分 EP0（PHOTO：t>0 i=0）。
+ * excl-2：整段持 gEvtConsumerLock，内部只调 Locked（勿再进 ProcessEvents 嵌套锁）。
  */
 void ProcessEventsRealPc(void) {
     UINT32 Sts;
     XHCI_TRB *Evt;
     UINT32 EvtSize = gEvtRingSize ? gEvtRingSize : EVT_SIZE;
 
-    ProcessEvents();
+    SpinLockAcquire(&gEvtConsumerLock);
+    ProcessEventsLocked();
     if (gCmdDone) {
+        SpinLockRelease(&gEvtConsumerLock);
         return;
     }
     Sts = ReadMmio32(gOperationalBase + 4);
     if (!(Sts & USBSTS_EINT)) {
+        SpinLockRelease(&gEvtConsumerLock);
         return;
     }
     if (gEvtDeq >= EvtSize) {
+        SpinLockRelease(&gEvtConsumerLock);
         return;
     }
     Evt = &gEvtRingLive[gEvtDeq];
     FlushDma(Evt, sizeof(*Evt));
     if ((Evt->Control & TRB_C) == ((gEvtCcs ^ 1u) & 1u)) {
         gEvtCcs ^= 1u;
-        ProcessEvents();
+        ProcessEventsLocked();
     } else {
         /* 无待处理事件：清粘住的 EINT，勿翻 CCS */
         WriteMmio32(gOperationalBase + 4, USBSTS_EINT);
     }
+    SpinLockRelease(&gEvtConsumerLock);
 }

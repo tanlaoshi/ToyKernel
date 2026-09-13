@@ -1,7 +1,6 @@
 /*
  * XhciIrq.c — PR-H-xhci-split-8：IRQ / Drain / dual-poll 切换
- *
- * 从单体 XHCI.c 原样搬家；不改语义。
+ * PR-H-xhci-evt-excl-2：环消费走 gEvtConsumerLock；HID 入队另持 gHidQueueLock
  */
 #include "XHCI/XhciInternal.h"
 
@@ -27,36 +26,18 @@ void XhciIrq(void) {
         }
         return;
     }
-    SpinLockAcquire(&gHidQueueLock);
+    /* 环推进：ProcessEvents* 自带 gEvtConsumerLock；勿同持 gHidQueueLock */
     if (RealPc) {
         ProcessEventsRealPc();
     } else {
         ProcessEvents();
     }
-    if (gIntrDone) {
-        gIntrDone = 0;
-        if (gIntrReportReady) {
-            gIntrReportReady = 0;
-            FlushDma(gReportBuf, sizeof(gReportBuf));
-            KbdPush();
-            gStatKbdPush++;
-        }
-        QueueIntr();
-    }
-    if (gMouseIntrDone) {
-        gMouseIntrDone = 0;
-        if (gMouseReportReady) {
-            gMouseReportReady = 0;
-            FlushDma(gMouseBuf, sizeof(gMouseBuf));
-            MousePush();
-            gStatMousePush++;
-        }
-        QueueMouseIntr();
-    }
+    SpinLockAcquire(&gHidQueueLock);
+    ServiceHidCompletions();
+    SpinLockRelease(&gHidQueueLock);
     if (gRuntimeBase != 0) {
         ImClearPending();
     }
-    SpinLockRelease(&gHidQueueLock);
 }
 
 /* 开 USBCMD.INTE + IMAN.IE（真机 Start 故意只置了 RS） */
@@ -115,40 +96,21 @@ void XhciDrainEvents(void) {
         }
     }
 
-    SpinLockAcquire(&gHidQueueLock);
+    /*
+     * excl-2：每轮先 ProcessEvents*（gEvtConsumerLock），再 HID 入队（gHidQueueLock）。
+     * 两锁不同时持有；禁止持 HID 锁调 ProcessEvents / ControlXfer。
+     */
     for (i = 0; i < Passes; i++) {
         if (RealPc) {
             ProcessEventsRealPc();
         } else {
             ProcessEvents();
         }
-        if (gIntrDone) {
-            gIntrDone = 0;
-            if (gIntrReportReady) {
-                gIntrReportReady = 0;
-                FlushDma(gReportBuf, sizeof(gReportBuf));
-                KbdPush();
-                gStatKbdPush++;
-            }
-            QueueIntr();
-        }
-        if (gMouseIntrDone) {
-            gMouseIntrDone = 0;
-            if (gMouseReportReady) {
-                gMouseReportReady = 0;
-                FlushDma(gMouseBuf, sizeof(gMouseBuf));
-                MousePush();
-                gStatMousePush++;
-            }
-            QueueMouseIntr();
-        }
+        SpinLockAcquire(&gHidQueueLock);
+        ServiceHidCompletions();
+        SpinLockRelease(&gHidQueueLock);
     }
-    /*
-     * 禁止在持 gHidQueueLock 时 HidGetInputReport/ControlXfer：
-     * WaitCommand 可达数百 ms 且 IF=1，定时器切到 Gui 再 Drain → 同锁死锁，
-     * 家侧表现为桌面不能打字、短按电源无效（须长按强制关机）。
-     * PHOTO 已证明中断 IN 可完成；门铃轻推即可，勿走 EP0 兜底。
-     */
+    /* PHOTO：门铃轻推即可，勿走 EP0 兜底 */
     if (RealPc) {
         if (gSlotId != 0 && gIntrDci != 0 && (gStatDrain & 0xFu) == 0) {
             RingDoorbell(gSlotId, gIntrDci);
@@ -160,8 +122,6 @@ void XhciDrainEvents(void) {
     if (gUseIrq && gRuntimeBase != 0) {
         ImClearPending();
     }
-    SpinLockRelease(&gHidQueueLock);
-    /* 释锁后再 GET_REPORT，避免与 WaitTransfer 嵌套抢同一把锁 */
     if (RealPc) {
         XhciPollKbdGetReport();
     }

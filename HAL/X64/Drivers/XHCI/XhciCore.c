@@ -117,6 +117,7 @@ USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
 volatile UINT32 gMouseWriteIndex;
 volatile UINT32 gMouseReadIndex;
 SPIN_LOCK gHidQueueLock; /* PR-S-ap：IRQ 入队 vs AP 出队 */
+SPIN_LOCK gEvtConsumerLock; /* excl-2：事件环消费串行 */
 
 XHCI_TRB gCmdRing[RING_SIZE] __attribute__((aligned(64)));
 XHCI_TRB gEp0Ring[RING_SIZE] __attribute__((aligned(64)));

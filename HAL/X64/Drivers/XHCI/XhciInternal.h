@@ -234,6 +234,7 @@ extern USB_MOUSE_REPORT gMouseQ[MOUSE_Q];
 extern volatile UINT32 gMouseWriteIndex;
 extern volatile UINT32 gMouseReadIndex;
 extern SPIN_LOCK gHidQueueLock;
+extern SPIN_LOCK gEvtConsumerLock; /* excl-2：仅保护 ProcessEvents* */
 
 extern XHCI_TRB gCmdRing[RING_SIZE];
 extern XHCI_TRB gEp0Ring[RING_SIZE];
@@ -315,9 +316,10 @@ int MapXhciDma(UINT64 Phys, UINTN Bytes);
 void InitRing(XHCI_TRB *Ring, RING_STATE *St, UINT32 Size);
 void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status, UINT32 Control);
 UINT32 TrbType(UINT32 Control);
+void ProcessEventsLocked(void); /* excl-2：无锁环逻辑 */
 void ProcessEvents(void);
 void ProcessEventsRealPc(void);
-/* PR-H-xhci-evt-excl-1：事件环独占（门铃与 Wait 同窗；Irq/Drain 守门） */
+/* PR-H-xhci-evt-excl：独占窗 + 消费锁 */
 void XhciEventEnterExclusive(void);
 void XhciEventLeaveExclusive(void);
 int XhciEventIsExclusive(void);
