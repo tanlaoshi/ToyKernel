@@ -227,9 +227,9 @@ int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector) {
         UINT32 MsgAddr;
 
         if (Bir > 5 || Device->Bar[Bir] == 0) {
-            DebugWrite("MSI-X: bad BIR\n");
-            return 0;
-        }
+            /* H4e-3：BAR 未填全时勿直接失败，回落经典 MSI */
+            DebugWrite("MSI-X: bad BIR, try MSI\n");
+        } else {
         Dw0 = PciReadConfig(Device->Bus, Device->Device, Device->Function, (UINT8)Cap);
         TableSize = ((Dw0 >> 16) & 0x7FFu) + 1u;
         if (TableSize > 64u) {
@@ -261,6 +261,7 @@ int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector) {
         DebugHex32(DestApic);
         DebugWrite("\n");
         return 1;
+        }
     }
 
     Cap = PciFindCap(Device->Bus, Device->Device, Device->Function, 0x05);

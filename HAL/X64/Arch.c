@@ -10,6 +10,7 @@
 #include "Serial.h"
 #include "Debug.h"
 #include "XHCI.h"
+#include "E1000.h"
 #include "Scheduler.h"
 #include "BootTypes.h"
 #include "Syscall.h"
@@ -22,6 +23,7 @@ extern void (*IsrException[32])(void);
 extern void (*IsrPic[16])(void);
 extern void Isr64(void);
 extern void Isr65(void);
+extern void Isr66(void);
 extern void Isr255(void);
 
 typedef struct {
@@ -244,6 +246,7 @@ static void IdtLoad(void) {
     }
     IdtSet(VEC_XHCI, (void *)Isr64);
     IdtSet(VEC_TIMER, (void *)Isr65);
+    IdtSet(VEC_E1000, (void *)Isr66);
     IdtSet(255, (void *)Isr255);
     IdtLidt();
 }
@@ -362,6 +365,11 @@ UINT64 InterruptDispatch(HAL_INTERRUPT_FRAME *F) {
     if (F->Vector == VEC_XHCI) {
         gIrqCount++;
         XhciIrq();
+        LapicEoi();
+        return 0;
+    }
+    if (F->Vector == VEC_E1000) {
+        E1000Irq();
         LapicEoi();
         return 0;
     }

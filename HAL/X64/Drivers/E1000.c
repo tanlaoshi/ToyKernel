@@ -1,8 +1,9 @@
 /*
- * E1000.c — Intel e1000 / e1000e 轮询驱动（PR-H4 + PR-H4e-1）
+ * E1000.c — Intel e1000 / e1000e（PR-H4 + H4e-1/2/3）
  *
  * QEMU: -device e1000 | -device e1000e
- * 同步 TX + RX ring；无中断 / 无 MSI。无卡或无链路时 Setup 失败，不挡桌面。
+ * 同步 TX + RX ring；H4e-3 试 MSI RX（失败则仍 poll，NetPoll 备份）。
+ * 无卡或无链路时 Setup 失败，不挡桌面。
  */
 #include "E1000.h"
 #include "PCIe.h"
@@ -10,6 +11,7 @@
 #include "VirtualMemory.h"
 #include "Debug.h"
 #include "Hal.h"
+#include "HalPort.h"
 #include "HalSerial.h"
 #include "Net.h"
 #include "ToySerialLog.h"
@@ -23,8 +25,20 @@
 #define E1000_REG_EEC         0x0010u
 #define E1000_REG_EERD        0x0014u
 #define E1000_REG_ICR         0x00C0u
+#define E1000_REG_ITR         0x00C4u
 #define E1000_REG_IMS         0x00D0u
 #define E1000_REG_IMC         0x00D8u
+
+#define E1000_ICR_LSC         (1u << 2)
+#define E1000_ICR_RXDMT0      (1u << 4)
+#define E1000_ICR_RXO         (1u << 6)
+#define E1000_ICR_RXT0        (1u << 7)
+#define E1000_IMS_LSC         E1000_ICR_LSC
+#define E1000_IMS_RXDMT0      E1000_ICR_RXDMT0
+#define E1000_IMS_RXO         E1000_ICR_RXO
+#define E1000_IMS_RXT0        E1000_ICR_RXT0
+#define E1000_IMS_RX \
+    (E1000_IMS_LSC | E1000_IMS_RXDMT0 | E1000_IMS_RXO | E1000_IMS_RXT0)
 #define E1000_REG_RCTL        0x0100u
 #define E1000_REG_TCTL        0x0400u
 #define E1000_REG_TIPG        0x0410u
@@ -113,6 +127,9 @@ static const UINT16 gE1000Ids[] = {
 static volatile UINT8 *gBar;
 static UINT64 gBarPhys;
 static UINT16 gPciDid;
+static UINT8 gPciBus;
+static UINT8 gPciDev;
+static UINT8 gPciFn;
 static E1000_RX_DESC *gRxRing;
 static E1000_TX_DESC *gTxRing;
 static UINT8 *gRxBufs;
@@ -121,6 +138,8 @@ static UINT16 gRxTail;
 static UINT16 gTxTail;
 static UINT8 gMac[6];
 static int gReady;
+static int gUseIrq; /* PR-H4e-3：MSI 武装成功 */
+static volatile UINT32 gStatIrq;
 
 static UINT32 MmioR32(UINT32 Off) {
     return *(volatile UINT32 *)(gBar + Off);
@@ -326,6 +345,64 @@ static void ReadMac(void) {
     DebugWrite("e1000: mac classroom fallback\n");
 }
 
+/* PR-H4e-3：PCI MSI → VEC_E1000；失败则保持 poll（IMC 全掩） */
+static void FillPciBars(USB_CONTROLLER *Dev) {
+    int i;
+
+    for (i = 0; i < 6;) {
+        UINT32 Lo = PciReadConfig(Dev->Bus, Dev->Device, Dev->Function,
+                                  (UINT8)(0x10 + i * 4));
+        UINT64 Bar;
+        UINT32 Type;
+
+        if (Lo & 1u) {
+            Dev->Bar[i] = Lo & ~0x3u;
+            i++;
+            continue;
+        }
+        Bar = Lo & 0xFFFFFFF0ULL;
+        Type = (Lo >> 1) & 3u;
+        if (Type == 2u && i + 1 < 6) {
+            UINT32 Hi = PciReadConfig(Dev->Bus, Dev->Device, Dev->Function,
+                                      (UINT8)(0x10 + (i + 1) * 4));
+            Bar |= ((UINT64)Hi) << 32;
+            Dev->Bar[i] = Bar;
+            Dev->Bar[i + 1] = 0;
+            i += 2;
+        } else {
+            Dev->Bar[i] = Bar;
+            i++;
+        }
+    }
+}
+
+static int TryEnableMsiRx(void) {
+    USB_CONTROLLER Dev;
+
+    ZeroMemory(&Dev, sizeof(Dev));
+    Dev.Bus = gPciBus;
+    Dev.Device = gPciDev;
+    Dev.Function = gPciFn;
+    FillPciBars(&Dev);
+    if (Dev.Bar[0] == 0) {
+        Dev.Bar[0] = gBarPhys;
+    }
+
+    MmioW32(E1000_REG_IMC, 0xFFFFFFFFu);
+    (void)MmioR32(E1000_REG_ICR);
+
+    if (!PciEnableMsi(&Dev, VEC_E1000)) {
+        DebugWrite("e1000: MSI failed; stay poll\n");
+        return 0;
+    }
+
+    /* 立刻投递；RXT0 / RXDMT0 / LSC */
+    MmioW32(E1000_REG_ITR, 0);
+    MmioW32(E1000_REG_IMS, E1000_IMS_RX);
+    gUseIrq = 1;
+    return 1;
+}
+
 /* 等 STATUS.LU；超时返回 0（Setup soft-fail，不挡桌面） */
 static int WaitLinkUp(void) {
     int Spin = 2000000;
@@ -409,6 +486,9 @@ int E1000Setup(void) {
         return 0;
     }
     gPciDid = Did;
+    gPciBus = Bus;
+    gPciDev = Dev;
+    gPciFn = Fn;
 
     if (VirtualMemoryMapRange(Bar, Bar, 0x20000, PTE_PRESENT | PTE_WRITABLE) != 0) {
         DebugWrite("e1000: map BAR failed\n");
@@ -417,7 +497,7 @@ int E1000Setup(void) {
     gBarPhys = Bar;
     gBar = (volatile UINT8 *)(UINTN)Bar;
 
-    /* 复位；保持 IMC 全掩（本刀无 MSI） */
+    /* 复位；IMC 全掩；链路起来后再试 MSI（H4e-3） */
     MmioW32(E1000_REG_IMC, 0xFFFFFFFFu);
     MmioW32(E1000_REG_CTRL, MmioR32(E1000_REG_CTRL) | E1000_CTRL_RST);
     Spin = 100000;
@@ -488,7 +568,14 @@ int E1000Setup(void) {
     }
 
     gReady = 1;
-    if (gPciDid == E1000_DID_82574L) {
+    gUseIrq = 0;
+    if (TryEnableMsiRx()) {
+        if (gPciDid == E1000_DID_82574L) {
+            ToyLogNet("boot: e1000e irq=msi\n");
+        } else {
+            ToyLogNet("boot: e1000 irq=msi\n");
+        }
+    } else if (gPciDid == E1000_DID_82574L) {
         ToyLogNet("boot: e1000e\n");
     } else {
         ToyLogNet("boot: e1000\n");
@@ -497,10 +584,7 @@ int E1000Setup(void) {
     DebugHex32((UINT32)gPciDid);
     DebugWrite(" bar=");
     DebugHex32((UINT32)gBarPhys);
-    DebugWrite("\n");
-    (void)Bus;
-    (void)Dev;
-    (void)Fn;
+    DebugWrite(gUseIrq ? " irq=msi\n" : " irq=poll\n");
     return 1;
 }
 
@@ -573,4 +657,14 @@ void E1000Poll(void) {
         Fence();
         MmioW32(E1000_REG_RDT, gRxTail);
     }
+}
+
+/* PR-H4e-3：MSI 入口；仍可被 NetPoll 备份调用同一 E1000Poll */
+void E1000Irq(void) {
+    gStatIrq++;
+    E1000Poll();
+}
+
+int E1000IrqEnabled(void) {
+    return (gReady && gUseIrq) ? 1 : 0;
 }
