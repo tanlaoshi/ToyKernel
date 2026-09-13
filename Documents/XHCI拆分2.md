@@ -71,8 +71,8 @@ HAL/X64/Drivers/XHCI/
 | 序 | PR | 内容 | 故意不做 | 验收 | 状态 |
 | -- | -- | ---- | -------- | ---- | --- |
 | 1 | **PR-H-xhci-core-split-1** | `XhciMmio.c`：MMIO/内存/Stall/Wait/MapDma | 不搬全局；不动环/命令 | build + smoke；键鼠 | ✅ `40f88a8` |
-| 2 | **PR-H-xhci-core-split-2** | `XhciRing.c`：Init/Enqueue/Doorbell/Dcbaa/`ResolveFwCmdRing` | 不搬 `ProcessEvents*`；不搬环缓冲全局 | 同上 | ⬜ ← **JX** |
-| 3 | **PR-H-xhci-core-split-3** | `XhciCommand.c`：`Command` / `Recover` / `WaitCommand` | 不改 Wait 独占事件环语义 | 同上；claim 路径勿回归 | ⬜ |
+| 2 | **PR-H-xhci-core-split-2** | `XhciRing.c`：Init/Enqueue/Doorbell/Dcbaa/`ResolveFwCmdRing` | 不搬 `ProcessEvents*`；不搬环缓冲全局 | 同上 | ✅ `4f4df06` |
+| 3 | **PR-H-xhci-core-split-3** | `XhciCommand.c`：`Command` / `Recover` / `WaitCommand` | 不改 Wait 独占事件环语义 | 同上；claim 路径勿回归 | ⬜ ← **JX** |
 | 4 | **PR-H-xhci-core-split-4** | `XhciTransfer.c`：`WaitTransfer` / `ServiceHidCompletions` | 不搬 xfer 全局 | 键鼠 IN | ⬜ |
 | 5 | **PR-H-xhci-core-split-5** | `XhciController.c`：Reset/Halt/Start/TakeLegacy/BootMarkRs | **不**抽 `XhciInit` | QEMU + 建议 NUC 键鼠 | ⬜ |
 | 6 | **PR-H-xhci-core-split-6** | `XhciKeyboard.c` + `SetupHidDevice`→`XhciDevice.c` | 不搬 kbd 队列全局 | QEMU + NUC 键鼠 | ⬜ |
@@ -109,3 +109,5 @@ HAL/X64/Drivers/XHCI/
 | 2026-09-13 | 修订为 **6 刀 PR**；对齐已落地 `XhciMsc`/`XhciEvent`；**禁止 BSS 搬迁**；插入路线图 ★（msc-6 之前） |
 | 2026-09-13 | **PR-H-xhci-core-split-1**：`40f88a8` — `XhciMmio.c`；`XhciCore.c` ~1410；build+smoke 过 |
 | 2026-09-13 | TG：xhci-core-split-1 → ToyImage Kernel sync |
+| 2026-09-13 | **PR-H-xhci-core-split-2**：`4f4df06` — `XhciRing.c`；`XhciCore.c` ~1302；build+smoke 过 |
+| 2026-09-13 | TG：xhci-core-split-2 → ToyImage Kernel sync |
