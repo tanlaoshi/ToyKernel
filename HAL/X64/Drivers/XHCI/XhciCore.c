@@ -110,6 +110,7 @@ volatile UINT32 gStatLastSlot;
 volatile UINT32 gStatLastEp;
 volatile UINT32 gStatUnmatched; /* Transfer 且未匹配键鼠 DCI */
 volatile UINT32 gStatIrq;       /* PR-H-xhci-stat：XhciIrq 进入次数 */
+volatile UINT32 gStatIrqSkipped; /* excl-1：独占窗内 IRQ 跳过环推进 */
 
 
 USB_MOUSE_REPORT gMouseQ[MOUSE_Q];

@@ -1,26 +1,31 @@
 /*
  * XhciCommand.c — PR-H-xhci-core-split-3：Command / Recover / WaitCommand
- *
- * 从 XhciCore.c 原样搬家；不改语义。命令环全局仍在 XhciCore.c（勿迁 BSS）。
- * WaitCommand 期间仍设 gXhciCmdWaiting，Irq/Drain 勿并发 ProcessEvents。
+ * PR-H-xhci-evt-excl-1：门铃与等待同属独占窗
  */
 #include "XHCI/XhciInternal.h"
 
-/* 等待命令环完成事件 */
+/* 等待命令环完成事件（调用方须已 EnterExclusive，或由此函数自管） */
 int WaitCommand(int Timeout) {
+    int Own = 0;
+    int Result = -1;
+
+    if (!XhciEventIsExclusive()) {
+        XhciEventEnterExclusive();
+        Own = 1;
+    }
+
     if (!HalCpuIsHypervisor()) {
         UINT64 T0 = ReadTsc();
         /* Force PR 后 EnableSlot 真机可 >300ms；过短会误超时→CA→HID 伤 */
         UINT64 Need = 800ULL * 3000000ULL; /* ~800ms */
         UINT64 Mid = Need / 2;
         (void)Timeout;
-        gXhciCmdWaiting = 1;
         while (ReadTsc() - T0 < Need) {
             ProcessEventsRealPc();
             ServiceHidCompletions();
             if (gCmdDone) {
-                gXhciCmdWaiting = 0;
-                return (gCmdCode == CC_SUCCESS) ? 0 : -1;
+                Result = (gCmdCode == CC_SUCCESS) ? 0 : -1;
+                break;
             }
             if ((ReadTsc() - T0) >= Mid) {
                 Mid = Need + 1; /* 只刷一次 */
@@ -28,17 +33,21 @@ int WaitCommand(int Timeout) {
             }
             __asm__ volatile ("pause");
         }
-        gXhciCmdWaiting = 0;
-        return -1;
-    }
-    while (Timeout--) {
-        ProcessEvents();
-        ServiceHidCompletions();
-        if (gCmdDone) {
-            return (gCmdCode == CC_SUCCESS) ? 0 : -1;
+    } else {
+        while (Timeout--) {
+            ProcessEvents();
+            ServiceHidCompletions();
+            if (gCmdDone) {
+                Result = (gCmdCode == CC_SUCCESS) ? 0 : -1;
+                break;
+            }
         }
     }
-    return -1;
+
+    if (Own) {
+        XhciEventLeaveExclusive();
+    }
+    return Result;
 }
 
 /*
@@ -54,6 +63,7 @@ void RecoverCommandRing(void) {
     UINT32 Size;
     UINT32 Enq;
     UINT32 Pcs;
+    int Own = 0;
 
     ToyBootMarkUsb("boot: xhci cmd recover\n");
     BootLog("boot: xhci command timeout, recovering...\n");
@@ -71,8 +81,15 @@ void RecoverCommandRing(void) {
         }
     }
 
+    if (!XhciEventIsExclusive()) {
+        XhciEventEnterExclusive();
+        Own = 1;
+    }
     for (i = 0; i < 64; i++) {
         ProcessEvents();
+    }
+    if (Own) {
+        XhciEventLeaveExclusive();
     }
 
     Cr = ReadMmio64(gOperationalBase + 0x18);
@@ -123,14 +140,16 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
         gCmdDone = 0;
         gCmdCode = 0;
         gCmdSlot = 0;
+        /* 门铃与 Wait 同窗：消灭门铃→置旗空隙 */
+        XhciEventEnterExclusive();
         Enqueue(gCmdRingLive, &gCmd, Param, 0, Control | TRB_IOC);
         RingDoorbell(0, 0);
         Fence();
         if (WaitCommand(Wait) >= 0) {
+            XhciEventLeaveExclusive();
             if (SlotOut) {
                 *SlotOut = gCmdSlot;
             }
-            /* want cc=1(Success)；got=完成码；EnableSlot 另看 slot */
             DiagChk(Name, 1, "cc=1", gCmdCode, 2);
             if (SlotOut && ((Control >> 10) & 0x3F) == TRB_ENABLE_SLOT) {
                 DiagChk("EnableSlot.slot", *SlotOut != 0 && *SlotOut <= gDcbaaMaxSlot,
@@ -139,6 +158,7 @@ int Command(UINT64 Param, UINT32 Control, UINT32 *SlotOut) {
             gXhciCmdSick = 0;
             return 0;
         }
+        XhciEventLeaveExclusive();
 
         if (gCmdDone) {
             DiagChk(Name, 0, "cc=1", gCmdCode, 2);

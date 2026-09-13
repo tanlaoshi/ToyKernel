@@ -236,6 +236,8 @@ int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
     /* 清完成码：超时后若仍显示上一笔 cc=1，会误报 FAIL want=cc=1|13 got=0x01 */
     gXferDone = 0;
     gXferCode = 0;
+    /* excl-1：门铃与 WaitTransfer 同独占窗 */
+    XhciEventEnterExclusive();
     Enqueue(Ring, St, SetupParam, 8, TRB_TYPE(TRB_SETUP) | TRB_IDT | Trt);
 
     if (Setup->wLength && Data) {
@@ -250,6 +252,7 @@ int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
         ProcessEvents();
         ServiceHidCompletions();
         if (gXferDone && (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET)) {
+            XhciEventLeaveExclusive();
             DiagChk("ControlXfer", 1, "cc=1|13", gXferCode, 2);
             return 0;
         }
@@ -262,16 +265,19 @@ int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
             DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
             gCtrlFailLogged++;
         }
+        XhciEventLeaveExclusive();
         RecoverEp0(gXferSlot);
         return -1;
     }
     if (!(gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET)) {
+        XhciEventLeaveExclusive();
         if (!gXferFast && gCtrlFailLogged < 2) {
             DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
             gCtrlFailLogged++;
         }
         return -1;
     }
+    XhciEventLeaveExclusive();
     if (DiagVerbose()) {
         DiagChk("ControlXfer", 1, "cc=1|13", gXferCode, 2);
     }

@@ -26,6 +26,14 @@ int XhciMscReady(void) {
 }
 
 static int WaitBulk(void) {
+    int Own = 0;
+    int Result = -1;
+
+    if (!XhciEventIsExclusive()) {
+        XhciEventEnterExclusive();
+        Own = 1;
+    }
+
     if (!HalCpuIsHypervisor()) {
         UINT64 T0 = ReadTsc();
         UINT64 Need = 500ULL * 3000000ULL; /* ~500ms：大 U 盘 INQUIRY 可慢 */
@@ -34,28 +42,33 @@ static int WaitBulk(void) {
             ProcessEventsRealPc();
             ServiceHidCompletions();
             if (gBulkDone) {
-                return (gBulkCode == CC_SUCCESS || gBulkCode == CC_SHORT_PACKET) ? 0
+                Result = (gBulkCode == CC_SUCCESS || gBulkCode == CC_SHORT_PACKET) ? 0
                                                                                 : -1;
+                break;
             }
             if (ReadTsc() - T0 >= Need) {
-                return -1;
+                break;
             }
             __asm__ volatile ("pause");
         }
-    }
-    {
+    } else {
         int Timeout = 200000;
 
         while (Timeout--) {
             ProcessEvents();
             ServiceHidCompletions();
             if (gBulkDone) {
-                return (gBulkCode == CC_SUCCESS || gBulkCode == CC_SHORT_PACKET) ? 0
+                Result = (gBulkCode == CC_SUCCESS || gBulkCode == CC_SHORT_PACKET) ? 0
                                                                                 : -1;
+                break;
             }
         }
     }
-    return -1;
+
+    if (Own) {
+        XhciEventLeaveExclusive();
+    }
+    return Result;
 }
 
 /*
@@ -91,13 +104,17 @@ int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
     gBulkDone = 0;
     gBulkCode = 0;
     gBulkRemain = 0;
+    /* excl-1：门铃与 WaitBulk 同独占窗 */
+    XhciEventEnterExclusive();
     Enqueue(Ring, St, PointerToPhysical(Buf), Len, Ctrl);
     FlushDma(Ring, sizeof(XHCI_TRB) * (St->Size ? St->Size : RING_SIZE));
     RingDoorbell(gMscScanSlot, Dci);
     if (WaitBulk() < 0) {
+        XhciEventLeaveExclusive();
         BootLogHex("boot: msc bulk fail cc=", gBulkCode, 2);
         return -1;
     }
+    XhciEventLeaveExclusive();
     FlushDma(Buf, Len);
     return 0;
 }

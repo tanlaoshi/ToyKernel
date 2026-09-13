@@ -1,7 +1,6 @@
 /*
  * XhciTransfer.c — PR-H-xhci-core-split-4：WaitTransfer / ServiceHidCompletions
- *
- * 从 XhciCore.c 原样搬家；不改语义。xfer/HID 完成标志全局仍在 XhciCore.c。
+ * PR-H-xhci-evt-excl-1：Wait 全程独占（门铃由 ControlXfer 同窗敲）
  */
 #include "XHCI/XhciInternal.h"
 
@@ -34,6 +33,14 @@ void ServiceHidCompletions(void) {
 }
 
 int WaitTransfer(int Timeout) {
+    int Own = 0;
+    int Result = -1;
+
+    if (!XhciEventIsExclusive()) {
+        XhciEventEnterExclusive();
+        Own = 1;
+    }
+
     /*
      * 真机：按 TSC 限时（默认 ~80ms）。旧版固定 20 万次 ProcessEvents，
      * 多口 ControlXfer 超时会空转数十秒 → 短按电源无效、只能长按硬关。
@@ -45,20 +52,29 @@ int WaitTransfer(int Timeout) {
             ProcessEventsRealPc();
             ServiceHidCompletions();
             if (gXferDone) {
-                return (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0 : -1;
+                Result = (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0
+                                                                                   : -1;
+                break;
             }
             if (ReadTsc() - T0 >= Need) {
-                return -1;
+                break;
             }
             __asm__ volatile ("pause");
         }
-    }
-    while (Timeout--) {
-        ProcessEvents();
-        ServiceHidCompletions();
-        if (gXferDone) {
-            return (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0 : -1;
+    } else {
+        while (Timeout--) {
+            ProcessEvents();
+            ServiceHidCompletions();
+            if (gXferDone) {
+                Result = (gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET) ? 0
+                                                                                   : -1;
+                break;
+            }
         }
     }
-    return -1;
+
+    if (Own) {
+        XhciEventLeaveExclusive();
+    }
+    return Result;
 }

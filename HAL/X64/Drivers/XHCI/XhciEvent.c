@@ -1,10 +1,33 @@
 /*
  * XhciEvent.c — PR-H-xhci-msc-split-2：事件环 ProcessEvents*
+ * PR-H-xhci-evt-excl-1：独占窗 API（门铃/Wait 同消费者）
  *
- * 从 XhciCore.c 原样搬家函数；DMA/环全局仍在 XhciCore.c（勿迁 BSS）。
- * Drain/IRQ 策略仍在 XhciIrq.c。
+ * DMA/环全局仍在 XhciCore.c（勿迁 BSS）。
  */
 #include "XHCI/XhciInternal.h"
+
+/* 嵌套深度：Command Enter + Wait* Enter 可叠一层 */
+static volatile int gEvtExclusiveDepth;
+
+void XhciEventEnterExclusive(void) {
+    gEvtExclusiveDepth++;
+    gXhciCmdWaiting = 1; /* Irq/Drain 旧门控仍认此旗 */
+    Fence();
+}
+
+void XhciEventLeaveExclusive(void) {
+    Fence();
+    if (gEvtExclusiveDepth > 0) {
+        gEvtExclusiveDepth--;
+    }
+    if (gEvtExclusiveDepth == 0) {
+        gXhciCmdWaiting = 0;
+    }
+}
+
+int XhciEventIsExclusive(void) {
+    return gEvtExclusiveDepth > 0 ? 1 : 0;
+}
 
 /* 处理事件环中所有待处理 TRB（命令完成、传输完成） */
 void ProcessEvents(void) {

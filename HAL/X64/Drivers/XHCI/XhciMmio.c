@@ -110,7 +110,8 @@ void StallMs(UINT32 Ms) {
     T0 = ReadTsc();
     NextDrain = T0;
     while (ReadTsc() - T0 < Need) {
-        if (!HalCpuIsHypervisor() && gXhciStarted && ReadTsc() >= NextDrain) {
+        if (!HalCpuIsHypervisor() && gXhciStarted && ReadTsc() >= NextDrain &&
+            !XhciEventIsExclusive() && !gXhciCmdWaiting) {
             ProcessEventsRealPc();
             ServiceHidCompletions();
             NextDrain = ReadTsc() + 3000000ULL;

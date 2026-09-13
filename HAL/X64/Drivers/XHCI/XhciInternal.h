@@ -224,6 +224,7 @@ extern volatile UINT32 gStatLastSlot;
 extern volatile UINT32 gStatLastEp;
 extern volatile UINT32 gStatUnmatched;
 extern volatile UINT32 gStatIrq;
+extern volatile UINT32 gStatIrqSkipped; /* excl-1：独占窗跳过 */
 extern UINT32 gDiagXferLogged;
 extern UINT32 gDiagQuiet;
 extern UINT32 gDiagIntrCcLogged;
@@ -316,6 +317,10 @@ void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status, UINT32
 UINT32 TrbType(UINT32 Control);
 void ProcessEvents(void);
 void ProcessEventsRealPc(void);
+/* PR-H-xhci-evt-excl-1：事件环独占（门铃与 Wait 同窗；Irq/Drain 守门） */
+void XhciEventEnterExclusive(void);
+void XhciEventLeaveExclusive(void);
+int XhciEventIsExclusive(void);
 void RingDoorbell(UINT32 Slot, UINT32 Target);
 
 void DcbaaSet(UINT32 Slot, UINT64 Phys);

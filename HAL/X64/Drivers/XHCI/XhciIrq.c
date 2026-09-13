@@ -17,10 +17,11 @@ void XhciIrq(void) {
 
     gStatIrq++;
     /*
-     * WaitCommand 独占事件环：并发 ProcessEvents 会弄乱 CCS/ERDP，
+     * 独占窗：并发 ProcessEvents 会弄乱 CCS/ERDP，
      * EnableSlot 完成事件被吃掉 → done=0 → CA → cmd sick → 鼠假死。
      */
-    if (gXhciCmdWaiting) {
+    if (XhciEventIsExclusive() || gXhciCmdWaiting) {
+        gStatIrqSkipped++;
         if (gRuntimeBase != 0) {
             ImClearPending();
         }
@@ -85,8 +86,8 @@ void XhciDrainEvents(void) {
 
     gStatDrain++;
 
-    /* WaitCommand 独占事件环；勿与 Drain 并发 ProcessEvents（CCS 竞态） */
-    if (gXhciCmdWaiting) {
+    /* 独占窗：勿与 Drain 并发 ProcessEvents（CCS 竞态） */
+    if (XhciEventIsExclusive() || gXhciCmdWaiting) {
         sIrqStall = 0;
         return;
     }
@@ -260,6 +261,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
     gStatLastSlot = 0;
     gStatLastEp = 0;
     gStatIrq = 0;
+    gStatIrqSkipped = 0;
     gDiagXferLogged = 0;
     gDiagIntrCcLogged = 0;
     XhciDiagLogArms();
