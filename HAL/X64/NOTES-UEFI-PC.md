@@ -148,7 +148,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 - 细则：[`../../Documents/XHCI事件环单消费者.md`](../../Documents/XHCI事件环单消费者.md)
 - **excl-1** ✅ TG `7c28c51`：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
-- **excl-2** ✅ TG ：`gEvtConsumerLock` + ProcessEventsLocked；Irq/Drain 与 HID 锁分离
+- **excl-2** ✅ TG `e982dd6`：`gEvtConsumerLock` + ProcessEventsLocked；Irq/Drain 与 HID 锁分离
 - **excl-3** ← JX：去掉 `fallback msc-claim`；NUC 必测
 
 **机型笔记**（贡献者追加一行即可）：
