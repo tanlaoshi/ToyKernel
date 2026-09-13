@@ -152,7 +152,7 @@ cd ../ToyImage && ./smoke-boot.sh   # kbd + xhci irq=msi
 
 ---
 
-### PR-H-xhci-evt-excl-3：去掉 claim→poll
+### PR-H-xhci-evt-excl-3：去掉 claim→poll（✅ TG c26117c）
 
 **目标**：claim 保持 dual。
 
@@ -205,5 +205,5 @@ cd ../ToyImage && ./smoke-boot.sh
 | -- | --- | --- | --- |
 | 1 | **excl-1** | 独占 API + 门铃同窗 + 全 Wait* + 守门；保留 claim→poll | ✅ TG `7c28c51` |
 | 2 | **excl-2** | `gEvtConsumerLock` + ProcessEventsLocked | ✅ TG `e982dd6` |
-| 3 | **excl-3** | 去掉 `fallback msc-claim`；NUC 必测 | ← **JX** |
+| 3 | **excl-3** | 去掉 `fallback msc-claim`；真机永留 dual | ✅ TG c26117c |
 | 4 | excl-4 | Recover/sick/PHOTO（可选） | ⬜ |
