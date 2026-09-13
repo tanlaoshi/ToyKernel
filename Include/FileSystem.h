@@ -15,6 +15,9 @@
 
 int FileSystemInit(void);
 
+/* PR-H-msc-6：Block 后端变更后重扫卷（不清 VfsRegister）；成功 1 */
+int FileSystemRemountVolumes(void);
+
 /* 卷数；下标 0..Count-1 */
 int FileSystemVolCount(void);
 int FileSystemDefaultVol(void);

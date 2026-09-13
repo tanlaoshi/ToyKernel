@@ -65,6 +65,10 @@ UINT32 HalUsbMscBlockSize(void) {
     return UsbMscBlockSize();
 }
 
+int HalUsbMscMount(void) {
+    return UsbMscMount();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

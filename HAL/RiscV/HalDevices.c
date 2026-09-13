@@ -75,6 +75,10 @@ UINT32 HalUsbMscBlockSize(void) {
     return 0;
 }
 
+int HalUsbMscMount(void) {
+    return -1;
+}
+
 void HalInputArmIrq(void) {
 }
 

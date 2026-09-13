@@ -1,11 +1,12 @@
 /*
  * ShellCmdUsb.c — PR-S-shell-split-1：xhci / msc Shell 命令
  *
- * 从 ShellCommands.c 原样搬家；不改语义。
+ * 从 ShellCommands.c 原样搬家；msc mount = PR-H-msc-6。
  */
 #include "ShellPriv.h"
 #include "Console.h"
 #include "Hal.h"
+#include "FileSystem.h"
 
 /* PR-H-xhci-stat：Shell 可查 mode= + t/i/k/m…（与 PHOTO 同行格式） */
 static void CommandXhci(int Argc, char **Argv) {
@@ -20,7 +21,7 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-msc-5：msc | msc scan | msc claim | msc capacity；不自动认盘、不挂 FAT */
+/* PR-H-msc-6：msc | scan | claim | capacity | mount；不自动认盘 */
 static void CommandMsc(int Argc, char **Argv) {
     int Rc;
 
@@ -50,7 +51,7 @@ static void CommandMsc(int Argc, char **Argv) {
         } else {
             ConsoleWrite("ok ready=");
             ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-            ConsoleWrite(" (SetConfig+Bulk; use: msc capacity; HID untouched)\n");
+            ConsoleWrite(" (SetConfig+Bulk; use: msc capacity|mount; HID untouched)\n");
         }
         return;
     }
@@ -73,16 +74,61 @@ static void CommandMsc(int Argc, char **Argv) {
         return;
     }
 
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'm' && Argv[1][1] == 'o' &&
+        Argv[1][2] == 'u' && Argv[1][3] == 'n' && Argv[1][4] == 't' &&
+        Argv[1][5] == 0) {
+        Rc = HalUsbMscMount();
+        ConsoleWrite("msc: mount ");
+        if (Rc == -1) {
+            ConsoleWrite("fail (need claim)\n");
+            return;
+        }
+        if (Rc == -2) {
+            ConsoleWrite("fail (capacity)\n");
+            return;
+        }
+        if (Rc == -3) {
+            ConsoleWrite("fail (bsize!=512; FAT needs 512)\n");
+            return;
+        }
+        if (Rc != 0) {
+            ConsoleWrite("fail\n");
+            return;
+        }
+        ConsoleWrite("mux ok bsize=512; remount…\n");
+        if (!FileSystemRemountVolumes()) {
+            ConsoleWrite("msc: remount fail (no FAT vols; HID untouched)\n");
+            return;
+        }
+        ConsoleWrite("msc: remount ok vols=");
+        ConsoleWriteHex32((UINT32)FileSystemVolCount());
+        ConsoleWrite(" default=");
+        {
+            char Name[FS_VOL_NAME_MAX];
+            int Def = FileSystemDefaultVol();
+
+            Name[0] = 0;
+            if (Def >= 0) {
+                (void)FileSystemVolInfo(Def, Name, FS_VOL_NAME_MAX, 0, 0, 0);
+            }
+            ConsoleWrite(Name[0] ? Name : "?");
+        }
+        ConsoleWrite(" (try: vols | ls TOYOS:; HID untouched)\n");
+        return;
+    }
+
     Rc = HalUsbMscInit();
     ConsoleWrite("msc: bringup=");
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
     ConsoleWrite(" ready=");
     ConsoleWrite(HalUsbMscReady() ? "1" : "0");
-    ConsoleWrite(" (use: msc scan | msc claim | msc capacity)\n");
+    ConsoleWrite(" (use: msc scan | claim | capacity | mount)\n");
 }
 
 void ShellCmdUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
-    ConsoleRegister("msc", "USB MSC: msc | msc scan | msc claim | msc capacity (PR-H-msc-5)", CommandMsc);
+    ConsoleRegister("msc",
+                    "USB MSC: msc | scan | claim | capacity | mount (PR-H-msc-6)",
+                    CommandMsc);
     ConsoleRegisterAliasLine("xhci", "show", "xhci");
 }

@@ -253,6 +253,59 @@ UINT32 XhciMscBlockSize(void) {
     return gMscCapacityOk ? gMscBlockSize : 0;
 }
 
+/*
+ * PR-H-msc-6：逐扇区 BOT READ(10)/WRITE(10)。
+ * 仅支持逻辑块 512（与 BLOCK_SECTOR_SIZE / FAT 一致）；bounce 对齐，避免脏缓冲 DMA。
+ * 每扇区间 WaitBulk 仍 ServiceHidCompletions，勿关 Drain。
+ */
+static int MscXferSectors(UINT32 Lba, UINT32 Count, void *Buffer, int Write) {
+    UINT8 Bounce[512] __attribute__((aligned(64)));
+    UINT8 *Ptr = (UINT8 *)Buffer;
+    UINT32 i;
+
+    if (!gMscCapacityOk || gMscBlockSize != 512 || Buffer == 0 || Count == 0) {
+        return 0;
+    }
+    if (Lba >= gMscBlockCount || Count > gMscBlockCount - Lba) {
+        return 0;
+    }
+
+    for (i = 0; i < Count; i++) {
+        UINT8 Cdb[16];
+        UINT32 Cur = Lba + i;
+
+        ZeroMemory(Cdb, sizeof(Cdb));
+        Cdb[0] = Write ? 0x2Au : 0x28u; /* WRITE(10) / READ(10) */
+        Cdb[2] = (UINT8)(Cur >> 24);
+        Cdb[3] = (UINT8)(Cur >> 16);
+        Cdb[4] = (UINT8)(Cur >> 8);
+        Cdb[5] = (UINT8)(Cur);
+        Cdb[7] = 0;
+        Cdb[8] = 1;
+        if (Write) {
+            CopyMemory(Bounce, Ptr + (UINTN)i * 512u, 512);
+            if (MscBot(Cdb, 10, 512, 0, Bounce) < 0) {
+                return 0;
+            }
+        } else {
+            ZeroMemory(Bounce, sizeof(Bounce));
+            if (MscBot(Cdb, 10, 512, 1, Bounce) < 0) {
+                return 0;
+            }
+            CopyMemory(Ptr + (UINTN)i * 512u, Bounce, 512);
+        }
+    }
+    return 1;
+}
+
+int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
+    return MscXferSectors(Lba, Count, Buffer, 0);
+}
+
+int XhciMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {
+    return MscXferSectors(Lba, Count, (void *)Buffer, 1);
+}
+
 /* 配置描述符中找 MSC Bulk IN/OUT（偏好 BOT；允许 UASP；兜底任一对 Bulk） */
 static int ParseMscBulk(UINT8 *Cfg, UINT16 Total, UINT8 *OutIface,
                        UINT8 *EpIn, UINT16 *MpsIn, UINT8 *EpOut, UINT16 *MpsOut) {

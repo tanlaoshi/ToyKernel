@@ -5,6 +5,7 @@
  * PR-H-msc-3：UsbMscScan → 非键鼠口 class 日志后放弃。
  * PR-H-msc-4：UsbMscClaim → 单口 SetConfig + Bulk；不 SCSI。
  * PR-H-msc-5：UsbMscCapacity → INQUIRY + READ CAPACITY(10)。
+ * PR-H-msc-6：UsbMscMount → BlockMux；扇区 R/W；不自动挂 FAT。
  */
 #ifndef USB_MSC_H
 #define USB_MSC_H
@@ -20,5 +21,7 @@ UINT32 UsbMscBlockCount(void);
 UINT32 UsbMscBlockSize(void);
 int UsbMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 int UsbMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
+/* PR-H-msc-6：装 Mux；0 ok；-1 未 claim；-2 capacity；-3 非 512B */
+int UsbMscMount(void);
 
 #endif

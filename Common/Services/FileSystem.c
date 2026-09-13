@@ -605,6 +605,25 @@ static int MountAllVolumes(void) {
     return 1;
 }
 
+int FileSystemRemountVolumes(void) {
+    /*
+     * 勿再 HalBlockInit()/ProbeClass：会重绑 AHCI 冲掉已装的 BlockMux。
+     * 后端已在时只 BlockInit 重 Probe（Mux 会挂上 MSC 盘号）。
+     */
+    if (!BlockBackendReady()) {
+        if (HalBlockInit() <= 0) {
+            DebugWrite("FS: remount no block backend\n");
+        }
+    } else if (BlockInit() <= 0) {
+        DebugWrite("FS: remount BlockInit found 0 drives\n");
+    }
+    if (!MountAllVolumes()) {
+        DebugWrite("FS: remount no volumes\n");
+        return 0;
+    }
+    return 1;
+}
+
 int FileSystemInit(void) {
     VFS_SERVICE_OPS Svc;
 

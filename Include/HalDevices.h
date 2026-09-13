@@ -52,6 +52,8 @@ int HalUsbMscClaim(void);
 int HalUsbMscCapacity(void);
 UINT32 HalUsbMscBlockCount(void);
 UINT32 HalUsbMscBlockSize(void);
+/* PR-H-msc-6：装 BlockMux（不自动挂）；0 ok；负=错 */
+int HalUsbMscMount(void);
 /* 真机 PHOTO 后开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
