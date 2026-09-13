@@ -127,7 +127,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **补丁**（2026-09-13）：hub 子口 PORT_POWER 等 **100ms**；MSC 根口 **一律 Force PR**；命令环 sick 则 abort
 - 验收：`msc claim` 直插 / 外接 hub 后 `ready=1`；键鼠仍可用
 - **msc-5** ✅ TG 2026-09-13：Shell `msc capacity` — BOT INQUIRY + READ CAPACITY(10)；串口 blocks/bsize；**不**分区/FAT；NUC 外接 hub claim+capacity ok
-- **下一刀**：xhci-core-split-6（Keyboard+SetupHid；见路线图 ★）；split-5 `8456d0a`；柱后 msc-6
+- **下一刀**：PR-H-msc-6（BlockMux remount / `msc mount`；见路线图 ★）；xhci-core-split 柱本地完成（split-6 `dd61daf`）
 
 ### H4：真机网卡范例（e1000）
 
