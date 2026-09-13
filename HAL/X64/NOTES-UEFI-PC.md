@@ -141,7 +141,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - 课堂：`TOY_NET=e1000 ./smoke-boot.sh` → `boot: e1000`；默认 virtio 不回归
 - **无卡不挡桌面**；`lsdev` 见 `e1000`
 - **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
-- **H4e-2** ✅ TG ：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
+- **H4e-2** ✅ TG `486de82`：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
 - **H4e-3** ← JX：MSI/IRQ RX
 - **未做**：Realtek、无线、MSI（→ H4e-3）
 
