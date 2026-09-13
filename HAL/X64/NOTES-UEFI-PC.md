@@ -142,8 +142,8 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **无卡不挡桌面**；`lsdev` 见 `e1000`
 - **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
 - **H4e-2** ✅ TG `486de82`：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
-- **H4e-3** ← JX：MSI/IRQ RX
-- **未做**：Realtek、无线、MSI（→ H4e-3）
+- **H4e-3** ✅ TG `ddd4eb7`：`VEC_E1000`；MSI（MSI-X bad BIR 回落 MSI）；`boot: e1000e irq=msi`；NetPoll 备份
+- **未做**：Realtek、无线；NUC I219 等 DID 未扩（无卡不挡桌面）
 
 ### H-xhci-evt-excl：事件环单消费者（✅ 1…4）
 
