@@ -320,6 +320,9 @@ void RingDoorbell(UINT32 Slot, UINT32 Target);
 
 void DcbaaSet(UINT32 Slot, UINT64 Phys);
 void DcbaaFlush(void);
+int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
+                     XHCI_TRB **BaseOut, UINT32 *SizeOut,
+                     UINT32 *EnqOut, UINT32 *PcsOut);
 
 UINT8 *InSlot(void);
 UINT8 *InEp(UINT32 Dci);
