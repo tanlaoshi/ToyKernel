@@ -16,7 +16,7 @@ cd "$(dirname "$0")"
 ARCH=x86_64
 BOARD=virt
 DEBUG=0
-LWIP=0
+LWIP=1
 NO_COM1=0
 SERIAL=1
 SERIAL_BOOT=1

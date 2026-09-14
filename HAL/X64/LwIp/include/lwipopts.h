@@ -62,7 +62,7 @@
 
 #define LWIP_PLATFORM_ASSERT(x)     do { (void)(x); } while (0)
 
-/* DNS TXID：展开于已含 sys_now 声明的编译单元 */
+/* DNS/TCP/UDP 随机端口；sys_now 原型在 arch/cc.h */
 #define LWIP_RAND()                 ((u32_t)(sys_now() ^ 0xA5A5A5A5u))
 
 #endif

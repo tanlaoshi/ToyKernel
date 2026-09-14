@@ -11,6 +11,7 @@
 #include "Hal.h"
 #include "LwIp.h"
 #include "Errno.h"
+#include "ToySerialLog.h"
 #include "lwip/tcp.h"
 #include "lwip/pbuf.h"
 

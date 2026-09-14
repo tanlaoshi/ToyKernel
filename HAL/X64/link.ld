@@ -6,26 +6,33 @@
 OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(KernelEntry)
 
+PHDRS
+{
+    text PT_LOAD FLAGS(5); /* PF_R|PF_X */
+    data PT_LOAD FLAGS(6); /* PF_R|PF_W */
+}
+
 SECTIONS
 {
     . = 0x100000;
 
     .text : {
         *(.text*)
-    }
+    } :text
 
     .rodata : {
         *(.rodata*)
-    }
+    } :text
 
+    . = ALIGN(0x1000);
     .data : {
         *(.data*)
-    }
+    } :data
 
     .bss : {
         *(.bss*)
         *(COMMON)
-    }
+    } :data
 
     __kernel_end = .;
 

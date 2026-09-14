@@ -17,7 +17,7 @@ SERIAL_MISC ?= 1
 ifeq ($(NO_COM1),1)
 SERIAL := 0
 endif
-LWIP ?= 0
+LWIP ?= 1
 LWIPINCLUDES :=
 LWIPOBJS :=
 LWIP_PORT_OBJS :=
@@ -164,7 +164,7 @@ ifneq ($(BOARD_DIR),)
 CFLAGS_HAL += -DTOY_BOARD=\"$(BOARD)\"
 endif
 
-LDFLAGS = -nostdlib -static -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
+LDFLAGS = -nostdlib -static -z noexecstack -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
 LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
@@ -267,6 +267,7 @@ USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 	User/crt/errno.o User/crt/unistd.o User/crt/stdlib.o User/crt/signal.o \
 	User/crt/dirent.o
 USER_LD = User/user.ld
+USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
@@ -294,12 +295,12 @@ ifeq ($(ARCH),arm64)
 USER_LD = User/user-arm64.ld
 USER_CRT0_SRC = User/crt/crt0_aarch64.S
 USER_SYSCALL_SRC = User/crt/syscall_aarch64.S
-USER_LDFLAGS =
+USER_LDFLAGS = -z noexecstack
 else
 USER_LD = User/user-riscv.ld
 USER_CRT0_SRC = User/crt/crt0_riscv.S
 USER_SYSCALL_SRC = User/crt/syscall_riscv.S
-USER_LDFLAGS = -m elf64lriscv
+USER_LDFLAGS = -m elf64lriscv -z noexecstack
 endif
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include
@@ -439,7 +440,7 @@ $(HALDIR)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(HALDIR)
 ifeq ($(ARCH),x86_64)
 $(HALDIR)/SmpTramp.bin: HAL/X64/SmpTrampoline.S HAL/X64/SmpTrampoline.ld | $(HALDIR)
 	$(CC) -c HAL/X64/SmpTrampoline.S -o $(HALDIR)/SmpTrampoline_low.o
-	$(LD) -T HAL/X64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
+	$(LD) -z noexecstack -T HAL/X64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
 		$(HALDIR)/SmpTrampoline_low.o
 	objcopy -O binary $(HALDIR)/SmpTrampoline_low.elf $@
 
@@ -461,55 +462,55 @@ $(USER_COUNT_OBJ): User/count.S
 	$(CC) -c $< -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_EXECDEMO_OBJ): User/execdemo.c User/include/stdio.h User/include/unistd.h
 	$(CC) $(USER_CFLAGS) -c User/execdemo.c -o $@
 
 $(USER_EXECDEMO_ELF): $(USER_EXECDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_EXECDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_EXECDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_PIPEDEMO_OBJ): User/pipedemo.c User/include/stdio.h User/include/unistd.h \
 		User/include/string.h
 	$(CC) $(USER_CFLAGS) -c User/pipedemo.c -o $@
 
 $(USER_PIPEDEMO_ELF): $(USER_PIPEDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_PIPEDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_PIPEDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_BRKDEMO_OBJ): User/brkdemo.c User/include/stdio.h User/include/stdlib.h \
 		User/include/string.h
 	$(CC) $(USER_CFLAGS) -c User/brkdemo.c -o $@
 
 $(USER_BRKDEMO_ELF): $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_MMAPDEMO_OBJ): User/mmapdemo.c User/include/stdio.h User/include/string.h \
 		User/include/sys/mman.h
 	$(CC) $(USER_CFLAGS) -c User/mmapdemo.c -o $@
 
 $(USER_MMAPDEMO_ELF): $(USER_MMAPDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_MMAPDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_MMAPDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_KILLDEMO_OBJ): User/killdemo.c User/include/stdio.h User/include/unistd.h \
 		User/include/signal.h
 	$(CC) $(USER_CFLAGS) -c User/killdemo.c -o $@
 
 $(USER_KILLDEMO_ELF): $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_SIGDEMO_OBJ): User/sigdemo.c User/include/stdio.h User/include/stdlib.h \
 		User/include/unistd.h User/include/signal.h User/include/toyos/syscall.h
 	$(CC) $(USER_CFLAGS) -c User/sigdemo.c -o $@
 
 $(USER_SIGDEMO_ELF): $(USER_SIGDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_SIGDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SIGDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_WINDEMO_OBJ): User/windemo.c User/include/stdio.h User/include/unistd.h \
 		User/include/ToySyscall.h
 	$(CC) $(USER_CFLAGS) -c User/windemo.c -o $@
 
 $(USER_WINDEMO_ELF): $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_LIB_TOY_GFX_OBJ): User/Library/ToyGfx/ToyGfx.c User/include/ToyGfx.h \
 		User/include/unistd.h User/include/ToySyscall.h
@@ -544,7 +545,7 @@ $(USER_GUIDEMO_OBJ): User/GuiDemo.c User/include/ToyUi.h User/include/ToyGfx.h \
 
 $(USER_GUIDEMO_ELF): $(USER_GUIDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) \
 		$(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_GUIDEMO_OBJ) \
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_GUIDEMO_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
 $(USER_BLITDEMO_OBJ): User/blitdemo.c User/include/ToyUi.h User/include/ToyGfx.h \
@@ -553,7 +554,7 @@ $(USER_BLITDEMO_OBJ): User/blitdemo.c User/include/ToyUi.h User/include/ToyGfx.h
 
 $(USER_BLITDEMO_ELF): $(USER_BLITDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) \
 		$(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_BLITDEMO_OBJ) \
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_BLITDEMO_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
 $(USER_LIBCDEMO_OBJ): User/libcdemo.c User/include/stdio.h User/include/stdlib.h \
@@ -561,25 +562,25 @@ $(USER_LIBCDEMO_OBJ): User/libcdemo.c User/include/stdio.h User/include/stdlib.h
 	$(CC) $(USER_CFLAGS) -c User/libcdemo.c -o $@
 
 $(USER_LIBCDEMO_ELF): $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_DIRDEMO_OBJ): User/dirdemo.c User/include/stdio.h User/include/dirent.h \
 		User/include/string.h
 	$(CC) $(USER_CFLAGS) -c User/dirdemo.c -o $@
 
 $(USER_DIRDEMO_ELF): $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS)
 
 $(USER_NETLIB_OBJ): User/netlibdemo.c User/include/ToyNet.h User/include/stdio.h \
 		User/include/string.h User/include/unistd.h
 	$(CC) $(USER_CFLAGS) -c User/netlibdemo.c -o $@
 
 $(USER_NETLIB_ELF): $(USER_NETLIB_OBJ) $(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_NETLIB_OBJ) \
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_NETLIB_OBJ) \
 		$(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS)
 
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
 
 $(USER_FORK_OBJ): User/fork.S
 	$(CC) -c $< -o $@
@@ -614,35 +615,35 @@ $(USER_SYSFORK_OBJ): User/sysfork.S
 	$(CC) -c $< -o $@
 
 $(USER_FORK_ELF): $(USER_FORK_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_FORK_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_FORK_OBJ)
 
 $(USER_WAITNH_ELF): $(USER_WAITNH_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WAITNH_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_WAITNH_OBJ)
 
 $(USER_LIBTOY_SO): $(USER_LIBTOY_OBJ)
-	$(LD) -shared -soname LIBTOY.SO -o $@ $(USER_LIBTOY_OBJ)
+	$(LD) -shared -z noexecstack -soname LIBTOY.SO -o $@ $(USER_LIBTOY_OBJ)
 
 $(USER_DYNDEMO_ELF): $(USER_DYNDEMO_OBJ) $(USER_LIBTOY_SO)
-	$(LD) -nostdlib -no-pie -Ttext-segment=0x40000000 -z max-page-size=0x1000 \
+	$(LD) -nostdlib -no-pie -z noexecstack -Ttext-segment=0x40000000 -z max-page-size=0x1000 \
 		-o $@ $(USER_DYNDEMO_OBJ) $(USER_LIBTOY_SO)
 
 $(USER_CAT_ELF): $(USER_CAT_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_CAT_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_CAT_OBJ) $(USER_CRT_OBJS)
 
 $(USER_WRITE_ELF): $(USER_WRITE_OBJ) $(USER_CRT_OBJS) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_WRITE_OBJ) $(USER_CRT_OBJS)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_WRITE_OBJ) $(USER_CRT_OBJS)
 
 $(USER_NETDEMO_ELF): $(USER_NETDEMO_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_NETDEMO_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_NETDEMO_OBJ)
 
 $(USER_NETSRV_ELF): $(USER_NETSRV_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_NETSRV_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_NETSRV_OBJ)
 
 $(USER_SYSHELLO_ELF): $(USER_SYSHELLO_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_SYSHELLO_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SYSHELLO_OBJ)
 
 $(USER_SYSFORK_ELF): $(USER_SYSFORK_OBJ) $(USER_LD)
-	$(LD) -nostdlib -static -T $(USER_LD) -o $@ $(USER_SYSFORK_OBJ)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SYSFORK_OBJ)
 
 $(HALDIR)/User_hello_blob.o: $(USER_HELLO_ELF) | $(HALDIR)
 	objcopy -I binary -O $(USER_BLOB_FMT) User/hello.elf $@
