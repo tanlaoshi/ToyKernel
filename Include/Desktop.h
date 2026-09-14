@@ -39,8 +39,13 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out);
 /*
  * 桌面空白处的按下：任务栏/开始菜单，或双击图标。
  * 返回 1=已处理；*OutAction 为待开应用（NONE 表示仅菜单/选中）。
+ * PR-G-desk-1：单击图标会武装拖放（与窗标题拖并存，互斥）。
  */
 int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction);
+/* PR-G-desk-1：图标拖放（Gui 在按住左键时调用） */
+int DesktopIconDragActive(void);
+void DesktopIconDragUpdate(UINT32 X, UINT32 Y);
+void DesktopIconDragEnd(void);
 void DesktopRefreshLabels(void);
 /* PR-G-taskbar-clock：分钟变化时重绘右下角时间 */
 void DesktopTickClock(void);

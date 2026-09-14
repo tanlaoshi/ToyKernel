@@ -975,6 +975,12 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         if (!DesktopHandleClick(X, Y, &Act)) {
             return 0;
         }
+        /* PR-G-desk-1：与窗标题拖一致，武装拖放前先擦光标，避免留下光标脏块 */
+        if (DesktopIconDragActive()) {
+            GfxIrqEnter();
+            CursorRestore();
+            GfxIrqLeave();
+        }
         if (Act == DESKTOP_ACTION_SHELL) {
             Idx = GuiOpenShell();
             if (Idx >= 0) {
@@ -1032,9 +1038,25 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     } else if ((Mouse->Buttons & 1) && gDragWin >= 0) {
         /* PR-G10 L2：与 GuiPollMouse 统一，按住拖动时持续更新 */
         GuiDragUpdate(gCursorX, gCursorY);
+    } else if ((Mouse->Buttons & 1) && DesktopIconDragActive()) {
+        if (gCursorVisible) {
+            GfxIrqEnter();
+            CursorRestore();
+            GfxIrqLeave();
+        }
+        DesktopIconDragUpdate(gCursorX, gCursorY);
     }
     if (!(Mouse->Buttons & 1) && (gMousePrevBtn & 1)) {
+        int WasIconDrag = DesktopIconDragActive();
+
         GuiDragEnd();
+        DesktopIconDragEnd();
+        if (WasIconDrag) {
+            GfxIrqEnter();
+            CursorPaint();
+            GfxPresent();
+            GfxIrqLeave();
+        }
     }
     /* PR-I3：右键按下边沿 → 占位回调（bit1） */
     if ((Mouse->Buttons & 2) && !(gMousePrevBtn & 2)) {
@@ -1146,7 +1168,16 @@ void GuiPollMouse(void) {
             GuiHandleClick(X, Y);
         }
         if (!(Raw.Buttons & 1) && (LastBtn & 1)) {
+            int WasIconDrag = DesktopIconDragActive();
+
             GuiDragEnd();
+            DesktopIconDragEnd();
+            if (WasIconDrag) {
+                GfxIrqEnter();
+                CursorPaint();
+                GfxPresent();
+                GfxIrqLeave();
+            }
         }
         if ((Raw.Buttons & 2) && !(LastBtn & 2)) {
             GuiRightClickPlaceholder(X, Y);
@@ -1158,6 +1189,16 @@ void GuiPollMouse(void) {
             gCursorX = LastX;
             gCursorY = LastY;
             GuiDragUpdate(LastX, LastY);
+        } else if ((LastBtn & 1) && DesktopIconDragActive()) {
+            if (gCursorVisible) {
+                GfxIrqEnter();
+                CursorRestore();
+                GfxPresent();
+                GfxIrqLeave();
+            }
+            gCursorX = LastX;
+            gCursorY = LastY;
+            DesktopIconDragUpdate(LastX, LastY);
         } else {
             GuiPointerMove(LastX, LastY);
         }

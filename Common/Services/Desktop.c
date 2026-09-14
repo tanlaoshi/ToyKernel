@@ -2,6 +2,7 @@
  * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-D4 / PR-G13）
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
+ * PR-G-desk-1：图标可拖放；松手写入 TOYOS.DB（ic0..ic3=x,y）；启动时 LoadIconLayout。
  * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER|REBOOT.BMP。
  * 四个桌面图标另有内核内置 48×48 回退（真机缺文件也能显示）。
  * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
@@ -14,6 +15,7 @@
 #include "Locale.h"
 #include "Theme.h"
 #include "Bmp.h"
+#include "Db.h"
 #include "FileSystem.h"
 #include "PhysicalMemory.h"
 #include "Debug.h"
@@ -27,6 +29,7 @@
 #define DESKTOP_LABEL_PAD     6
 #define DESKTOP_DBLCLICK_SLOP 16u
 #define DESKTOP_DBLCLICK_MAX  2000000ULL
+#define DESKTOP_DRAG_THRESH   6u /* 超过此像素才算拖放，避免误伤双击 */
 
 #define TASKBAR_H             32u
 #define START_BTN_PAD_X       8u
@@ -66,6 +69,14 @@ static UINT64 gSelectClock;
 static UINT32 gSelectX;
 static UINT32 gSelectY;
 
+/* PR-G-desk-1：图标拖放状态 */
+static int gIconDragIdx = -1;
+static INT32 gIconDragOffX;
+static INT32 gIconDragOffY;
+static UINT32 gIconDragStartX;
+static UINT32 gIconDragStartY;
+static int gIconDragMoved;
+
 static BMP_IMAGE gWall;
 static int gWallReady;
 static BMP_IMAGE gStartBmp;
@@ -91,6 +102,8 @@ static int (*gPointOccupied)(UINT32 X, UINT32 Y);
 static void (*gRequestRefresh)(void);
 
 static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color);
+static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected);
+static void RedrawIconIndex(int Idx);
 
 static int PointOccupied(UINT32 X, UINT32 Y) {
     return gPointOccupied ? gPointOccupied(X, Y) : 0;
@@ -480,6 +493,189 @@ static void BuildWallScreen(void) {
     gWallScreenH = Sh;
 }
 
+static void ClampIconPos(UINT32 *X, UINT32 *Y) {
+    UINT32 Sw;
+    UINT32 Sh;
+    UINT32 BarY;
+    UINT32 MaxX;
+    UINT32 MaxY;
+
+    TaskbarGeom(&BarY, &Sw, &Sh);
+    MaxX = (Sw > DESKTOP_ICON_SIZE + 4u) ? (Sw - DESKTOP_ICON_SIZE - 4u) : 0;
+    MaxY = (BarY > DESKTOP_ICON_SIZE + FontCellH() + DESKTOP_LABEL_PAD + 4u)
+               ? (BarY - DESKTOP_ICON_SIZE - FontCellH() - DESKTOP_LABEL_PAD - 4u)
+               : 0;
+    if (*X > MaxX) {
+        *X = MaxX;
+    }
+    if (*Y > MaxY) {
+        *Y = MaxY;
+    }
+}
+
+static void ClampAllIcons(void) {
+    int i;
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        ClampIconPos(&gIcons[i].X, &gIcons[i].Y);
+    }
+}
+
+/* 解析 "x,y"；成功返回 1 */
+static int ParseIconXy(const char *S, UINT32 *OutX, UINT32 *OutY) {
+    UINT32 X = 0;
+    UINT32 Y = 0;
+    const char *P;
+
+    if (!S || !OutX || !OutY) {
+        return 0;
+    }
+    P = S;
+    if (*P < '0' || *P > '9') {
+        return 0;
+    }
+    while (*P >= '0' && *P <= '9') {
+        X = X * 10u + (UINT32)(*P - '0');
+        P++;
+        if (X > 8192u) {
+            return 0;
+        }
+    }
+    if (*P != ',') {
+        return 0;
+    }
+    P++;
+    if (*P < '0' || *P > '9') {
+        return 0;
+    }
+    while (*P >= '0' && *P <= '9') {
+        Y = Y * 10u + (UINT32)(*P - '0');
+        P++;
+        if (Y > 8192u) {
+            return 0;
+        }
+    }
+    if (*P != '\0') {
+        return 0;
+    }
+    *OutX = X;
+    *OutY = Y;
+    return 1;
+}
+
+static void FormatIconXy(UINT32 X, UINT32 Y, char *Out, UINTN OutMax) {
+    char Tmp[16];
+    UINTN N = 0;
+    UINTN i;
+    UINT32 V;
+
+    if (!Out || OutMax < 4) {
+        return;
+    }
+    V = X;
+    if (V == 0) {
+        Tmp[N++] = '0';
+    } else {
+        while (V > 0 && N < sizeof(Tmp)) {
+            Tmp[N++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    i = 0;
+    while (N > 0 && i + 1 < OutMax) {
+        Out[i++] = Tmp[--N];
+    }
+    if (i + 1 < OutMax) {
+        Out[i++] = ',';
+    }
+    N = 0;
+    V = Y;
+    if (V == 0) {
+        Tmp[N++] = '0';
+    } else {
+        while (V > 0 && N < sizeof(Tmp)) {
+            Tmp[N++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    while (N > 0 && i + 1 < OutMax) {
+        Out[i++] = Tmp[--N];
+    }
+    Out[i] = '\0';
+}
+
+static const char *IconLayoutKey(int Idx) {
+    switch (Idx) {
+    case 0:
+        return "ic0";
+    case 1:
+        return "ic1";
+    case 2:
+        return "ic2";
+    case 3:
+        return "ic3";
+    default:
+        return 0;
+    }
+}
+
+/* PR-G-desk-1：从 TOYOS.DB 覆盖默认坐标 */
+static void LoadIconLayout(void) {
+    int i;
+    int Any = 0;
+    char Val[DB_VAL_MAX];
+    UINT32 X;
+    UINT32 Y;
+    const char *Key;
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        Key = IconLayoutKey(i);
+        if (!Key) {
+            continue;
+        }
+        if (DbGet(Key, Val, sizeof(Val)) != DB_OK) {
+            continue;
+        }
+        if (!ParseIconXy(Val, &X, &Y)) {
+            continue;
+        }
+        ClampIconPos(&X, &Y);
+        gIcons[i].X = X;
+        gIcons[i].Y = Y;
+        Any = 1;
+    }
+    if (Any) {
+        DebugWrite("desktop: icon layout from TOYOS.DB\n");
+    }
+}
+
+static void SaveIconLayout(void) {
+    int i;
+    char Val[DB_VAL_MAX];
+    const char *Key;
+    int Ok = 1;
+
+    DbBeginBatch();
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        Key = IconLayoutKey(i);
+        if (!Key) {
+            continue;
+        }
+        FormatIconXy(gIcons[i].X, gIcons[i].Y, Val, sizeof(Val));
+        if (DbSet(Key, Val) != DB_OK) {
+            Ok = 0;
+        }
+    }
+    if (DbEndBatch() != DB_OK) {
+        Ok = 0;
+    }
+    if (Ok) {
+        DebugWrite("desktop: icon layout saved\n");
+    } else {
+        DebugWrite("desktop: icon layout save failed\n");
+    }
+}
+
 static void PlaceDesktopIcons(void) {
     UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
                   DESKTOP_ICON_GAP;
@@ -509,6 +705,82 @@ static void PlaceDesktopIcons(void) {
     gIcons[3].Y = DESKTOP_ORIGIN_Y + RowH * 3;
 
     DesktopRefreshLabels();
+}
+
+static void MoveIconTo(int Idx, UINT32 NewX, UINT32 NewY) {
+    UINT32 Ox;
+    UINT32 Oy;
+    UINT32 Ow;
+    UINT32 Oh;
+
+    if (Idx < 0 || Idx >= DESKTOP_ICON_COUNT) {
+        return;
+    }
+    ClampIconPos(&NewX, &NewY);
+    if (gIcons[Idx].X == NewX && gIcons[Idx].Y == NewY) {
+        return;
+    }
+    IconBounds(&gIcons[Idx], &Ox, &Oy, &Ow, &Oh);
+    gIcons[Idx].X = NewX;
+    gIcons[Idx].Y = NewY;
+    DesktopFillRect(Ox, Oy, Ow, Oh);
+    DesktopDrawRect(Ox, Oy, Ow, Oh);
+    DrawOneIconOccluded(&gIcons[Idx], Idx == gSelected);
+    HalVideoPresent();
+}
+
+int DesktopIconDragActive(void) {
+    return gIconDragIdx >= 0;
+}
+
+void DesktopIconDragUpdate(UINT32 X, UINT32 Y) {
+    UINT32 Dx;
+    UINT32 Dy;
+    INT32 Nx;
+    INT32 Ny;
+    UINT32 Ux;
+    UINT32 Uy;
+
+    if (gIconDragIdx < 0 || gIconDragIdx >= DESKTOP_ICON_COUNT) {
+        return;
+    }
+    Dx = (X >= gIconDragStartX) ? (X - gIconDragStartX) : (gIconDragStartX - X);
+    Dy = (Y >= gIconDragStartY) ? (Y - gIconDragStartY) : (gIconDragStartY - Y);
+    if (!gIconDragMoved) {
+        if (Dx <= DESKTOP_DRAG_THRESH && Dy <= DESKTOP_DRAG_THRESH) {
+            return;
+        }
+        gIconDragMoved = 1;
+        /* 已进入拖放：清双击时钟，避免松手后再点误开 */
+        gSelectClock = 0;
+    }
+    Nx = (INT32)X - gIconDragOffX;
+    Ny = (INT32)Y - gIconDragOffY;
+    if (Nx < 0) {
+        Nx = 0;
+    }
+    if (Ny < 0) {
+        Ny = 0;
+    }
+    Ux = (UINT32)Nx;
+    Uy = (UINT32)Ny;
+    MoveIconTo(gIconDragIdx, Ux, Uy);
+}
+
+void DesktopIconDragEnd(void) {
+    if (gIconDragIdx < 0) {
+        return;
+    }
+    if (gIconDragMoved) {
+        ClampIconPos(&gIcons[gIconDragIdx].X, &gIcons[gIconDragIdx].Y);
+        SaveIconLayout();
+        RedrawIconIndex(gIconDragIdx);
+        HalVideoPresent();
+    }
+    gIconDragIdx = -1;
+    gIconDragMoved = 0;
+    gIconDragOffX = 0;
+    gIconDragOffY = 0;
 }
 
 static void LoadWallpaper(void) {
@@ -1119,12 +1391,15 @@ void DesktopInit(void) {
 
     ToyLogGui("boot: desktop icons\n");
     PlaceDesktopIcons();
+    LoadIconLayout();
 
     gSelected = -1;
     gSelectClock = 0;
     gSelectX = 0;
     gSelectY = 0;
     gMenuOpen = 0;
+    gIconDragIdx = -1;
+    gIconDragMoved = 0;
     ToyLogGui("boot: desktop wallpaper\n");
     LoadWallpaper();
     ToyLogGui("boot: desktop bmp icons\n");
@@ -1141,8 +1416,11 @@ void DesktopOnDisplayResize(void) {
         return;
     }
     gDesktopBusy = 1;
-    PlaceDesktopIcons();
+    /* 热切：钳已存坐标，勿重置为默认竖列（PR-G-desk-1） */
+    ClampAllIcons();
     gMenuOpen = 0;
+    gIconDragIdx = -1;
+    gIconDragMoved = 0;
     FreeWallScreen();
     if (gWallReady) {
         BuildWallScreen();
@@ -1203,6 +1481,8 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     }
 
     if (HandleTaskbarClick(X, Y, OutAction)) {
+        gIconDragIdx = -1;
+        gIconDragMoved = 0;
         return 1;
     }
 
@@ -1218,6 +1498,8 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     if (Hit < 0) {
         Prev = gSelected;
         gSelected = -1;
+        gIconDragIdx = -1;
+        gIconDragMoved = 0;
         if (Prev >= 0) {
             RedrawIconIndex(Prev);
         }
@@ -1233,6 +1515,8 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
         Dx <= DESKTOP_DBLCLICK_SLOP &&
         Dy <= DESKTOP_DBLCLICK_SLOP) {
         gMenuOpen = 0;
+        gIconDragIdx = -1;
+        gIconDragMoved = 0;
         if (OutAction) {
             *OutAction = gIcons[Hit].Action;
         }
@@ -1241,5 +1525,12 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     }
 
     SelectIcon(Hit, X, Y, Now);
+    /* PR-G-desk-1：武装拖放；位移超阈值才真正移动 */
+    gIconDragIdx = Hit;
+    gIconDragOffX = (INT32)X - (INT32)gIcons[Hit].X;
+    gIconDragOffY = (INT32)Y - (INT32)gIcons[Hit].Y;
+    gIconDragStartX = X;
+    gIconDragStartY = Y;
+    gIconDragMoved = 0;
     return 1;
 }
