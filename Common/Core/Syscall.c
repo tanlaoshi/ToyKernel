@@ -104,6 +104,10 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         HalFrameSetReturn(Frame, (UINT64)(long)SysDamage(
             (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
         break;
+    case SYS_DAMAGE_RECT:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysDamageRect(
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
+        break;
     case SYS_POLL_INPUT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysPollInput(
             (int)HalFrameGetArgument0(Frame)));

@@ -36,6 +36,7 @@
 #define SYS_MMAP          25
 #define SYS_MUNMAP        26
 #define SYS_SIGNAL        27
+#define SYS_DAMAGE_RECT   28 /* PR-G-desk-3：用户窗像素矩形 blit */
 
 #define WNOHANG 1
 
@@ -104,6 +105,10 @@ static inline long toy_create_window(const char *title, long w, long h) {
 
 static inline long toy_damage(long wid, const char *text) {
     return toy_syscall(SYS_DAMAGE, wid, (long)text, 0);
+}
+
+static inline long toy_damage_rect(long wid, const void *desc) {
+    return toy_syscall(SYS_DAMAGE_RECT, wid, (long)desc, 0);
 }
 
 static inline long toy_poll_input(long wid) {

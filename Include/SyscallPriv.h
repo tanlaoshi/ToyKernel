@@ -35,6 +35,7 @@ int SysExecve(HAL_INTERRUPT_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,
               UINT64 UserEnvp);
 int SysCreateWindow(UINT64 UserTitle, UINT32 W, UINT32 H);
 int SysDamage(int Wid, UINT64 UserText);
+int SysDamageRect(int Wid, UINT64 UserDesc);
 int SysPollInput(int Wid);
 int SysUiButton(int Wid, int ButtonId, UINT64 UserLabel);
 

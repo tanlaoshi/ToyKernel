@@ -16,7 +16,7 @@ typedef enum {
     DESKTOP_ACTION_STORE,
     DESKTOP_ACTION_SHUTDOWN,
     DESKTOP_ACTION_REBOOT,
-    DESKTOP_ACTION_EXEC /* PR-G-desk-2：跑 Apps/*.ELF；路径见 OutExecPath */
+    DESKTOP_ACTION_EXEC /* PR-G-desk-2：跑 Apps/ 下 .ELF；路径见 OutExecPath */
 } DESKTOP_ACTION;
 
 void DesktopInit(void);

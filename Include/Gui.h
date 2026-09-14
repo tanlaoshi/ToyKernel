@@ -102,6 +102,9 @@ int GuiOpenEdit(const char *Path);
 /* PR-G14：用户窗；成功返回 wid（槽位下标），失败 -1 */
 int GuiOpenUser(const char *Title, UINT32 W, UINT32 H);
 int GuiDamageUser(int Wid, const char *Text);
+/* PR-G-desk-3：客户区相对坐标像素 blit（0x00RRGGBB）；成功 0 */
+int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                      const UINT32 *Pixels);
 /* PR-G15：用户窗按钮；ButtonId 0..3；成功 0 */
 int GuiUserAddButton(int Wid, int ButtonId, const char *Label);
 /* 0=无事件 1=已点关闭 100+ButtonId=按钮；-1=无效 */

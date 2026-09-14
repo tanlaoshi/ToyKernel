@@ -772,6 +772,7 @@ void GuiInit(void) {
 
         Ops.OpenUser = GuiOpenUser;
         Ops.DamageUser = GuiDamageUser;
+        Ops.DamageRectUser = GuiDamageRectUser;
         Ops.PollUserInput = GuiPollUserInput;
         Ops.AddButton = GuiUserAddButton;
         WindowOpsRegister(&Ops);

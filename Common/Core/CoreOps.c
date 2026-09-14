@@ -10,6 +10,7 @@ void WindowOpsRegister(const WINDOW_OPS *Ops) {
     if (!Ops) {
         gWindowOps.OpenUser = 0;
         gWindowOps.DamageUser = 0;
+        gWindowOps.DamageRectUser = 0;
         gWindowOps.PollUserInput = 0;
         gWindowOps.AddButton = 0;
         return;
@@ -29,6 +30,14 @@ int WindowDamageUser(int Wid, const char *Text) {
         return -1;
     }
     return gWindowOps.DamageUser(Wid, Text);
+}
+
+int WindowDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                         const UINT32 *Pixels) {
+    if (!gWindowOps.DamageRectUser) {
+        return -1;
+    }
+    return gWindowOps.DamageRectUser(Wid, X, Y, W, H, Pixels);
 }
 
 int WindowPollUserInput(int Wid) {

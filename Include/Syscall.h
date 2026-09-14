@@ -32,6 +32,7 @@
 #define SYS_MMAP           25 /* PR-U-mmap：匿名映射 */
 #define SYS_MUNMAP         26
 #define SYS_SIGNAL         27 /* PR-U-sig：注册 handler */
+#define SYS_DAMAGE_RECT    28 /* PR-G-desk-3：用户窗像素矩形 blit */
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1
@@ -56,6 +57,7 @@
 /* SYS_MMAP：rdi=len rsi=prot rdx=flags → VA；匿名或文件私有（PR-U-mmap2）；失败 -1
  * 非匿名时 flags 高 16 位 = fd；offset 教学固定 0 */
 /* SYS_MUNMAP：rdi=addr rsi=len → 0；失败 -1 */
+/* SYS_DAMAGE_RECT：rdi=wid rsi=TOY_GFX_DAMAGE_RECT* → 0；失败 -1（PR-G-desk-3） */
 /* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type(SOCK_STREAM=1) rdx=protocol
  * SYS_CONNECT：rdi=fd rsi=ip(host-order u32) rdx=port
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port

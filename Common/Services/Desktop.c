@@ -3,7 +3,7 @@
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
  * PR-G-desk-1：图标可拖放；松手写入 TOYOS.DB（ic0..ic3=x,y）；启动时 LoadIconLayout。
- * PR-G-desk-2：开始菜单动态列出 Apps/*.ELF + 缺文件 INST(app) 灰显；点选 ProcessExec。
+ * PR-G-desk-2：开始菜单动态列出 Apps/ 下 .ELF + 缺文件 INST(app) 灰显；点选 ProcessExec。
  * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER|REBOOT.BMP。
  * 四个桌面图标另有内核内置 48×48 回退（真机缺文件也能显示）。
  * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
@@ -50,7 +50,7 @@
 #define WALL_FILE_MAX         (512u * 1024u)
 #define ICON_FILE_MAX         (16u * 1024u)
 
-/* 开始菜单行（PR-G-desk-2：固定项 + Apps/*.ELF + 缺文件 INST 灰显） */
+/* 开始菜单行（PR-G-desk-2：固定项 + Apps/ 下 .ELF + 缺文件 INST 灰显） */
 typedef struct {
     DESKTOP_ACTION Action;
     char           Label[MENU_LABEL_MAX];
@@ -592,7 +592,7 @@ static void MenuEnrichLabelFromCatalog(const char *File, char *Label, int Max) {
     }
 }
 
-/* 打开开始菜单时重建：系统项 + Apps/*.ELF + 缺文件的 INST(app) 灰显 */
+/* 打开开始菜单时重建：系统项 + Apps/ 下 .ELF + 缺文件的 INST(app) 灰显 */
 static void RebuildStartMenu(void) {
     int AppCap;
     int AppN = 0;

@@ -13,6 +13,8 @@
 typedef struct {
     int (*OpenUser)(const char *Title, UINT32 W, UINT32 H);
     int (*DamageUser)(int Wid, const char *Text);
+    int (*DamageRectUser)(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                          const UINT32 *Pixels);
     int (*PollUserInput)(int Wid);
     int (*AddButton)(int Wid, int ButtonId, const char *Label);
 } WINDOW_OPS;
@@ -20,6 +22,8 @@ typedef struct {
 void WindowOpsRegister(const WINDOW_OPS *Ops);
 int WindowOpenUser(const char *Title, UINT32 W, UINT32 H);
 int WindowDamageUser(int Wid, const char *Text);
+int WindowDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                         const UINT32 *Pixels);
 int WindowPollUserInput(int Wid);
 int WindowAddButton(int Wid, int ButtonId, const char *Label);
 
