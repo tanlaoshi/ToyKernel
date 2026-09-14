@@ -52,6 +52,9 @@ int FatListDir(const char *Path);
 int FatListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int FatReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int FatWriteFile(const char *Path, const void *Buffer, UINTN Size);
+/* PR-U-stream-1：按字节偏移分块读写；*OutN 为实际字节；上限见 FAT_WRITE_MAX */
+int FatReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN);
+int FatWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN);
 int FatDeleteFile(const char *Path);
 int FatMkdir(const char *Path);
 int FatRmdir(const char *Path);

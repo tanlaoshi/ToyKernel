@@ -40,10 +40,8 @@ static PIPE *PipeFromFd(TASK_FD *F) {
 }
 
 static void FdFlush(TASK_FD *F) {
-    if (F->Used && F->Kind == FD_KIND_FILE && F->Dirty && F->Path[0] && F->Data) {
-        (void)VfsServiceWriteFile(F->Path, F->Data, F->Size);
-        F->Dirty = 0;
-    }
+    /* PR-U-stream-1：文件写穿盘，无整文件 Dirty 缓冲 */
+    (void)F;
 }
 
 static void FdCopyPath(TASK_FD *F, const char *Path) {
@@ -100,8 +98,7 @@ void SchedulerFdCloseAll(TASK *T) {
 
 int SchedulerFdOpen(TASK *T, const char *Path) {
     int Slot;
-    UINT32 Pages;
-    void *Buf;
+    FAT_FILE_STAT St;
     UINTN Size = 0;
 
     if (!T || !Path) {
@@ -111,21 +108,20 @@ int SchedulerFdOpen(TASK *T, const char *Path) {
     if (Slot < 0) {
         return -1;
     }
-    Pages = (FD_MAX_BYTES + PAGE_SIZE - 1) / PAGE_SIZE;
-    Buf = PhysicalMemoryAllocatePages(Pages);
-    if (!Buf) {
-        return -1;
-    }
-    if (VfsServiceReadFile(Path, Buf, FD_MAX_BYTES, &Size) != FAT_OK) {
-        Size = 0;
+    /* PR-U-stream-1：仅记路径与长度；缺文件仍开 fd（WRITE 创建） */
+    if (VfsServiceFileStat(Path, &St) == FAT_OK) {
+        if (St.Attr & FAT_ATTR_DIR) {
+            return -1;
+        }
+        Size = St.Size;
     }
     T->Fds[Slot].Used = 1;
     T->Fds[Slot].Kind = FD_KIND_FILE;
     T->Fds[Slot].SockId = -1;
-    T->Fds[Slot].Data = (UINT8 *)Buf;
+    T->Fds[Slot].Data = 0;
     T->Fds[Slot].Size = Size;
     T->Fds[Slot].Pos = 0;
-    T->Fds[Slot].Pages = Pages;
+    T->Fds[Slot].Pages = 0;
     FdCopyPath(&T->Fds[Slot], Path);
     T->Fds[Slot].Dirty = 0;
     return Slot;
@@ -351,6 +347,7 @@ int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
     if (F->Kind == FD_KIND_DIR) {
         return -1;
     }
+    /* FD_KIND_FILE：按偏移从盘读 */
     if (F->Pos >= F->Size) {
         return 0;
     }
@@ -358,11 +355,17 @@ int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
     if (N > Len) {
         N = Len;
     }
-    for (i = 0; i < N; i++) {
-        ((UINT8 *)Buf)[i] = F->Data[F->Pos + i];
+    if (N == 0) {
+        return 0;
     }
-    F->Pos += N;
-    return (int)N;
+    {
+        UINTN Got = 0;
+        if (VfsServiceReadFileAt(F->Path, F->Pos, Buf, N, &Got) != FAT_OK) {
+            return -1;
+        }
+        F->Pos += Got;
+        return (int)Got;
+    }
 }
 
 int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len) {
@@ -402,24 +405,28 @@ int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len) {
     if (F->Kind == FD_KIND_DIR) {
         return -1;
     }
-    if (F->Pos > FD_MAX_BYTES) {
+    /* FD_KIND_FILE：按偏移写穿盘；上限 FAT_WRITE_MAX */
+    if (F->Pos >= FAT_WRITE_MAX) {
         return -1;
     }
-    if (F->Pos + Len > FD_MAX_BYTES) {
-        Len = FD_MAX_BYTES - F->Pos;
+    if (F->Pos + Len > FAT_WRITE_MAX) {
+        Len = FAT_WRITE_MAX - F->Pos;
     }
     if (Len == 0) {
         return 0;
     }
-    for (i = 0; i < Len; i++) {
-        F->Data[F->Pos + i] = ((const UINT8 *)Buf)[i];
+    {
+        UINTN Got = 0;
+        if (VfsServiceWriteFileAt(F->Path, F->Pos, Buf, Len, &Got) != FAT_OK) {
+            return -1;
+        }
+        F->Pos += Got;
+        if (F->Pos > F->Size) {
+            F->Size = F->Pos;
+        }
+        F->Dirty = 0;
+        return (int)Got;
     }
-    F->Pos += Len;
-    if (F->Pos > F->Size) {
-        F->Size = F->Pos;
-    }
-    F->Dirty = 1;
-    return (int)Len;
 }
 
 int SchedulerFdClose(TASK *T, int Fd) {
@@ -447,10 +454,8 @@ int SchedulerFdClose(TASK *T, int Fd) {
             PhysicalMemoryFreePages(T->Fds[Fd].Data, T->Fds[Fd].Pages);
         }
     } else {
-        FdFlush(&T->Fds[Fd]);
-        if (T->Fds[Fd].Data) {
-            PhysicalMemoryFreePages(T->Fds[Fd].Data, T->Fds[Fd].Pages);
-        }
+        /* FILE：流式已穿盘；无整文件页 */
+        (void)FdFlush(&T->Fds[Fd]);
     }
     T->Fds[Fd].Used = 0;
     T->Fds[Fd].Kind = FD_KIND_FILE;

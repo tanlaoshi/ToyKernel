@@ -32,6 +32,9 @@ typedef struct {
     int (*WriteFile)(const char *Path, const void *Buffer, UINTN Size);
     int (*ListEntries)(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
     int (*FileStat)(const char *Path, FAT_FILE_STAT *Out);
+    /* PR-U-stream-1；可为 NULL */
+    int (*ReadFileAt)(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN);
+    int (*WriteFileAt)(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN);
 } VFS_SERVICE_OPS;
 
 void VfsServiceOpsRegister(const VFS_SERVICE_OPS *Ops);
@@ -39,5 +42,7 @@ int VfsServiceReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *Out
 int VfsServiceWriteFile(const char *Path, const void *Buffer, UINTN Size);
 int VfsServiceListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int VfsServiceFileStat(const char *Path, FAT_FILE_STAT *Out);
+int VfsServiceReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN);
+int VfsServiceWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN);
 
 #endif

@@ -27,6 +27,9 @@ typedef struct FS_OPS {
     int (*FileSync)(void);
     /* PR-F3：1 = 无 Block（合成卷）；0/缺省 = 需 BlockSelect + StartLba */
     int Synthetic;
+    /* PR-U-stream-1：可为 NULL → Vfs*At 返回 INVAL */
+    int (*ReadFileAt)(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN);
+    int (*WriteFileAt)(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN);
 } FS_OPS;
 
 #define VFS_MAX_BACKENDS 4
@@ -49,6 +52,8 @@ int VfsRmdir(const char *Path);
 int VfsRename(const char *OldPath, const char *NewPath);
 int VfsFileStat(const char *Path, FAT_FILE_STAT *Out);
 int VfsFileSync(void);
+int VfsReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN);
+int VfsWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN);
 
 /* FAT 后端（FatFsOps.c）；资源卷后端（ResFs.c） */
 const FS_OPS *FatFsOps(void);

@@ -132,3 +132,17 @@ int VfsFileSync(void) {
     }
     return gOps->FileSync();
 }
+
+int VfsReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN) {
+    if (!gOps || !gOps->ReadFileAt) {
+        return FAT_ERR_INVAL;
+    }
+    return gOps->ReadFileAt(Path, Offset, Buffer, Len, OutN);
+}
+
+int VfsWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN) {
+    if (!gOps || !gOps->WriteFileAt) {
+        return FAT_ERR_INVAL;
+    }
+    return gOps->WriteFileAt(Path, Offset, Buffer, Len, OutN);
+}

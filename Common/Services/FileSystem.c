@@ -283,6 +283,29 @@ int FileSystemWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     return VfsWriteFile(Rel, Buffer, Size);
 }
 
+int FileSystemReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN) {
+    const char *Rel;
+    int Err;
+
+    if (!Path) {
+        return FAT_ERR_INVAL;
+    }
+    Err = FileSystemPreparePath(Path, &Rel, 0);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    return VfsReadFileAt(Rel, Offset, Buffer, Len, OutN);
+}
+
+int FileSystemWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN) {
+    const char *Rel;
+    int Err = FileSystemPreparePath(Path, &Rel, 1);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    return VfsWriteFileAt(Rel, Offset, Buffer, Len, OutN);
+}
+
 int FileSystemDeleteFile(const char *Path) {
     const char *Rel;
     int Err = FileSystemPreparePath(Path, &Rel, 1);
@@ -712,6 +735,8 @@ int FileSystemInit(void) {
     Svc.WriteFile = FileSystemWriteFile;
     Svc.ListEntries = FileSystemListEntries;
     Svc.FileStat = FileSystemFileStat;
+    Svc.ReadFileAt = FileSystemReadFileAt;
+    Svc.WriteFileAt = FileSystemWriteFileAt;
     VfsServiceOpsRegister(&Svc);
     ShellCommandsRegisterFs();
     DebugWrite("FS ready (ls, cat, write, wrbig, dirstress, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");

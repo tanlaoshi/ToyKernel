@@ -11,6 +11,7 @@
 
 #define MAX_TASKS 16
 #define MAX_FDS   8
+/* 历史：整文件缓冲上限；PR-U-stream-1 起文件 FD 按偏移流式，写上限 = FAT_WRITE_MAX */
 #define FD_MAX_BYTES (64 * 1024)
 
 #define FD_KIND_FILE   0
@@ -33,12 +34,12 @@ typedef struct {
     int     Used;
     int     Kind;   /* FD_KIND_FILE / SOCKET / PIPE */
     int     SockId; /* SOCKET=lwIP id；PIPE=PIPE_END_READ/WRITE */
-    UINT8  *Data;   /* FILE=缓冲；PIPE=(PIPE*) 共享对象 */
-    UINTN   Size;
-    UINTN   Pos;
+    UINT8  *Data;   /* FILE=未用(流式)；DIR=快照；PIPE=(PIPE*) */
+    UINTN   Size;   /* FILE=逻辑长度；DIR=项数 */
+    UINTN   Pos;    /* FILE=字节偏移；DIR=枚举游标 */
     UINT32  Pages;
     char    Path[64];
-    int     Dirty;
+    int     Dirty;  /* FILE：流式写穿盘后恒 0 */
 } TASK_FD;
 
 typedef struct TASK {

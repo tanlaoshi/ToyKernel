@@ -39,6 +39,9 @@ int FileSystemListDirectory(const char *Path);
 int FileSystemListEntries(const char *Path, FAT_DIRECTORY_ENTRY *Out, int Max, int *OutCount);
 int FileSystemReadFile(const char *Path, void *Buffer, UINTN MaxSize, UINTN *OutSize);
 int FileSystemWriteFile(const char *Path, const void *Buffer, UINTN Size);
+/* PR-U-stream-1 */
+int FileSystemReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN);
+int FileSystemWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN);
 int FileSystemDeleteFile(const char *Path);
 int FileSystemMakeDirectory(const char *Path);
 int FileSystemRemoveDirectory(const char *Path);

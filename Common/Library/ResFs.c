@@ -232,6 +232,52 @@ static int ResFileSync(void) {
     return FAT_OK;
 }
 
+static int ResReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN) {
+    const RES_FILE *F;
+    UINTN Size;
+    UINTN N;
+    UINTN i;
+    UINT8 *Dst;
+
+    if (OutN) {
+        *OutN = 0;
+    }
+    if (!Buffer) {
+        return FAT_ERR_INVAL;
+    }
+    F = FindFile(Path);
+    if (!F) {
+        return FAT_ERR_NOENT;
+    }
+    Size = ResFileSize(F);
+    if (Offset >= Size || Len == 0) {
+        return FAT_OK;
+    }
+    N = Size - Offset;
+    if (N > Len) {
+        N = Len;
+    }
+    Dst = (UINT8 *)Buffer;
+    for (i = 0; i < N; i++) {
+        Dst[i] = F->Data[Offset + i];
+    }
+    if (OutN) {
+        *OutN = N;
+    }
+    return FAT_OK;
+}
+
+static int ResWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN) {
+    (void)Path;
+    (void)Offset;
+    (void)Buffer;
+    (void)Len;
+    if (OutN) {
+        *OutN = 0;
+    }
+    return FAT_ERR_ROFS;
+}
+
 static const FS_OPS gResFsOps = {
     .Name = "res",
     .Mount = ResMount,
@@ -246,6 +292,8 @@ static const FS_OPS gResFsOps = {
     .FileStat = ResFileStat,
     .FileSync = ResFileSync,
     .Synthetic = 1,
+    .ReadFileAt = ResReadFileAt,
+    .WriteFileAt = ResWriteFileAt,
 };
 
 const FS_OPS *ResFsOps(void) {

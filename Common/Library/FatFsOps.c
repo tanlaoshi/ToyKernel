@@ -18,6 +18,8 @@ static const FS_OPS gFatFsOps = {
     .FileStat = FatFileStat,
     .FileSync = FatFileSync,
     .Synthetic = 0,
+    .ReadFileAt = FatReadFileAt,
+    .WriteFileAt = FatWriteFileAt,
 };
 
 const FS_OPS *FatFsOps(void) {

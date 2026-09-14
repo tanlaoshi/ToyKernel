@@ -60,6 +60,8 @@ void VfsServiceOpsRegister(const VFS_SERVICE_OPS *Ops) {
         gVfsServiceOps.WriteFile = 0;
         gVfsServiceOps.ListEntries = 0;
         gVfsServiceOps.FileStat = 0;
+        gVfsServiceOps.ReadFileAt = 0;
+        gVfsServiceOps.WriteFileAt = 0;
         return;
     }
     gVfsServiceOps = *Ops;
@@ -91,4 +93,18 @@ int VfsServiceFileStat(const char *Path, FAT_FILE_STAT *Out) {
         return FAT_ERR_IO;
     }
     return gVfsServiceOps.FileStat(Path, Out);
+}
+
+int VfsServiceReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN *OutN) {
+    if (!gVfsServiceOps.ReadFileAt) {
+        return FAT_ERR_INVAL;
+    }
+    return gVfsServiceOps.ReadFileAt(Path, Offset, Buffer, Len, OutN);
+}
+
+int VfsServiceWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len, UINTN *OutN) {
+    if (!gVfsServiceOps.WriteFileAt) {
+        return FAT_ERR_INVAL;
+    }
+    return gVfsServiceOps.WriteFileAt(Path, Offset, Buffer, Len, OutN);
 }
