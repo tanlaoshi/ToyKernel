@@ -70,6 +70,12 @@ int FatFileStat(const char *Path, FAT_FILE_STAT *Out);
 int FatFileSync(void);
 
 /*
+ * PR-FS-inst-1：在 StartLba 起 SectorCount 扇区上建 FAT32（卷标最多 11 字符）。
+ * 成功 FAT_OK。
+ */
+int FatFormatFat32(UINT32 StartLba, UINT32 SectorCount, const char *Label);
+
+/*
  * PR-F3：大目录回归。MaxFiles>0 上限；==0 默认 24 短名；<0 强制 DirGrow。
  * *OutCreated / *OutGrew 可为 NULL。
  */

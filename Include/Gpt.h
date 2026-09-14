@@ -30,4 +30,13 @@ int GptFindFatStartEx(UINT32 *OutLba, int *OutIsEsp);
  */
 int GptFindAllFat(GPT_FAT_PART *Out, int Max);
 
+/*
+ * PR-FS-inst-1：在当前 Block 盘写入 protective MBR + GPT（ESP + TOYOS）。
+ * EspMib：ESP 大小（MiB），建议 256；TotalSectors：整盘扇区数。
+ * 成功非 0，并填分区起始/扇区数。
+ */
+int GptWriteToyLayout(UINT64 TotalSectors, UINT32 EspMib,
+                      UINT32 *OutEspLba, UINT32 *OutEspSectors,
+                      UINT32 *OutToyLba, UINT32 *OutToySectors);
+
 #endif

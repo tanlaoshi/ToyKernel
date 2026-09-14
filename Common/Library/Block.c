@@ -67,6 +67,13 @@ int BlockInit(void) {
     return (int)n;
 }
 
+int BlockDriveReady(UINT32 Drive) {
+    if (Drive >= BLOCK_MAX_DRIVES) {
+        return 0;
+    }
+    return gReady[Drive] ? 1 : 0;
+}
+
 int BlockReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
     if (!gBackend) {
         return 0;

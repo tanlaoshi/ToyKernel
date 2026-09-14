@@ -10,7 +10,7 @@
 #include "BootTypes.h"
 
 #define BLOCK_SECTOR_SIZE 512
-#define BLOCK_MAX_DRIVES  2
+#define BLOCK_MAX_DRIVES  4  /* PR-FS-inst-1：第三盘作安装目标（AHCI） */
 
 typedef struct {
     int (*Probe)(UINT32 Drive);
@@ -29,6 +29,8 @@ UINT32 BlockCurrentDrive(void);
 int BlockInit(void);
 /* 是否已挂后端（PR-D2：Driver Bind 之后为真） */
 int BlockBackendReady(void);
+/* PR-FS-inst-1：槽位是否 Probe 成功 */
+int BlockDriveReady(UINT32 Drive);
 int BlockReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 int BlockWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
 /* PR-F2：落盘；无 Flush 回调时返回 1（成功） */
