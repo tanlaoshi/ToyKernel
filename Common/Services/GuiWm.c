@@ -18,6 +18,7 @@
 #include "Locale.h"
 #include "PhysicalMemory.h"
 #include "CoreOps.h"
+#include "Process.h"
 #include "ToySerialLog.h"
 
 GUI_WINDOW gWindows[MAX_WINS];
@@ -970,9 +971,11 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
     /* 未点中窗口：桌面图标（双击打开） / 开始菜单 */
     {
         DESKTOP_ACTION Act = DESKTOP_ACTION_NONE;
+        char ExecPath[96];
         int Idx;
 
-        if (!DesktopHandleClick(X, Y, &Act)) {
+        ExecPath[0] = 0;
+        if (!DesktopHandleClick(X, Y, &Act, ExecPath, sizeof(ExecPath))) {
             return 0;
         }
         /* PR-G-desk-1：与窗标题拖一致，武装拖放前先擦光标，避免留下光标脏块 */
@@ -992,6 +995,14 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             (void)GuiOpenFiles();
         } else if (Act == DESKTOP_ACTION_STORE) {
             (void)GuiOpenStore();
+        } else if (Act == DESKTOP_ACTION_EXEC) {
+            /* PR-G-desk-2：与 Files 双击 ELF 同路径；阻塞至进程退出 */
+            if (ExecPath[0]) {
+                DebugWrite("desktop: exec ");
+                DebugWrite(ExecPath);
+                DebugWrite("\n");
+                (void)ProcessExec(ExecPath);
+            }
         } else if (Act == DESKTOP_ACTION_SHUTDOWN) {
             HalCpuShutdown();
         } else if (Act == DESKTOP_ACTION_REBOOT) {

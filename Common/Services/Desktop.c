@@ -3,6 +3,7 @@
  *
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
  * PR-G-desk-1：图标可拖放；松手写入 TOYOS.DB（ic0..ic3=x,y）；启动时 LoadIconLayout。
+ * PR-G-desk-2：开始菜单动态列出 Apps/*.ELF + 缺文件 INST(app) 灰显；点选 ProcessExec。
  * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER|REBOOT.BMP。
  * 四个桌面图标另有内核内置 48×48 回退（真机缺文件也能显示）。
  * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
@@ -17,6 +18,8 @@
 #include "Bmp.h"
 #include "Db.h"
 #include "FileSystem.h"
+#include "Fat.h"
+#include "Store.h"
 #include "PhysicalMemory.h"
 #include "Debug.h"
 #include "ToySerialLog.h"
@@ -35,22 +38,31 @@
 #define START_BTN_PAD_X       8u
 #define START_BTN_MIN_W       56u
 #define START_ICON_SZ         20u
-#define MENU_W                168u
+#define MENU_W                200u
 #define MENU_ITEM_H           28u
-#define MENU_ITEMS            6
 #define MENU_ICON_SZ          18u
+#define MENU_FIXED_TOP        4   /* Shell/Settings/Files/Store */
+#define MENU_FIXED_BOT        2   /* Shutdown/Reboot */
+#define MENU_APP_MAX          16
+#define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_APP_MAX + MENU_FIXED_BOT)
+#define MENU_LABEL_MAX        40
+#define MENU_PATH_MAX         80
 #define WALL_FILE_MAX         (512u * 1024u)
 #define ICON_FILE_MAX         (16u * 1024u)
 
-/* 开始菜单行 → DESKTOP_ACTION（勿用行号直接强转） */
-static const DESKTOP_ACTION gMenuActions[MENU_ITEMS] = {
-    DESKTOP_ACTION_SHELL,
-    DESKTOP_ACTION_SETTINGS,
-    DESKTOP_ACTION_FILES,
-    DESKTOP_ACTION_STORE,
-    DESKTOP_ACTION_SHUTDOWN,
-    DESKTOP_ACTION_REBOOT
-};
+/* 开始菜单行（PR-G-desk-2：固定项 + Apps/*.ELF + 缺文件 INST 灰显） */
+typedef struct {
+    DESKTOP_ACTION Action;
+    char           Label[MENU_LABEL_MAX];
+    char           Path[MENU_PATH_MAX]; /* EXEC：Apps/FOO.ELF */
+    int            Enabled;             /* 0=灰显不可点 */
+    int            IconSrc;             /* 0..3 桌面图；4 关机；5 重启；-1 通用 */
+} MENU_ROW;
+
+static MENU_ROW gMenuRows[MENU_ROWS_MAX];
+static int gMenuCount;
+static FAT_DIRECTORY_ENTRY gMenuDirScratch[FAT_LIST_MAX];
+static STORE_INSTALLED gMenuInstScratch[STORE_INSTALLED_MAX];
 
 typedef struct {
     const char     *Label;
@@ -416,14 +428,290 @@ static void BlitIconFaceFree(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
     FillRectFree(X, Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE, Icon->IconColor);
 }
 
+static void MenuCopyStr(char *Dst, int Max, const char *Src) {
+    int i;
+
+    if (!Dst || Max <= 0) {
+        return;
+    }
+    for (i = 0; Src && Src[i] && i < Max - 1; i++) {
+        Dst[i] = Src[i];
+    }
+    Dst[i] = 0;
+}
+
+static int MenuNameEqIgnoreCase(const char *A, const char *B) {
+    char Ca;
+    char Cb;
+
+    if (!A || !B) {
+        return 0;
+    }
+    while (*A && *B) {
+        Ca = *A;
+        Cb = *B;
+        if (Ca >= 'A' && Ca <= 'Z') {
+            Ca = (char)(Ca - 'A' + 'a');
+        }
+        if (Cb >= 'A' && Cb <= 'Z') {
+            Cb = (char)(Cb - 'A' + 'a');
+        }
+        if (Ca != Cb) {
+            return 0;
+        }
+        A++;
+        B++;
+    }
+    return *A == 0 && *B == 0;
+}
+
+static int MenuEndsWithElf(const char *Name) {
+    int N = 0;
+
+    if (!Name) {
+        return 0;
+    }
+    while (Name[N]) {
+        N++;
+    }
+    if (N < 4) {
+        return 0;
+    }
+    return MenuNameEqIgnoreCase(Name + N - 4, ".elf");
+}
+
+static void MenuLabelFromElf(const char *File, char *Out, int Max) {
+    int i;
+    int N = 0;
+
+    if (!Out || Max <= 0) {
+        return;
+    }
+    if (!File) {
+        Out[0] = 0;
+        return;
+    }
+    while (File[N]) {
+        N++;
+    }
+    if (N >= 4 && MenuEndsWithElf(File)) {
+        N -= 4;
+    }
+    for (i = 0; i < N && i < Max - 1; i++) {
+        Out[i] = File[i];
+    }
+    Out[i] = 0;
+}
+
+static int MenuPathExists(const char *Path) {
+    FAT_FILE_STAT St;
+
+    if (!Path || !Path[0]) {
+        return 0;
+    }
+    return FileSystemFileStat(Path, &St) == 0;
+}
+
+static int MenuAlreadyHasPath(const char *Path) {
+    int i;
+
+    for (i = 0; i < gMenuCount; i++) {
+        if (gMenuRows[i].Action == DESKTOP_ACTION_EXEC &&
+            MenuNameEqIgnoreCase(gMenuRows[i].Path, Path)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int MenuMaxAppSlots(void) {
+    UINT32 Sw;
+    UINT32 Sh;
+    UINT32 BarY;
+    UINT32 Room;
+    int MaxRows;
+    int Apps;
+
+    TaskbarGeom(&BarY, &Sw, &Sh);
+    (void)Sw;
+    Room = BarY > 8u ? (BarY - 8u) : 0;
+    MaxRows = (int)(Room / MENU_ITEM_H);
+    if (MaxRows < MENU_FIXED_TOP + MENU_FIXED_BOT) {
+        MaxRows = MENU_FIXED_TOP + MENU_FIXED_BOT;
+    }
+    if (MaxRows > MENU_ROWS_MAX) {
+        MaxRows = MENU_ROWS_MAX;
+    }
+    Apps = MaxRows - MENU_FIXED_TOP - MENU_FIXED_BOT;
+    if (Apps < 0) {
+        Apps = 0;
+    }
+    if (Apps > MENU_APP_MAX) {
+        Apps = MENU_APP_MAX;
+    }
+    return Apps;
+}
+
+static void MenuAddRow(DESKTOP_ACTION Act, const char *Label, const char *Path,
+                       int Enabled, int IconSrc) {
+    MENU_ROW *R;
+
+    if (gMenuCount >= MENU_ROWS_MAX) {
+        return;
+    }
+    R = &gMenuRows[gMenuCount++];
+    R->Action = Act;
+    R->Enabled = Enabled ? 1 : 0;
+    R->IconSrc = IconSrc;
+    MenuCopyStr(R->Label, sizeof(R->Label), Label ? Label : "");
+    MenuCopyStr(R->Path, sizeof(R->Path), Path ? Path : "");
+}
+
+static void MenuEnrichLabelFromCatalog(const char *File, char *Label, int Max) {
+    STORE_ENTRY *Tab;
+    int Count = 0;
+    int i;
+
+    if (!File || !Label || Max <= 0) {
+        return;
+    }
+    Tab = StoreScratchTab();
+    if (!Tab) {
+        return;
+    }
+    if (StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count) < 0 || Count <= 0) {
+        return;
+    }
+    for (i = 0; i < Count; i++) {
+        if (Tab[i].Type[0] == 'a' &&
+            MenuNameEqIgnoreCase(Tab[i].File, File) &&
+            Tab[i].Title[0]) {
+            MenuCopyStr(Label, Max, Tab[i].Title);
+            return;
+        }
+    }
+}
+
+/* 打开开始菜单时重建：系统项 + Apps/*.ELF + 缺文件的 INST(app) 灰显 */
+static void RebuildStartMenu(void) {
+    int AppCap;
+    int AppN = 0;
+    int DirN = 0;
+    int InstN = 0;
+    int i;
+    int Err;
+    char Path[MENU_PATH_MAX];
+    char Label[MENU_LABEL_MAX];
+    const char *L;
+
+    gMenuCount = 0;
+    AppCap = MenuMaxAppSlots();
+
+    L = LocStr(MSG_ICON_SHELL);
+    MenuAddRow(DESKTOP_ACTION_SHELL, L ? L : "Shell", 0, 1, 0);
+    L = LocStr(MSG_ICON_SETTINGS);
+    MenuAddRow(DESKTOP_ACTION_SETTINGS, L ? L : "Settings", 0, 1, 1);
+    L = LocStr(MSG_ICON_FILES);
+    MenuAddRow(DESKTOP_ACTION_FILES, L ? L : "Files", 0, 1, 2);
+    L = LocStr(MSG_ICON_STORE);
+    MenuAddRow(DESKTOP_ACTION_STORE, L ? L : "Store", 0, 1, 3);
+
+    Err = FileSystemListEntries(STORE_APPS_DIR, gMenuDirScratch, FAT_LIST_MAX,
+                                &DirN);
+    if (Err == 0 && DirN > 0) {
+        for (i = 0; i < DirN && AppN < AppCap; i++) {
+            const FAT_DIRECTORY_ENTRY *E = &gMenuDirScratch[i];
+
+            if (E->Attr & FAT_ATTR_DIR) {
+                continue;
+            }
+            if (!MenuEndsWithElf(E->Name)) {
+                continue;
+            }
+            MenuCopyStr(Path, sizeof(Path), STORE_APPS_DIR);
+            /* Apps/ + name */
+            {
+                int P = 0;
+                while (Path[P]) {
+                    P++;
+                }
+                if (P + 1 < (int)sizeof(Path)) {
+                    Path[P++] = '/';
+                    Path[P] = 0;
+                }
+                MenuCopyStr(Path + P, (int)sizeof(Path) - P, E->Name);
+            }
+            MenuLabelFromElf(E->Name, Label, sizeof(Label));
+            MenuEnrichLabelFromCatalog(E->Name, Label, sizeof(Label));
+            MenuAddRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
+            AppN++;
+        }
+    }
+
+    /* INST app 但 Apps/ 无文件 → 灰显（可看见、不可开） */
+    if (StoreListInstalled(gMenuInstScratch, STORE_INSTALLED_MAX, &InstN) == 0) {
+        for (i = 0; i < InstN && AppN < AppCap; i++) {
+            STORE_INSTALLED *In = &gMenuInstScratch[i];
+
+            if (!(In->Type[0] == 'a' && In->Type[1] == 'p' &&
+                  In->Type[2] == 'p' && In->Type[3] == 0)) {
+                continue;
+            }
+            if (!In->File[0]) {
+                continue;
+            }
+            MenuCopyStr(Path, sizeof(Path), STORE_APPS_DIR);
+            {
+                int P = 0;
+                while (Path[P]) {
+                    P++;
+                }
+                if (P + 1 < (int)sizeof(Path)) {
+                    Path[P++] = '/';
+                    Path[P] = 0;
+                }
+                MenuCopyStr(Path + P, (int)sizeof(Path) - P, In->File);
+            }
+            if (MenuAlreadyHasPath(Path)) {
+                continue;
+            }
+            if (MenuPathExists(Path)) {
+                /* 已在盘上但 list 漏了：仍加一行可开 */
+                MenuLabelFromElf(In->File, Label, sizeof(Label));
+                MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+                MenuAddRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
+                AppN++;
+                continue;
+            }
+            MenuLabelFromElf(In->File, Label, sizeof(Label));
+            MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+            if (!Label[0]) {
+                MenuCopyStr(Label, sizeof(Label), In->Id);
+            }
+            MenuAddRow(DESKTOP_ACTION_EXEC, Label, Path, 0, -1);
+            AppN++;
+        }
+    }
+
+    L = LocStr(MSG_ICON_SHUTDOWN);
+    MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1, 4);
+    L = LocStr(MSG_ICON_REBOOT);
+    MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1, 5);
+}
+
 static void MenuGeom(UINT32 *Mx, UINT32 *My, UINT32 *Mw, UINT32 *Mh) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
+    int Rows;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
+    Rows = gMenuCount > 0 ? gMenuCount : (MENU_FIXED_TOP + MENU_FIXED_BOT);
     *Mw = MENU_W;
-    *Mh = MENU_ITEM_H * MENU_ITEMS;
+    if (*Mw + 8u > Sw) {
+        *Mw = Sw > 8u ? Sw - 8u : Sw;
+    }
+    *Mh = MENU_ITEM_H * (UINT32)Rows;
     *Mx = 4;
     *My = (BarY > *Mh) ? (BarY - *Mh) : 0;
 }
@@ -1039,44 +1327,47 @@ static void DrawStartMenuRaw(void) {
     UINT32 Mw;
     UINT32 Mh;
     int i;
-    const char *Labels[MENU_ITEMS];
 
     if (!gMenuOpen) {
         return;
     }
+    if (gMenuCount <= 0) {
+        RebuildStartMenu();
+    }
     MenuGeom(&Mx, &My, &Mw, &Mh);
-    Labels[0] = LocStr(MSG_ICON_SHELL);
-    Labels[1] = LocStr(MSG_ICON_SETTINGS);
-    Labels[2] = LocStr(MSG_ICON_FILES);
-    Labels[3] = LocStr(MSG_ICON_STORE);
-    Labels[4] = LocStr(MSG_ICON_SHUTDOWN);
-    Labels[5] = LocStr(MSG_ICON_REBOOT);
     UiFillRectangle(Mx, My, Mw, Mh, COLOR_LIGHT_GRAY);
     UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
-    for (i = 0; i < MENU_ITEMS; i++) {
+    for (i = 0; i < gMenuCount; i++) {
+        MENU_ROW *R = &gMenuRows[i];
         UINT32 Iy = My + (UINT32)i * MENU_ITEM_H;
         UINT32 IconX;
         UINT32 IconY;
         UINT32 TextX;
+        UINT32 Fg;
         int HasIcon = 0;
 
         UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, COLOR_GRAY);
         IconX = Mx + 6;
         IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
         TextX = Mx + 10;
-        if (i < DESKTOP_ICON_COUNT && gIcons[i].BmpReady) {
+        Fg = R->Enabled ? COLOR_BLACK : COLOR_DARK_GRAY;
+        if (R->IconSrc >= 0 && R->IconSrc < DESKTOP_ICON_COUNT &&
+            gIcons[R->IconSrc].BmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                             &gIcons[i].Bmp);
+                             &gIcons[R->IconSrc].Bmp);
             HasIcon = 1;
-        } else if (i == 4 && gPowerBmpReady) {
-            /* 关机 */
+        } else if (R->IconSrc == 4 && gPowerBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gPowerBmp);
             HasIcon = 1;
-        } else if (i == 5 && gRebootBmpReady) {
-            /* 重启：REBOOT.BMP 或内建 gIconReboot48 */
+        } else if (R->IconSrc == 5 && gRebootBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gRebootBmp);
+            HasIcon = 1;
+        } else if (R->Action == DESKTOP_ACTION_EXEC && gIcons[0].BmpReady) {
+            /* 用户 ELF：复用 Shell 小图标 */
+            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                             &gIcons[0].Bmp);
             HasIcon = 1;
         }
         if (HasIcon) {
@@ -1086,7 +1377,7 @@ static void DrawStartMenuRaw(void) {
                              Iy + (MENU_ITEM_H > FontCellH()
                                        ? (MENU_ITEM_H - FontCellH()) / 2
                                        : 0),
-                             Labels[i], COLOR_BLACK);
+                             R->Label[0] ? R->Label : "?", Fg);
     }
 }
 
@@ -1325,7 +1616,8 @@ static void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now) {
     RedrawIconIndex(Hit);
 }
 
-static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
+static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
+                              char *OutExecPath, UINTN ExecPathMax) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -1335,21 +1627,36 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     UINT32 Mh;
     int Item;
 
+    if (OutExecPath && ExecPathMax > 0) {
+        OutExecPath[0] = 0;
+    }
+
     TaskbarGeom(&BarY, &Sw, &Sh);
     if (gMenuOpen) {
         MenuGeom(&Mx, &My, &Mw, &Mh);
         if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
             Item = (int)((Y - My) / MENU_ITEM_H);
-            if (Item >= 0 && Item < MENU_ITEMS) {
-                DESKTOP_ACTION Act = gMenuActions[Item];
-                /* 先关菜单；关机/重启勿先全屏刷新（真机 Present 后再 HAL 易像卡死） */
+            if (Item >= 0 && Item < gMenuCount) {
+                MENU_ROW *R = &gMenuRows[Item];
+                DESKTOP_ACTION Act = R->Action;
+
                 gMenuOpen = 0;
                 if (Act != DESKTOP_ACTION_SHUTDOWN &&
                     Act != DESKTOP_ACTION_REBOOT) {
                     RequestRefresh();
                 }
+                if (!R->Enabled) {
+                    if (OutAction) {
+                        *OutAction = DESKTOP_ACTION_NONE;
+                    }
+                    return 1;
+                }
                 if (OutAction) {
                     *OutAction = Act;
+                }
+                if (Act == DESKTOP_ACTION_EXEC && OutExecPath &&
+                    ExecPathMax > 0) {
+                    MenuCopyStr(OutExecPath, (int)ExecPathMax, R->Path);
                 }
                 return 1;
             }
@@ -1369,6 +1676,9 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
         StartBtnGeom(&Bx, &By, &Bw, &Bh);
         if (X >= Bx && X < Bx + Bw && Y >= By && Y < By + Bh) {
             gMenuOpen = !gMenuOpen;
+            if (gMenuOpen) {
+                RebuildStartMenu();
+            }
             RequestRefresh();
             return 1;
         }
@@ -1398,6 +1708,7 @@ void DesktopInit(void) {
     gSelectX = 0;
     gSelectY = 0;
     gMenuOpen = 0;
+    gMenuCount = 0;
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     ToyLogGui("boot: desktop wallpaper\n");
@@ -1467,7 +1778,8 @@ void DesktopTickClock(void) {
     HalVideoPresent();
 }
 
-int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
+int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
+                       char *OutExecPath, UINTN ExecPathMax) {
     int i;
     int Hit;
     int Prev;
@@ -1479,8 +1791,11 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction) {
     if (OutAction) {
         *OutAction = DESKTOP_ACTION_NONE;
     }
+    if (OutExecPath && ExecPathMax > 0) {
+        OutExecPath[0] = 0;
+    }
 
-    if (HandleTaskbarClick(X, Y, OutAction)) {
+    if (HandleTaskbarClick(X, Y, OutAction, OutExecPath, ExecPathMax)) {
         gIconDragIdx = -1;
         gIconDragMoved = 0;
         return 1;

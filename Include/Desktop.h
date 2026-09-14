@@ -15,7 +15,8 @@ typedef enum {
     DESKTOP_ACTION_FILES,
     DESKTOP_ACTION_STORE,
     DESKTOP_ACTION_SHUTDOWN,
-    DESKTOP_ACTION_REBOOT
+    DESKTOP_ACTION_REBOOT,
+    DESKTOP_ACTION_EXEC /* PR-G-desk-2：跑 Apps/*.ELF；路径见 OutExecPath */
 } DESKTOP_ACTION;
 
 void DesktopInit(void);
@@ -40,8 +41,10 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out);
  * 桌面空白处的按下：任务栏/开始菜单，或双击图标。
  * 返回 1=已处理；*OutAction 为待开应用（NONE 表示仅菜单/选中）。
  * PR-G-desk-1：单击图标会武装拖放（与窗标题拖并存，互斥）。
+ * PR-G-desk-2：OutAction==EXEC 时写入 OutExecPath（如 Apps/HELLO.ELF）。
  */
-int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction);
+int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
+                       char *OutExecPath, UINTN ExecPathMax);
 /* PR-G-desk-1：图标拖放（Gui 在按住左键时调用） */
 int DesktopIconDragActive(void);
 void DesktopIconDragUpdate(UINT32 X, UINT32 Y);
