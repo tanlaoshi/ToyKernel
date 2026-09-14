@@ -63,7 +63,7 @@
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port
  * SYS_LISTEN：rdi=fd rsi=backlog
  * SYS_ACCEPT：rdi=listen_fd → 新 fd（阻塞至连接或超时）
- * socket fd 上 SYS_WRITE/SYS_READ = send/recv（需 LWIP=1）
+ * socket fd 上 SYS_WRITE/SYS_READ = send/recv（默认 LWIP=1）
  */
 
 void SyscallInit(void);

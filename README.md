@@ -32,7 +32,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 文件与存储 | ✅ | ATA/AHCI/NVMe、GPT、FAT；多卷；`RES:`；Files 浏览器 |
 | GUI | ✅ 教学级 | GOP 多窗口、主题、Settings、合成/脏 Present（G9） |
 | 跨架构 virt | ✅ | Arm64/RiscV 自有 Boot + ramfb/virtio；同一套 Common Gui |
-| 网络 | ✅ | virtio-net；builtin UDP/TCP；可选 `LWIP=1` 用户 socket |
+| 网络 | ✅ | virtio-net；**默认 lwIP** 用户 socket / DNS；builtin = 教学对照 |
 | SMP | ✅ 演示级 | AP idle / 可偷任务；shell/gui 钉 BSP |
 | 应用商店 | ✅ | `store install/remove/combo`；资源包 + 依赖 |
 | **真机 UEFI PC** | ✅ **里程碑** | NUC：U 盘启动；xHCI poll；**有线键鼠分口可用**；**短按电源可关机**（2026-09-10） |
@@ -45,8 +45,8 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ```bash
 # 1. 编内核（会同步到 ToyImage）
-cd ToyKernel && ./build.sh              # 默认 LWIP=0
-# ./build.sh LWIP=1                     # 可选 lwIP + 用户 socket
+cd ToyKernel && ./build.sh              # 默认 LWIP=1
+# ./build.sh LWIP=0                     # 关掉 lwIP，仅 builtin 教学栈
 # ./build.sh DEBUG=1
 
 # 2. 编 UEFI 引导（可选，改 Boot 时才必须）
@@ -58,7 +58,17 @@ cd ../ToyImage
 ./smoke-boot.sh                # 无头冒烟 → ToyOS ready
 ```
 
-串口或 Shell 窗出现 `toyos>` 后：`help`、`ls`、`exec HELLO.ELF`、`ping 10.0.2.2`。
+串口或 Shell 窗出现 `toyos>` 后：`help`、`ls`、`exec HELLO.ELF`。
+
+**网络课默认路径**（细节见 [`ThirdParty/README.md`](ThirdParty/README.md)、[`ToyImage/QUICK_START.md`](../ToyImage/QUICK_START.md)）：
+
+```text
+# 宿主机：nc -l -p 8888
+ping 10.0.2.2
+lwip on
+dns 10.0.2.2
+exec NETLIB.ELF          # 或 NETDEMO.ELF（裸 syscall 对照）
+```
 
 ### Arm64 / RiscV（virt，非 OVMF）
 
@@ -108,7 +118,7 @@ ToyKernel/
 ## 已知限制（短表）
 
 - FAT 写有上限；无完整 Unicode 控制台
-- Builtin TCP 教学级；完整体验需 `LWIP=1`
+- Builtin TCP 为教学对照；默认课走 `lwip on` + `NETLIB`/`NETDEMO`（关栈用 `LWIP=0`）
 - 任务槽有限；shell/gui 钉 BSP
 - 无完整 POSIX / TTF / 热加载驱动商店
 - 明确不做：手机 SoC、自研编译器

@@ -1,7 +1,7 @@
 /*
  * Tcp.h — 自研单连接 TCP（legacy）
  *
- * 默认/未 lwip on 时由 Shell 使用。make LWIP=1 且 lwip on 后走 lwIP，
+ * 教学对照栈：未 lwip on 时由 Shell 使用。默认已编入 lwIP；lwip on 后走 lwIP，
  * 本模块停用。不再扩展多连接/拥塞控制；策略见 ThirdParty/README.md。
  */
 #ifndef TCP_H

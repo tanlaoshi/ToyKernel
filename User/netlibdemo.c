@@ -1,6 +1,6 @@
 /*
  * netlibdemo.c — PR-L4：用 libToyNet 重写 NETDEMO 客户端路径
- * 需：./build.sh LWIP=1，Shell `lwip on`，宿主机 nc -l -p 8888
+ * 默认 ./build.sh（LWIP=1）；Shell `lwip on`；宿主机 nc -l -p 8888
  * Shell：exec NETLIB.ELF
  */
 #include <stdio.h>

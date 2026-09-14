@@ -1,5 +1,5 @@
 /*
- * LwIp.h — lwIP 门面（需 make LWIP=1 编译）
+ * LwIp.h — lwIP 门面（默认 LWIP=1 编译；LWIP=0 时无此实现）
  */
 #ifndef LWIP_SERVICE_H
 #define LWIP_SERVICE_H

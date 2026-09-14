@@ -52,7 +52,7 @@ EXTRA_LIBS = $(TOYKERNEL)/User/Library/ToyUi/libToyUi.a \
 ```
 
 教程：[`Documents/技术手册.md`](../../Documents/技术手册.md)（**PR-L3**）。  
-网络模板：`User/pkg/net/`（**PR-L4**，需 `LWIP=1`）。
+网络模板：`User/pkg/net/`（**PR-L4**；默认内核已 `LWIP=1`，Guest 需 `lwip on`）。
 
 ## 不要做的事
 

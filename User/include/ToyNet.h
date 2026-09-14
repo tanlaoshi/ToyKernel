@@ -2,7 +2,7 @@
  * ToyNet.h — 用户态 libToyNet / libnet（PR-L4）
  *
  * BSD 风格薄封装；ABI 简化（无 sockaddr，ip/port 直接传）。
- * 需内核 make LWIP=1；首次 socket() 会触发内核 LwIpInit。
+ * 默认内核已 LWIP=1（关栈用 LWIP=0）；首次 socket() 会触发内核 LwIpInit。
  *
  * 破坏性变更升 TOY_NET_ABI_VERSION_MAJOR。
  */

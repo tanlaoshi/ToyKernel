@@ -4,7 +4,7 @@
  * SYS_SOCKET / SYS_BIND / SYS_LISTEN / SYS_ACCEPT / SYS_CONNECT
  * SYS_WRITE / SYS_READ / SYS_CLOSE 在 socket fd 上即 send/recv/close
  *
- * 需 make LWIP=1；首次 socket() 会自动 LwIpInit。
+ * 默认 make LWIP=1（可用 LWIP=0 关掉）；首次 socket() 会自动 LwIpInit。
  */
 #ifndef SOCKET_H
 #define SOCKET_H
