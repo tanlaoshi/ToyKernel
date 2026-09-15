@@ -7,6 +7,7 @@
 #include "VirtioInput.h"
 #include "VirtioMmio.h"
 #include "HalSerial.h"
+#include "HalVideo.h"
 #include "PhysicalMemory.h"
 #include "BootInfo.h"
 #include "Driver.h"
@@ -156,9 +157,16 @@ static void MousePush(void) {
     UINT32 H = 600;
     const BOOT_INFO *Info = BootInfoGet();
 
-    if (Info && Info->HorizontalResolution && Info->VerticalResolution) {
-        W = Info->HorizontalResolution;
-        H = Info->VerticalResolution;
+    /* 逻辑分辨率（含 UI scale）；勿用 BootInfo 物理尺寸否则放大后钉右缘 */
+    HalVideoGetSize(&W, &H);
+    if (W == 0 || H == 0) {
+        if (Info && Info->HorizontalResolution && Info->VerticalResolution) {
+            W = Info->HorizontalResolution;
+            H = Info->VerticalResolution;
+        } else {
+            W = 800;
+            H = 600;
+        }
     }
     if (N == gMouseTail) {
         return;

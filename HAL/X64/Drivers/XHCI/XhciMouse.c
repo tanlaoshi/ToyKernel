@@ -497,9 +497,23 @@ void MousePush(void) {
         /* HID boot 相对鼠标：b0 buttons, b1 X, b2 Y, b3 wheel */
         int Dx = (int)(signed char)gMouseBuf[1];
         int Dy = (int)(signed char)gMouseBuf[2];
+        UINT32 Sw = 0;
+        UINT32 Sh = 0;
+        int MaxX;
+        int MaxY;
+
         if (!gMouseAbsInit) {
             gMouseAbsInit = 1;
         }
+        HalVideoGetSize(&Sw, &Sh);
+        if (Sw == 0) {
+            Sw = 1024;
+        }
+        if (Sh == 0) {
+            Sh = 768;
+        }
+        MaxX = (int)(Sw > 0 ? Sw - 1 : 0);
+        MaxY = (int)(Sh > 0 ? Sh - 1 : 0);
         gMouseAbsX += Dx;
         gMouseAbsY += Dy;
         if (gMouseAbsX < 0) {
@@ -508,11 +522,11 @@ void MousePush(void) {
         if (gMouseAbsY < 0) {
             gMouseAbsY = 0;
         }
-        if (gMouseAbsX > 3840) {
-            gMouseAbsX = 3840;
+        if (gMouseAbsX > MaxX) {
+            gMouseAbsX = MaxX;
         }
-        if (gMouseAbsY > 2160) {
-            gMouseAbsY = 2160;
+        if (gMouseAbsY > MaxY) {
+            gMouseAbsY = MaxY;
         }
         R->X = (UINT32)gMouseAbsX;
         R->Y = (UINT32)gMouseAbsY;
@@ -533,9 +547,24 @@ int XhciMousePresent(void) {
  * 进桌面前只抽空队列并对齐 Abs；勿 SyncIntrDequeue（枚举后多余 Stop 曾致 PHOTO r=0）。
  */
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
-    if (HalCpuIsHypervisor()) {
-        return;
+    UINT32 Sw = 0;
+    UINT32 Sh = 0;
+    int MaxX;
+    int MaxY;
+
+    /*
+     * 真机相对鼠必须同步 Abs；QEMU tablet 不读 Abs，但排空队列可丢掉
+     * 改 scale / 热切前积压的旧坐标。勿再对 hypervisor 早退。
+     */
+    HalVideoGetSize(&Sw, &Sh);
+    if (Sw == 0) {
+        Sw = 1024;
     }
+    if (Sh == 0) {
+        Sh = 768;
+    }
+    MaxX = (int)(Sw - 1);
+    MaxY = (int)(Sh - 1);
     SpinLockAcquire(&gHidQueueLock);
     gMouseReadIndex = gMouseWriteIndex;
     gMouseAbsX = (int)CursorX;
@@ -546,6 +575,12 @@ void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
     }
     if (gMouseAbsY < 0) {
         gMouseAbsY = 0;
+    }
+    if (gMouseAbsX > MaxX) {
+        gMouseAbsX = MaxX;
+    }
+    if (gMouseAbsY > MaxY) {
+        gMouseAbsY = MaxY;
     }
     SpinLockRelease(&gHidQueueLock);
     ToyLogUsb("boot: xhci mouse handoff desktop\n");
