@@ -9,11 +9,11 @@
 
 | 状态 | PR | 内容 | 说明 |
 | --- | --- | --- | --- |
-| ✅ 本地 | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` 避与 FatPath 冲突 |
+| ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` 避与 FatPath 冲突 |
 | ← **JX** | **PR-S-filesui-split-2** | `FilesUiNav.c` | 路径/书签/Reload/预览 |
 | ⬜ | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
 
-**split-1 行数（约）**：`FilesUi.c` ~899；`FilesUiPaint.c` ~469；`FilesUiPriv.h` ~160。  
+**split-1** TG `b3825db`；行数（约）：`FilesUi.c` ~899；`FilesUiPaint.c` ~469；`FilesUiPriv.h` ~160。  
 **验收**：`./build.sh` + `smoke-boot` PASS（2026-09-16）。
 
 ---
