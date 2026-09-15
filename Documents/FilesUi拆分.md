@@ -2,8 +2,8 @@
 
 > **规格同 [`大文件拆分.md`](大文件拆分.md)**：只搬家、不改逻辑；`FilesUi.h` 不动；每刀 build + `smoke-boot`。  
 > **本文件 = 轨 D · FilesUi 细则**；总盘点见 [`大文件拆分3.md`](大文件拆分3.md)。  
-> **★ 下一刀**：**PR-S-filesui-split-3** = `FilesUiActions.c`（Open/Delete/Prompt）。  
-> **统计时点**：2026-09-16；split-1/2 已落地。
+> **★ 柱完成**：三刀均已落地（split-3 本地待 TG）。  
+> **统计时点**：2026-09-16；split-1/2/3 已落地。
 
 ### ★ 拆分进度
 
@@ -11,10 +11,10 @@
 | --- | --- | --- | --- |
 | ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` |
 | ✅ TG `a2bb774` | **PR-S-filesui-split-2** | `FilesUiNav.c` | Bookmark*/Goto/Reload/Preview |
-| ← **JX** | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
+| ✅ 本地 | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
 
-**行数（约）**：`FilesUi.c` ~736；`FilesUiPaint.c` ~469；`FilesUiNav.c` ~169。  
-**验收**：split-2 `./build.sh` + `smoke-boot` PASS（2026-09-16）。
+**行数（约）**：`FilesUi.c` ~575；`FilesUiPaint.c` ~469；`FilesUiNav.c` ~169；`FilesUiActions.c` ~168。  
+**验收**：split-3 `./build.sh` + `smoke-boot` PASS（2026-09-16）。
 
 ---
 
@@ -155,7 +155,7 @@ static void UpdatePreview(void);
 
 **不要一次拆完。** 每刀独立编译 + smoke：
 
-### 第 1 刀 — **PR-S-filesui-split-1** ← 当前
+### 第 1 刀 — **PR-S-filesui-split-1** ✅ TG `b3825db`
 
 1. 创建 `Include/FilesUiPriv.h`（宏/类型/全部全局 extern/全部内部函数声明）。  
 2. 创建 `Common/Services/FilesUiPaint.c`：搬 `PaintOverlay` / `PaintList` / `PaintView` / `PaintConfirm` / `PaintPrompt` / `Paint`，去 `static`。  
@@ -170,18 +170,18 @@ static void UpdatePreview(void);
 `FilesUiNav.c`：Bookmark* / GotoPath / SideHit / ReloadList / IsMostlyText / UpdatePreview。  
 验收：build + smoke-boot PASS（进目录/预览/书签待人工点验）。
 
-### 第 3 刀 — **PR-S-filesui-split-3**
+### 第 3 刀 — **PR-S-filesui-split-3** ✅ 本地（待 TG）
 
 `FilesUiActions.c`：OpenSelected / BeginConfirmDelete / BeginPrompt / DoDelete / DoPromptCommit。  
-验收：打开 ELF、删除、新建、重命名。
+验收：build + smoke-boot PASS（打开/删/建/改名待人工点验）。
 
 ---
 
 ## 七、验收标准（柱完成时）
 
-- [ ] `FilesUiPaint.c` ≤ 700；`FilesUiNav.c` / `FilesUiActions.c` ≤ 350  
-- [ ] 宿主尽量 ≤ 600（事件多时可略超）  
-- [ ] 编译无新增警告；`smoke-boot` PASS  
+- [x] `FilesUiPaint.c` ≤ 700；`FilesUiNav.c` / `FilesUiActions.c` ≤ 350  
+- [x] 宿主尽量 ≤ 600（事件多时可略超；现 ~575）  
+- [x] 编译无新增警告；`smoke-boot` PASS  
 - [ ] QEMU Files：开窗、进目录、预览、滚动、悬停、删/建/改名、Esc  
 - [ ] 建议 NUC 点验 Files 不回归  
 
