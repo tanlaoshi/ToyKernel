@@ -4,10 +4,7 @@
  * 开窗：桌面双击图标，或任务栏「开始」菜单（不单靠图标）。
  * PR-G-desk-1：图标可拖放；松手写入 TOYOS.DB（ic0..ic3=x,y）；启动时 LoadIconLayout。
  * PR-G-desk-2：开始菜单动态列出 Apps/ 下 .ELF + 缺文件 INST(app) 灰显；点选 ProcessExec。
- * 壁纸：Assets/Images/WALL.BMP；图标：Assets/Icons/bmp48/SHELL|SET|FILES|STORE|START|POWER|REBOOT.BMP。
- * 四个桌面图标另有内核内置 48×48 回退（真机缺文件也能显示）。
- * 均为 BI_RGB，运行时 FileSystemReadFile + BmpDecode；缺失则回退色块。
- * 默认 FAT 无 Assets 时 FileSystemReadFile 回退 RES: 内嵌副本（真机无 USB TOYOS）。
+ * 壁纸/图标：优先 TOYOS:Assets/…（BI_RGB BMP）；读不到则纯色块（不内嵌像素、不走 RES:）。
  */
 #include "Desktop.h"
 #include "UI.h"
@@ -193,7 +190,7 @@ static void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH)
     TaskbarGeom(&BarY, &Sw, &Sh);
     Start = LocStr(MSG_START);
     Tw = FontStringWidth(Start ? Start : "Start");
-    IconSlot = gStartBmpReady ? (START_ICON_SZ + 6u) : 0;
+    IconSlot = START_ICON_SZ + 6u; /* BMP 或纯色占位 */
     *OutW = Tw + START_BTN_PAD_X * 2 + IconSlot;
     if (*OutW < START_BTN_MIN_W) {
         *OutW = START_BTN_MIN_W;
@@ -207,13 +204,34 @@ static void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH)
     *OutH = Bh;
 }
 
-/* 读 FAT 上 BI_RGB BMP 到 Out；成功返回 1 */
+/* Path 是否已带卷前缀（如 TOYOS: / ESP:） */
+static int PathHasVolPrefix(const char *Path) {
+    int i;
+
+    if (!Path) {
+        return 0;
+    }
+    for (i = 0; Path[i] && i < 16; i++) {
+        if (Path[i] == ':') {
+            return 1;
+        }
+        if (Path[i] == '/' || Path[i] == '\\') {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+/* 读 TOYOS（或显式路径）上 BI_RGB BMP；成功返回 1。失败不内嵌，由绘制侧纯色回退。 */
 static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
                        const char *Tag) {
     UINT8 *Buf;
     UINT32 Pages;
     UINTN Size;
     int Err;
+    char ToyPath[192];
+    const char *TryPath;
+    int Pass;
 
     (void)Tag;
     if (!Path || !Out || FileMax < 54) {
@@ -227,69 +245,61 @@ static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
         DebugWrite(": alloc failed\n");
         return 0;
     }
-    Size = 0;
-    Err = FileSystemReadFile(Path, Buf, FileMax, &Size);
-    if (Err != FAT_OK || Size < 54) {
+
+    for (Pass = 0; Pass < 2; Pass++) {
+        if (Pass == 0) {
+            TryPath = Path;
+        } else if (PathHasVolPrefix(Path)) {
+            break;
+        } else {
+            /* 默认卷可能是 ESP；再显式试 TOYOS: */
+            ToyPath[0] = 'T';
+            ToyPath[1] = 'O';
+            ToyPath[2] = 'Y';
+            ToyPath[3] = 'O';
+            ToyPath[4] = 'S';
+            ToyPath[5] = ':';
+            {
+                int i;
+                for (i = 0; Path[i] && i < (int)sizeof(ToyPath) - 7; i++) {
+                    ToyPath[6 + i] = Path[i];
+                }
+                ToyPath[6 + i] = 0;
+            }
+            TryPath = ToyPath;
+        }
+
+        Size = 0;
+        Err = FileSystemReadFile(TryPath, Buf, FileMax, &Size);
+        if (Err != FAT_OK || Size < 54) {
+            continue;
+        }
+        if (BmpDecode(Buf, Size, Out) != 0) {
+            DebugWrite(Tag);
+            DebugWrite(": decode failed ");
+            DebugWrite(TryPath);
+            DebugWrite("\n");
+            continue;
+        }
         PhysicalMemoryFreePages(Buf, Pages);
         DebugWrite(Tag);
-        DebugWrite(": missing ");
-        DebugWrite(Path);
+        DebugWrite(": loaded ");
+        DebugWrite(TryPath);
         DebugWrite("\n");
-        return 0;
+        return 1;
     }
-    if (BmpDecode(Buf, Size, Out) != 0) {
-        PhysicalMemoryFreePages(Buf, Pages);
-        DebugWrite(Tag);
-        DebugWrite(": decode failed ");
-        DebugWrite(Path);
-        DebugWrite("\n");
-        return 0;
-    }
+
     PhysicalMemoryFreePages(Buf, Pages);
     DebugWrite(Tag);
-    DebugWrite(": loaded ");
+    DebugWrite(": missing ");
     DebugWrite(Path);
-    DebugWrite("\n");
-    return 1;
-}
-
-#include "IconDesktop48.inc"
-
-static int LoadBuiltinIcon(BMP_IMAGE *Out, const UINT32 *Src, const char *Tag) {
-    UINT32 Pages;
-    UINT32 *Dst;
-    UINT32 i;
-
-    (void)Tag; /* TOY_DEBUG=0 时 DebugWrite 为空，避免 -Wunused-parameter */
-    if (!Out || !Src) {
-        return 0;
-    }
-    BmpFree(Out);
-    Pages = (48u * 48u * sizeof(UINT32) + 4095u) / 4096u;
-    Dst = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
-    if (!Dst) {
-        DebugWrite(Tag);
-        DebugWrite(": builtin alloc fail\n");
-        return 0;
-    }
-    for (i = 0; i < 48u * 48u; i++) {
-        Dst[i] = Src[i];
-    }
-    Out->Pixels = Dst;
-    Out->Width = 48;
-    Out->Height = 48;
-    Out->Pages = Pages;
-    DebugWrite(Tag);
-    DebugWrite(": builtin ok\n");
-    return 1;
+    DebugWrite(" (solid fallback)\n");
+    return 0;
 }
 
 static void LoadDesktopIcons(void) {
     int i;
-    static const UINT32 *const Builtin[DESKTOP_ICON_COUNT] = {
-        gIconShell48, gIconSet48, gIconFiles48, gIconStore48
-    };
-    static const char *const BuiltinTag[DESKTOP_ICON_COUNT] = {
+    static const char *const Tags[DESKTOP_ICON_COUNT] = {
         "desktop: shell", "desktop: set", "desktop: files", "desktop: store"
     };
 
@@ -298,26 +308,16 @@ static void LoadDesktopIcons(void) {
         if (!gIcons[i].BmpPath) {
             continue;
         }
+        /* 失败则 BmpReady=0 → BlitIconFace* 画 IconColor 纯色 */
         gIcons[i].BmpReady = LoadBmpPath(gIcons[i].BmpPath, &gIcons[i].Bmp,
-                                         ICON_FILE_MAX, BuiltinTag[i]);
-        if (!gIcons[i].BmpReady) {
-            gIcons[i].BmpReady =
-                LoadBuiltinIcon(&gIcons[i].Bmp, Builtin[i], BuiltinTag[i]);
-        }
+                                         ICON_FILE_MAX, Tags[i]);
     }
     gStartBmpReady = LoadBmpPath("Assets/Icons/bmp48/START.BMP", &gStartBmp,
                                  ICON_FILE_MAX, "desktop: start");
     gPowerBmpReady = LoadBmpPath("Assets/Icons/bmp48/POWER.BMP", &gPowerBmp,
                                  ICON_FILE_MAX, "desktop: power");
-    if (!gPowerBmpReady) {
-        gPowerBmpReady = LoadBuiltinIcon(&gPowerBmp, gIconPower48, "desktop: power");
-    }
     gRebootBmpReady = LoadBmpPath("Assets/Icons/bmp48/REBOOT.BMP", &gRebootBmp,
                                   ICON_FILE_MAX, "desktop: reboot");
-    if (!gRebootBmpReady) {
-        gRebootBmpReady =
-            LoadBuiltinIcon(&gRebootBmp, gIconReboot48, "desktop: reboot");
-    }
 }
 
 static UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
@@ -1262,7 +1262,6 @@ static void DrawTaskbarRaw(void) {
     UINT32 Bh;
     UINT32 Tx;
     UINT32 Ty;
-    UINT32 Tw;
     UINT32 Ix;
     UINT32 Iy;
     UINT32 ClockW;
@@ -1276,7 +1275,6 @@ static void DrawTaskbarRaw(void) {
     TaskbarGeom(&BarY, &Sw, &Sh);
     StartBtnGeom(&Bx, &By, &Bw, &Bh);
     Start = LocStr(MSG_START);
-    Tw = FontStringWidth(Start ? Start : "Start");
 
     UiFillRectangle(0, BarY, Sw, TASKBAR_H, COLOR_DARK_GRAY);
     UiDrawRectangle(0, BarY, Sw, TASKBAR_H, COLOR_GRAY);
@@ -1287,10 +1285,10 @@ static void DrawTaskbarRaw(void) {
     Iy = By + (Bh > START_ICON_SZ ? (Bh - START_ICON_SZ) / 2 : 0);
     if (gStartBmpReady) {
         BlitBmpScaledRaw(Ix, Iy, START_ICON_SZ, START_ICON_SZ, &gStartBmp);
-        Tx = Ix + START_ICON_SZ + 6u;
     } else {
-        Tx = Bx + (Bw > Tw ? (Bw - Tw) / 2 : 0);
+        UiFillRectangle(Ix, Iy, START_ICON_SZ, START_ICON_SZ, COLOR_BLUE);
     }
+    Tx = Ix + START_ICON_SZ + 6u;
     Ty = BarY + (TASKBAR_H > FontCellH() ? (TASKBAR_H - FontCellH()) / 2 : 0);
     HalVideoDrawStringAt(Tx, Ty, Start ? Start : "Start",
                          gMenuOpen ? COLOR_WHITE : COLOR_BLACK);
@@ -1356,18 +1354,32 @@ static void DrawStartMenuRaw(void) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gIcons[R->IconSrc].Bmp);
             HasIcon = 1;
+        } else if (R->IconSrc >= 0 && R->IconSrc < DESKTOP_ICON_COUNT) {
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                            gIcons[R->IconSrc].IconColor);
+            HasIcon = 1;
         } else if (R->IconSrc == 4 && gPowerBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gPowerBmp);
+            HasIcon = 1;
+        } else if (R->IconSrc == 4) {
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00C04040);
             HasIcon = 1;
         } else if (R->IconSrc == 5 && gRebootBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gRebootBmp);
             HasIcon = 1;
+        } else if (R->IconSrc == 5) {
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00C08020);
+            HasIcon = 1;
         } else if (R->Action == DESKTOP_ACTION_EXEC && gIcons[0].BmpReady) {
             /* 用户 ELF：复用 Shell 小图标 */
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gIcons[0].Bmp);
+            HasIcon = 1;
+        } else if (R->Action == DESKTOP_ACTION_EXEC) {
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                            gIcons[0].IconColor);
             HasIcon = 1;
         }
         if (HasIcon) {
@@ -1716,7 +1728,7 @@ void DesktopInit(void) {
     ToyLogGui("boot: desktop bmp icons\n");
     LoadDesktopIcons();
     ToyLogGui("boot: desktop ready\n");
-    DebugWrite("desktop: icons+taskbar ready (bmp48 Assets/Icons)\n");
+    DebugWrite("desktop: icons+taskbar ready (TOYOS Assets or solid)\n");
     gDesktopBusy = 0;
 }
 

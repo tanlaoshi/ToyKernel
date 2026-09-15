@@ -2,13 +2,12 @@
  * ResFs.c — 只读「资源卷」第二 VFS 后端（PR-F3）
  *
  * 无 Block：内核内嵌只读文件表。挂载名 RES:；写/删/建目录一律 ROFS。
- * 另内嵌桌面 Assets（图标/壁纸）：真机无 USB TOYOS FAT 时 Desktop 可回退 RES:。
+ * 桌面图标/壁纸改从 TOYOS:Assets 读取；本卷仅教学小文本，不内嵌 BMP。
  * ListDir 经 LibWrite（PR-R4；ConsoleInit 注册 ConsoleWrite）。
  */
 #include "Vfs.h"
 #include "Fat.h"
 #include "LibWrite.h"
-#include "DesktopAssetsData.h"
 
 typedef struct {
     const char *Name;
@@ -18,7 +17,7 @@ typedef struct {
 
 static const UINT8 gReadme[] =
     "ToyOS resource volume (PR-F3)\n"
-    "Read-only; includes embedded desktop Assets for real-PC fallback.\n";
+    "Read-only teaching files; desktop Assets live on TOYOS:.\n";
 static const UINT8 gHello[] = "hello from RES\n";
 static const UINT8 gVersion[] = "resfs/2\n";
 
@@ -26,36 +25,12 @@ static const RES_FILE gFiles[] = {
     { "README.TXT", gReadme, (UINT32)(sizeof(gReadme) - 1) },
     { "HELLO.TXT", gHello, (UINT32)(sizeof(gHello) - 1) },
     { "VERSION.TXT", gVersion, (UINT32)(sizeof(gVersion) - 1) },
-    { "Assets/Icons/bmp48/SHELL.BMP", gBmpShell, 0 },
-    { "Assets/Icons/bmp48/SET.BMP", gBmpSet, 0 },
-    { "Assets/Icons/bmp48/FILES.BMP", gBmpFiles, 0 },
-    { "Assets/Icons/bmp48/START.BMP", gBmpStart, 0 },
-    { "Assets/Images/WALL.BMP", gBmpWall, 0 },
 };
 
 #define RES_FILE_COUNT ((int)(sizeof(gFiles) / sizeof(gFiles[0])))
 
 static UINT32 ResFileSize(const RES_FILE *F) {
-    if (F->Size != 0) {
-        return F->Size;
-    }
-    /* DesktopAssetsData：Size 在独立符号里 */
-    if (F->Data == gBmpShell) {
-        return gBmpShellSize;
-    }
-    if (F->Data == gBmpSet) {
-        return gBmpSetSize;
-    }
-    if (F->Data == gBmpFiles) {
-        return gBmpFilesSize;
-    }
-    if (F->Data == gBmpStart) {
-        return gBmpStartSize;
-    }
-    if (F->Data == gBmpWall) {
-        return gBmpWallSize;
-    }
-    return 0;
+    return F->Size;
 }
 
 static int NameEq(const char *A, const char *B) {
