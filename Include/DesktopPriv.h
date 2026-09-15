@@ -130,6 +130,7 @@ void ClampAllIcons(void);
 void RedrawIconIndex(int Idx);
 void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now);
 
+void MenuCopyStr(char *Dst, int Max, const char *Src);
 void RebuildStartMenu(void);
 
 void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color);
