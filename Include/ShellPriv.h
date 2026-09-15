@@ -11,5 +11,6 @@ void ShellCmdNetRegister(void);
 void ShellCmdSystemRegister(void);
 void ShellCmdSystemRegisterVirtMin(void);
 void ShellCmdFsUiRegister(void);
+void ShellCmdInstallRegister(void);
 
 #endif
