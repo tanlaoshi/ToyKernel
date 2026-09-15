@@ -2,7 +2,7 @@
 
 > 源计划：公司机 Cursor `~/.cursor/plans/real-pc_usb_pr_split_3ddff5d5.plan.md`  
 > 入库目的：家里 Cursor 可 `@Documents/real-pc-usb-pr-split.md` 对齐同一把刀序列。  
-> **协作**：JX = 实现不 commit；TG = commit+push。勿改公司机上的原 plan 文件当唯一真相——以本文件 + [`home-xhci-handoff.md`](home-xhci-handoff.md) 为准。
+> **协作**：JX = 实现不 commit；**TG** = 只 commit；**TS** = push。勿改公司机上的原 plan 文件当唯一真相——以本文件 + [`home-xhci-handoff.md`](home-xhci-handoff.md) 为准。
 
 ## 起点与原则
 

@@ -19,7 +19,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 `Documents/` 正文以上表为准；课堂讲义见 [`教学内容/`](../教学内容/)。
 
-协作暗号（详见路线图）：**JX** = 按路线图下一刀；**TG** = 已验证，commit + push 同步。真机 USB 轨请先读 handoff。
+协作暗号（详见路线图）：**JX** = 下一刀；**TG** = 通过，只 commit；**TS** = push；**TB** = 拉同步。真机 USB 轨请先读 handoff。
 
 ---
 
