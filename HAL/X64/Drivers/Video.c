@@ -5,137 +5,47 @@
  * PR-G-present：脏区按行 memcpy（非整段逐像素）。
  * 字形经 Font_*（Fonts/），不直接绑定某一份点阵表。
  */
-#include "Video.h"
-#include "Font.h"
-#include "PhysicalMemory.h"
-#include "Hal.h"
+#include "VideoPriv.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
-/* Bochs/QEMU VBE DISPI（OVMF QemuVideo 同端口） */
-#define VBE_DISPI_IOPORT_INDEX  0x01CE
-#define VBE_DISPI_IOPORT_DATA   0x01D0
-#define VBE_DISPI_INDEX_ID      0x0
-#define VBE_DISPI_INDEX_XRES    0x1
-#define VBE_DISPI_INDEX_YRES    0x2
-#define VBE_DISPI_INDEX_BPP     0x3
-#define VBE_DISPI_INDEX_ENABLE  0x4
-#define VBE_DISPI_INDEX_BANK    0x5
-#define VBE_DISPI_INDEX_VIRT_WIDTH  0x6
-#define VBE_DISPI_INDEX_VIRT_HEIGHT 0x7
-#define VBE_DISPI_INDEX_X_OFFSET    0x8
-#define VBE_DISPI_INDEX_Y_OFFSET    0x9
-#define VBE_DISPI_INDEX_VIDEO_MEMORY_64K 0xa
-#define VBE_DISPI_ID0           0xB0C0
-#define VBE_DISPI_ENABLED       0x01
-#define VBE_DISPI_LFB_ENABLED   0x40
-
-static SCREEN_INFO gScreen = {0};
-static UINT32 gBackground = 0x00000000;
-static int gClipOn;
-static UINT32 gClipX;
-static UINT32 gClipY;
-static UINT32 gClipW;
-static UINT32 gClipH;
-static UINT32 gClipBg;
+/* 全局定义集中在宿主；其它 TU 经 VideoPriv.h extern */
+SCREEN_INFO gScreen = {0};
+UINT32 gBackground = 0x00000000;
+int gClipOn;
+UINT32 gClipX;
+UINT32 gClipY;
+UINT32 gClipW;
+UINT32 gClipH;
+UINT32 gClipBg;
 
 /* scanout（GOP）与后缓冲 */
-static UINT32 *gFront;
-static UINT32  gFrontPitch;
-static UINT32 *gBack;
-static UINT32  gBackPitch;
-static UINT32  gBackPages;
-static int     gBackOn;
+UINT32 *gFront;
+UINT32  gFrontPitch;
+UINT32 *gBack;
+UINT32  gBackPitch;
+UINT32  gBackPages;
+int     gBackOn;
 /* 真机 boot mark：直写 scanout，避开后缓冲 Present 假死 */
-static int     gForceFront;
+int     gForceFront;
 /* UI 缩放：逻辑坐标画后缓冲，Present 最近邻贴到物理 GOP（50/100/150/200） */
-static UINT32  gPhysW;
-static UINT32  gPhysH;
-static UINT32  gUiScale = 100;
+UINT32  gPhysW;
+UINT32  gPhysH;
+UINT32  gUiScale = 100;
 
 /* 内容脏矩形 [gDx0,gDx1) x [gDy0,gDy1)；光标 XOR 单独跟踪，避免 AABB 并成近全屏 */
-static int     gDirty;
-static UINT32  gDx0;
-static UINT32  gDy0;
-static UINT32  gDx1;
-static UINT32  gDy1;
-static int     gCurDirty;
-static UINT32  gCx0;
-static UINT32  gCy0;
-static UINT32  gCx1;
-static UINT32  gCy1;
+int     gDirty;
+UINT32  gDx0;
+UINT32  gDy0;
+UINT32  gDx1;
+UINT32  gDy1;
+int     gCurDirty;
+UINT32  gCx0;
+UINT32  gCy0;
+UINT32  gCx1;
+UINT32  gCy1;
 /* 光标叠层绘制：DirtyUnion 改记光标矩形 */
-static int     gCursorOverlay;
-
-/* 单次 Present 条带行数：cli 下 memcpy 过久会饿死 xHCI poll/MSI */
-#define PRESENT_CHUNK_ROWS 64u
-
-static void DirtyUnionInto(int *Dirty, UINT32 *Dx0, UINT32 *Dy0, UINT32 *Dx1,
-                           UINT32 *Dy1, UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
-    UINT32 X1;
-    UINT32 Y1;
-
-    if (gForceFront) {
-        return;
-    }
-    if (!W || !H || gScreen.Width == 0 || gScreen.Height == 0) {
-        return;
-    }
-    if (X >= gScreen.Width || Y >= gScreen.Height) {
-        return;
-    }
-    X1 = X + W;
-    Y1 = Y + H;
-    if (X1 > gScreen.Width) {
-        X1 = gScreen.Width;
-    }
-    if (Y1 > gScreen.Height) {
-        Y1 = gScreen.Height;
-    }
-    if (X >= X1 || Y >= Y1) {
-        return;
-    }
-    if (!*Dirty) {
-        *Dx0 = X;
-        *Dy0 = Y;
-        *Dx1 = X1;
-        *Dy1 = Y1;
-        *Dirty = 1;
-        return;
-    }
-    if (X < *Dx0) {
-        *Dx0 = X;
-    }
-    if (Y < *Dy0) {
-        *Dy0 = Y;
-    }
-    if (X1 > *Dx1) {
-        *Dx1 = X1;
-    }
-    if (Y1 > *Dy1) {
-        *Dy1 = Y1;
-    }
-}
-
-static void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
-    if (gCursorOverlay) {
-        DirtyUnionInto(&gCurDirty, &gCx0, &gCy0, &gCx1, &gCy1, X, Y, W, H);
-        return;
-    }
-    DirtyUnionInto(&gDirty, &gDx0, &gDy0, &gDx1, &gDy1, X, Y, W, H);
-}
-
-static void DirtyUnionCursor(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
-    DirtyUnionInto(&gCurDirty, &gCx0, &gCy0, &gCx1, &gCy1, X, Y, W, H);
-}
-
-void VideoCursorOverlayBegin(void) {
-    gCursorOverlay = 1;
-}
-
-void VideoCursorOverlayEnd(void) {
-    gCursorOverlay = 0;
-}
+int     gCursorOverlay;
 
 static UINT32 *DrawBase(void) {
     if (gForceFront && gFront) {
@@ -159,102 +69,6 @@ void VideoDrawEndFront(void) {
     gForceFront = 0;
 }
 
-static UINT32 NormalizeUiScale(UINT32 Percent) {
-    if (Percent <= 75) {
-        return 50;
-    }
-    if (Percent <= 125) {
-        return 100;
-    }
-    if (Percent <= 175) {
-        return 150;
-    }
-    return 200;
-}
-
-/* 逻辑分辨率 = 物理 * 100 / scale；上限约 8M 像素防 OOM */
-static void ApplyLogicalFromPhys(void) {
-    UINT32 Lw;
-    UINT32 Lh;
-    UINT32 Scale = gUiScale ? gUiScale : 100u;
-
-    if (gPhysW == 0 || gPhysH == 0) {
-        return;
-    }
-    Lw = (gPhysW * 100u) / Scale;
-    Lh = (gPhysH * 100u) / Scale;
-    if (Lw < 320) {
-        Lw = 320;
-    }
-    if (Lh < 240) {
-        Lh = 240;
-    }
-    while ((UINT64)Lw * (UINT64)Lh > 8ull * 1024ull * 1024ull) {
-        Lw = (Lw * 3u) / 4u;
-        Lh = (Lh * 3u) / 4u;
-        if (Lw < 320 || Lh < 240) {
-            Lw = gPhysW;
-            Lh = gPhysH;
-            gUiScale = 100;
-            break;
-        }
-    }
-    gScreen.Width = Lw;
-    gScreen.Height = Lh;
-}
-
-void VideoSet(VIDEO_CONFIG *VideoConfig) {
-    gPhysW = VideoConfig->HorizontalResolution;
-    gPhysH = VideoConfig->VerticalResolution;
-    gScreen.PixelsPerScanLine = VideoConfig->PixelsPerScanLine;
-    gScreen.FrameBufferBase = VideoConfig->FrameBufferBase;
-    gScreen.FrameBufferSize = VideoConfig->FrameBufferSize;
-    gScreen.CursorX = 0;
-    gScreen.CursorY = 0;
-    gFront = (UINT32 *)(UINTN)VideoConfig->FrameBufferBase;
-    gFrontPitch = VideoConfig->PixelsPerScanLine;
-    gBack = 0;
-    gBackPitch = 0;
-    gBackPages = 0;
-    gBackOn = 0;
-    gDirty = 0;
-    gCurDirty = 0;
-    gUiScale = NormalizeUiScale(gUiScale);
-    ApplyLogicalFromPhys();
-}
-
-UINT32 VideoGetUiScale(void) {
-    return gUiScale ? gUiScale : 100u;
-}
-
-void VideoGetPhysicalSize(UINT32 *Width, UINT32 *Height) {
-    if (Width) {
-        *Width = gPhysW;
-    }
-    if (Height) {
-        *Height = gPhysH;
-    }
-}
-
-/*
- * 改 UI 缩放并重算逻辑分辨率；释放后缓冲（调用方再 InitBackbuffer）。
- * Percent 归到 50/100/150/200。
- */
-int VideoSetUiScale(UINT32 Percent) {
-    UINT32 Next = NormalizeUiScale(Percent);
-
-    if (gPhysW == 0 || gPhysH == 0) {
-        gUiScale = Next;
-        return -1;
-    }
-    VideoReleaseBackbuffer();
-    gUiScale = Next;
-    ApplyLogicalFromPhys();
-    gDirty = 0;
-    gCurDirty = 0;
-    return 0;
-}
-
 void VideoReleaseBackbuffer(void) {
     if (gBack && gBackPages) {
         PhysicalMemoryFreePages(gBack, gBackPages);
@@ -273,88 +87,6 @@ UINT64 VideoFrameBufferBase(void) {
 
 UINT64 VideoFrameBufferSize(void) {
     return gScreen.FrameBufferSize;
-}
-
-static void BochsWrite(UINT16 Index, UINT16 Value) {
-    HalIoWrite16(VBE_DISPI_IOPORT_INDEX, Index);
-    HalIoWrite16(VBE_DISPI_IOPORT_DATA, Value);
-}
-
-static UINT16 BochsRead(UINT16 Index) {
-    HalIoWrite16(VBE_DISPI_IOPORT_INDEX, Index);
-    return HalIoRead16(VBE_DISPI_IOPORT_DATA);
-}
-
-static int BochsPresent(void) {
-    UINT16 Id = BochsRead(VBE_DISPI_INDEX_ID);
-    return (Id & 0xFFF0u) == VBE_DISPI_ID0;
-}
-
-int VideoBochsAvailable(void) {
-    if (!gFront || gScreen.FrameBufferBase == 0) {
-        return 0;
-    }
-    return BochsPresent();
-}
-
-/*
- * PR-G-hotres：经 Bochs DISPI 改 scanout 几何；LFB 基址沿用 Boot GOP。
- * 调用方须已映射足够大的帧缓冲，并在成功后重配后缓冲 / Gui。
- */
-int VideoBochsSetMode(UINT32 Width, UINT32 Height) {
-    UINT64 Need;
-    UINT16 Mem64k;
-    UINT64 Vram;
-    VIDEO_CONFIG Cfg;
-
-    if (Width < 320 || Height < 200 || Width > 4096 || Height > 4096) {
-        return -1;
-    }
-    if (!gFront || gScreen.FrameBufferBase == 0) {
-        return -1;
-    }
-    if (!BochsPresent()) {
-        return -1;
-    }
-
-    Need = (UINT64)Width * (UINT64)Height * sizeof(UINT32);
-    Mem64k = BochsRead(VBE_DISPI_INDEX_VIDEO_MEMORY_64K);
-    if (Mem64k != 0) {
-        Vram = (UINT64)Mem64k * 65536ull;
-    } else if (gScreen.FrameBufferSize >= Need) {
-        Vram = gScreen.FrameBufferSize;
-    } else {
-        Vram = 16ull * 1024 * 1024; /* QEMU VGA 常见默认 */
-    }
-    if (Vram < Need) {
-        return -1;
-    }
-
-    BochsWrite(VBE_DISPI_INDEX_ENABLE, 0);
-    BochsWrite(VBE_DISPI_INDEX_BANK, 0);
-    BochsWrite(VBE_DISPI_INDEX_X_OFFSET, 0);
-    BochsWrite(VBE_DISPI_INDEX_Y_OFFSET, 0);
-    BochsWrite(VBE_DISPI_INDEX_BPP, 32);
-    BochsWrite(VBE_DISPI_INDEX_XRES, (UINT16)Width);
-    BochsWrite(VBE_DISPI_INDEX_YRES, (UINT16)Height);
-    BochsWrite(VBE_DISPI_INDEX_VIRT_WIDTH, (UINT16)Width);
-    BochsWrite(VBE_DISPI_INDEX_VIRT_HEIGHT, (UINT16)Height);
-    BochsWrite(VBE_DISPI_INDEX_ENABLE, (UINT16)(VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED));
-
-    /* 读回 DISPI，避免“软件记成 WxH、硬件仍是旧模式” */
-    if (BochsRead(VBE_DISPI_INDEX_XRES) != (UINT16)Width ||
-        BochsRead(VBE_DISPI_INDEX_YRES) != (UINT16)Height) {
-        return -1;
-    }
-
-    VideoReleaseBackbuffer();
-    Cfg.FrameBufferBase = gScreen.FrameBufferBase;
-    Cfg.FrameBufferSize = Need;
-    Cfg.HorizontalResolution = Width;
-    Cfg.VerticalResolution = Height;
-    Cfg.PixelsPerScanLine = Width;
-    VideoSet(&Cfg);
-    return 0;
 }
 
 /*
@@ -386,221 +118,6 @@ int VideoBackbufferEnabled(void) {
 
 UINT32 VideoBackbufferPages(void) {
     return gBackPages;
-}
-
-/* 将脏区 blit 到 GOP；无后缓冲时为空操作。scale=100 且逻辑=物理时 1:1 memcpy */
-static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
-                            UINT64 FbBytes, int *DirtyOut, UINT32 *Dx0,
-                            UINT32 *Dy0, UINT32 *Dx1, UINT32 *Dy1,
-                            int *OutPartial) {
-    UINT32 Y;
-    UINT32 ChunkEnd;
-    UINT64 RowOff;
-    UINT64 RowBytes;
-    UINT64 Flags;
-    int Scaled = (gUiScale != 100u) || (gScreen.Width != gPhysW) ||
-                 (gScreen.Height != gPhysH);
-
-    *OutPartial = 0;
-    if (X0 >= X1 || Y0 >= Y1) {
-        return;
-    }
-
-    if (!Scaled) {
-        RowBytes = (UINT64)(X1 - X0) * 4ull;
-        Y = Y0;
-        while (Y < Y1) {
-            ChunkEnd = Y + PRESENT_CHUNK_ROWS;
-            if (ChunkEnd > Y1) {
-                ChunkEnd = Y1;
-            }
-            Flags = HalIrqSave();
-            for (; Y < ChunkEnd; Y++) {
-                const UINT32 *Src;
-                UINT32 *Dst;
-
-                RowOff = ((UINT64)Y * (UINT64)gFrontPitch + (UINT64)X0) * 4ull;
-                if (RowOff + RowBytes > FbBytes) {
-                    *Dx0 = X0;
-                    *Dy0 = Y;
-                    *Dx1 = X1;
-                    *Dy1 = Y1;
-                    *DirtyOut = 1;
-                    *OutPartial = 1;
-                    HalIrqRestore(Flags);
-                    return;
-                }
-                Src = &gBack[Y * gBackPitch + X0];
-                Dst = &gFront[Y * gFrontPitch + X0];
-                memcpy(Dst, Src, (UINTN)RowBytes);
-            }
-            HalIrqRestore(Flags);
-        }
-        return;
-    }
-
-    /* 最近邻：逻辑脏区 → 物理矩形；按物理行条带 cli */
-    {
-        UINT32 Px0;
-        UINT32 Py0;
-        UINT32 Px1;
-        UINT32 Py1;
-        UINT32 Py;
-        UINT32 ChunkPy;
-
-        if (gPhysW == 0 || gPhysH == 0 || gScreen.Width == 0 ||
-            gScreen.Height == 0) {
-            return;
-        }
-        /*
-         * 上取整 + 外扩 2 物理像素：150%/200% 最近邻时否则光标移动会拖尾。
-         */
-        Px0 = (UINT32)(((UINT64)X0 * (UINT64)gPhysW) / (UINT64)gScreen.Width);
-        Py0 = (UINT32)(((UINT64)Y0 * (UINT64)gPhysH) / (UINT64)gScreen.Height);
-        Px1 = (UINT32)((((UINT64)X1 * (UINT64)gPhysW) + (UINT64)gScreen.Width - 1u) /
-                       (UINT64)gScreen.Width);
-        Py1 = (UINT32)((((UINT64)Y1 * (UINT64)gPhysH) + (UINT64)gScreen.Height - 1u) /
-                       (UINT64)gScreen.Height);
-        if (Px0 >= 2u) {
-            Px0 -= 2u;
-        } else {
-            Px0 = 0;
-        }
-        if (Py0 >= 2u) {
-            Py0 -= 2u;
-        } else {
-            Py0 = 0;
-        }
-        if (Px1 + 2u < gPhysW) {
-            Px1 += 2u;
-        } else {
-            Px1 = gPhysW;
-        }
-        if (Py1 + 2u < gPhysH) {
-            Py1 += 2u;
-        } else {
-            Py1 = gPhysH;
-        }
-        if (Px0 >= Px1 || Py0 >= Py1) {
-            return;
-        }
-        Py = Py0;
-        while (Py < Py1) {
-            ChunkPy = Py + PRESENT_CHUNK_ROWS;
-            if (ChunkPy > Py1) {
-                ChunkPy = Py1;
-            }
-            Flags = HalIrqSave();
-            for (; Py < ChunkPy; Py++) {
-                UINT32 Ly;
-                UINT32 Px;
-                UINT32 *Dst;
-
-                Ly = (UINT32)(((UINT64)Py * (UINT64)gScreen.Height) /
-                              (UINT64)gPhysH);
-                if (Ly >= gScreen.Height) {
-                    Ly = gScreen.Height - 1;
-                }
-                RowOff = ((UINT64)Py * (UINT64)gFrontPitch + (UINT64)Px0) * 4ull;
-                if (RowOff + (UINT64)(Px1 - Px0) * 4ull > FbBytes) {
-                    /* 映射回逻辑脏区续传 */
-                    *Dx0 = X0;
-                    *Dy0 = (UINT32)(((UINT64)Py * (UINT64)gScreen.Height) /
-                                    (UINT64)gPhysH);
-                    *Dx1 = X1;
-                    *Dy1 = Y1;
-                    *DirtyOut = 1;
-                    *OutPartial = 1;
-                    HalIrqRestore(Flags);
-                    return;
-                }
-                Dst = &gFront[Py * gFrontPitch + Px0];
-                for (Px = Px0; Px < Px1; Px++) {
-                    UINT32 Lx = (UINT32)(((UINT64)Px * (UINT64)gScreen.Width) /
-                                         (UINT64)gPhysW);
-                    if (Lx >= gScreen.Width) {
-                        Lx = gScreen.Width - 1;
-                    }
-                    Dst[Px - Px0] = gBack[Ly * gBackPitch + Lx];
-                }
-            }
-            HalIrqRestore(Flags);
-        }
-    }
-}
-
-void VideoPresent(void) {
-    UINT32 X0;
-    UINT32 Y0;
-    UINT32 X1;
-    UINT32 Y1;
-    UINT64 FbBytes;
-    UINT64 LayoutBytes;
-    int Partial;
-
-    if (!gBackOn || !gBack || !gFront) {
-        gDirty = 0;
-        gCurDirty = 0;
-        return;
-    }
-    if (!gDirty && !gCurDirty) {
-        return;
-    }
-    /*
-     * 内容与光标分矩形 Present，避免 AABB 并成近全屏。
-     * 大块按行条带 cli，条间开中断（G7：禁止长 cli 饿死 USB）。
-     */
-    LayoutBytes = (UINT64)gFrontPitch * (UINT64)gPhysH * 4ull;
-    if (gPhysH == 0) {
-        LayoutBytes = (UINT64)gFrontPitch * (UINT64)gScreen.Height * 4ull;
-    }
-    FbBytes = gScreen.FrameBufferSize;
-    if (FbBytes == 0) {
-        FbBytes = LayoutBytes;
-    } else if (gFrontPitch > gPhysW && gPhysW != 0 &&
-               FbBytes == (UINT64)gPhysW * (UINT64)gPhysH * 4ull &&
-               LayoutBytes > FbBytes) {
-        FbBytes = LayoutBytes;
-    }
-
-    if (gDirty) {
-        X0 = gDx0;
-        Y0 = gDy0;
-        X1 = gDx1;
-        Y1 = gDy1;
-        gDirty = 0;
-        if (X0 < gScreen.Width && Y0 < gScreen.Height) {
-            if (X1 > gScreen.Width) {
-                X1 = gScreen.Width;
-            }
-            if (Y1 > gScreen.Height) {
-                Y1 = gScreen.Height;
-            }
-            PresentRectRows(X0, Y0, X1, Y1, FbBytes, &gDirty, &gDx0, &gDy0,
-                            &gDx1, &gDy1, &Partial);
-            if (Partial) {
-                return;
-            }
-        }
-    }
-
-    if (gCurDirty) {
-        X0 = gCx0;
-        Y0 = gCy0;
-        X1 = gCx1;
-        Y1 = gCy1;
-        gCurDirty = 0;
-        if (X0 < gScreen.Width && Y0 < gScreen.Height) {
-            if (X1 > gScreen.Width) {
-                X1 = gScreen.Width;
-            }
-            if (Y1 > gScreen.Height) {
-                Y1 = gScreen.Height;
-            }
-            PresentRectRows(X0, Y0, X1, Y1, FbBytes, &gCurDirty, &gCx0, &gCy0,
-                            &gCx1, &gCy1, &Partial);
-        }
-    }
 }
 
 void VideoGetSize(UINT32 *Width, UINT32 *Height) {
