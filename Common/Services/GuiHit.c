@@ -1,7 +1,7 @@
 /*
  * GuiHit.c — 命中测试 / 叠放 Raise（PR-S-guiwm-split-1）
  *
- * 从 GuiWm.c 迁出；只搬家、不改逻辑。CloseWindow / 开窗仍在 GuiWm.c。
+ * 从 GuiWm.c 迁出；只搬家、不改逻辑。CloseWindow / 开窗见 GuiOpen.c。
  */
 #include "GuiPriv.h"
 #include "HalVideo.h"
