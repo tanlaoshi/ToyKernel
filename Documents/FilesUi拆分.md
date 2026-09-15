@@ -10,7 +10,7 @@
 | 状态 | PR | 内容 | 说明 |
 | --- | --- | --- | --- |
 | ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` |
-| ✅ 本地 | **PR-S-filesui-split-2** | `FilesUiNav.c` | Bookmark*/Goto/Reload/Preview |
+| ✅ TG `a2bb774` | **PR-S-filesui-split-2** | `FilesUiNav.c` | Bookmark*/Goto/Reload/Preview |
 | ← **JX** | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
 
 **行数（约）**：`FilesUi.c` ~736；`FilesUiPaint.c` ~469；`FilesUiNav.c` ~169。  
@@ -165,7 +165,7 @@ static void UpdatePreview(void);
 
 **第 1 刀故意不做**：不建 Nav/Actions；不改写操作逻辑。
 
-### 第 2 刀 — **PR-S-filesui-split-2** ✅ 本地
+### 第 2 刀 — **PR-S-filesui-split-2** ✅ TG `a2bb774`
 
 `FilesUiNav.c`：Bookmark* / GotoPath / SideHit / ReloadList / IsMostlyText / UpdatePreview。  
 验收：build + smoke-boot PASS（进目录/预览/书签待人工点验）。
