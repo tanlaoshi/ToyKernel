@@ -6,119 +6,57 @@
  * PR-G-desk-2：开始菜单动态列出 Apps/ 下 .ELF + 缺文件 INST(app) 灰显；点选 ProcessExec。
  * 壁纸/图标：优先 TOYOS:Assets/…（BI_RGB BMP）；读不到则纯色块（不内嵌像素、不走 RES:）。
  */
-#include "Desktop.h"
-#include "UI.h"
-#include "Hal.h"
-#include "Font.h"
-#include "Locale.h"
-#include "Theme.h"
-#include "Bmp.h"
-#include "Db.h"
-#include "FileSystem.h"
-#include "Fat.h"
-#include "Store.h"
-#include "PhysicalMemory.h"
-#include "Debug.h"
-#include "ToySerialLog.h"
+#include "DesktopPriv.h"
 
-#define DESKTOP_ICON_COUNT    4
-#define DESKTOP_ICON_SIZE     48
-#define DESKTOP_ICON_GAP      28
-#define DESKTOP_ORIGIN_X      36
-#define DESKTOP_ORIGIN_Y      36
-#define DESKTOP_LABEL_PAD     6
-#define DESKTOP_DBLCLICK_SLOP 16u
-#define DESKTOP_DBLCLICK_MAX  2000000ULL
-#define DESKTOP_DRAG_THRESH   6u /* 超过此像素才算拖放，避免误伤双击 */
+/* 全局定义集中在宿主；其它 TU 经 DesktopPriv.h extern */
+MENU_ROW gMenuRows[MENU_ROWS_MAX];
+int gMenuCount;
+FAT_DIRECTORY_ENTRY gMenuDirScratch[FAT_LIST_MAX];
+STORE_INSTALLED gMenuInstScratch[STORE_INSTALLED_MAX];
 
-#define TASKBAR_H             32u
-#define START_BTN_PAD_X       8u
-#define START_BTN_MIN_W       56u
-#define START_ICON_SZ         20u
-#define MENU_W                200u
-#define MENU_ITEM_H           28u
-#define MENU_ICON_SZ          18u
-#define MENU_FIXED_TOP        4   /* Shell/Settings/Files/Store */
-#define MENU_FIXED_BOT        2   /* Shutdown/Reboot */
-#define MENU_APP_MAX          16
-#define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_APP_MAX + MENU_FIXED_BOT)
-#define MENU_LABEL_MAX        40
-#define MENU_PATH_MAX         80
-#define WALL_FILE_MAX         (512u * 1024u)
-#define ICON_FILE_MAX         (16u * 1024u)
-
-/* 开始菜单行（PR-G-desk-2：固定项 + Apps/ 下 .ELF + 缺文件 INST 灰显） */
-typedef struct {
-    DESKTOP_ACTION Action;
-    char           Label[MENU_LABEL_MAX];
-    char           Path[MENU_PATH_MAX]; /* EXEC：Apps/FOO.ELF */
-    int            Enabled;             /* 0=灰显不可点 */
-    int            IconSrc;             /* 0..3 桌面图；4 关机；5 重启；-1 通用 */
-} MENU_ROW;
-
-static MENU_ROW gMenuRows[MENU_ROWS_MAX];
-static int gMenuCount;
-static FAT_DIRECTORY_ENTRY gMenuDirScratch[FAT_LIST_MAX];
-static STORE_INSTALLED gMenuInstScratch[STORE_INSTALLED_MAX];
-
-typedef struct {
-    const char     *Label;
-    DESKTOP_ACTION  Action;
-    UINT32          IconColor;
-    const char     *BmpPath;
-    BMP_IMAGE       Bmp;
-    int             BmpReady;
-    UINT32          X;
-    UINT32          Y;
-} DESKTOP_ICON;
-
-static DESKTOP_ICON gIcons[DESKTOP_ICON_COUNT];
-static int gSelected = -1;
-static UINT64 gSelectClock;
-static UINT32 gSelectX;
-static UINT32 gSelectY;
+DESKTOP_ICON gIcons[DESKTOP_ICON_COUNT];
+int gDeskSelected = -1;
+UINT64 gSelectClock;
+UINT32 gSelectX;
+UINT32 gSelectY;
 
 /* PR-G-desk-1：图标拖放状态 */
-static int gIconDragIdx = -1;
-static INT32 gIconDragOffX;
-static INT32 gIconDragOffY;
-static UINT32 gIconDragStartX;
-static UINT32 gIconDragStartY;
-static int gIconDragMoved;
+int gIconDragIdx = -1;
+INT32 gIconDragOffX;
+INT32 gIconDragOffY;
+UINT32 gIconDragStartX;
+UINT32 gIconDragStartY;
+int gIconDragMoved;
 
-static BMP_IMAGE gWall;
-static int gWallReady;
-static BMP_IMAGE gStartBmp;
-static int gStartBmpReady;
-static BMP_IMAGE gPowerBmp;
-static int gPowerBmpReady;
-static BMP_IMAGE gRebootBmp;
-static int gRebootBmpReady;
-static int gMenuOpen;
-static UINT8 gClockHour;
-static UINT8 gClockMinute;
-static int gClockValid;
+BMP_IMAGE gWall;
+int gWallReady;
+BMP_IMAGE gStartBmp;
+int gStartBmpReady;
+BMP_IMAGE gPowerBmp;
+int gPowerBmpReady;
+BMP_IMAGE gRebootBmp;
+int gRebootBmpReady;
+int gMenuOpen;
+UINT8 gClockHour;
+UINT8 gClockMinute;
+int gClockValid;
 
 /* 已按当前分辨率拉伸的壁纸缓存（加速 DesktopFillRect，避免拖死鼠标） */
-static UINT32 *gWallScreen;
-static UINT32  gWallScreenW;
-static UINT32  gWallScreenH;
-static UINT32  gWallScreenPages;
-static int     gDesktopBusy; /* 防 DesktopInit / OnDisplayResize 重入 */
+UINT32 *gWallScreen;
+UINT32  gWallScreenW;
+UINT32  gWallScreenH;
+UINT32  gWallScreenPages;
+int     gDesktopBusy; /* 防 DesktopInit / OnDisplayResize 重入 */
 
 /* PR-R2：由 Gui 注册，Desktop 不 include Gui.h */
-static int (*gPointOccupied)(UINT32 X, UINT32 Y);
-static void (*gRequestRefresh)(void);
+int (*gPointOccupied)(UINT32 X, UINT32 Y);
+void (*gRequestRefresh)(void);
 
-static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color);
-static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected);
-static void RedrawIconIndex(int Idx);
-
-static int PointOccupied(UINT32 X, UINT32 Y) {
+int PointOccupied(UINT32 X, UINT32 Y) {
     return gPointOccupied ? gPointOccupied(X, Y) : 0;
 }
 
-static void RequestRefresh(void) {
+void RequestRefresh(void) {
     if (gRequestRefresh) {
         gRequestRefresh();
     }
@@ -132,11 +70,11 @@ void DesktopSetRequestRefresh(void (*Fn)(void)) {
     gRequestRefresh = Fn;
 }
 
-static UINT64 DesktopClock(void) {
+UINT64 DesktopClock(void) {
     return HalCpuTicks(0);
 }
 
-static int RectsOverlap(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
+int RectsOverlap(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
                         UINT32 Bx, UINT32 By, UINT32 Bw, UINT32 Bh) {
     if (Aw == 0 || Ah == 0 || Bw == 0 || Bh == 0) {
         return 0;
@@ -144,7 +82,7 @@ static int RectsOverlap(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
     return Ax < Bx + Bw && Ax + Aw > Bx && Ay < By + Bh && Ay + Ah > By;
 }
 
-static void IconBounds(const DESKTOP_ICON *Icon, UINT32 *X, UINT32 *Y,
+void IconBounds(const DESKTOP_ICON *Icon, UINT32 *X, UINT32 *Y,
                        UINT32 *W, UINT32 *H) {
     UINT32 LabelW;
     UINT32 TotalW;
@@ -162,7 +100,7 @@ static void IconBounds(const DESKTOP_ICON *Icon, UINT32 *X, UINT32 *Y,
     *H = TotalH;
 }
 
-static int PointInIcon(const DESKTOP_ICON *Icon, UINT32 X, UINT32 Y) {
+int PointInIcon(const DESKTOP_ICON *Icon, UINT32 X, UINT32 Y) {
     UINT32 Ix;
     UINT32 Iy;
     UINT32 Iw;
@@ -172,13 +110,13 @@ static int PointInIcon(const DESKTOP_ICON *Icon, UINT32 X, UINT32 Y) {
     return X >= Ix && X < Ix + Iw && Y >= Iy && Y < Iy + Ih;
 }
 
-static void TaskbarGeom(UINT32 *BarY, UINT32 *Sw, UINT32 *Sh) {
+void TaskbarGeom(UINT32 *BarY, UINT32 *Sw, UINT32 *Sh) {
     HalVideoGetSize(Sw, Sh);
     *BarY = (*Sh > TASKBAR_H) ? (*Sh - TASKBAR_H) : 0;
 }
 
 /* 开始钮：可选 START.BMP + 文案；宽度随字体变化 */
-static void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH) {
+void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -205,7 +143,7 @@ static void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH)
 }
 
 /* Path 是否已带卷前缀（如 TOYOS: / ESP:） */
-static int PathHasVolPrefix(const char *Path) {
+int PathHasVolPrefix(const char *Path) {
     int i;
 
     if (!Path) {
@@ -223,7 +161,7 @@ static int PathHasVolPrefix(const char *Path) {
 }
 
 /* 读 TOYOS（或显式路径）上 BI_RGB BMP；成功返回 1。失败不内嵌，由绘制侧纯色回退。 */
-static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
+int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
                        const char *Tag) {
     UINT8 *Buf;
     UINT32 Pages;
@@ -297,7 +235,7 @@ static int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
     return 0;
 }
 
-static void LoadDesktopIcons(void) {
+void LoadDesktopIcons(void) {
     int i;
     static const char *const Tags[DESKTOP_ICON_COUNT] = {
         "desktop: shell", "desktop: set", "desktop: files", "desktop: store"
@@ -320,7 +258,7 @@ static void LoadDesktopIcons(void) {
                                   ICON_FILE_MAX, "desktop: reboot");
 }
 
-static UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
+UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
                               UINT32 Dw, UINT32 Dh) {
     UINT32 Sx;
     UINT32 Sy;
@@ -340,7 +278,7 @@ static UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
     return Img->Pixels[Sy * Img->Width + Sx];
 }
 
-static void BlitBmpScaledRaw(UINT32 X, UINT32 Y, UINT32 Dw, UINT32 Dh,
+void BlitBmpScaledRaw(UINT32 X, UINT32 Y, UINT32 Dw, UINT32 Dh,
                              const BMP_IMAGE *Img) {
     UINT32 Row;
     UINT32 Col;
@@ -362,7 +300,7 @@ static void BlitBmpScaledRaw(UINT32 X, UINT32 Y, UINT32 Dw, UINT32 Dh,
 
 /* BlitBmpScaledFree reserved if taskbar occlusion needs per-pixel later */
 
-static void BlitIconFaceRaw(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
+void BlitIconFaceRaw(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
     UINT32 W;
     UINT32 H;
     UINT32 Row;
@@ -385,7 +323,7 @@ static void BlitIconFaceRaw(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
     UiFillRectangle(X, Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE, Icon->IconColor);
 }
 
-static void BlitIconFaceFree(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
+void BlitIconFaceFree(UINT32 X, UINT32 Y, const DESKTOP_ICON *Icon) {
     UINT32 W;
     UINT32 H;
     UINT32 Row;
@@ -593,7 +531,7 @@ static void MenuEnrichLabelFromCatalog(const char *File, char *Label, int Max) {
 }
 
 /* 打开开始菜单时重建：系统项 + Apps/ 下 .ELF + 缺文件的 INST(app) 灰显 */
-static void RebuildStartMenu(void) {
+void RebuildStartMenu(void) {
     int AppCap;
     int AppN = 0;
     int DirN = 0;
@@ -699,7 +637,7 @@ static void RebuildStartMenu(void) {
     MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1, 5);
 }
 
-static void MenuGeom(UINT32 *Mx, UINT32 *My, UINT32 *Mw, UINT32 *Mh) {
+void MenuGeom(UINT32 *Mx, UINT32 *My, UINT32 *Mw, UINT32 *Mh) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -716,72 +654,7 @@ static void MenuGeom(UINT32 *Mx, UINT32 *My, UINT32 *Mw, UINT32 *Mh) {
     *My = (BarY > *Mh) ? (BarY - *Mh) : 0;
 }
 
-static void FreeWallScreen(void) {
-    if (gWallScreen && gWallScreenPages) {
-        PhysicalMemoryFreePages(gWallScreen, gWallScreenPages);
-    }
-    gWallScreen = 0;
-    gWallScreenW = 0;
-    gWallScreenH = 0;
-    gWallScreenPages = 0;
-}
-
-static void BuildWallScreen(void) {
-    UINT32 Sw;
-    UINT32 Sh;
-    UINT64 Bytes;
-    UINT32 Pages;
-    UINT32 Y;
-    UINT32 X;
-    UINT32 WallW;
-    UINT32 WallH;
-    UINT32 *WallPix;
-    UINT32 *Dst;
-
-    HalVideoGetSize(&Sw, &Sh);
-    if (Sw == 0 || Sh == 0) {
-        return;
-    }
-    if (gWallScreen && gWallScreenW == Sw && gWallScreenH == Sh) {
-        return;
-    }
-    FreeWallScreen();
-    if (!gWallReady || !gWall.Pixels || gWall.Width == 0 || gWall.Height == 0) {
-        return;
-    }
-    /* 快照尺寸与指针，避免缩放循环中被重入释放 */
-    WallPix = gWall.Pixels;
-    WallW = gWall.Width;
-    WallH = gWall.Height;
-    Bytes = (UINT64)Sw * (UINT64)Sh * sizeof(UINT32);
-    Pages = (UINT32)((Bytes + 4095ull) / 4096ull);
-    if (Pages == 0) {
-        return;
-    }
-    Dst = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
-    if (!Dst) {
-        return;
-    }
-    for (Y = 0; Y < Sh; Y++) {
-        UINT32 Sy = (Y * WallH) / Sh;
-        if (Sy >= WallH) {
-            Sy = WallH - 1;
-        }
-        for (X = 0; X < Sw; X++) {
-            UINT32 Sx = (X * WallW) / Sw;
-            if (Sx >= WallW) {
-                Sx = WallW - 1;
-            }
-            Dst[Y * Sw + X] = WallPix[Sy * WallW + Sx];
-        }
-    }
-    gWallScreen = Dst;
-    gWallScreenPages = Pages;
-    gWallScreenW = Sw;
-    gWallScreenH = Sh;
-}
-
-static void ClampIconPos(UINT32 *X, UINT32 *Y) {
+void ClampIconPos(UINT32 *X, UINT32 *Y) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -801,7 +674,7 @@ static void ClampIconPos(UINT32 *X, UINT32 *Y) {
     }
 }
 
-static void ClampAllIcons(void) {
+void ClampAllIcons(void) {
     int i;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
@@ -908,7 +781,7 @@ static const char *IconLayoutKey(int Idx) {
 }
 
 /* PR-G-desk-1：从 TOYOS.DB 覆盖默认坐标 */
-static void LoadIconLayout(void) {
+void LoadIconLayout(void) {
     int i;
     int Any = 0;
     char Val[DB_VAL_MAX];
@@ -937,7 +810,7 @@ static void LoadIconLayout(void) {
     }
 }
 
-static void SaveIconLayout(void) {
+void SaveIconLayout(void) {
     int i;
     char Val[DB_VAL_MAX];
     const char *Key;
@@ -964,7 +837,7 @@ static void SaveIconLayout(void) {
     }
 }
 
-static void PlaceDesktopIcons(void) {
+void PlaceDesktopIcons(void) {
     UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
                   DESKTOP_ICON_GAP;
 
@@ -995,7 +868,7 @@ static void PlaceDesktopIcons(void) {
     DesktopRefreshLabels();
 }
 
-static void MoveIconTo(int Idx, UINT32 NewX, UINT32 NewY) {
+void MoveIconTo(int Idx, UINT32 NewX, UINT32 NewY) {
     UINT32 Ox;
     UINT32 Oy;
     UINT32 Ow;
@@ -1013,7 +886,7 @@ static void MoveIconTo(int Idx, UINT32 NewX, UINT32 NewY) {
     gIcons[Idx].Y = NewY;
     DesktopFillRect(Ox, Oy, Ow, Oh);
     DesktopDrawRect(Ox, Oy, Ow, Oh);
-    DrawOneIconOccluded(&gIcons[Idx], Idx == gSelected);
+    DrawOneIconOccluded(&gIcons[Idx], Idx == gDeskSelected);
     HalVideoPresent();
 }
 
@@ -1071,69 +944,8 @@ void DesktopIconDragEnd(void) {
     gIconDragOffY = 0;
 }
 
-static void LoadWallpaper(void) {
-    FreeWallScreen();
-    gWallReady = LoadBmpPath("Assets/Images/WALL.BMP", &gWall, WALL_FILE_MAX,
-                             "desktop: wallpaper");
-    if (gWallReady) {
-        BuildWallScreen();
-    }
-}
-
-UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
-    UINT32 Sw;
-    UINT32 Sh;
-
-    BuildWallScreen();
-    if (gWallScreen && gWallScreenW && gWallScreenH) {
-        if (X >= gWallScreenW) {
-            X = gWallScreenW - 1;
-        }
-        if (Y >= gWallScreenH) {
-            Y = gWallScreenH - 1;
-        }
-        return gWallScreen[Y * gWallScreenW + X];
-    }
-    HalVideoGetSize(&Sw, &Sh);
-    (void)Sw;
-    (void)Sh;
-    return ThemeDesktopBackground();
-}
-
-void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
-    UINT32 Row;
-    UINT32 Sw;
-    UINT32 Sh;
-    UINT32 CopyW;
-
-    if (W == 0 || H == 0) {
-        return;
-    }
-    BuildWallScreen();
-    if (!gWallScreen) {
-        UiFillRectangle(X, Y, W, H, ThemeDesktopBackground());
-        return;
-    }
-    Sw = gWallScreenW;
-    Sh = gWallScreenH;
-    if (X >= Sw || Y >= Sh) {
-        return;
-    }
-    if (X + W > Sw) {
-        W = Sw - X;
-    }
-    if (Y + H > Sh) {
-        H = Sh - Y;
-    }
-    CopyW = W;
-    for (Row = 0; Row < H; Row++) {
-        HalVideoWriteRect(X, Y + Row, CopyW, 1,
-                          &gWallScreen[(Y + Row) * Sw + X]);
-    }
-}
-
 /* 只画不被窗口盖住的像素 */
-static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
+void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
     UINT32 Row;
     UINT32 Col;
     UINT32 RunStart;
@@ -1161,7 +973,7 @@ static void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
     }
 }
 
-static void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
+void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     UINT32 Cx = X;
 
     if (!Text) {
@@ -1192,7 +1004,7 @@ static void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     }
 }
 
-static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
+void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelX;
     UINT32 LabelY;
     UINT32 LabelW;
@@ -1220,7 +1032,7 @@ static void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     }
 }
 
-static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
+void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 LabelX;
     UINT32 LabelY;
     UINT32 LabelW;
@@ -1252,7 +1064,7 @@ static void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     }
 }
 
-static void DrawTaskbarRaw(void) {
+void DrawTaskbarRaw(void) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -1319,7 +1131,7 @@ static void DrawTaskbarRaw(void) {
     HalVideoDrawStringAt(ClockX, Ty, Clock, COLOR_WHITE);
 }
 
-static void DrawStartMenuRaw(void) {
+void DrawStartMenuRaw(void) {
     UINT32 Mx;
     UINT32 My;
     UINT32 Mw;
@@ -1393,7 +1205,7 @@ static void DrawStartMenuRaw(void) {
     }
 }
 
-static void DrawTaskbarOccluded(void) {
+void DrawTaskbarOccluded(void) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -1411,7 +1223,7 @@ void DesktopDraw(void) {
     int i;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        DrawOneIconRaw(&gIcons[i], i == gSelected);
+        DrawOneIconRaw(&gIcons[i], i == gDeskSelected);
     }
     DrawTaskbarRaw();
     DrawStartMenuRaw();
@@ -1434,7 +1246,7 @@ void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
         IconBounds(&gIcons[i], &Ix, &Iy, &Iw, &Ih);
         if (RectsOverlap(X, Y, W, H, Ix, Iy, Iw, Ih)) {
-            DrawOneIconOccluded(&gIcons[i], i == gSelected);
+            DrawOneIconOccluded(&gIcons[i], i == gDeskSelected);
         }
     }
     TaskbarGeom(&BarY, &Sw, &Sh);
@@ -1498,7 +1310,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
         const DESKTOP_ICON *Icon = &gIcons[i];
-        int Selected = (i == gSelected);
+        int Selected = (i == gDeskSelected);
         UINT32 Ix;
         UINT32 Iy;
         UINT32 Iw;
@@ -1608,17 +1420,17 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     return 0;
 }
 
-static void RedrawIconIndex(int Idx) {
+void RedrawIconIndex(int Idx) {
     if (Idx < 0 || Idx >= DESKTOP_ICON_COUNT) {
         return;
     }
-    DrawOneIconOccluded(&gIcons[Idx], Idx == gSelected);
+    DrawOneIconOccluded(&gIcons[Idx], Idx == gDeskSelected);
 }
 
-static void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now) {
-    int Prev = gSelected;
+void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now) {
+    int Prev = gDeskSelected;
 
-    gSelected = Hit;
+    gDeskSelected = Hit;
     gSelectClock = Now;
     gSelectX = X;
     gSelectY = Y;
@@ -1715,7 +1527,7 @@ void DesktopInit(void) {
     PlaceDesktopIcons();
     LoadIconLayout();
 
-    gSelected = -1;
+    gDeskSelected = -1;
     gSelectClock = 0;
     gSelectX = 0;
     gSelectY = 0;
@@ -1823,8 +1635,8 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
 
     Now = DesktopClock();
     if (Hit < 0) {
-        Prev = gSelected;
-        gSelected = -1;
+        Prev = gDeskSelected;
+        gDeskSelected = -1;
         gIconDragIdx = -1;
         gIconDragMoved = 0;
         if (Prev >= 0) {
@@ -1837,7 +1649,7 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
     Dx = (X >= gSelectX) ? (X - gSelectX) : (gSelectX - X);
     Dy = (Y >= gSelectY) ? (Y - gSelectY) : (gSelectY - Y);
 
-    if (Hit == gSelected &&
+    if (Hit == gDeskSelected &&
         Dt <= DESKTOP_DBLCLICK_MAX &&
         Dx <= DESKTOP_DBLCLICK_SLOP &&
         Dy <= DESKTOP_DBLCLICK_SLOP) {
@@ -1847,7 +1659,7 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
         if (OutAction) {
             *OutAction = gIcons[Hit].Action;
         }
-        gSelected = -1;
+        gDeskSelected = -1;
         return 1;
     }
 
