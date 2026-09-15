@@ -2,19 +2,19 @@
 
 > **规格同 [`大文件拆分.md`](大文件拆分.md)**：只搬家、不改逻辑；`FilesUi.h` 不动；每刀 build + `smoke-boot`。  
 > **本文件 = 轨 D · FilesUi 细则**；总盘点见 [`大文件拆分3.md`](大文件拆分3.md)。  
-> **★ 第 1 刀（下一步）**：**PR-S-filesui-split-1** = `FilesUiPriv.h` + `FilesUiPaint.c`（仅搬 Paint*）。  
-> **统计时点**：2026-09-16；`FilesUi.c` = **1411** 行；函数 **43** 个（与下表清单完全对齐，无遗漏）。
+> **★ 下一刀**：**PR-S-filesui-split-3** = `FilesUiActions.c`（Open/Delete/Prompt）。  
+> **统计时点**：2026-09-16；split-1/2 已落地。
 
 ### ★ 拆分进度
 
 | 状态 | PR | 内容 | 说明 |
 | --- | --- | --- | --- |
-| ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` 避与 FatPath 冲突 |
-| ← **JX** | **PR-S-filesui-split-2** | `FilesUiNav.c` | 路径/书签/Reload/预览 |
-| ⬜ | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
+| ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` |
+| ✅ 本地 | **PR-S-filesui-split-2** | `FilesUiNav.c` | Bookmark*/Goto/Reload/Preview |
+| ← **JX** | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
 
-**split-1** TG `b3825db`；行数（约）：`FilesUi.c` ~899；`FilesUiPaint.c` ~469；`FilesUiPriv.h` ~160。  
-**验收**：`./build.sh` + `smoke-boot` PASS（2026-09-16）。
+**行数（约）**：`FilesUi.c` ~736；`FilesUiPaint.c` ~469；`FilesUiNav.c` ~169。  
+**验收**：split-2 `./build.sh` + `smoke-boot` PASS（2026-09-16）。
 
 ---
 
@@ -165,10 +165,10 @@ static void UpdatePreview(void);
 
 **第 1 刀故意不做**：不建 Nav/Actions；不改写操作逻辑。
 
-### 第 2 刀 — **PR-S-filesui-split-2**
+### 第 2 刀 — **PR-S-filesui-split-2** ✅ 本地
 
 `FilesUiNav.c`：Bookmark* / GotoPath / SideHit / ReloadList / IsMostlyText / UpdatePreview。  
-验收：进目录、预览、书签点击。
+验收：build + smoke-boot PASS（进目录/预览/书签待人工点验）。
 
 ### 第 3 刀 — **PR-S-filesui-split-3**
 
