@@ -28,8 +28,8 @@ int    gFocusWin;
 
 UINT32 gSaveX;
 UINT32 gSaveY;
-UINT32 gSaveW;
-UINT32 gSaveH;
+UINT32 gSaveWidth;
+UINT32 gSaveHeight;
 UINT32 gUnder[CURSOR_BOX * CURSOR_BOX];
 int    gCursorVisible;
 

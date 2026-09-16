@@ -27,9 +27,9 @@ static char gStatus[EDIT_STATUS_MAX];
 
 static UINT32 gSaveX;
 static UINT32 gSaveY;
-static UINT32 gSaveW;
-static UINT32 gSaveH;
-static int gSaveHit;
+static UINT32 gSaveButtonWidth;
+static UINT32 gSaveButtonHeight;
+static int gSaveButtonHit;
 
 static void CopyStr(char *Dst, int Max, const char *Src) {
     int i = 0;
@@ -226,15 +226,15 @@ static void Paint(void) {
              gDirty ? "* dirty   Esc=hint  Ctrl+S=save" : "  clean   Esc=hint  Ctrl+S=save",
              COLOR_DARK_GRAY);
 
-    gSaveW = 72;
-    gSaveH = LineH + 8;
-    gSaveX = X + W - gSaveW - 12;
+    gSaveButtonWidth = 72;
+    gSaveButtonHeight = LineH + 8;
+    gSaveX = X + W - gSaveButtonWidth - 12;
     gSaveY = Y + 4;
     if (gSaveX > X + 8) {
-        UiDrawButton(gSaveX, gSaveY, gSaveW, gSaveH, "Save", COLOR_BLACK, COLOR_WHITE);
-        gSaveHit = 1;
+        UiDrawButton(gSaveX, gSaveY, gSaveButtonWidth, gSaveButtonHeight, "Save", COLOR_BLACK, COLOR_WHITE);
+        gSaveButtonHit = 1;
     } else {
-        gSaveHit = 0;
+        gSaveButtonHit = 0;
     }
 
     TextTop = Y + 6 + LineH * 2 + 4;
@@ -335,9 +335,9 @@ void EditUiOnClick(UINT32 X, UINT32 Y) {
     if (!EditUiIsFocused()) {
         return;
     }
-    if (gSaveHit &&
-        X >= gSaveX && X < gSaveX + gSaveW &&
-        Y >= gSaveY && Y < gSaveY + gSaveH) {
+    if (gSaveButtonHit &&
+        X >= gSaveX && X < gSaveX + gSaveButtonWidth &&
+        Y >= gSaveY && Y < gSaveY + gSaveButtonHeight) {
         EditUiSave();
     }
 }

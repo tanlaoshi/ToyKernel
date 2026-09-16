@@ -67,8 +67,8 @@ extern int    gFocusWin;
 
 extern UINT32 gSaveX;
 extern UINT32 gSaveY;
-extern UINT32 gSaveW;
-extern UINT32 gSaveH;
+extern UINT32 gSaveWidth;
+extern UINT32 gSaveHeight;
 extern UINT32 gUnder[CURSOR_BOX * CURSOR_BOX];
 extern int    gCursorVisible;
 

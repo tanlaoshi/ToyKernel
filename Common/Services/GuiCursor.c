@@ -126,10 +126,10 @@ void CursorRestore(void) {
     if (!gCursorVisible) {
         return;
     }
-    if (gSaveW > 0 && gSaveH > 0 &&
-        gSaveW <= (UINT32)CURSOR_BOX && gSaveH <= (UINT32)CURSOR_BOX) {
+    if (gSaveWidth > 0 && gSaveHeight > 0 &&
+        gSaveWidth <= (UINT32)CURSOR_BOX && gSaveHeight <= (UINT32)CURSOR_BOX) {
         HalVideoCursorOverlayBegin();
-        HalVideoWriteRect(gSaveX, gSaveY, gSaveW, gSaveH, gUnder);
+        HalVideoWriteRect(gSaveX, gSaveY, gSaveWidth, gSaveHeight, gUnder);
         HalVideoCursorOverlayEnd();
     }
     gCursorVisible = 0;
@@ -139,13 +139,13 @@ void CursorPaint(void) {
     if (gCursorVisible) {
         CursorRestore();
     }
-    CursorBox(gCursorX, gCursorY, &gSaveX, &gSaveY, &gSaveW, &gSaveH);
-    if (gSaveW == 0 || gSaveH == 0 ||
-        gSaveW > (UINT32)CURSOR_BOX || gSaveH > (UINT32)CURSOR_BOX) {
+    CursorBox(gCursorX, gCursorY, &gSaveX, &gSaveY, &gSaveWidth, &gSaveHeight);
+    if (gSaveWidth == 0 || gSaveHeight == 0 ||
+        gSaveWidth > (UINT32)CURSOR_BOX || gSaveHeight > (UINT32)CURSOR_BOX) {
         return;
     }
     HalVideoCursorOverlayBegin();
-    HalVideoReadRect(gSaveX, gSaveY, gSaveW, gSaveH, gUnder);
+    HalVideoReadRect(gSaveX, gSaveY, gSaveWidth, gSaveHeight, gUnder);
     DrawCursorGlyph(gCursorX, gCursorY);
     HalVideoCursorOverlayEnd();
     gCursorVisible = 1;
