@@ -60,7 +60,7 @@ INT32 TaskSlot(const TASK *T) {
 
 /* FD/管道/套接字：见 TaskFd.c（PR-R3） */
 
-void SchedulerInit(void) {
+void SchedulerInitialize(void) {
     int c;
 
     SpinLockInit(&gSchedulerLock);

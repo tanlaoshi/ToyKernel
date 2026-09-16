@@ -30,7 +30,7 @@ extern const FONT_FACE gFontFaceTerminusX2;
 /* Terminus 10×18 独立点阵（PR-T2；Fonts/terminus10x18.c） */
 extern const FONT_FACE gFontFaceTerminus10x18;
 
-void FontInit(void);
+void FontInitialize(void);
 /*
  * PR-T3：FS 就绪后从 Assets/Fonts TOYF 追加运行时字面；缺文件回退内建。
  * 成功加载至少一包返回 0，否则 -1（仍可用内建）。

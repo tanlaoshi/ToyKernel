@@ -2,14 +2,14 @@
  * Console.h — 交互式 Shell 接口
  *
  * 双通道输出：串口 + 帧缓冲文字。命令通过 ConsoleRegister 动态注册。
- * HalSerialInitialize + VideoSet 之后即可 ConsoleWrite，无需 ConsoleInit。
+ * HalSerialInitialize + VideoSet 之后即可 ConsoleWrite，无需 ConsoleInitialize。
  */
 #ifndef CONSOLE_H
 #define CONSOLE_H
 
 #include "BootTypes.h"
 
-void ConsoleInit(void);
+void ConsoleInitialize(void);
 void ConsoleRegisterBuiltins(void);
 /* 仅一级：无二级表时 Argv[0]=命令名，参数从 Argv[1] 起 */
 void ConsoleRegister(const char *Name, const char *Help,

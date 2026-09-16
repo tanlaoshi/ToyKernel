@@ -12,7 +12,7 @@
 
 #define THEME_CFG_PATH  "THEME.CFG"
 
-void ThemeInit(void);
+void ThemeInitialize(void);
 
 UINT32 ThemeDesktopBackground(void);
 UINT32 ThemeShellClientBackground(void);

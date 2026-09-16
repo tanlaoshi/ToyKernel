@@ -314,7 +314,7 @@ static void LoadCatalogs(void) {
     }
 }
 
-void LocaleInit(void) {
+void LocaleInitialize(void) {
     char Val[DB_VAL_MAX];
 
     LoadCatalogs();

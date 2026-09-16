@@ -64,7 +64,7 @@ typedef enum {
     MSG_COUNT
 } MSG_ID;
 
-void LocaleInit(void);
+void LocaleInitialize(void);
 /* 重新读 Assets/Locale/en.txt 与 zh.txt（改文件后可 lang reload） */
 void LocaleReload(void);
 LOC_LANG LocaleGet(void);

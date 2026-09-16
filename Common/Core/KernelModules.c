@@ -68,8 +68,8 @@ static int InitializeVideo(void) {
     UINT32 W;
     UINT32 H;
 
-    FontInit();
-    ThemeInit();
+    FontInitialize();
+    ThemeInitialize();
     HalVideoSet(&V);
     /* PR-G-fb-wc：PAT PA1=WC，仅 LFB 映成 PWT（xHCI 仍 PTE_MMIO/UC） */
     HalVideoEnableFbWc();
@@ -161,7 +161,7 @@ static int InitializeUsb(void) {
 }
 
 static int InitializeFileSystem(void) {
-    return FileSystemInit();
+    return FileSystemInitialize();
 }
 
 static int InitializeGui(void) {
@@ -174,7 +174,7 @@ static int InitializeGui(void) {
         HalInputPoll();
     }
     (void)ThemeLoad();
-    LocaleInit();
+    LocaleInitialize();
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();
     }
@@ -213,12 +213,12 @@ static int InitializeDriver(void) {
 }
 
 static int InitializeScheduler(void) {
-    SchedulerInit();
+    SchedulerInitialize();
     return 0;
 }
 
 static int InitializeConsole(void) {
-    LocaleInit();
+    LocaleInitialize();
     ConsoleRegisterBuiltins();
     if (HalConsoleOnly()) {
         ShellCommandsRegisterVirtMin();
@@ -226,7 +226,7 @@ static int InitializeConsole(void) {
         ShellCommandsRegister();
     }
     ConsoleUserAliasLoad();
-    ConsoleInit();
+    ConsoleInitialize();
     return 0;
 }
 

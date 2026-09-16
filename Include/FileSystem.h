@@ -13,7 +13,7 @@
 #define FS_MAX_VOLUMES 4
 #define FS_VOL_NAME_MAX 8
 
-int FileSystemInit(void);
+int FileSystemInitialize(void);
 
 /* PR-H-msc-6：Block 后端变更后重扫卷（不清 VfsRegister）；成功 1 */
 int FileSystemRemountVolumes(void);

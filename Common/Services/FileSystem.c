@@ -624,7 +624,7 @@ static int MscPolicySaysOff(void) {
     return 0;
 }
 
-int FileSystemInit(void) {
+int FileSystemInitialize(void) {
     VFS_SERVICE_OPS Svc;
     int Auto;
     int HaveVols = 0;

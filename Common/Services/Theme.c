@@ -36,7 +36,7 @@ static UINT32 NormalizeUiScale(UINT32 Percent) {
     return 200;
 }
 
-void ThemeInit(void) {
+void ThemeInitialize(void) {
     gDesktopBg = COLOR_DARK_GRAY;
     gShellClientBg = COLOR_LIGHT_GRAY;
     /* 默认小字：16×32 会撑爆 Store 等窄按钮；有 Sun 8x16 则用它 */

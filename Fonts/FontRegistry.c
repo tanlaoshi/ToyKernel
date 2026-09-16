@@ -257,7 +257,7 @@ static int TryLoadPath(const char *Path, FONT_RUNTIME_SLOT *Slot) {
     return 0;
 }
 
-void FontInit(void) {
+void FontInitialize(void) {
     UINT32 i;
 
     gCurrentId = 0;

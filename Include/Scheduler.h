@@ -74,7 +74,7 @@ typedef struct TASK {
 #define SCHED_PRIORITY_SHELL    8   /* shell / gui：交互偏高 */
 #define SCHED_PRIORITY_IDLE   (-128)
 
-void SchedulerInit(void);
+void SchedulerInitialize(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
