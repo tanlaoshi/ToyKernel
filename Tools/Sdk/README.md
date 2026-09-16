@@ -7,9 +7,11 @@
 
 ```bash
 cd ToyKernel && ./Tools/build-sdk.sh
-# 输出 Dist/ToySdk/（不入库）
+# 输出 Dist/ToySdk/ 与 Dist/ToySdk.tar.gz（不入库）
 for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 ```
+
+`VERSION` 是 SDK 包版本（与 CRT `TOYOS_CRT` 无关）。`Documents/` 含指南与 [`API速查.md`](../../Documents/API速查.md)。
 
 ## 目录
 
@@ -18,9 +20,10 @@ ToySdk/
 ├── include/               应用可见头（与 User/include 同步；Unix CRT 名保持小写）
 ├── Library/               libtoyos.a、libToyUi.a、libToyGfx.a、libToyNet.a、libFsUtil.a、crt0.o、syscall.o
 ├── user.ld                x86 用户 ELF @ 0x40000000
-├── Documents/             应用开发指南.md
+├── Documents/             应用开发指南.md、API速查.md
 ├── Examples/              Hello File Dir Pipe Fork Gui Blit Net Fs
-└── ToySdk.mk              应用 include 本文件
+├── ToySdk.mk              应用 include 本文件
+└── VERSION                SDK 包版本（如 1.0.0）
 ```
 
 示例说明：[`Examples/README.md`](Examples/README.md)。

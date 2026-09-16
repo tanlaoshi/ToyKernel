@@ -6,7 +6,7 @@ Unix CRT 头（`include/stdio.h`）与链接脚本 `user.ld` 仍保持小写惯�
 ## 用户态 SDK（PR-A-sdk-pack）
 
 ```bash
-./Tools/build-sdk.sh          # → Dist/ToySdk/（gitignored）
+./Tools/build-sdk.sh          # → Dist/ToySdk/ + Dist/ToySdk.tar.gz（gitignored）
 for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 ```
 

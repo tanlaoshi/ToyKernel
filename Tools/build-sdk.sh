@@ -1,5 +1,5 @@
 #!/bin/bash
-# PR-A-sdk-pack / PR-A-examples：头文件 / 静库 / 链接脚本 / 示例 → Dist/ToySdk/
+# PR-A-sdk-pack / PR-B-sdk-ver：头文件 / 静库 / 链接脚本 / 示例 → Dist/ToySdk/
 # 用法：./Tools/build-sdk.sh [DEST]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -34,8 +34,18 @@ cp -a User/Library/ToyOs/libtoyos.a \
 
 cp -a "$TPL/ToySdk.mk" "$DEST/ToySdk.mk"
 cp -a "$TPL/README.md" "$DEST/README.md"
+cp -a "$TPL/VERSION" "$DEST/VERSION"
 cp -a "$TPL/Examples/." "$DEST/Examples/"
 cp -a Documents/应用开发指南.md "$DEST/Documents/"
+cp -a Documents/API速查.md "$DEST/Documents/"
 
-echo "ToySdk: wrote $DEST"
+DEST_ABS=$(cd "$DEST" && pwd)
+PARENT=$(dirname "$DEST_ABS")
+BASE=$(basename "$DEST_ABS")
+ARCHIVE="$PARENT/${BASE}.tar.gz"
+rm -f "$ARCHIVE"
+tar -C "$PARENT" -czf "$ARCHIVE" "$BASE"
+
+echo "ToySdk: wrote $DEST ($(du -sh "$DEST" | cut -f1))"
+echo "ToySdk: archive $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 echo "next: for d in $DEST/Examples/*/; do make -C \"\$d\"; done"
