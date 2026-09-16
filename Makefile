@@ -188,6 +188,15 @@ endif
 endif
 endif
 
+# PR-D-tpl-2：TOY_DEMO_DRIVER 变了必须重编 HalDevices（裸 make 换宏否则会「无需做任何事」）
+DEMO_STAMP := $(HALDIR)/.toy_demo_driver
+.PHONY: FORCE
+FORCE:
+$(DEMO_STAMP): FORCE
+	@mkdir -p $(dir $@)
+	@echo '$(TOY_DEMO_DRIVER)' > $@.new
+	@if [ ! -f $@ ] || ! cmp -s $@.new $@; then mv $@.new $@; else rm -f $@.new; fi
+
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
@@ -398,6 +407,11 @@ $(BUILDDIR)/Fonts/%.o: Fonts/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(HALDIR)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_HAL) -c $< -o $@
+
+# 先于通用 HAL/%.o：依赖 DEMO_STAMP，换 TOY_DEMO_DRIVER=0/1 会触发重编+重链
+$(HALDIR)/HalDevices.o: HAL/$(HAL_ARCH)/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
