@@ -1,6 +1,6 @@
-# SDK Hello（PR-A-examples）
+# SDK File（PR-A-examples）
 TOYSDK ?= $(abspath ../..)
-PROG   ?= MYAPP
+PROG   ?= FILEIO
 SRCS   ?= main.c
 
 include $(TOYSDK)/ToySdk.mk

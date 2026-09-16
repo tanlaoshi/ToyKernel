@@ -7,7 +7,7 @@ Unix CRT 头（`include/stdio.h`）与链接脚本 `user.ld` 仍保持小写惯�
 
 ```bash
 ./Tools/build-sdk.sh          # → Dist/ToySdk/（gitignored）
-make -C Dist/ToySdk/Examples/Hello
+for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 ```
 
 模板与说明：[`Sdk/README.md`](Sdk/README.md)。上手：[`应用开发指南.md`](../Documents/应用开发指南.md)。

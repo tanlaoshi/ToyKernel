@@ -1,6 +1,6 @@
-# SDK Hello（PR-A-examples）
+# SDK Pipe（PR-A-examples）
 TOYSDK ?= $(abspath ../..)
-PROG   ?= MYAPP
+PROG   ?= PIPE
 SRCS   ?= main.c
 
 include $(TOYSDK)/ToySdk.mk

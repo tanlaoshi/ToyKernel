@@ -1,6 +1,6 @@
-# ToyOS SDK（PR-A-sdk-pack）
+# ToyOS SDK（PR-A-sdk-pack / PR-A-examples）
 
-给**应用开发者**的静态 SDK：头文件 + `libtoyos.a` / libToy* + 链接脚本 + `ToySdk.mk`。  
+给**应用开发者**的静态 SDK：头文件 + `libtoyos.a` / libToy* + 链接脚本 + `ToySdk.mk` + 示例。  
 不需要把内核编进应用；宿主只需 gcc / ld / make。
 
 由仓库根生成：
@@ -8,6 +8,7 @@
 ```bash
 cd ToyKernel && ./Tools/build-sdk.sh
 # 输出 Dist/ToySdk/（不入库）
+for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 ```
 
 ## 目录
@@ -18,9 +19,11 @@ ToySdk/
 ├── Library/               libtoyos.a、libToyUi.a、libToyGfx.a、libToyNet.a、crt0.o、syscall.o
 ├── user.ld                x86 用户 ELF @ 0x40000000
 ├── Documents/             应用开发指南.md
-├── Examples/Hello/        最小 CRT 示例
+├── Examples/              Hello File Dir Pipe Fork Gui Blit Net
 └── ToySdk.mk              应用 include 本文件
 ```
+
+示例说明：[`Examples/README.md`](Examples/README.md)。
 
 ## 编译示例
 

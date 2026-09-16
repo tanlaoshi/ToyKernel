@@ -1,5 +1,5 @@
 #!/bin/bash
-# PR-A-sdk-pack：把用户态头文件 / 静库 / 链接脚本打成可分发的 Dist/ToySdk/
+# PR-A-sdk-pack / PR-A-examples：头文件 / 静库 / 链接脚本 / 示例 → Dist/ToySdk/
 # 用法：./Tools/build-sdk.sh [DEST]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,7 +18,7 @@ make ARCH=x86_64 \
 	User/Library/ToyNet/libToyNet.a
 
 rm -rf "$DEST"
-mkdir -p "$DEST/include" "$DEST/Library" "$DEST/Documents" "$DEST/Examples/Hello"
+mkdir -p "$DEST/include" "$DEST/Library" "$DEST/Documents" "$DEST/Examples"
 
 cp -a "$SRC_INC"/. "$DEST/include/"
 cp -a "$SRC_LD" "$DEST/user.ld"
@@ -32,9 +32,8 @@ cp -a User/Library/ToyOs/libtoyos.a \
 
 cp -a "$TPL/ToySdk.mk" "$DEST/ToySdk.mk"
 cp -a "$TPL/README.md" "$DEST/README.md"
-cp -a "$TPL/Examples/Hello/Makefile" "$DEST/Examples/Hello/Makefile"
-cp -a User/Pkg/main.c "$DEST/Examples/Hello/main.c"
+cp -a "$TPL/Examples/." "$DEST/Examples/"
 cp -a Documents/应用开发指南.md "$DEST/Documents/"
 
 echo "ToySdk: wrote $DEST"
-echo "next: make -C $DEST/Examples/Hello"
+echo "next: for d in $DEST/Examples/*/; do make -C \"\$d\"; done"
