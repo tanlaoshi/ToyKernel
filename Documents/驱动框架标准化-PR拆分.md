@@ -2,7 +2,7 @@
 
 > 阶段 1 分析见 `[驱动框架现状分析.md](驱动框架现状分析.md)`。  
 > **决策已确认（2026-09-16）**；同日修订风险/开关/Demo Bind。  
-> **PR-D-tpl-0** ✅ TG `5e86cc5`。**PR-D-tpl-1** ✅ TG `4109d5c`。**PR-D-tpl-2** ✅ TG `18c1a71`。下一刀 **PR-D-tpl-3**。
+> **PR-D-tpl-0** ✅ TG `5e86cc5`。**PR-D-tpl-1** ✅ TG `4109d5c`。**PR-D-tpl-2** ✅ TG `18c1a71`。**PR-D-tpl-3** 本地齐待 TG；下一刀 **PR-D-tpl-4**（可选）。
 
 ## 已确认决策
 
@@ -33,7 +33,7 @@
 | 2 设计   | **PR-D-tpl-0** ✅ `5e86cc5` | `[驱动模板设计.md](驱动模板设计.md)`                             | 步骤可执行；写明「模板不链入」；Demo 永不 Attach；精确 `nm`                                                                    |
 | 3 模板   | **PR-D-tpl-1** ✅ `4109d5c` | `HAL/X64/Drivers/_template/`（**无 .o 进 Kernel**）      | `./build.sh`；精确 `nm`（设计稿 §1.2）无匹配；README 5 步开篇                                                                |
 | 4 Demo | **PR-D-tpl-2** ✅ `18c1a71` | `DemoDriver.c` + `HalDriverRegister`（`#ifndef` + 注册） | smoke + 串口 `demo: probe/bind`；`TOY_DEMO_DRIVER=0` 无日志 |
-| 5 指南   | **PR-D-tpl-3**     | `驱动开发指南.md`（≤5 页）+ 路线图/README 入口                     | 含 Demo 与 5 步；强调模板不编进内核；写明勿改 `_template/` 内 .c 就期待编译；链到 `_template/README.md` 与设计稿                                     |
+| 5 指南   | **PR-D-tpl-3**     | `驱动开发指南.md`（≤5 页）+ 路线图/README 入口                     | 含 Demo 与 5 步；勿改 `_template/` 就期待编译；链到 README/设计稿；**本地齐待 TG** |
 | 6 匹配规范 | **PR-D-tpl-4**（可选） | `驱动匹配规范.md`（只文档）                                     | 三模式 +「不强制」；写明本柱不实现表驱动匹配，`TOY_DRIVER.Match` 仍占位                                                                        |
 
 

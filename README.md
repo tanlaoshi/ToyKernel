@@ -14,6 +14,8 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
 | [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
 | [`Documents/驱动框架标准化-PR拆分.md`](Documents/驱动框架标准化-PR拆分.md) | 驱动框架标准化柱（PR 拆分 + 已确认决策） |
+| [`Documents/驱动开发指南.md`](Documents/驱动开发指南.md) | 新人写驱动：5 步 + Demo + 常见错误 |
+| [`HAL/X64/Drivers/_template/`](HAL/X64/Drivers/_template/) | 驱动拷贝源（**不**编进 Kernel） |
 | [`Documents/Done/`](Documents/Done/) | 已完成专题笔记（拆分细则、真机手记等） |
 
 `Documents/` 正文：路线图 + 技术手册 + 驱动标准化相关页；归档见 `Done/`。课堂讲义见 [`教学内容/`](../教学内容/)。
