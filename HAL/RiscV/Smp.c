@@ -106,7 +106,7 @@ UINT32 HalGetCpuId(void) {
     return (UINT32)V;
 }
 
-int HalCpuIsBsp(void) {
+int HalCpuIsBootstrapProcessor(void) {
     return HalGetCpuId() == 0;
 }
 

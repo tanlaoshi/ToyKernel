@@ -280,7 +280,7 @@ UINT32 HalGetCpuId(void) {
     return 0;
 }
 
-int HalCpuIsBsp(void) {
+int HalCpuIsBootstrapProcessor(void) {
     return LapicGetId() == gBspApicId;
 }
 
