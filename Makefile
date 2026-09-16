@@ -102,6 +102,7 @@ INCLUDES_HAL += -I$(BOARD_DIR)
 endif
 
 XHCI_DIAG_VERBOSE ?= 0
+TOY_DEMO_DRIVER ?= 1
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
               -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
@@ -116,6 +117,7 @@ CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -DTOY_SERIAL_DRV=$(SERIAL_DRV) \
               -DTOY_SERIAL_MISC=$(SERIAL_MISC) \
               -DXHCI_DIAG_VERBOSE=$(XHCI_DIAG_VERBOSE) \
+              -DTOY_DEMO_DRIVER=$(TOY_DEMO_DRIVER) \
               -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
               $(ARCH_CFLAGS)
 

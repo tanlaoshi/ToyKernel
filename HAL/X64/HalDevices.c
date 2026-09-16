@@ -13,12 +13,17 @@
 #include "UsbMsc.h"
 #include "E1000.h"
 
+#ifndef TOY_DEMO_DRIVER
+#define TOY_DEMO_DRIVER 1
+#endif
+
 /* BlockAta / BlockAhci（H1）/ BlockNvme（H5） */
 void AtaDriverRegister(void);
 void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
 void MscDriverRegister(void); /* PR-H-msc：空壳注册；认盘在后续 PR */
 void E1000DriverRegister(void);
+void DemoDriverRegister(void); /* PR-D-tpl-2 */
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 
@@ -32,6 +37,9 @@ void HalDriverRegister(void) {
     InputPs2Register();  /* 后 PS/2：仅当 xhci-hid 未绑 Input 时生效 */
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
+#if TOY_DEMO_DRIVER
+    DemoDriverRegister(); /* PR-D-tpl-2：课堂 Demo；-DTOY_DEMO_DRIVER=0 可关 */
+#endif
 }
 
 int HalUsbInit(void) {
