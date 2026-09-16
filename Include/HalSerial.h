@@ -9,7 +9,7 @@
 
 #include "BootTypes.h"
 
-void HalSerialInit(void);
+void HalSerialInitialize(void);
 int HalSerialPresent(void);
 /* video 就绪后：允许 boot 期把 ring 刷到 GOP（与 COM1 无关） */
 void HalSerialGopEnable(void);

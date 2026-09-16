@@ -40,7 +40,7 @@ static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
 }
 
 static int InitializeSerial(void) {
-    HalSerialInit();
+    HalSerialInitialize();
     return 0;
 }
 
@@ -95,7 +95,7 @@ static int InitializeCpu(void) {
     if (HalInit() != 0) {
         return -1;
     }
-    HalTimerInit();
+    HalTimerInitialize();
     HalSyscallInit();
     /* virt：仍在此挂 virtio-input；x86 真机在 file-system 前的 usb 模块（PR-H-msc-7a） */
     if (HalPlatformIsVirtSerialConsole()) {

@@ -53,7 +53,7 @@ static void UartWriteRaw(const char *Text) {
 #endif
 }
 
-void HalSerialInit(void) {
+void HalSerialInitialize(void) {
 }
 
 int HalSerialPresent(void) {

@@ -47,7 +47,7 @@ static void UartWriteRaw(const char *Text) {
 #endif
 }
 
-void HalSerialInit(void) {
+void HalSerialInitialize(void) {
     /* QEMU virt 已初始化 PL011；SERIAL=0 时也不访问 */
 }
 

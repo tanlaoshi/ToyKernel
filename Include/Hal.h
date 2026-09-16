@@ -59,7 +59,7 @@ void HalIrqRegister(UINT32 Vector, void (*Handler)(void));
 void HalIrqUnregister(UINT32 Vector);
 void HalIrqEoi(UINT32 Vector);
 
-void HalTimerInit(void);
+void HalTimerInitialize(void);
 void HalTimerSetInterval(UINT32 Milliseconds);
 void HalTimerAck(void);
 void HalTimerStart(void);

@@ -109,7 +109,7 @@ void HalIrqRegister(UINT32 Vector, void (*Handler)(void)) {
 void HalIrqUnregister(UINT32 Vector) { (void)Vector; }
 void HalIrqEoi(UINT32 Vector) { (void)Vector; }
 
-void HalTimerInit(void) {
+void HalTimerInitialize(void) {
     gTimePeriod = TIME_HZ / 100; /* ~10ms */
     if (gTimePeriod == 0) {
         gTimePeriod = 1;
@@ -137,7 +137,7 @@ void HalTimerStart(void) {
     extern void HalTrapVectorInstall(void);
 
     if (!gTimerReady) {
-        HalTimerInit();
+        HalTimerInitialize();
     }
     HalTrapVectorInstall();
     HalTimerSetInterval(gTimerMs);
@@ -152,7 +152,7 @@ void HalTimerStartAp(void) {
     extern void HalTrapVectorInstall(void);
 
     if (!gTimerReady) {
-        HalTimerInit();
+        HalTimerInitialize();
     }
     HalTrapVectorInstall();
     __asm__ volatile("csrs sie, %0" ::"r"(SIE_STIE) : "memory");

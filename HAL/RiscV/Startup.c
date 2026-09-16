@@ -20,7 +20,7 @@ extern char __kernel_end[];
 void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
     (void)HartId;
     (void)DtbPhys;
-    HalSerialInit();
+    HalSerialInitialize();
     HalSerialWrite("ToyOS RiscV: hello\n");
     HalSerialWrite("board: ");
     HalSerialWrite(BoardName());
@@ -67,7 +67,7 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
 
     (void)HartId;
 
-    HalSerialInit();
+    HalSerialInitialize();
     HalSerialWrite("ToyOS RiscV: KernelMain\n");
     HalSerialWrite("board: ");
     HalSerialWrite(BoardName());

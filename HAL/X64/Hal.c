@@ -133,7 +133,7 @@ void HalIrqEoi(UINT32 Vector) {
     LapicEoi();
 }
 
-void HalTimerInit(void) {
+void HalTimerInitialize(void) {
 }
 
 void HalTimerSetInterval(UINT32 Milliseconds) {

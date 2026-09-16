@@ -179,7 +179,7 @@ static void GopWrite(const char *Text) {
     /* 半截行留在 gLine，等下次 '\n' —— 修复 try BAR=/0x../竖排叠字 */
 }
 
-void HalSerialInit(void) {
+void HalSerialInitialize(void) {
     int KeepGop = gVideoUp;
 
     SerialInit();

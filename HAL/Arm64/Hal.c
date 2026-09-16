@@ -82,7 +82,7 @@ static void ArmTimerArm(void) {
     __asm__ volatile("isb" ::: "memory");
 }
 
-void HalTimerInit(void) {
+void HalTimerInitialize(void) {
     __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(gCntFreq));
     if (gCntFreq == 0) {
         gCntFreq = 62500000ULL; /* QEMU virt 常见缺省 */
@@ -115,7 +115,7 @@ void HalTimerAck(void) {
 
 void HalTimerStart(void) {
     if (!gTimerReady) {
-        HalTimerInit();
+        HalTimerInitialize();
     }
     HalExceptionVectorsInstall();
     HalGicInit();
@@ -130,7 +130,7 @@ void HalTimerStartAp(void) {
     extern void HalGicInitCpu(void);
 
     if (!gTimerReady) {
-        HalTimerInit();
+        HalTimerInitialize();
     }
     HalExceptionVectorsInstall();
     HalGicInitCpu();
