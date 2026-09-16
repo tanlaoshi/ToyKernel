@@ -1,7 +1,7 @@
 # ToyOS GUI 美化规划
 
 > **本文是 GUI 美化方向的总纲。** 后续所有 GUI 美化 PR 都引用本文。  
-> **现状**：只落本文档；**不**自动进路线图文首 ★（A / B / D-tpl 已收官；无默认排队）。
+> **排期**：全仓 **P1**（[`路线图.md`](路线图.md#pr-gui)）；**P0 是命名 R 柱**。本柱不插队。`PR-GUI-doc` 已入库。
 >
 > 相关文档：
 > - [`技术手册.md`](技术手册.md#tm-iv-gui) — 第一个 GUI 程序 / 用户态控件 ABI
@@ -216,7 +216,7 @@ UINT32 BlendPixel(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 
 | 序 | PR | 交付物 | 工作量 | 优先级 |
 |----|----|--------|--------|--------|
-| 0 | **PR-GUI-doc**（本文） | `Documents/GUI美化规划.md` | 0.5 天 | P0 |
+| 0 | **PR-GUI-doc**（本文） | `Documents/GUI美化规划.md` | 0.5 天 | 已入库 |
 | 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | P0 |
 | 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | P0 |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | P1 |
@@ -229,19 +229,19 @@ UINT32 BlendPixel(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 ### 7.2 推荐顺序
 
 ```
-PR-GUI-doc（本文）✅ 待入库
+PR-GUI-doc（本文）✅
   → PR-GUI-l1（视觉基础）
   → PR-GUI-alpha
   → PR-GUI-l2-shadow
   → PR-GUI-l2-round
   → PR-GUI-l2-gradient
   → PR-GUI-l3-fade / l3-button
-  → PR-GUI-l2-font（可选）
+  → PR-GUI-l2-font（可选，不进默认排队）
 ```
 
 先 L1（立竿见影），再 alpha + 阴影/圆角，动画与灰度字后置。
 
-**进 JX 排队须另说**；本文不改文首 ★。
+**进 JX**：须 R 柱 0～7 空，或明文改路线图文首 ★。表内「P0/P1」是**柱内**性价比，不是全仓优先级。
 
 ### 7.3 每个 PR 的交付物
 
@@ -297,7 +297,7 @@ PR-GUI-doc（本文）✅ 待入库
 
 | 方向 | 关系 |
 |------|------|
-| **应用开发生态** | 内核窗/控件更好看，用户态 `libToyUi` 间接受益；**两柱可并行，GUI 美化不插队 A 柱** |
+| **应用开发生态** | 内核窗/控件更好看，用户态 `libToyUi` 间接受益；**不插队 P0 命名 R 柱** |
 | **驱动框架标准化** | 不涉及 |
 | **大文件拆分** | `GuiCompose.c` 已拆（勿再按 984 行估）；`Desktop.c` ~699、`GuiDrag.c` ~678 仍偏大，美化 PR **禁止顺手大搬家** |
 | **C++** | 本柱纯 C |
@@ -324,3 +324,4 @@ PR-GUI-doc（本文）✅ 待入库
 | 日期 | 说明 |
 |------|------|
 | 2026-09-16 | 初版。按仓库校正路径（`UI.c`/`Bmp.c` 在 Library；无 `Font.c`；Compose 已拆）；圆角 API 已存在；Theme 已部分覆盖。**PR-GUI-doc** |
+| 2026-09-16 | 排期对齐路线图：本柱全仓 **P1**；不插队 P0 命名 R 柱 |
