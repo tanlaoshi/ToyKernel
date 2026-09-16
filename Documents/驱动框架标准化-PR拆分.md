@@ -2,7 +2,7 @@
 
 > 阶段 1 分析见 `[驱动框架现状分析.md](驱动框架现状分析.md)`。  
 > **决策已确认（2026-09-16）**；同日修订风险/开关/Demo Bind。  
-> **PR-D-tpl-0…4**（指南 `66891ec`；匹配规范本刀）。
+> **PR-D-tpl-0…4** ✅（指南 `66891ec`；匹配规范 `e5c700e`）。
 
 ## 已确认决策
 
@@ -34,7 +34,7 @@
 | 3 模板   | **PR-D-tpl-1** ✅ `4109d5c` | `HAL/X64/Drivers/_template/`（**无 .o 进 Kernel**）      | `./build.sh`；精确 `nm`（设计稿 §1.2）无匹配；README 5 步开篇                                                                |
 | 4 Demo | **PR-D-tpl-2** ✅ `18c1a71` | `DemoDriver.c` + `HalDriverRegister`（`#ifndef` + 注册） | smoke + 串口 `demo: probe/bind`；`TOY_DEMO_DRIVER=0` 无日志 |
 | 5 指南   | **PR-D-tpl-3** ✅ `66891ec` | `驱动开发指南.md`（≤5 页）+ 路线图/README 入口                     | 含 Demo 与 5 步；勿改 `_template/` 就期待编译；链到 README/设计稿 |
-| 6 匹配规范 | **PR-D-tpl-4**（本刀，只文档） | `驱动匹配规范.md` | 三模式 +「不强制」；写明本柱不实现表驱动匹配，`TOY_DRIVER.Match` 仍占位 |
+| 6 匹配规范 | **PR-D-tpl-4** ✅ `e5c700e` | `驱动匹配规范.md` | 三模式 +「不强制」；写明本柱不实现表驱动匹配，`TOY_DRIVER.Match` 仍占位 |
 
 
 ## 建议 JX 顺序
