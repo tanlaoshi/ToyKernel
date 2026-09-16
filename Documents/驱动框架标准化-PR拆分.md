@@ -2,7 +2,7 @@
 
 > 阶段 1 分析见 [`驱动框架现状分析.md`](驱动框架现状分析.md)。  
 > **决策已确认（2026-09-16）**；同日修订风险/开关/Demo Bind。  
-> **PR-D-tpl-0** 设计稿：[`驱动模板设计.md`](驱动模板设计.md)（待 TG）。下一刀 **PR-D-tpl-1** 落 `_template/`。
+> **PR-D-tpl-0** ✅ TG `5e86cc5`：[`驱动模板设计.md`](驱动模板设计.md)。下一刀 **PR-D-tpl-1** 落 `_template/`。
 
 ## 已确认决策
 
@@ -27,7 +27,7 @@
 | 用户阶段 | 建议 PR | 改动范围 | 验收 |
 | --- | --- | --- | --- |
 | 1 分析 | ✅ | [`驱动框架现状分析.md`](驱动框架现状分析.md) | 字段与源码一致 |
-| 2 设计 | **PR-D-tpl-0** | [`驱动模板设计.md`](驱动模板设计.md) | 步骤可执行；写明「模板不链入」；Demo 永不 Attach；精确 `nm`；**稿已齐待 TG** |
+| 2 设计 | **PR-D-tpl-0** ✅ `5e86cc5` | [`驱动模板设计.md`](驱动模板设计.md) | 步骤可执行；写明「模板不链入」；Demo 永不 Attach；精确 `nm` |
 | 3 模板 | **PR-D-tpl-1** | `HAL/X64/Drivers/_template/`（**无 .o 进 Kernel**） | `./build.sh`；精确 `nm`（设计稿 §1.2）无匹配；README 5 步开篇 30–50 行 |
 | 4 Demo | **PR-D-tpl-2** | `DemoDriver.c` + `HalDriverRegister`（`#ifndef` + 注册） | smoke + `lsdev` 见 `demo-driver input`；串口 `demo: probe/bind called`；NUC 可见且键鼠正常；`-DTOY_DEMO_DRIVER=0` 时无 `demo-driver` |
 | 5 指南 | **PR-D-tpl-3** | `驱动开发指南.md`（≤5 页）+ 路线图/README 入口 | 含 Demo 与 5 步；强调模板不编进内核；写明勿改 `_template/` 内 .c 就期待编译；链到 `_template/README.md` 与设计稿 |
