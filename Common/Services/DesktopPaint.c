@@ -148,22 +148,23 @@ void DrawTaskbarRaw(void) {
     StartBtnGeom(&Bx, &By, &Bw, &Bh);
     Start = LocStr(MSG_START);
 
-    UiFillRectangle(0, BarY, Sw, TASKBAR_H, COLOR_DARK_GRAY);
-    UiDrawRectangle(0, BarY, Sw, TASKBAR_H, COLOR_GRAY);
-    UiFillRectangle(Bx, By, Bw, Bh, gMenuOpen ? COLOR_BLUE : COLOR_LIGHT_GRAY);
-    UiDrawRectangle(Bx, By, Bw, Bh, COLOR_WHITE);
+    UiFillRectangle(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground());
+    UiDrawRectangle(0, BarY, Sw, TASKBAR_H, ThemeWindowBorderIdle());
+    UiFillRectangle(Bx, By, Bw, Bh,
+                    gMenuOpen ? ThemeTaskbarButtonActive() : ThemeTaskbarButton());
+    UiDrawRectangle(Bx, By, Bw, Bh, ThemeWindowBorderFocus());
 
     Ix = Bx + START_BTN_PAD_X;
     Iy = By + (Bh > START_ICON_SZ ? (Bh - START_ICON_SZ) / 2 : 0);
     if (gStartBmpReady) {
         BlitBmpScaledRaw(Ix, Iy, START_ICON_SZ, START_ICON_SZ, &gStartBmp);
     } else {
-        UiFillRectangle(Ix, Iy, START_ICON_SZ, START_ICON_SZ, COLOR_BLUE);
+        UiFillRectangle(Ix, Iy, START_ICON_SZ, START_ICON_SZ, ThemeTaskbarButtonActive());
     }
     Tx = Ix + START_ICON_SZ + 6u;
     Ty = BarY + (TASKBAR_H > FontCellH() ? (TASKBAR_H - FontCellH()) / 2 : 0);
     HalVideoDrawStringAt(Tx, Ty, Start ? Start : "Start",
-                         gMenuOpen ? COLOR_WHITE : COLOR_BLACK);
+                         gMenuOpen ? ThemeWindowTitleText() : COLOR_BLACK);
 
     /* 右下角 HH:MM（CMOS+CST）；失败则 --:-- */
     HaveTime = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
@@ -205,7 +206,7 @@ void DrawStartMenuRaw(void) {
         RebuildStartMenu();
     }
     MenuGeom(&Mx, &My, &Mw, &Mh);
-    UiFillRectangle(Mx, My, Mw, Mh, COLOR_LIGHT_GRAY);
+    UiFillRectangle(Mx, My, Mw, Mh, ThemeControlFace());
     UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
     for (i = 0; i < gMenuCount; i++) {
         MENU_ROW *R = &gMenuRows[i];
@@ -216,11 +217,11 @@ void DrawStartMenuRaw(void) {
         UINT32 Fg;
         int HasIcon = 0;
 
-        UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, COLOR_GRAY);
+        UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, ThemeWindowBorderIdle());
         IconX = Mx + 6;
         IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
         TextX = Mx + 10;
-        Fg = R->Enabled ? COLOR_BLACK : COLOR_DARK_GRAY;
+        Fg = R->Enabled ? COLOR_BLACK : ThemeControlBorder();
         if (R->IconSrc >= 0 && R->IconSrc < DESKTOP_ICON_COUNT &&
             gIcons[R->IconSrc].BmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
@@ -271,7 +272,7 @@ void DrawTaskbarOccluded(void) {
     UINT32 BarY;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
-    FillRectFree(0, BarY, Sw, TASKBAR_H, COLOR_DARK_GRAY);
+    FillRectFree(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground());
     /* 开始钮与字：用 raw 再画一遍；遮挡复杂时略糙可接受 */
     DrawTaskbarRaw();
     if (gMenuOpen) {

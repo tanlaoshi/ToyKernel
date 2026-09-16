@@ -199,7 +199,7 @@ UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
         return TitleBarColor(Idx);
     }
     if (Ly == W->Height - 1 || Lx == 0 || Lx == W->Width - 1) {
-        return COLOR_WHITE;
+        return WindowBorderColor(Idx);
     }
     /* 与 DrawWindowAt 一致：白边内侧整片客户区底色 */
     return W->Background;

@@ -2,7 +2,7 @@
  * SettingsUi.c — Settings 菜单（PR-D5/D7 + PR-G12 控件化）
  *
  * 分辨率：ThemeSave → TOYOS.DB + THEME.CFG；QEMU 优先 ThemeApplyDisplayLive（PR-G-hotres）。
- * 热切失败时仍写盘：VM 提示退出 QEMU 重跑脚本（D7）；真机提示 Boot 跟 EDID/GOP。
+ * 列表优先 Boot 传入的 GOP 模式（PR-G-modes）；热切失败时写盘，重启后 ToyBoot SetMode。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -65,8 +65,8 @@ static const SETTINGS_COLOR gShellColors[] = {
     { "Gray",       COLOR_GRAY },
 };
 
-/* 与路线图 / ToyBoot QEMU 友好表对齐 */
-static const SETTINGS_MODE gModes[] = {
+/* 无退表：Boot 未传 GOP 列表时（旧 Boot / 非 x86） */
+static const SETTINGS_MODE gModesFallback[] = {
     { "800x600",    800,  600 },
     { "1024x768",  1024,  768 },
     { "1280x720",  1280,  720 },
@@ -74,14 +74,65 @@ static const SETTINGS_MODE gModes[] = {
     { "1920x1080", 1920, 1080 },
 };
 
+static SETTINGS_MODE gModes[BOOT_VIDEO_MODE_MAX];
+static char gModeLabels[BOOT_VIDEO_MODE_MAX][16];
+static int gModeCount;
+static int gModesReady;
+
 static const UINT32 gScales[] = { 50, 100, 150, 200 };
 
 #define DESKTOP_COLOR_COUNT \
     ((int)(sizeof(gDesktopColors) / sizeof(gDesktopColors[0])))
 #define SHELL_COLOR_COUNT \
     ((int)(sizeof(gShellColors) / sizeof(gShellColors[0])))
-#define MODE_COUNT ((int)(sizeof(gModes) / sizeof(gModes[0])))
 #define SCALE_COUNT ((int)(sizeof(gScales) / sizeof(gScales[0])))
+
+static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B);
+
+/* PR-G-modes：Boot 传入的 GOP 模式（已按 EDID→同宽高比→就近排）；否则内置表 */
+static void EnsureDisplayModes(void) {
+    UINT32 N;
+    UINT32 i;
+    UINT32 W;
+    UINT32 H;
+    UINTN L;
+
+    if (gModesReady) {
+        return;
+    }
+    gModesReady = 1;
+    gModeCount = 0;
+    N = HalVideoModeCount();
+    if (N > BOOT_VIDEO_MODE_MAX) {
+        N = BOOT_VIDEO_MODE_MAX;
+    }
+    for (i = 0; i < N; i++) {
+        if (HalVideoModeGet(i, &W, &H) != 0 || W < 640 || H < 480) {
+            continue;
+        }
+        L = 0;
+        FormatUxU(gModeLabels[gModeCount], sizeof(gModeLabels[0]), W, H);
+        while (gModeLabels[gModeCount][L]) {
+            L++;
+        }
+        gModes[gModeCount].Label = gModeLabels[gModeCount];
+        gModes[gModeCount].W = W;
+        gModes[gModeCount].H = H;
+        gModeCount++;
+    }
+    if (gModeCount == 0) {
+        N = (UINT32)(sizeof(gModesFallback) / sizeof(gModesFallback[0]));
+        for (i = 0; i < N && gModeCount < BOOT_VIDEO_MODE_MAX; i++) {
+            gModes[gModeCount] = gModesFallback[i];
+            gModeCount++;
+        }
+    }
+}
+
+static int ModeCount(void) {
+    EnsureDisplayModes();
+    return gModeCount;
+}
 
 static int FocusSettingsWindow(void) {
     int i;
@@ -97,8 +148,6 @@ static int FocusSettingsWindow(void) {
     }
     return 0;
 }
-
-static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B);
 
 /*
  * Settings「Now」：物理分辨率（GOP 真值）。UI scale 只改逻辑坐标，
@@ -394,14 +443,13 @@ static void PaintMenu(void) {
         DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DISPLAY), COLOR_BLACK);
         Y += 2;
         DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, "Auto", !HasPref, 1);
-        for (i = 0; i < MODE_COUNT; i++) {
+        for (i = 0; i < ModeCount(); i++) {
             int Mark = HasPref && gModes[i].W == PrefW && gModes[i].H == PrefH;
             DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, gModes[i].Label, Mark, 2 + i);
         }
         FormatNowDisplay(Line, sizeof(Line));
         DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
         if (HasPref && (PrefW != NowW || PrefH != NowH)) {
-            /* VM：Guest reboot 不改 QEMU edid；真机：Boot 忽略 THEME.CFG mode= */
             DrawHint(X0, &Y, MaxBottom,
                      LocStr(HalCpuIsHypervisor() ? MSG_SET_PREF_DIFF : MSG_SET_PREF_DIFF_PC),
                      COLOR_BLUE);
@@ -519,7 +567,7 @@ static void ApplyDisplayChoice(int Index) {
 
     if (Index == 0) {
         ThemeClearDisplayMode();
-    } else if (Index >= 1 && Index <= MODE_COUNT) {
+    } else if (Index >= 1 && Index <= ModeCount()) {
         W = gModes[Index - 1].W;
         H = gModes[Index - 1].H;
         ThemeSetDisplayMode(W, H);
@@ -562,8 +610,8 @@ static void ApplyDisplayChoice(int Index) {
             DebugWrite("settings: display pref saved (relaunch QEMU on VM)\n");
         } else {
             HalConsoleWriteSerial(
-                "settings: display pref saved; real PC boot follows EDID/GOP\n");
-            DebugWrite("settings: display pref saved (real PC EDID)\n");
+                "settings: display pref saved; reboot real PC to apply THEME.CFG\n");
+            DebugWrite("settings: display pref saved (real PC reboot)\n");
         }
     } else {
         gDisplayHint = 0;

@@ -7,12 +7,18 @@
 #include "BootTypes.h"
 
 #define BOOT_MEMORY_REGIONS_MAX 64
+#define BOOT_VIDEO_MODE_MAX     32
 
 typedef struct {
     UINT64 Phys;
     UINT64 Size;
     UINT32 Free; /* 1 = 可分配（Conventional），0 = 保留 */
 } BOOT_MEMORY_REGION;
+
+typedef struct {
+    UINT32 Width;
+    UINT32 Height;
+} BOOT_VIDEO_MODE;
 
 typedef struct {
     UINT64 FrameBufferBase;
@@ -26,6 +32,10 @@ typedef struct {
 
     UINT64 KernelStart;
     UINT64 KernelEnd;
+
+    /* PR-G-modes：Boot 传入的可用显示模式（0=未知，Settings 回退硬编码表） */
+    UINT32          VideoModeCount;
+    BOOT_VIDEO_MODE VideoModes[BOOT_VIDEO_MODE_MAX];
 } BOOT_INFO;
 
 typedef struct {

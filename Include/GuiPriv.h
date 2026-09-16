@@ -64,6 +64,7 @@ extern UINT32 gCursorX;
 extern UINT32 gCursorY;
 extern UINT8  gCursorBtn;
 extern int    gFocusWin;
+extern int    gHoverWin; /* PR-GUI-l1：指针下最顶层窗（-1=无） */
 
 extern UINT32 gSaveX;
 extern UINT32 gSaveY;
@@ -136,6 +137,9 @@ void ComposeBegin(void);
 void ComposeEnd(void);
 void GfxPresent(void);
 UINT32 TitleBarColor(int Idx);
+UINT32 WindowBorderColor(int Idx);
+int TopWindowAt(UINT32 X, UINT32 Y);
+void GuiHoverUpdate(UINT32 X, UINT32 Y);
 void CloseButtonRect(const GUI_WINDOW *W, UINT32 *Bx, UINT32 *By, UINT32 *Bw, UINT32 *Bh);
 void DrawCloseButton(int Idx, const GUI_WINDOW *W);
 int PixelOccludedByAbove(int Idx, UINT32 X, UINT32 Y);

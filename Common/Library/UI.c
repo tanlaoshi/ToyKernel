@@ -6,6 +6,7 @@
 #include "UI.h"
 #include "HalVideo.h"
 #include "Font.h"
+#include "Theme.h"
 
 /* 整数绝对值 */
 static int Abs(int x) {
@@ -262,9 +263,9 @@ void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *T
         Text = "";
     }
     UiFillRoundRectangle(X, Y, Width, Height, 5, BgColor);
-    UiDrawRoundRectangle(X, Y, Width, Height, 5, COLOR_WHITE);
+    UiDrawRoundRectangle(X, Y, Width, Height, 5, ThemeWindowBorderFocus());
     if (Width > 2 && Height > 2) {
-        UiDrawRoundRectangle(X + 1, Y + 1, Width - 2, Height - 2, 5, COLOR_DARK_GRAY);
+        UiDrawRoundRectangle(X + 1, Y + 1, Width - 2, Height - 2, 5, ThemeControlBorder());
     }
 
     while (Text[TextLen]) {
@@ -316,12 +317,12 @@ void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *
         Text = "";
     }
     if (Selected) {
-        UiFillRectangle(X, Y, Width, Height, COLOR_BLUE);
-        UiDrawRectangle(X, Y, Width, Height, COLOR_DARK_GRAY);
+        UiFillRectangle(X, Y, Width, Height, ThemeControlAccent());
+        UiDrawRectangle(X, Y, Width, Height, ThemeControlBorder());
         Fg = COLOR_WHITE;
     } else if (Hovered) {
-        UiFillRectangle(X, Y, Width, Height, COLOR_LIGHT_GRAY);
-        UiDrawRectangle(X, Y, Width, Height, COLOR_GRAY);
+        UiFillRectangle(X, Y, Width, Height, ThemeControlFace());
+        UiDrawRectangle(X, Y, Width, Height, ThemeWindowTitleIdle());
         Fg = COLOR_BLACK;
     }
     if (Width > Pad * 2 && Height > 2) {

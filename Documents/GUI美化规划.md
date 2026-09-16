@@ -217,7 +217,7 @@ UINT32 BlendPixel(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 序 | PR | 交付物 | 工作量 | 优先级 |
 |----|----|--------|--------|--------|
 | 0 | **PR-GUI-doc**（本文） | `Documents/GUI美化规划.md` | 0.5 天 | 已入库 |
-| 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | P0 |
+| 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `{h}` |
 | 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | P0 |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | P1 |
 | 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | P1 |
@@ -325,3 +325,4 @@ PR-GUI-doc（本文）✅
 |------|------|
 | 2026-09-16 | 初版。按仓库校正路径（`UI.c`/`Bmp.c` 在 Library；无 `Font.c`；Compose 已拆）；圆角 API 已存在；Theme 已部分覆盖。**PR-GUI-doc** |
 | 2026-09-16 | 排期对齐路线图：本柱全仓 **P1**；不插队 P0 命名 R 柱 |
+| 2026-09-17 | **PR-GUI-l1**：Theme 窗框/任务栏/控件 getter；三态边框+悬停；`ThemeClientPadding`=8 |

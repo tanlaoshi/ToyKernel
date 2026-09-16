@@ -267,6 +267,33 @@ int HalVideoSetMode(UINT32 Width, UINT32 Height) {
     return 0;
 }
 
+UINT32 HalVideoModeCount(void) {
+    const BOOT_INFO *Info = BootInfoGet();
+
+    if (!Info || Info->VideoModeCount == 0) {
+        return 0;
+    }
+    if (Info->VideoModeCount > BOOT_VIDEO_MODE_MAX) {
+        return BOOT_VIDEO_MODE_MAX;
+    }
+    return Info->VideoModeCount;
+}
+
+int HalVideoModeGet(UINT32 Index, UINT32 *Width, UINT32 *Height) {
+    const BOOT_INFO *Info = BootInfoGet();
+
+    if (!Info || Index >= Info->VideoModeCount || Index >= BOOT_VIDEO_MODE_MAX) {
+        return -1;
+    }
+    if (Width) {
+        *Width = Info->VideoModes[Index].Width;
+    }
+    if (Height) {
+        *Height = Info->VideoModes[Index].Height;
+    }
+    return 0;
+}
+
 UINT64 HalVideoFrameBufferBase(void) {
     return VideoFrameBufferBase();
 }

@@ -26,7 +26,7 @@ typedef enum {
 
 #define GUI_MAX_WINS        6
 #define GUI_TITLE_HEIGHT    40
-#define GUI_CLIENT_PAD 8
+#define GUI_CLIENT_PAD 8 /* 与 ThemeClientPadding() 对齐（PR-GUI-l1） */
 #define GUI_INPUT_LINE_MAX  128
 
 /* PR-R2：Console→Gui 单向；Gui 经回调调 Shell 绘制/焦点，避免互 #include */

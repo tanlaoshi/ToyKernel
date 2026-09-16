@@ -25,6 +25,9 @@ int HalVideoCanHotSetMode(void);
  * 调用方先 VirtualMemoryMapRange 覆盖足够大的 LFB。
  */
 int HalVideoSetMode(UINT32 Width, UINT32 Height);
+/* PR-G-modes：Boot 枚举的可用模式数；0 表示未提供（Settings 用内置表） */
+UINT32 HalVideoModeCount(void);
+int HalVideoModeGet(UINT32 Index, UINT32 *Width, UINT32 *Height);
 UINT64 HalVideoFrameBufferBase(void);
 UINT64 HalVideoFrameBufferSize(void);
 /* PR-G-fb-pte：boot 一行 FB phys + PWT/PCD(/PAT) + 推导 cache；不改映射。x86 有内容，其它 HAL 空实现 */

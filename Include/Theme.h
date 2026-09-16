@@ -19,6 +19,26 @@ UINT32 ThemeShellClientBackground(void);
 UINT32 ThemeSettingsClientBackground(void);
 UINT32 ThemeFontId(void);
 
+/*
+ * PR-GUI-l1：窗框/任务栏/控件配色与客户区内边距（只扩展 getter；暂不进 THEME.CFG）。
+ * 三态：焦点 / 空闲 / 悬停。
+ */
+UINT32 ThemeWindowTitleFocus(void);
+UINT32 ThemeWindowTitleIdle(void);
+UINT32 ThemeWindowTitleHover(void);
+UINT32 ThemeWindowBorderFocus(void);
+UINT32 ThemeWindowBorderIdle(void);
+UINT32 ThemeWindowBorderHover(void);
+UINT32 ThemeWindowTitleText(void);
+UINT32 ThemeCloseButton(void);
+UINT32 ThemeTaskbarBackground(void);
+UINT32 ThemeTaskbarButton(void);
+UINT32 ThemeTaskbarButtonActive(void);
+UINT32 ThemeControlFace(void);
+UINT32 ThemeControlBorder(void);
+UINT32 ThemeControlAccent(void);
+UINT32 ThemeClientPadding(void);
+
 void ThemeSetDesktopBackground(UINT32 Color);
 void ThemeSetShellClientBackground(UINT32 Color);
 /* 同步 FontSetById；越界返回 -1 且保持先前字体 */

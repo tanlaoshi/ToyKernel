@@ -105,7 +105,7 @@ void PaintUserClient(int Idx) {
             continue;
         }
         UiDrawButton(Bx + Slot * (Bw + Gap), By, Bw, Bh,
-                     W->UserButtonLabel[Bi], COLOR_BLACK, COLOR_LIGHT_GRAY);
+                     W->UserButtonLabel[Bi], COLOR_BLACK, ThemeControlFace());
         Slot++;
     }
     HalVideoClearClip();

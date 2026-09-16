@@ -64,6 +64,67 @@ UINT32 ThemeFontId(void) {
     return gFontId;
 }
 
+/* PR-GUI-l1 默认色板（与历史 COLOR_* 观感接近，悬停可辨） */
+UINT32 ThemeWindowTitleFocus(void) {
+    return COLOR_BLUE;
+}
+
+UINT32 ThemeWindowTitleIdle(void) {
+    return COLOR_GRAY;
+}
+
+UINT32 ThemeWindowTitleHover(void) {
+    return 0x004060A0u; /* 偏蓝灰，介于焦点蓝与空闲灰之间 */
+}
+
+UINT32 ThemeWindowBorderFocus(void) {
+    return COLOR_WHITE;
+}
+
+UINT32 ThemeWindowBorderIdle(void) {
+    return 0x00A0A0A0u;
+}
+
+UINT32 ThemeWindowBorderHover(void) {
+    return 0x00C0D0F0u;
+}
+
+UINT32 ThemeWindowTitleText(void) {
+    return COLOR_WHITE;
+}
+
+UINT32 ThemeCloseButton(void) {
+    return COLOR_RED;
+}
+
+UINT32 ThemeTaskbarBackground(void) {
+    return COLOR_DARK_GRAY;
+}
+
+UINT32 ThemeTaskbarButton(void) {
+    return COLOR_LIGHT_GRAY;
+}
+
+UINT32 ThemeTaskbarButtonActive(void) {
+    return COLOR_BLUE;
+}
+
+UINT32 ThemeControlFace(void) {
+    return COLOR_LIGHT_GRAY;
+}
+
+UINT32 ThemeControlBorder(void) {
+    return COLOR_DARK_GRAY;
+}
+
+UINT32 ThemeControlAccent(void) {
+    return COLOR_BLUE;
+}
+
+UINT32 ThemeClientPadding(void) {
+    return 8u; /* 与 GUI_CLIENT_PAD 对齐 */
+}
+
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
 static UINT32 ThemeCompactFontId(void) {
     UINT32 i;

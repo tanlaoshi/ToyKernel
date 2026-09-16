@@ -25,6 +25,7 @@ UINT32 gCursorX;
 UINT32 gCursorY;
 UINT8  gCursorBtn;
 int    gFocusWin;
+int    gHoverWin = -1;
 
 UINT32 gSaveX;
 UINT32 gSaveY;

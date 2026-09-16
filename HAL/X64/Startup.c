@@ -56,6 +56,20 @@ static void BootInfoFromUefi(BOOT_CONFIG *Cfg, BOOT_INFO *Out, BOOT_CONFIG *CfgP
     Out->RegionCount = 0;
     Out->KernelStart = 0x100000;
     Out->KernelEnd = (UINT64)(UINTN)__kernel_end;
+    Out->VideoModeCount = 0;
+    {
+        UINT32 i;
+        UINT32 N = Cfg->VideoModeCount;
+
+        if (N > BOOT_VIDEO_MODE_MAX) {
+            N = BOOT_VIDEO_MODE_MAX;
+        }
+        for (i = 0; i < N; i++) {
+            Out->VideoModes[i].Width = Cfg->VideoModes[i].Width;
+            Out->VideoModes[i].Height = Cfg->VideoModes[i].Height;
+        }
+        Out->VideoModeCount = N;
+    }
 
     HalPlatformSetXhciFallback(Cfg->XhciBaseAddress);
     HalPlatformSetRsdp(Cfg->RsdpAddress);

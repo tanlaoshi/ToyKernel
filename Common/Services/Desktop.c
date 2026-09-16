@@ -312,7 +312,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
     if (gMenuOpen) {
         MenuGeom(&Mx, &My, &Mw, &Mh);
         if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
-            *Out = COLOR_LIGHT_GRAY;
+            *Out = ThemeControlFace();
             return 1;
         }
     }
@@ -325,10 +325,10 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
         StartBtnGeom(&Bx, &By, &Bw, &Bh);
         if (X >= Bx && X < Bx + Bw &&
             Y >= By && Y < By + Bh) {
-            *Out = gMenuOpen ? COLOR_BLUE : COLOR_LIGHT_GRAY;
+            *Out = gMenuOpen ? ThemeTaskbarButtonActive() : ThemeTaskbarButton();
             return 1;
         }
-        *Out = COLOR_DARK_GRAY;
+        *Out = ThemeTaskbarBackground();
         return 1;
     }
 

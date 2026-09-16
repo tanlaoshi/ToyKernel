@@ -55,6 +55,17 @@ int HalVideoSetMode(UINT32 Width, UINT32 Height) {
     return -1;
 }
 
+UINT32 HalVideoModeCount(void) {
+    return 0;
+}
+
+int HalVideoModeGet(UINT32 Index, UINT32 *Width, UINT32 *Height) {
+    (void)Index;
+    (void)Width;
+    (void)Height;
+    return -1;
+}
+
 UINT64 HalVideoFrameBufferBase(void) {
     return VideoFrameBufferBase();
 }

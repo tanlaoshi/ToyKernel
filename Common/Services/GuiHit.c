@@ -80,6 +80,7 @@ void RaiseWindow(int Idx) {
         gFocusWin = Idx;
         return;
     }
+    gHoverWin = -1; /* Raise 挪槽后悬停下标失效，下轮 PointerMove 重算 */
     for (J = 0; J < MAX_WINS; J++) {
         if (gWinBackupValid[J] || gWinBackup[J] != 0) {
             HasBackup = 1;

@@ -12,10 +12,64 @@
 #include "Desktop.h"
 
 UINT32 TitleBarColor(int Idx) {
-    if (Idx == gFocusWin && gWindows[Idx].Active) {
-        return COLOR_BLUE;
+    if (!gWindows[Idx].Active) {
+        return ThemeWindowTitleIdle();
     }
-    return COLOR_GRAY;
+    if (Idx == gFocusWin) {
+        return ThemeWindowTitleFocus();
+    }
+    if (Idx == gHoverWin) {
+        return ThemeWindowTitleHover();
+    }
+    return ThemeWindowTitleIdle();
+}
+
+UINT32 WindowBorderColor(int Idx) {
+    if (!gWindows[Idx].Active) {
+        return ThemeWindowBorderIdle();
+    }
+    if (Idx == gFocusWin) {
+        return ThemeWindowBorderFocus();
+    }
+    if (Idx == gHoverWin) {
+        return ThemeWindowBorderHover();
+    }
+    return ThemeWindowBorderIdle();
+}
+
+/* 最顶层（数组下标最大）命中窗；无则 -1 */
+int TopWindowAt(UINT32 X, UINT32 Y) {
+    int i;
+    int Top = -1;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (PointInWindow(&gWindows[i], X, Y)) {
+            Top = i;
+        }
+    }
+    return Top;
+}
+
+void GuiHoverUpdate(UINT32 X, UINT32 Y) {
+    int Next = TopWindowAt(X, Y);
+    int Prev = gHoverWin;
+
+    if (Next == Prev) {
+        return;
+    }
+    gHoverWin = Next;
+    /* 焦点窗标题已是 Focus 色，悬停进出不必重画它的 chrome */
+    if ((Prev >= 0 && Prev != gFocusWin && Prev < MAX_WINS && gWindows[Prev].Active) ||
+        (Next >= 0 && Next != gFocusWin && Next < MAX_WINS && gWindows[Next].Active)) {
+        GuiFrameBufferBegin();
+        if (Prev >= 0 && Prev < MAX_WINS && Prev != gFocusWin && gWindows[Prev].Active) {
+            DrawWindowChromeAt(Prev);
+        }
+        if (Next >= 0 && Next < MAX_WINS && Next != gFocusWin && gWindows[Next].Active) {
+            DrawWindowChromeAt(Next);
+        }
+        GuiFrameBufferEnd();
+    }
 }
 
 
@@ -139,14 +193,16 @@ void DrawCloseButton(int Idx, const GUI_WINDOW *W) {
     UINT32 Pad;
     UINT32 I;
     UINT32 Span;
+    UINT32 CloseBg = ThemeCloseButton();
+    UINT32 Edge = ThemeWindowBorderFocus();
 
     CloseButtonRect(W, &Bx, &By, &Bw, &Bh);
-    FillRectOccluded(Idx, Bx, By, Bw, Bh, COLOR_RED);
+    FillRectOccluded(Idx, Bx, By, Bw, Bh, CloseBg);
     if (Bw >= 2 && Bh >= 2) {
-        DrawHLineOccluded(Idx, Bx, Bx + Bw - 1, By, COLOR_WHITE);
-        DrawHLineOccluded(Idx, Bx, Bx + Bw - 1, By + Bh - 1, COLOR_WHITE);
-        DrawVLineOccluded(Idx, Bx, By, By + Bh - 1, COLOR_WHITE);
-        DrawVLineOccluded(Idx, Bx + Bw - 1, By, By + Bh - 1, COLOR_WHITE);
+        DrawHLineOccluded(Idx, Bx, Bx + Bw - 1, By, Edge);
+        DrawHLineOccluded(Idx, Bx, Bx + Bw - 1, By + Bh - 1, Edge);
+        DrawVLineOccluded(Idx, Bx, By, By + Bh - 1, Edge);
+        DrawVLineOccluded(Idx, Bx + Bw - 1, By, By + Bh - 1, Edge);
     }
     /* 字体为 16×32，24×24 按钮内放不下；用对角线画居中 × */
     Pad = 7;
@@ -159,10 +215,10 @@ void DrawCloseButton(int Idx, const GUI_WINDOW *W) {
             UINT32 PyB = By + Pad + I;
 
             if (!PixelOccludedByAbove(Idx, PxA, PyA)) {
-                HalVideoDrawPixelRaw(PxA, PyA, COLOR_WHITE);
+                HalVideoDrawPixelRaw(PxA, PyA, ThemeWindowTitleText());
             }
             if (!PixelOccludedByAbove(Idx, PxB, PyB)) {
-                HalVideoDrawPixelRaw(PxB, PyB, COLOR_WHITE);
+                HalVideoDrawPixelRaw(PxB, PyB, ThemeWindowTitleText());
             }
         }
     }
@@ -252,7 +308,7 @@ void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
         }
         if (!PixelOccludedByAbove(Idx, X, Y) &&
             !PixelOccludedByAbove(Idx, X + Adv / 2, Y)) {
-            HalVideoDrawCodepointAt(X, Y, Cp, COLOR_WHITE);
+            HalVideoDrawCodepointAt(X, Y, Cp, ThemeWindowTitleText());
         }
         X += Adv;
         S += N;
@@ -262,20 +318,22 @@ void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
 
 void DrawWindowAtEx(int Idx, int Occlude) {
     const GUI_WINDOW *W = &gWindows[Idx];
+    UINT32 Border;
 
     if (!W->Active) {
         return;
     }
+    Border = WindowBorderColor(Idx);
     /* 标题在客户区外；若仍开着 Shell/Settings clip，DrawString 会被裁掉 */
     HalVideoClearClip();
     if (Occlude) {
         FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-        DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
+        DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, Border);
         DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
-                          COLOR_WHITE);
-        DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
+                          Border);
+        DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, Border);
         DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
-                          COLOR_WHITE);
+                          Border);
         if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
             FillRectOccluded(Idx, W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
                              W->Height - TITLE_HEIGHT - 1, W->Background);
@@ -289,16 +347,16 @@ void DrawWindowAtEx(int Idx, int Occlude) {
      * 否则重叠区不画 → 标题镂空、客户区换色不全。
      */
     HalVideoFillRect(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    HalVideoFillRect(W->X, W->Y, W->Width, 1, COLOR_WHITE);
-    HalVideoFillRect(W->X, W->Y + W->Height - 1, W->Width, 1, COLOR_WHITE);
-    HalVideoFillRect(W->X, W->Y, 1, W->Height, COLOR_WHITE);
-    HalVideoFillRect(W->X + W->Width - 1, W->Y, 1, W->Height, COLOR_WHITE);
+    HalVideoFillRect(W->X, W->Y, W->Width, 1, Border);
+    HalVideoFillRect(W->X, W->Y + W->Height - 1, W->Width, 1, Border);
+    HalVideoFillRect(W->X, W->Y, 1, W->Height, Border);
+    HalVideoFillRect(W->X + W->Width - 1, W->Y, 1, W->Height, Border);
     if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
         HalVideoFillRect(W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
                          W->Height - TITLE_HEIGHT - 1, W->Background);
     }
     if (W->Title != 0 && W->Title[0] != 0) {
-        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, COLOR_WHITE);
+        HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, ThemeWindowTitleText());
     }
     /* 关闭钮也整块画，勿 Occlude（否则未聚焦 Shell 的 × 可能缺块） */
     {
@@ -309,22 +367,23 @@ void DrawWindowAtEx(int Idx, int Occlude) {
         UINT32 Pad;
         UINT32 I;
         UINT32 Span;
+        UINT32 Edge = ThemeWindowBorderFocus();
 
         CloseButtonRect(W, &Bx, &By, &Bw, &Bh);
-        HalVideoFillRect(Bx, By, Bw, Bh, COLOR_RED);
+        HalVideoFillRect(Bx, By, Bw, Bh, ThemeCloseButton());
         if (Bw >= 2 && Bh >= 2) {
-            HalVideoFillRect(Bx, By, Bw, 1, COLOR_WHITE);
-            HalVideoFillRect(Bx, By + Bh - 1, Bw, 1, COLOR_WHITE);
-            HalVideoFillRect(Bx, By, 1, Bh, COLOR_WHITE);
-            HalVideoFillRect(Bx + Bw - 1, By, 1, Bh, COLOR_WHITE);
+            HalVideoFillRect(Bx, By, Bw, 1, Edge);
+            HalVideoFillRect(Bx, By + Bh - 1, Bw, 1, Edge);
+            HalVideoFillRect(Bx, By, 1, Bh, Edge);
+            HalVideoFillRect(Bx + Bw - 1, By, 1, Bh, Edge);
         }
         Pad = 7;
         if (Bw > Pad * 2 + 2 && Bh > Pad * 2 + 2) {
             Span = Bw - 1 - Pad * 2;
             for (I = 0; I <= Span; I++) {
-                HalVideoDrawPixelRaw(Bx + Pad + I, By + Pad + I, COLOR_WHITE);
+                HalVideoDrawPixelRaw(Bx + Pad + I, By + Pad + I, ThemeWindowTitleText());
                 HalVideoDrawPixelRaw(Bx + Bw - 1 - Pad - I, By + Pad + I,
-                                     COLOR_WHITE);
+                                     ThemeWindowTitleText());
             }
         }
     }
@@ -339,18 +398,20 @@ void DrawWindowAt(int Idx) {
 /* 仅重绘标题栏与边框，保留客户区已有文字；不画到上层窗口上 */
 void DrawWindowChromeAt(int Idx) {
     const GUI_WINDOW *W = &gWindows[Idx];
+    UINT32 Border;
 
     if (!W->Active) {
         return;
     }
+    Border = WindowBorderColor(Idx);
     HalVideoClearClip();
     FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, COLOR_WHITE);
+    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, Border);
     DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
-                      COLOR_WHITE);
-    DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, COLOR_WHITE);
+                      Border);
+    DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, Border);
     DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
-                      COLOR_WHITE);
+                      Border);
     DrawTitleStringOccluded(Idx, W);
     DrawCloseButton(Idx, W);
 }

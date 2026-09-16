@@ -54,6 +54,9 @@ void CloseWindow(int Idx) {
     if (gDragWin == Idx) {
         gDragWin = -1;
     }
+    if (gHoverWin == Idx) {
+        gHoverWin = -1;
+    }
     if (gFocusWin == Idx) {
         gFocusWin = -1;
         for (i = MAX_WINS - 1; i >= 0; i--) {
