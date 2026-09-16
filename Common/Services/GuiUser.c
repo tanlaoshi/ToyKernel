@@ -268,6 +268,9 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     gWindows[Idx].ClientText[0] = 0;
     gWindows[Idx].ClosePending = 0;
     gWindows[Idx].UserButtonClick = -1;
+    gWindows[Idx].UserClientClick = 0;
+    gWindows[Idx].UserClickX = 0;
+    gWindows[Idx].UserClickY = 0;
     {
         int Bi;
         for (Bi = 0; Bi < 4; Bi++) {
@@ -470,6 +473,25 @@ int GuiPollUserInput(int Wid) {
             Id = gWindows[i].UserButtonClick;
             gWindows[i].UserButtonClick = -1;
             return 100 + Id;
+        }
+    }
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER &&
+            gWindows[i].UserClientClick) {
+            UINT32 Cx;
+            UINT32 Cy;
+
+            Cx = gWindows[i].UserClickX;
+            Cy = gWindows[i].UserClickY;
+            gWindows[i].UserClientClick = 0;
+            if (Cx > 1023u) {
+                Cx = 1023u;
+            }
+            if (Cy > 1023u) {
+                Cy = 1023u;
+            }
+            /* 400 + x + (y << 10)；不占用 0 / 1 / 100+id */
+            return 400 + (int)Cx + ((int)Cy << 10);
         }
     }
     for (i = 0; i < MAX_WINS; i++) {

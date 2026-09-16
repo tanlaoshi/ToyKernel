@@ -51,6 +51,9 @@ typedef struct {
     int      UserButtonUsed[4];
     char     UserButtonLabel[4][24];
     int      UserButtonClick;
+    int      UserClientClick;
+    UINT32   UserClickX;
+    UINT32   UserClickY;
 } GUI_WINDOW;
 
 /* 共享状态（定义见各 .c） */

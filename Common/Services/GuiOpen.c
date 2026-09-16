@@ -42,6 +42,7 @@ void CloseWindow(int Idx) {
     gWindows[Idx].PromptShown = 0;
     gWindows[Idx].InputLine[0] = 0;
     gWindows[Idx].UserButtonClick = -1;
+    gWindows[Idx].UserClientClick = 0;
     {
         int Bi;
         for (Bi = 0; Bi < 4; Bi++) {

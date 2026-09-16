@@ -152,6 +152,16 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 GuiFocusApply();
                 return 1;
             }
+            /* PR-A-ui-api：客户区点击（相对 ToyGfx 原点，含 pad） */
+            {
+                UINT32 Cx = gWindows[i].X + 1 + GUI_CLIENT_PAD;
+                UINT32 Cy = gWindows[i].Y + TITLE_HEIGHT + GUI_CLIENT_PAD;
+                if (X >= Cx && Y >= Cy) {
+                    gWindows[i].UserClientClick = 1;
+                    gWindows[i].UserClickX = X - Cx;
+                    gWindows[i].UserClickY = Y - Cy;
+                }
+            }
         }
         break; /* 顶层命中窗不是按钮，走下方通用逻辑 */
     }

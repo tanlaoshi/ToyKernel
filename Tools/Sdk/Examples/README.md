@@ -14,7 +14,7 @@ for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 | `Dir/` | `DIR.ELF` | CRT | 列默认卷根 |
 | `Pipe/` | `PIPE.ELF` | CRT | 子写父读 |
 | `Fork/` | `FORK.ELF` | CRT | `fork` + `wait(0)` |
-| `Gui/` | `MYGUI.ELF` | Ui + Gfx | 标签 + 按钮；无事件 `toy_yield` |
+| `Gui/` | `MYGUI.ELF` | Ui + Gfx | 标签/按钮 + 复选框/列表/输入框 |
 | `Blit/` | `BLIT.ELF` | Ui + Gfx | `ToyGfxDamageRect` + 点/线/矩形 |
 | `Net/` | `MYNET.ELF` | ToyNet | 先 `lwip on`；宿主机 `nc -l -p 8888` |
 
