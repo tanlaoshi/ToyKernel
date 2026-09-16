@@ -96,8 +96,8 @@ toy_virt_resolve_qemu() {
     if ! command -v "$TOY_VIRT_QEMU" >/dev/null 2>&1; then
         local Base
         Base="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        if [ -x "$Base/tools/root/usr/bin/$TOY_VIRT_QEMU" ]; then
-            TOY_VIRT_QEMU="$Base/tools/root/usr/bin/$TOY_VIRT_QEMU"
+        if [ -x "$Base/Tools/Root/usr/bin/$TOY_VIRT_QEMU" ]; then
+            TOY_VIRT_QEMU="$Base/Tools/Root/usr/bin/$TOY_VIRT_QEMU"
         else
             echo "error: $TOY_VIRT_QEMU not found" >&2
             exit 1
@@ -160,7 +160,7 @@ toy_virt_build_dev_args() {
         export TOY_VIRT_MAKE_ARCH
         ./prepare-virt-rootfs.sh >/dev/null
         # N10：用 raw FAT 镜像，避免 QEMU fat:rw(vvfat) 与 virtio-net 同机 TX 故障
-        DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=virt-rootfs.img"
+        DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=VirtRootFs.img"
                    -device virtio-blk-device,drive=toyroot)
     fi
 

@@ -1,9 +1,10 @@
 Build/
-virt-rootfs/
+VirtRootFs/
 ThirdParty/lwip/
 
 # 遗留根目录产物（旧 Makefile）
 *.o
+*.a
 *.elf
 *.elf~
 *.so
@@ -17,9 +18,12 @@ ThirdParty/lwip/
 ._*
 .DS_Store
 .AppleDouble
-virt-rootfs.img
+VirtRootFs.img
 
 # PR-L1 课外模板产物
-User/pkg/build/
-User/pkg/gui/build/
-User/pkg/net/build/
+User/Pkg/build/
+User/Pkg/Gui/build/
+User/Pkg/Net/build/
+
+# PR-A-sdk-pack：生成的可分发 SDK（脚本入库，产物不入库）
+Dist/

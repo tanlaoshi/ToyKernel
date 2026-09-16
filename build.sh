@@ -150,9 +150,9 @@ elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
 else
     echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
     if [ "$BRINGUP" = "0" ] && [ -f "$USER_HELLO" ]; then
-        mkdir -p virt-rootfs
-        cp -f "$USER_HELLO" virt-rootfs/HELLO.ELF
-        echo "Copied $USER_HELLO -> virt-rootfs/HELLO.ELF"
+        mkdir -p VirtRootFs
+        cp -f "$USER_HELLO" VirtRootFs/HELLO.ELF
+        echo "Copied $USER_HELLO -> VirtRootFs/HELLO.ELF"
     fi
 fi
 

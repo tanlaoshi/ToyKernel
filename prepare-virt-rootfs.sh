@@ -1,10 +1,11 @@
 #!/bin/bash
-# 准备 virt 系统盘：同步文件到 virt-rootfs/，并打成 raw FAT16 镜像 virt-rootfs.img
+# 准备 Arm64/RiscV QEMU virt 系统盘：同步到 VirtRootFs/，打成 raw FAT16 镜像 VirtRootFs.img
+# x86 不走这里（用 ToyImage/rootfs + run-split.sh）。
 # （QEMU fat:rw/vvfat 与 virtio-net 同机时会破坏 TX；N10 改用真 FAT 镜像）
 set -e
 cd "$(dirname "$0")"
-ROOT=virt-rootfs
-IMG=virt-rootfs.img
+ROOT=VirtRootFs
+IMG=VirtRootFs.img
 mkdir -p "$ROOT"
 
 IMG_ROOT="../ToyImage/rootfs"
@@ -70,7 +71,7 @@ if [ -z "$HAL_ARCH" ]; then
 fi
 if [ -n "$HAL_ARCH" ] && [ -f "Build/HAL/$HAL_ARCH/user/hello.elf" ]; then
     cp -f "Build/HAL/$HAL_ARCH/user/hello.elf" "$ROOT/HELLO.ELF"
-elif [ -f virt-rootfs/HELLO.ELF ] && [ -n "$ARCH" ]; then
+elif [ -f VirtRootFs/HELLO.ELF ] && [ -n "$ARCH" ]; then
     : # already staged by build.sh
 fi
 
