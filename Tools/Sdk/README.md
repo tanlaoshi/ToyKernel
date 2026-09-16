@@ -40,6 +40,7 @@ ToySdk/
 ├── Documents/             应用开发指南.md、API速查.md
 ├── Examples/              Hello File Dir Pipe Fork Gui Blit Net Fs
 ├── ToySdk.mk              应用 include 本文件
+├── Makefile.template      复制到应用目录；只 include ToySdk.mk
 ├── VERSION                SDK 包版本（如 1.0.0）
 └── README.md              本文件
 ```
@@ -48,17 +49,17 @@ ToySdk/
 
 ## 自己的应用
 
-```makefile
-TOYSDK ?= /path/to/ToySdk
-PROG   ?= MYAPP
-SRCS   ?= main.c
-# GUI：EXTRA_LIBS = $(TOYSDK)/Library/libToyUi.a $(TOYSDK)/Library/libToyGfx.a
-# 网络：EXTRA_LIBS = $(TOYSDK)/Library/libToyNet.a
-# 路径：EXTRA_LIBS = $(TOYSDK)/Library/libFsUtil.a
-include $(TOYSDK)/ToySdk.mk
+复制 [`Makefile.template`](Makefile.template) 到应用目录（与 `main.c` 同级），设 `TOYSDK` 为 SDK 根：
+
+```bash
+cp ToySdk/Makefile.template myapp/Makefile
+# 编辑 Makefile：TOYSDK ?= /path/to/ToySdk
+make -C myapp
 ```
 
-`TOYSDK` 可省略：Makefile 与 `ToySdk.mk` 同树时，规则文件会 `abspath` 到 SDK 根。
+模板只 `include $(TOYSDK)/ToySdk.mk`，不要再抄 CFLAGS。需要 GUI / 网 / 路径库时解开模板里的 `EXTRA_LIBS` 注释。
+
+`TOYSDK` 在 Makefile 与 `ToySdk.mk` **同目录**时可省略（规则文件会 `abspath` 到 SDK 根）。复制走之后必须设。
 
 ## 仓库内重新打包（维护者）
 

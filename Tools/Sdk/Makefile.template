@@ -1,0 +1,10 @@
+# ToyOS SDK 应用 Makefile（PR-B-sdk-tpl）
+# 复制到你的 .c 旁边。CFLAGS / 链接规则只在 ToySdk.mk，这里不要再写一套。
+# TOYSDK = 含 ToySdk.mk 的 SDK 根（复制后本文件不在 SDK 根，必须设）。
+TOYSDK ?= /path/to/ToySdk
+PROG   ?= MYAPP
+SRCS   ?= main.c
+# GUI：EXTRA_LIBS = $(TOYSDK)/Library/libToyUi.a $(TOYSDK)/Library/libToyGfx.a
+# 网络：EXTRA_LIBS = $(TOYSDK)/Library/libToyNet.a
+# 路径：EXTRA_LIBS = $(TOYSDK)/Library/libFsUtil.a
+include $(TOYSDK)/ToySdk.mk

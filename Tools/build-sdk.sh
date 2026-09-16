@@ -1,5 +1,5 @@
 #!/bin/bash
-# PR-A-sdk-pack / PR-B-sdk-ver：头文件 / 静库 / 链接脚本 / 示例 → Dist/ToySdk/
+# PR-A-sdk-pack / PR-B-sdk-ver / PR-B-sdk-tpl：头文件 / 静库 / 链接脚本 / 示例 → Dist/ToySdk/
 # 用法：./Tools/build-sdk.sh [DEST]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -33,6 +33,7 @@ cp -a User/Library/ToyOs/libtoyos.a \
 	"$DEST/Library/"
 
 cp -a "$TPL/ToySdk.mk" "$DEST/ToySdk.mk"
+cp -a "$TPL/Makefile.template" "$DEST/Makefile.template"
 cp -a "$TPL/README.md" "$DEST/README.md"
 cp -a "$TPL/VERSION" "$DEST/VERSION"
 cp -a "$TPL/Examples/." "$DEST/Examples/"
