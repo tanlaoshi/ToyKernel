@@ -9,7 +9,7 @@
 #define PAGE_SHIFT 12
 #define PAGE_SIZE  4096
 
-int PhysicalMemoryInit(void);
+int PhysicalMemoryInitialize(void);
 
 void *PhysicalMemoryAllocatePage(void);
 void *PhysicalMemoryAllocatePages(UINT32 Count);

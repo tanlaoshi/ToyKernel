@@ -45,13 +45,13 @@ static int InitializeSerial(void) {
 }
 
 static int InitializePhysicalMemory(void) {
-    return PhysicalMemoryInit();
+    return PhysicalMemoryInitialize();
 }
 
 static int InitializeVirtualMemory(void) {
     const BOOT_INFO *Info = BootInfoGet();
 
-    if (VirtualMemoryInit() != 0) {
+    if (VirtualMemoryInitialize() != 0) {
         return -1;
     }
     if (Info && Info->FrameBufferSize != 0) {

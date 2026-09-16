@@ -107,7 +107,7 @@ static void ComputeBaseAndMax(const BOOT_INFO *Info, UINT64 *OutBase, UINT32 *Ou
     *OutMax = Span;
 }
 
-int PhysicalMemoryInit(void) {
+int PhysicalMemoryInitialize(void) {
     const BOOT_INFO *Info = BootInfoGet();
     UINT32 i;
 

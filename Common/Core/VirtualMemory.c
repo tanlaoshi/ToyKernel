@@ -294,7 +294,7 @@ int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode) {
     return 0;
 }
 
-int VirtualMemoryInit(void) {
+int VirtualMemoryInitialize(void) {
     if (HalPageKernelSetup(IDENTITY_MB) != 0) {
         return -1;
     }

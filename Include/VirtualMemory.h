@@ -30,7 +30,7 @@ typedef struct {
     int     PageCount;
 } VIRTUAL_ADDRESS_SPACE;
 
-int VirtualMemoryInit(void);
+int VirtualMemoryInitialize(void);
 void VirtualMemoryEnable(void);
 /* PR-D3：供需 MMIO Map 的驱动在 InitDriver 早 Probe 时跳过 */
 int VirtualMemoryEnabled(void);
