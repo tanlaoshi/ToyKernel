@@ -15,7 +15,7 @@ for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 | `Pipe/` | `PIPE.ELF` | CRT | 子写父读 |
 | `Fork/` | `FORK.ELF` | CRT | `fork` + `wait(0)` |
 | `Gui/` | `MYGUI.ELF` | Ui + Gfx | 标签 + 按钮；无事件 `toy_yield` |
-| `Blit/` | `BLIT.ELF` | Ui + Gfx | `ToyGfxDamageRect` 色块 |
+| `Blit/` | `BLIT.ELF` | Ui + Gfx | `ToyGfxDamageRect` + 点/线/矩形 |
 | `Net/` | `MYNET.ELF` | ToyNet | 先 `lwip on`；宿主机 `nc -l -p 8888` |
 
 `make deploy` 复制到兄弟仓 `ToyImage/rootfs/`（可设 `TOYIMAGE=`）。课堂树内模板仍是 `User/Pkg/`。

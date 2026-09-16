@@ -1,8 +1,9 @@
 /*
  * ToyGfx.h — 用户态绘图薄库（libToyGfx）
  *
- * ABI（PR-L3 / G-desk-3）：改签名 / 删符号须递增 TOY_GFX_ABI_VERSION_MAJOR。
+ * ABI：改签名 / 删符号须递增 TOY_GFX_ABI_VERSION_MAJOR。
  * 1.1.0：+ ToyGfxDamageRect（SYS_DAMAGE_RECT 像素 blit）。
+ * 1.2.0：+ 点 / 线 / 填充矩形 / 矩形框（底层仍 DamageRect；单次 ≤64×64）。
  */
 #ifndef TOY_GFX_H
 #define TOY_GFX_H
@@ -10,9 +11,9 @@
 #include <unistd.h>
 
 #define TOY_GFX_ABI_VERSION_MAJOR 1
-#define TOY_GFX_ABI_VERSION_MINOR 1
+#define TOY_GFX_ABI_VERSION_MINOR 2
 #define TOY_GFX_ABI_VERSION_PATCH 0
-#define TOY_GFX_ABI_VERSION_STRING "1.1.0"
+#define TOY_GFX_ABI_VERSION_STRING "1.2.0"
 
 /* 0x00RRGGBB，与内核 UI 色值习惯一致 */
 #define TOY_GFX_COLOR_BLACK       0x00000000u
@@ -41,5 +42,13 @@ int ToyGfxDamageText(int WindowId, const char *Text);
  * 成功 0；失败 -1（越界 / 过大 / 空指针 / 内核拒绝）
  */
 int ToyGfxDamageRect(int WindowId, const TOY_GFX_DAMAGE_RECT *Desc);
+
+/* PR-A-gfx-api：点 / 线 / 矩形。大矩形按 ≤64×64 分块。成功 0，失败 -1。 */
+int ToyGfxDrawPixel(int WindowId, unsigned X, unsigned Y, unsigned Color);
+int ToyGfxDrawLine(int WindowId, int X0, int Y0, int X1, int Y1, unsigned Color);
+int ToyGfxFillRect(int WindowId, unsigned X, unsigned Y, unsigned W, unsigned H,
+                   unsigned Color);
+int ToyGfxDrawRect(int WindowId, unsigned X, unsigned Y, unsigned W, unsigned H,
+                   unsigned Color);
 
 #endif

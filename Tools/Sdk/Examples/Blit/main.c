@@ -1,6 +1,6 @@
 /*
- * Examples/Blit — ToyGfxDamageRect 像素色块（PR-A-examples）
- * 产物：BLIT.ELF。单次矩形 ≤ 64×64。
+ * Examples/Blit — ToyGfxDamageRect + 点/线/矩形封装（PR-A-gfx-api）
+ * 产物：BLIT.ELF。单次 blit ≤ 64×64；FillRect 内部会分块。
  */
 #include <stdio.h>
 #include <unistd.h>
@@ -23,7 +23,7 @@ int main(void) {
         printf("blit: create fail\n");
         return 1;
     }
-    ToyGfxDamageText(Wid, "pixel blit (close to exit)");
+    ToyGfxDamageText(Wid, "pixel blit + fill/line (close to exit)");
 
     for (I = 0; I < BLIT_W * BLIT_H; I++) {
         Pix[I] = 0x00C04040u;
@@ -37,7 +37,23 @@ int main(void) {
         printf("blit: damage_rect fail\n");
         return 1;
     }
-    printf("blit: wid=%d ok\n", Wid);
+    if (ToyGfxFillRect(Wid, 56, 24, 48, 20, 0x004080C0u) != 0) {
+        printf("blit: fill fail\n");
+        return 1;
+    }
+    if (ToyGfxDrawRect(Wid, 140, 24, 48, 40, 0x00E0E0E0u) != 0) {
+        printf("blit: rect fail\n");
+        return 1;
+    }
+    if (ToyGfxDrawLine(Wid, 16, 80, 200, 100, 0x00E0C040u) != 0) {
+        printf("blit: line fail\n");
+        return 1;
+    }
+    if (ToyGfxDrawPixel(Wid, 24, 88, TOY_GFX_COLOR_WHITE) != 0) {
+        printf("blit: pixel fail\n");
+        return 1;
+    }
+    printf("blit: wid=%d ok (ToyGfx %s)\n", Wid, TOY_GFX_ABI_VERSION_STRING);
 
     for (;;) {
         Ev = ToyUiPoll(Wid);

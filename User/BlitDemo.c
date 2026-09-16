@@ -46,8 +46,21 @@ int main(void) {
         printf("blitdemo: damage_rect fail\n");
         return 1;
     }
+    if (ToyGfxFillRect(WindowId, 80, 32, 72, 24, 0x004080C0u) != 0) {
+        printf("blitdemo: fill fail\n");
+        return 1;
+    }
+    if (ToyGfxDrawRect(WindowId, 80, 64, 72, 40, 0x00E0E0E0u) != 0) {
+        printf("blitdemo: rect fail\n");
+        return 1;
+    }
+    if (ToyGfxDrawLine(WindowId, 16, 120, 200, 140, 0x00E0C040u) != 0) {
+        printf("blitdemo: line fail\n");
+        return 1;
+    }
 
-    printf("blitdemo: wid=%d blit ok\n", WindowId);
+    printf("blitdemo: wid=%d blit ok (ToyGfx %s)\n", WindowId,
+           TOY_GFX_ABI_VERSION_STRING);
     for (;;) {
         Event = ToyUiPoll(WindowId);
         if (Event < 0) {
