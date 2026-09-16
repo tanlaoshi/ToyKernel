@@ -63,7 +63,7 @@ typedef struct TASK {
     INT32                  OnCpu;      /* 正在跑的逻辑 CPU；未跑为 -1 */
     INT32                  HomeCpu;    /* 首选运行队列（PR-S4） */
     INT32                  Priority;   /* PR-S-lock：越大越优先；默认 0；idle 最低 */
-    int                    InRunq;     /* 已在某核 READY 队列中 */
+    int                    InRunQueue;     /* 已在某核 READY 队列中 */
     UINT64                 BrkBase;    /* 映像数据/BSS 末；不可低于此（PR-P3） */
     UINT64                 Brk;        /* 当前 program break */
     UINT64                 MmapNext;   /* PR-U-mmap：下一匿名映射 VA */

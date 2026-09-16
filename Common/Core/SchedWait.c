@@ -13,7 +13,7 @@
 #include "VirtualMemory.h"
 
 static void ReapZombie(TASK *Z) {
-    RunqRemove(Z);
+    RunQueueRemove(Z);
     SchedulerFdCloseAll(Z);
     if (Z->UserSpace) {
         VirtualMemorySpaceDestroy(Z->UserSpace);
@@ -28,7 +28,7 @@ static void ReapZombie(TASK *Z) {
     Z->Waiting = 0;
     Z->PendingKill = 0;
     Z->OnCpu = -1;
-    Z->InRunq = 0;
+    Z->InRunQueue = 0;
     gTaskCount--;
 }
 
@@ -84,7 +84,7 @@ static int WakeWaitingParent(TASK *Zombie) {
     }
     P->Waiting = 0;
     P->State = TASK_READY;
-    RunqEnqueue(PickHomeCpu(P), P);
+    RunQueueEnqueue(PickHomeCpu(P), P);
     ReapZombie(Zombie);
     return 1;
 }
@@ -119,7 +119,7 @@ int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
     Exiting->Waiting = 0;
     Exiting->PendingKill = 0;
     Exiting->OnCpu = -1;
-    RunqRemove(Exiting);
+    RunQueueRemove(Exiting);
 
     if (ParentIsUserWaiter(Exiting->ParentId)) {
         Exiting->State = TASK_ZOMBIE;

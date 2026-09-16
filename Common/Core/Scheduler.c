@@ -65,7 +65,7 @@ void SchedulerInit(void) {
 
     SpinLockInit(&gSchedulerLock);
     gSchedulerOnline = 0;
-    RunqInit();
+    RunQueueInitialize();
     for (c = 0; c < HAL_MAX_CPUS; c++) {
         gCurrentCpu[c] = 0;
         gIdleTask[c] = 0;
@@ -90,7 +90,7 @@ void SchedulerInit(void) {
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
         gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
-        gTasks[i].InRunq = 0;
+        gTasks[i].InRunQueue = 0;
         gTasks[i].BrkBase = 0;
         gTasks[i].Brk = 0;
         gTasks[i].MmapNext = 0;
@@ -141,13 +141,13 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].OnCpu = -1;
         gTasks[i].HomeCpu = 0;
         gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
-        gTasks[i].InRunq = 0;
+        gTasks[i].InRunQueue = 0;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
         {
             UINT32 Home = PickHomeCpu(&gTasks[i]);
-            RunqEnqueue(Home, &gTasks[i]);
+            RunQueueEnqueue(Home, &gTasks[i]);
         }
         SpinLockRelease(&gSchedulerLock);
         return i;
@@ -188,7 +188,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].HomeCpu = 0;
         /* 继承创建者优先级，避免 shell/gui(prio=8) 在 UP 上饿死用户(0) */
         gTasks[i].Priority = (Cur && !IsIdleTask(Cur)) ? Cur->Priority : SCHED_PRIORITY_DEFAULT;
-        gTasks[i].InRunq = 0;
+        gTasks[i].InRunQueue = 0;
         gTasks[i].BrkBase = BrkBase;
         gTasks[i].Brk = BrkBase;
         gTasks[i].MmapNext = USER_MMAP_BASE;
@@ -197,7 +197,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTaskCount++;
         {
             UINT32 Home = PickHomeCpu(&gTasks[i]);
-            RunqEnqueue(Home, &gTasks[i]);
+            RunQueueEnqueue(Home, &gTasks[i]);
         }
         SpinLockRelease(&gSchedulerLock);
         return i;
@@ -236,10 +236,10 @@ int SchedulerSetPriority(INT32 Pid, INT32 Priority) {
     }
     T->Priority = Priority;
     /* 已在 READY 队列：重插以按新优先级排序 */
-    if (T->State == TASK_READY && T->InRunq) {
+    if (T->State == TASK_READY && T->InRunQueue) {
         UINT32 Home = (T->HomeCpu >= 0) ? (UINT32)T->HomeCpu : PickHomeCpu(T);
-        RunqRemove(T);
-        RunqEnqueue(Home, T);
+        RunQueueRemove(T);
+        RunQueueEnqueue(Home, T);
     }
     SpinLockRelease(&gSchedulerLock);
     return 0;
@@ -270,10 +270,10 @@ void ActivateTask(TASK *T) {
         Prev->State = TASK_READY;
         Prev->OnCpu = -1;
         if (!IsIdleTask(Prev)) {
-            RunqEnqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
+            RunQueueEnqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
         }
     }
-    RunqRemove(T);
+    RunQueueRemove(T);
     SetCurrentTask(T);
     T->State = TASK_RUNNING;
     T->OnCpu = (INT32)Cpu;
@@ -607,14 +607,14 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].OnCpu = -1;
     gTasks[Child].HomeCpu = 0;
     gTasks[Child].Priority = Parent->Priority;
-    gTasks[Child].InRunq = 0;
+    gTasks[Child].InRunQueue = 0;
     gTasks[Child].BrkBase = Parent->BrkBase;
     gTasks[Child].Brk = Parent->Brk;
     gTasks[Child].MmapNext = Parent->MmapNext;
     TaskCloneFds(&gTasks[Child], Parent);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;
-    RunqEnqueue(PickHomeCpu(&gTasks[Child]), &gTasks[Child]);
+    RunQueueEnqueue(PickHomeCpu(&gTasks[Child]), &gTasks[Child]);
 
     HalFrameSetReturn(Frame, (UINT64)(UINT32)(Child + 1));
     Parent->Frame = Frame;
@@ -816,7 +816,7 @@ static int CreateIdleForCpu(UINT32 Cpu) {
     SpinLockAcquire(&gSchedulerLock);
     gIdleTask[Cpu] = &gTasks[Id];
     gIdleTask[Cpu]->Priority = SCHED_PRIORITY_IDLE;
-    RunqRemove(gIdleTask[Cpu]);
+    RunQueueRemove(gIdleTask[Cpu]);
     SpinLockRelease(&gSchedulerLock);
     return Id;
 }
@@ -895,11 +895,11 @@ void SchedulerStart(void) {
             }
             if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||
                 (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u')) {
-                RunqRemove(&gTasks[i]);
+                RunQueueRemove(&gTasks[i]);
                 gTasks[i].Affinity = (INT32)InteractiveCpu;
                 gTasks[i].HomeCpu = (INT32)InteractiveCpu;
                 gTasks[i].Priority = SCHED_PRIORITY_SHELL;
-                RunqEnqueue(InteractiveCpu, &gTasks[i]);
+                RunQueueEnqueue(InteractiveCpu, &gTasks[i]);
             }
         }
     }

@@ -7,7 +7,7 @@
 #include "Hal.h"
 #include "SpinLock.h"
 
-static SPIN_LOCK gRunqLock[HAL_MAX_CPUS];
+static SPIN_LOCK gRunQueueLock[HAL_MAX_CPUS];
 static volatile int gRoundRobinHome;
 static volatile UINT64 gStealCount;
 
@@ -16,35 +16,35 @@ typedef struct {
     int   Count;
 } CPU_RUN_QUEUE;
 
-static CPU_RUN_QUEUE gRunq[HAL_MAX_CPUS];
+static CPU_RUN_QUEUE gRunQueue[HAL_MAX_CPUS];
 
 /*
- * 锁序（防死锁）：若同持两把 → 先 gSchedulerLock，再 gRunqLock；
- * 多把 gRunqLock → 按 cpu 下标升序。热路径（timer/yield）可只持 runq 锁。
+ * 锁序（防死锁）：若同持两把 → 先 gSchedulerLock，再 gRunQueueLock；
+ * 多把 gRunQueueLock → 按 cpu 下标升序。热路径（timer/yield）可只持 runq 锁。
  */
 
-void RunqInit(void) {
+void RunQueueInitialize(void) {
     UINT32 c;
     int i;
     gStealCount = 0;
     gRoundRobinHome = 0;
     for (c = 0; c < HAL_MAX_CPUS; c++) {
-        SpinLockInit(&gRunqLock[c]);
-        gRunq[c].Count = 0;
+        SpinLockInit(&gRunQueueLock[c]);
+        gRunQueue[c].Count = 0;
         for (i = 0; i < MAX_TASKS; i++) {
-            gRunq[c].Slot[i] = 0;
+            gRunQueue[c].Slot[i] = 0;
         }
     }
 }
 
-/* 调用方已持 gRunqLock[Cpu] */
-static void RunqEnqueueLocked(UINT32 Cpu, TASK *T) {
+/* 调用方已持 gRunQueueLock[Cpu] */
+static void RunQueueEnqueueLocked(UINT32 Cpu, TASK *T) {
     CPU_RUN_QUEUE *Q;
     int Pos;
-    if (!T || Cpu >= HAL_MAX_CPUS || IsIdleTask(T) || T->InRunq) {
+    if (!T || Cpu >= HAL_MAX_CPUS || IsIdleTask(T) || T->InRunQueue) {
         return;
     }
-    Q = &gRunq[Cpu];
+    Q = &gRunQueue[Cpu];
     if (Q->Count >= MAX_TASKS) {
         return;
     }
@@ -56,27 +56,27 @@ static void RunqEnqueueLocked(UINT32 Cpu, TASK *T) {
     }
     Q->Slot[Pos] = T;
     Q->Count++;
-    T->InRunq = 1;
+    T->InRunQueue = 1;
     T->HomeCpu = (INT32)Cpu;
 }
 
-void RunqEnqueue(UINT32 Cpu, TASK *T) {
+void RunQueueEnqueue(UINT32 Cpu, TASK *T) {
     if (!T || Cpu >= HAL_MAX_CPUS) {
         return;
     }
-    SpinLockAcquire(&gRunqLock[Cpu]);
-    RunqEnqueueLocked(Cpu, T);
-    SpinLockRelease(&gRunqLock[Cpu]);
+    SpinLockAcquire(&gRunQueueLock[Cpu]);
+    RunQueueEnqueueLocked(Cpu, T);
+    SpinLockRelease(&gRunQueueLock[Cpu]);
 }
 
-static TASK *RunqDequeueLocked(UINT32 Cpu) {
+static TASK *RunQueueDequeueLocked(UINT32 Cpu) {
     CPU_RUN_QUEUE *Q;
     TASK *T;
     int i;
     if (Cpu >= HAL_MAX_CPUS) {
         return 0;
     }
-    Q = &gRunq[Cpu];
+    Q = &gRunQueue[Cpu];
     if (Q->Count <= 0) {
         return 0;
     }
@@ -87,19 +87,19 @@ static TASK *RunqDequeueLocked(UINT32 Cpu) {
     Q->Count--;
     Q->Slot[Q->Count] = 0;
     if (T) {
-        T->InRunq = 0;
+        T->InRunQueue = 0;
     }
     return T;
 }
 
 /* 从队尾偷：与本地队头 dequeue 错开，减冲突 */
-static TASK *RunqStealOneLocked(UINT32 Victim) {
+static TASK *RunQueueStealOneLocked(UINT32 Victim) {
     CPU_RUN_QUEUE *Q;
     TASK *T;
     if (Victim >= HAL_MAX_CPUS) {
         return 0;
     }
-    Q = &gRunq[Victim];
+    Q = &gRunQueue[Victim];
     if (Q->Count <= 0) {
         return 0;
     }
@@ -107,18 +107,18 @@ static TASK *RunqStealOneLocked(UINT32 Victim) {
     Q->Count--;
     Q->Slot[Q->Count] = 0;
     if (T) {
-        T->InRunq = 0;
+        T->InRunQueue = 0;
     }
     return T;
 }
 
-static int RunqRemoveFromCpuLocked(UINT32 Cpu, TASK *T) {
+static int RunQueueRemoveFromCpuLocked(UINT32 Cpu, TASK *T) {
     CPU_RUN_QUEUE *Q;
     int i, j;
     if (!T || Cpu >= HAL_MAX_CPUS) {
         return 0;
     }
-    Q = &gRunq[Cpu];
+    Q = &gRunQueue[Cpu];
     for (i = 0; i < Q->Count; i++) {
         if (Q->Slot[i] != T) {
             continue;
@@ -128,35 +128,35 @@ static int RunqRemoveFromCpuLocked(UINT32 Cpu, TASK *T) {
         }
         Q->Count--;
         Q->Slot[Q->Count] = 0;
-        T->InRunq = 0;
+        T->InRunQueue = 0;
         return 1;
     }
     return 0;
 }
 
-void RunqRemove(TASK *T) {
+void RunQueueRemove(TASK *T) {
     UINT32 c;
-    if (!T || !T->InRunq) {
+    if (!T || !T->InRunQueue) {
         return;
     }
     if (T->HomeCpu >= 0 && (UINT32)T->HomeCpu < HAL_MAX_CPUS) {
         c = (UINT32)T->HomeCpu;
-        SpinLockAcquire(&gRunqLock[c]);
-        if (RunqRemoveFromCpuLocked(c, T)) {
-            SpinLockRelease(&gRunqLock[c]);
+        SpinLockAcquire(&gRunQueueLock[c]);
+        if (RunQueueRemoveFromCpuLocked(c, T)) {
+            SpinLockRelease(&gRunQueueLock[c]);
             return;
         }
-        SpinLockRelease(&gRunqLock[c]);
+        SpinLockRelease(&gRunQueueLock[c]);
     }
     for (c = 0; c < HAL_MAX_CPUS; c++) {
-        SpinLockAcquire(&gRunqLock[c]);
-        if (RunqRemoveFromCpuLocked(c, T)) {
-            SpinLockRelease(&gRunqLock[c]);
+        SpinLockAcquire(&gRunQueueLock[c]);
+        if (RunQueueRemoveFromCpuLocked(c, T)) {
+            SpinLockRelease(&gRunQueueLock[c]);
             return;
         }
-        SpinLockRelease(&gRunqLock[c]);
+        SpinLockRelease(&gRunQueueLock[c]);
     }
-    T->InRunq = 0;
+    T->InRunQueue = 0;
 }
 
 UINT32 PickHomeCpu(const TASK *T) {
@@ -202,9 +202,9 @@ TASK *PickNext(UINT32 Cpu) {
 
     /* 1) 本核队列（只持本核 runq 锁） */
     for (;;) {
-        SpinLockAcquire(&gRunqLock[Cpu]);
-        T = RunqDequeueLocked(Cpu);
-        SpinLockRelease(&gRunqLock[Cpu]);
+        SpinLockAcquire(&gRunQueueLock[Cpu]);
+        T = RunQueueDequeueLocked(Cpu);
+        SpinLockRelease(&gRunQueueLock[Cpu]);
         if (!T) {
             break;
         }
@@ -212,9 +212,9 @@ TASK *PickNext(UINT32 Cpu) {
             return T;
         }
         Home = PickHomeCpu(T);
-        SpinLockAcquire(&gRunqLock[Home]);
-        RunqEnqueueLocked(Home, T);
-        SpinLockRelease(&gRunqLock[Home]);
+        SpinLockAcquire(&gRunQueueLock[Home]);
+        RunQueueEnqueueLocked(Home, T);
+        SpinLockRelease(&gRunQueueLock[Home]);
     }
 
     /* 2) 从其它核偷（一次只持一把 victim 锁） */
@@ -227,9 +227,9 @@ TASK *PickNext(UINT32 Cpu) {
     }
     for (v = 1; v < Cpus; v++) {
         UINT32 Vic = (Cpu + (UINT32)v) % (UINT32)Cpus;
-        SpinLockAcquire(&gRunqLock[Vic]);
-        T = RunqStealOneLocked(Vic);
-        SpinLockRelease(&gRunqLock[Vic]);
+        SpinLockAcquire(&gRunQueueLock[Vic]);
+        T = RunQueueStealOneLocked(Vic);
+        SpinLockRelease(&gRunQueueLock[Vic]);
         if (!T) {
             continue;
         }
@@ -238,9 +238,9 @@ TASK *PickNext(UINT32 Cpu) {
             return T;
         }
         Home = PickHomeCpu(T);
-        SpinLockAcquire(&gRunqLock[Home]);
-        RunqEnqueueLocked(Home, T);
-        SpinLockRelease(&gRunqLock[Home]);
+        SpinLockAcquire(&gRunQueueLock[Home]);
+        RunQueueEnqueueLocked(Home, T);
+        SpinLockRelease(&gRunQueueLock[Home]);
     }
 
     if (Idle && Idle->State != TASK_UNUSED) {

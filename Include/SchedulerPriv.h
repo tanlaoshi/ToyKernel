@@ -25,9 +25,9 @@ void ActivateTask(TASK *T);
 UINT64 SchedResumeFrame(TASK *T);
 
 /* 定义在 SchedRunq.c */
-void RunqInit(void);
-void RunqEnqueue(UINT32 Cpu, TASK *T);
-void RunqRemove(TASK *T);
+void RunQueueInitialize(void);
+void RunQueueEnqueue(UINT32 Cpu, TASK *T);
+void RunQueueRemove(TASK *T);
 UINT32 PickHomeCpu(const TASK *T);
 TASK *PickNext(UINT32 Cpu);
 
