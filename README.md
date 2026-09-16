@@ -13,12 +13,11 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | **本 README** / 根 README | 项目是什么、能干什么、怎么编怎么跑 |
 | [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
 | [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
-| [`Documents/驱动框架标准化-PR拆分.md`](Documents/驱动框架标准化-PR拆分.md) | 驱动框架标准化柱（PR 拆分 + 已确认决策） |
 | [`Documents/驱动开发指南.md`](Documents/驱动开发指南.md) | 新人写驱动：5 步 + Demo + 常见错误 |
 | [`Documents/驱动匹配规范.md`](Documents/驱动匹配规范.md) | Probe 三模式；`Match` 占位（不强制改真驱动） |
-| [`Documents/应用开发指南.md`](Documents/应用开发指南.md) / [`应用开发生态规划.md`](Documents/应用开发生态规划.md) | 新人写用户态应用；生态总纲（路线图 **A 柱**） |
+| [`Documents/应用开发指南.md`](Documents/应用开发指南.md) / [`API速查.md`](Documents/API速查.md) | 新人写用户态应用 |
 | [`HAL/X64/Drivers/_template/`](HAL/X64/Drivers/_template/) | 驱动拷贝源（**不**编进 Kernel） |
-| [`Documents/Done/`](Documents/Done/) | 已完成专题笔记（拆分细则、真机手记等） |
+| [`Documents/Done/`](Documents/Done/) | 已完成专题（含应用生态规划、驱动标准化分析/拆分/设计） |
 
 `Documents/` 正文：路线图 + 技术手册 + 驱动标准化相关页 + 应用开发指南；归档见 `Done/`。课堂讲义见 [`教学内容/`](../教学内容/)。
 

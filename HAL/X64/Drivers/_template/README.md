@@ -59,5 +59,5 @@
 
 - 简单参考：`HAL/X64/Drivers/InputPs2.c`
 - 复杂参考：`HAL/X64/Drivers/InputXhci.c`（含中断）
-- 设计：`Documents/驱动模板设计.md`
+- 设计：`Documents/Done/驱动模板设计.md`
 - 完整指南（PR-D-tpl-3）：`Documents/驱动开发指南.md`
