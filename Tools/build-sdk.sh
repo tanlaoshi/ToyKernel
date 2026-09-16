@@ -9,13 +9,14 @@ SRC_INC=User/include
 SRC_LD=User/user.ld
 TPL=Tools/Sdk
 
-echo "ToySdk: building CRT / libtoyos / libToy*"
+echo "ToySdk: building CRT / libtoyos / libToy* / libFsUtil"
 make ARCH=x86_64 \
 	User/crt/crt0.o User/crt/syscall.o \
 	User/Library/ToyOs/libtoyos.a \
 	User/Library/ToyUi/libToyUi.a \
 	User/Library/ToyGfx/libToyGfx.a \
-	User/Library/ToyNet/libToyNet.a
+	User/Library/ToyNet/libToyNet.a \
+	User/Library/FsUtil/libFsUtil.a
 
 rm -rf "$DEST"
 mkdir -p "$DEST/include" "$DEST/Library" "$DEST/Documents" "$DEST/Examples"
@@ -26,6 +27,7 @@ cp -a User/Library/ToyOs/libtoyos.a \
 	User/Library/ToyUi/libToyUi.a \
 	User/Library/ToyGfx/libToyGfx.a \
 	User/Library/ToyNet/libToyNet.a \
+	User/Library/FsUtil/libFsUtil.a \
 	User/crt/crt0.o \
 	User/crt/syscall.o \
 	"$DEST/Library/"

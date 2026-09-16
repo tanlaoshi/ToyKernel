@@ -17,5 +17,6 @@ for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 | `Gui/` | `MYGUI.ELF` | Ui + Gfx | 标签/按钮 + 复选框/列表/输入框 |
 | `Blit/` | `BLIT.ELF` | Ui + Gfx | `ToyGfxDamageRect` + 点/线/矩形 |
 | `Net/` | `MYNET.ELF` | ToyNet | `ToySockAddrIn` + `ToyNetResolve`；先 `lwip on`；`nc -l -p 8888` |
+| `Fs/` | `FSUTIL.ELF` | FsUtil | `FsUtilJoin` / `ListDir` / `TOYOS:` |
 
 `make deploy` 复制到兄弟仓 `ToyImage/rootfs/`（可设 `TOYIMAGE=`）。课堂树内模板仍是 `User/Pkg/`。

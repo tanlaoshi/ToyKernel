@@ -16,10 +16,10 @@ for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 ```
 ToySdk/
 ├── include/               应用可见头（与 User/include 同步；Unix CRT 名保持小写）
-├── Library/               libtoyos.a、libToyUi.a、libToyGfx.a、libToyNet.a、crt0.o、syscall.o
+├── Library/               libtoyos.a、libToyUi.a、libToyGfx.a、libToyNet.a、libFsUtil.a、crt0.o、syscall.o
 ├── user.ld                x86 用户 ELF @ 0x40000000
 ├── Documents/             应用开发指南.md
-├── Examples/              Hello File Dir Pipe Fork Gui Blit Net
+├── Examples/              Hello File Dir Pipe Fork Gui Blit Net Fs
 └── ToySdk.mk              应用 include 本文件
 ```
 
@@ -41,6 +41,7 @@ PROG   ?= MYAPP
 SRCS   ?= main.c
 # GUI：EXTRA_LIBS = $(TOYSDK)/Library/libToyUi.a $(TOYSDK)/Library/libToyGfx.a
 # 网络：EXTRA_LIBS = $(TOYSDK)/Library/libToyNet.a
+# 路径：EXTRA_LIBS = $(TOYSDK)/Library/libFsUtil.a
 include $(TOYSDK)/ToySdk.mk
 ```
 

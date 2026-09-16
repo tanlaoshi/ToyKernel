@@ -270,9 +270,11 @@ USER_NETLIB_OBJ = User/netlibdemo.o
 USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
 USER_LIB_TOY_UI_OBJ = User/Library/ToyUi/ToyUi.o
 USER_LIB_TOY_NET_OBJ = User/Library/ToyNet/ToyNet.o
+USER_LIB_FSUTIL_OBJ = User/Library/FsUtil/FsUtil.o
 USER_LIB_TOY_GFX_A = User/Library/ToyGfx/libToyGfx.a
 USER_LIB_TOY_UI_A = User/Library/ToyUi/libToyUi.a
 USER_LIB_TOY_NET_A = User/Library/ToyNet/libToyNet.a
+USER_LIB_FSUTIL_A = User/Library/FsUtil/libFsUtil.a
 USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
 USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 	User/crt/errno.o User/crt/unistd.o User/crt/stdlib.o User/crt/signal.o \
@@ -364,7 +366,7 @@ all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_MMAPDEMO_ELF) $(USER_KILLDEMO_ELF) \
 	$(USER_SIGDEMO_ELF) \
 	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_BLITDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_DIRDEMO_ELF) \
-	$(USER_NETLIB_ELF) $(USER_LIB_TOYOS_A) $(USER_LIB_TOY_NET_A)
+	$(USER_NETLIB_ELF) $(USER_LIB_TOYOS_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_FSUTIL_A)
 endif
 else
 ifneq ($(BRINGUP),1)
@@ -551,6 +553,14 @@ $(USER_LIB_TOY_NET_A): $(USER_LIB_TOY_NET_OBJ)
 	mkdir -p $(dir $@)
 	ar rcs $@ $(USER_LIB_TOY_NET_OBJ)
 
+$(USER_LIB_FSUTIL_OBJ): User/Library/FsUtil/FsUtil.c User/include/FsUtil.h \
+		User/include/dirent.h User/include/errno.h
+	$(CC) $(USER_CFLAGS) -c User/Library/FsUtil/FsUtil.c -o $@
+
+$(USER_LIB_FSUTIL_A): $(USER_LIB_FSUTIL_OBJ)
+	mkdir -p $(dir $@)
+	ar rcs $@ $(USER_LIB_FSUTIL_OBJ)
+
 # PR-L1：CRT C 部分打成 libtoyos.a，供 User/Pkg 课外链接
 $(USER_LIB_TOYOS_A): $(USER_LIB_TOYOS_OBJS)
 	mkdir -p $(dir $@)
@@ -725,8 +735,8 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_MMAPDEMO_OBJ) $(USER_KILLDEMO_OBJ) $(USER_SIGDEMO_OBJ)
 	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_BLITDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_DIRDEMO_OBJ)
 	rm -f $(USER_NETLIB_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_NET_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_TOYOS_A)
+	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_NET_OBJ) $(USER_LIB_FSUTIL_OBJ)
+	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_FSUTIL_A) $(USER_LIB_TOYOS_A)
 	rm -f $(USER_CRT_OBJS)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
