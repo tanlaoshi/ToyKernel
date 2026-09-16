@@ -1,10 +1,12 @@
-# ToyOS SDK 示例（PR-A-examples）
+# ToyOS SDK 示例
 
-在打包后的 SDK 里编译（不要在 `Tools/Sdk/Examples` 下直接 `make`，那里没有 `Library/`）：
+在**已解压的 SDK 根**下编译（`Library/` 与 `ToySdk.mk` 在上两级）。  
+不要在仓库的 `Tools/Sdk/Examples/` 下直接 `make`。
 
 ```bash
-cd ToyKernel && ./Tools/build-sdk.sh
-for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
+# 已有 ToySdk/ 时（任意路径）
+make -C /path/to/ToySdk/Examples/Hello
+# → Examples/Hello/Build/MYAPP.ELF
 ```
 
 | 目录 | 产物（FAT 8.3） | 库 | Guest |
@@ -19,4 +21,4 @@ for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
 | `Net/` | `MYNET.ELF` | ToyNet | `ToySockAddrIn` + `ToyNetResolve`；先 `lwip on`；`nc -l -p 8888` |
 | `Fs/` | `FSUTIL.ELF` | FsUtil | `FsUtilJoin` / `ListDir` / `TOYOS:` |
 
-`make deploy` 复制到兄弟仓 `ToyImage/rootfs/`（可设 `TOYIMAGE=`）。课堂树内模板仍是 `User/Pkg/`。
+`make deploy` 复制到 ToyImage 的 `rootfs/`。SDK 不在仓库 `Dist/ToySdk` 时请设 `TOYIMAGE=`。课堂树内模板仍是 `User/Pkg/`。

@@ -1,42 +1,52 @@
-# ToyOS SDK（PR-A-sdk-pack / PR-A-examples）
+# ToyOS SDK
 
-给**应用开发者**的静态 SDK：头文件 + `libtoyos.a` / libToy* + 链接脚本 + `ToySdk.mk` + 示例。  
-不需要把内核编进应用；宿主只需 gcc / ld / make。
+静态应用 SDK：头文件 + `libtoyos.a` / libToy* + `user.ld` + `ToySdk.mk` + 示例。  
+宿主只需 **gcc / ld / make**。不必把内核树当 include 路径。
 
-由仓库根生成：
+本文件随 `./Tools/build-sdk.sh` 拷到 SDK **根目录**；链接按解压后的树写。
+
+`VERSION` 是 SDK **包**版本（与 CRT `TOYOS_CRT` 无关）。
+
+## 5 分钟：解压即可 make
+
+拿到 `ToySdk.tar.gz`（或已解压的 `ToySdk/`）后，放到**任意目录**：
 
 ```bash
-cd ToyKernel && ./Tools/build-sdk.sh
-# 输出 Dist/ToySdk/ 与 Dist/ToySdk.tar.gz（不入库）
-for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
+tar xzf ToySdk.tar.gz          # 得到 ./ToySdk/
+make -C ToySdk/Examples/Hello  # → Examples/Hello/Build/MYAPP.ELF
 ```
 
-`VERSION` 是 SDK 包版本（与 CRT `TOYOS_CRT` 无关）。`Documents/` 含指南与 [`API速查.md`](../../Documents/API速查.md)。
+入口应在 `0x40000000`。其余示例：`File` `Dir` `Pipe` `Fork` `Gui` `Blit` `Net` `Fs`（见 [`Examples/README.md`](Examples/README.md)）。
+
+进 Guest：把 ELF 拷到 ToyImage 的 `rootfs/`（FAT 8.3，文件名大写），或：
+
+```bash
+make -C ToySdk/Examples/Hello deploy TOYIMAGE=/path/to/ToyImage
+# ToyImage 侧：./run-split.sh
+# Guest 串口：exec MYAPP.ELF
+```
+
+`make deploy` 在 SDK 不在 `ToyKernel/Dist/ToySdk` 时**必须**设 `TOYIMAGE=`（默认兄弟仓推算会错）。
+
+不要在仓库的 `Tools/Sdk/Examples/` 下直接 `make`（那里没有 `Library/`）。
 
 ## 目录
 
 ```
 ToySdk/
-├── include/               应用可见头（与 User/include 同步；Unix CRT 名保持小写）
+├── include/               应用可见头（Unix CRT 名保持小写）
 ├── Library/               libtoyos.a、libToyUi.a、libToyGfx.a、libToyNet.a、libFsUtil.a、crt0.o、syscall.o
 ├── user.ld                x86 用户 ELF @ 0x40000000
 ├── Documents/             应用开发指南.md、API速查.md
 ├── Examples/              Hello File Dir Pipe Fork Gui Blit Net Fs
 ├── ToySdk.mk              应用 include 本文件
-└── VERSION                SDK 包版本（如 1.0.0）
+├── VERSION                SDK 包版本（如 1.0.0）
+└── README.md              本文件
 ```
 
-示例说明：[`Examples/README.md`](Examples/README.md)。
+文档：[`Documents/应用开发指南.md`](Documents/应用开发指南.md)、[`Documents/API速查.md`](Documents/API速查.md)。
 
-## 编译示例
-
-```bash
-cd Dist/ToySdk/Examples/Hello
-make                  # → Build/MYAPP.ELF
-make deploy           # 复制到兄弟仓 ToyImage/rootfs/（可设 TOYIMAGE=）
-```
-
-自己的应用：
+## 自己的应用
 
 ```makefile
 TOYSDK ?= /path/to/ToySdk
@@ -48,4 +58,13 @@ SRCS   ?= main.c
 include $(TOYSDK)/ToySdk.mk
 ```
 
-课堂仍可用仓库内 `User/Pkg/`（不依赖本 SDK）。说明见 [`应用开发指南.md`](../../Documents/应用开发指南.md)。
+`TOYSDK` 可省略：Makefile 与 `ToySdk.mk` 同树时，规则文件会 `abspath` 到 SDK 根。
+
+## 仓库内重新打包（维护者）
+
+```bash
+cd ToyKernel && ./Tools/build-sdk.sh
+# → Dist/ToySdk/ 与 Dist/ToySdk.tar.gz（gitignore，不入库）
+```
+
+课堂树内模板仍是 `User/Pkg/`（不依赖本 SDK）。

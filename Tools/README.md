@@ -7,10 +7,10 @@ Unix CRT 头（`include/stdio.h`）与链接脚本 `user.ld` 仍保持小写惯�
 
 ```bash
 ./Tools/build-sdk.sh          # → Dist/ToySdk/ + Dist/ToySdk.tar.gz（gitignored）
-for d in Dist/ToySdk/Examples/*/; do make -C "$d"; done
+# 应用侧也可：tar xzf Dist/ToySdk.tar.gz -C /tmp && make -C /tmp/ToySdk/Examples/Hello
 ```
 
-模板与说明：[`Sdk/README.md`](Sdk/README.md)。上手：[`应用开发指南.md`](../Documents/应用开发指南.md)。
+打包进 SDK 的说明按「解压到任意目录」写：[`Sdk/README.md`](Sdk/README.md)。上手：[`应用开发指南.md`](../Documents/应用开发指南.md)。
 
 ---
 
