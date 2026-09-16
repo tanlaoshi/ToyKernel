@@ -543,7 +543,8 @@ $(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ)
 	ar rcs $@ $(USER_LIB_TOY_UI_OBJ)
 
 $(USER_LIB_TOY_NET_OBJ): User/Library/ToyNet/ToyNet.c User/include/ToyNet.h \
-		User/include/unistd.h User/include/errno.h User/include/toyos/syscall.h
+		User/include/unistd.h User/include/errno.h User/include/string.h \
+		User/include/toyos/syscall.h
 	$(CC) $(USER_CFLAGS) -c User/Library/ToyNet/ToyNet.c -o $@
 
 $(USER_LIB_TOY_NET_A): $(USER_LIB_TOY_NET_OBJ)

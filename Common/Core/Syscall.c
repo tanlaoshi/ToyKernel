@@ -57,7 +57,7 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     case SYS_SOCKET:
         HalFrameSetReturn(Frame, (UINT64)(long)SysSocket(
             (int)HalFrameGetArgument0(Frame), (int)HalFrameGetArgument1(Frame),
-            (int)HalFrameGetArgument2(Frame)));
+            HalFrameGetArgument2(Frame)));
         break;
     case SYS_CONNECT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysConnect(

@@ -58,7 +58,9 @@
  * 非匿名时 flags 高 16 位 = fd；offset 教学固定 0 */
 /* SYS_MUNMAP：rdi=addr rsi=len → 0；失败 -1 */
 /* SYS_DAMAGE_RECT：rdi=wid rsi=TOY_GFX_DAMAGE_RECT* → 0；失败 -1（PR-G-desk-3） */
-/* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type(SOCK_STREAM=1) rdx=protocol
+/* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type rdx=protocol
+ *   type=SOCK_STREAM(1)：rdx 忽略 → fd
+ *   type=TOY_NET_SOCK_RESOLVE(0x100)：rdx=TOY_NET_DNS_QUERY* → 0；失败 -errno
  * SYS_CONNECT：rdi=fd rsi=ip(host-order u32) rdx=port
  * SYS_BIND：rdi=fd rsi=ip(0=INADDR_ANY) rdx=port
  * SYS_LISTEN：rdi=fd rsi=backlog

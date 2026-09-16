@@ -22,7 +22,7 @@ int SysClose(int Fd);
 int SysFileStat(UINT64 UserPath, UINT64 UserOut);
 int SysOpenDirectory(UINT64 UserPath);
 int SysReadDirectory(int Fd, UINT64 UserOut);
-int SysSocket(int Domain, int Type, int Protocol);
+int SysSocket(int Domain, int Type, UINT64 Protocol);
 int SysConnect(int Fd, UINT32 Ip, UINT16 Port);
 int SysBind(int Fd, UINT32 Ip, UINT16 Port);
 int SysListen(int Fd, int Backlog);
