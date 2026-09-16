@@ -27,6 +27,31 @@ int main(void) {
         printf("libcdemo: FAIL strcmp\n");
         return 1;
     }
+    if (!strstr(buf, "113") || strchr(buf, '=') == 0) {
+        printf("libcdemo: FAIL strstr\n");
+        return 1;
+    }
+    {
+        char *dup = strdup("ab");
+        int *p;
+        if (!dup || strcmp(dup, "ab") != 0) {
+            printf("libcdemo: FAIL strdup\n");
+            return 1;
+        }
+        p = (int *)calloc(4, sizeof(int));
+        if (!p || p[0] != 0 || p[3] != 0) {
+            printf("libcdemo: FAIL calloc\n");
+            return 1;
+        }
+        p[0] = 7;
+        p = (int *)realloc(p, 8 * sizeof(int));
+        if (!p || p[0] != 7) {
+            printf("libcdemo: FAIL realloc\n");
+            return 1;
+        }
+        free(dup);
+        free(p);
+    }
 
     prev = signal(SIGTERM, SIG_IGN);
     if (prev == SIG_ERR) {

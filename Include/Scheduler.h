@@ -111,6 +111,7 @@ int SchedulerFdAccept(TASK *T, int Fd);
 int SchedulerFdConnect(TASK *T, int Fd, UINT32 Ip, UINT16 Port);
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len);
 int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len);
+INT64 SchedulerFdSeek(TASK *T, int Fd, INT64 Offset, int Whence);
 int SchedulerFdClose(TASK *T, int Fd);
 /* PR-P2：pipefd[0]=读端 pipefd[1]=写端；dup 复制槽位 */
 int SchedulerFdPipe(TASK *T, int PipeFd[2]);

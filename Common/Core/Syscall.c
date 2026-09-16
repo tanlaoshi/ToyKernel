@@ -45,6 +45,12 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     case SYS_CLOSE:
         HalFrameSetReturn(Frame, (UINT64)(long)SysClose((int)HalFrameGetArgument0(Frame)));
         break;
+    case SYS_LSEEK:
+        HalFrameSetReturn(Frame, (UINT64)SysLseek(
+            (int)HalFrameGetArgument0(Frame),
+            (INT64)HalFrameGetArgument1(Frame),
+            (int)HalFrameGetArgument2(Frame)));
+        break;
     case SYS_FORK:
         Ret = SchedulerFork(Frame);
         break;

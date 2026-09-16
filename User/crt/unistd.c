@@ -70,6 +70,22 @@ int close(int fd) {
     return 0;
 }
 
+off_t lseek(int fd, off_t offset, int whence) {
+    long r;
+
+    if (fd < 0 || (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END)) {
+        errno = EINVAL;
+        return (off_t)-1;
+    }
+    r = toy_lseek(fd, (long)offset, (long)whence);
+    if (r < 0) {
+        int E = (int)(-r);
+        errno = (E >= 1 && E < 256) ? E : EINVAL;
+        return (off_t)-1;
+    }
+    return (off_t)r;
+}
+
 int execve(const char *path, char *const argv[], char *const envp[]) {
     long r;
 

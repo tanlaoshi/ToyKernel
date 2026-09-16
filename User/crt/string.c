@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 
 size_t strlen(const char *s) {
     size_t n = 0;
@@ -72,6 +73,77 @@ char *strncpy(char *dst, const char *src, size_t n) {
         dst[i] = 0;
     }
     return dst;
+}
+
+char *strcat(char *dst, const char *src) {
+    char *D;
+
+    if (!dst) {
+        return dst;
+    }
+    D = dst;
+    while (*D) {
+        D++;
+    }
+    if (!src) {
+        *D = 0;
+        return dst;
+    }
+    while ((*D++ = *src++) != 0) {
+    }
+    return dst;
+}
+
+char *strdup(const char *s) {
+    size_t N;
+    char *D;
+
+    if (!s) {
+        return 0;
+    }
+    N = strlen(s) + 1;
+    D = (char *)malloc(N);
+    if (!D) {
+        return 0;
+    }
+    memcpy(D, s, N);
+    return D;
+}
+
+char *strchr(const char *s, int c) {
+    unsigned char Ch = (unsigned char)c;
+
+    if (!s) {
+        return 0;
+    }
+    for (;;) {
+        if ((unsigned char)*s == Ch) {
+            return (char *)s;
+        }
+        if (*s == 0) {
+            return 0;
+        }
+        s++;
+    }
+}
+
+char *strstr(const char *haystack, const char *needle) {
+    size_t Nlen;
+    size_t i;
+
+    if (!haystack) {
+        return 0;
+    }
+    if (!needle || !needle[0]) {
+        return (char *)haystack;
+    }
+    Nlen = strlen(needle);
+    for (i = 0; haystack[i]; i++) {
+        if (strncmp(haystack + i, needle, Nlen) == 0) {
+            return (char *)(haystack + i);
+        }
+    }
+    return 0;
 }
 
 void *memcpy(void *dst, const void *src, size_t n) {

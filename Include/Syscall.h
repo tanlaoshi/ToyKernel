@@ -33,6 +33,7 @@
 #define SYS_MUNMAP         26
 #define SYS_SIGNAL         27 /* PR-U-sig：注册 handler */
 #define SYS_DAMAGE_RECT    28 /* PR-G-desk-3：用户窗像素矩形 blit */
+#define SYS_LSEEK          29 /* PR-A-libc：rdi=fd rsi=off rdx=whence → 新偏移；失败 -errno */
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1
@@ -58,6 +59,7 @@
  * 非匿名时 flags 高 16 位 = fd；offset 教学固定 0 */
 /* SYS_MUNMAP：rdi=addr rsi=len → 0；失败 -1 */
 /* SYS_DAMAGE_RECT：rdi=wid rsi=TOY_GFX_DAMAGE_RECT* → 0；失败 -1（PR-G-desk-3） */
+/* SYS_LSEEK：rdi=fd rsi=signed off rdx=whence(0=SET/1=CUR/2=END) → 新 Pos；管道/套接字 -ESPIPE */
 /* SYS_SOCKET：rdi=domain(AF_INET=2) rsi=type rdx=protocol
  *   type=SOCK_STREAM(1)：rdx 忽略 → fd
  *   type=TOY_NET_SOCK_RESOLVE(0x100)：rdx=TOY_NET_DNS_QUERY* → 0；失败 -errno

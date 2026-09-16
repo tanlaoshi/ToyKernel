@@ -19,6 +19,7 @@ int SysWrite(int Fd, UINT64 UserBuf, UINTN Len);
 int SysOpen(UINT64 UserPath);
 int SysRead(int Fd, UINT64 UserBuf, UINTN Len);
 int SysClose(int Fd);
+INT64 SysLseek(int Fd, INT64 Offset, int Whence);
 int SysFileStat(UINT64 UserPath, UINT64 UserOut);
 int SysOpenDirectory(UINT64 UserPath);
 int SysReadDirectory(int Fd, UINT64 UserOut);

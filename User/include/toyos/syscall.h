@@ -37,6 +37,7 @@
 #define SYS_MUNMAP        26
 #define SYS_SIGNAL        27
 #define SYS_DAMAGE_RECT   28 /* PR-G-desk-3：用户窗像素矩形 blit */
+#define SYS_LSEEK         29 /* PR-A-libc：rdi=fd rsi=off rdx=whence */
 
 #define WNOHANG 1
 
@@ -64,6 +65,10 @@ static inline ssize_t toy_read(long fd, void *buf, size_t len) {
 
 static inline long toy_close(long fd) {
     return toy_syscall(SYS_CLOSE, fd, 0, 0);
+}
+
+static inline long toy_lseek(long fd, long offset, long whence) {
+    return toy_syscall(SYS_LSEEK, fd, offset, whence);
 }
 
 static inline long toy_yield(void) {

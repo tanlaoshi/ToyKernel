@@ -9,6 +9,7 @@
 #include "Socket.h"
 #include "LwIp.h"
 #include "Errno.h"
+#include "BootTypes.h"
 
 _Static_assert(sizeof(TOY_NET_DNS_QUERY) == 132, "TOY_NET_DNS_QUERY layout");
 
@@ -140,6 +141,15 @@ int SysClose(int Fd) {
         return -1;
     }
     return SchedulerFdClose(T, Fd);
+}
+
+INT64 SysLseek(int Fd, INT64 Offset, int Whence) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return SchedulerFdSeek(T, Fd, Offset, Whence);
 }
 
 /* PR-F4：用户态 FileStat / OpenDirectory / ReadDirectory */

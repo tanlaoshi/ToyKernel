@@ -7,6 +7,7 @@
 #include "PhysicalMemory.h"
 #include "LwIp.h"
 #include "Socket.h"
+#include "Errno.h"
 
 void TaskClearFds(TASK *T) {
     int i;
@@ -427,6 +428,35 @@ int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len) {
         F->Dirty = 0;
         return (int)Got;
     }
+}
+
+INT64 SchedulerFdSeek(TASK *T, int Fd, INT64 Offset, int Whence) {
+    TASK_FD *F;
+    INT64 Base;
+    INT64 Neu;
+
+    if (!T || Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used) {
+        return -(INT64)TOY_EBADF;
+    }
+    F = &T->Fds[Fd];
+    if (F->Kind != FD_KIND_FILE) {
+        return -(INT64)TOY_ESPIPE;
+    }
+    if (Whence == 0) {
+        Base = 0;
+    } else if (Whence == 1) {
+        Base = (INT64)F->Pos;
+    } else if (Whence == 2) {
+        Base = (INT64)F->Size;
+    } else {
+        return -(INT64)TOY_EINVAL;
+    }
+    Neu = Base + Offset;
+    if (Neu < 0) {
+        return -(INT64)TOY_EINVAL;
+    }
+    F->Pos = (UINTN)Neu;
+    return Neu;
 }
 
 int SchedulerFdClose(TASK *T, int Fd) {
