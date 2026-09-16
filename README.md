@@ -13,11 +13,10 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | **本 README** / 根 README | 项目是什么、能干什么、怎么编怎么跑 |
 | [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
 | [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
-| [`Documents/协作历程日志.md`](Documents/协作历程日志.md) | 人机协作复盘（可选读） |
-| [`Documents/home-xhci-handoff.md`](Documents/home-xhci-handoff.md) | 真机 xHCI 家↔公司交接（给 Cursor） |
-| [`Documents/real-pc-usb-pr-split.md`](Documents/real-pc-usb-pr-split.md) | Real-PC USB 小 PR 切分（原 Cursor plan 入库） |
+| [`Documents/驱动框架标准化-PR拆分.md`](Documents/驱动框架标准化-PR拆分.md) | 驱动框架标准化柱（PR 拆分 + 已确认决策） |
+| [`Documents/Done/`](Documents/Done/) | 已完成专题笔记（拆分细则、真机手记等） |
 
-`Documents/` 正文以上表为准；课堂讲义见 [`教学内容/`](../教学内容/)。
+`Documents/` 正文：路线图 + 技术手册 + 驱动标准化相关页；归档见 `Done/`。课堂讲义见 [`教学内容/`](../教学内容/)。
 
 协作暗号（详见路线图）：**JX** = 下一刀；**TG** = 通过，只 commit；**TS** = push；**TB** = 拉同步。真机 USB 轨请先读 handoff。
 

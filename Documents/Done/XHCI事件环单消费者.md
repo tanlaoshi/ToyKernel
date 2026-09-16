@@ -1,7 +1,7 @@
 # 任务：xHCI 事件环单消费者（PR-H-xhci-evt-excl）
 
 > **规格性质**：改语义（竞态修复），**不是**大文件搬家。  
-> **排期**：见 [`路线图.md`](路线图.md) 文首 ★。  
+> **排期**：见 [`路线图.md`](../路线图.md) 文首 ★。  
 > **动机**：MSC claim 前 `XhciFallbackToPoll("msc-claim")`——dual 下 Drain/IRQ 与 `WaitCommand` 抢事件环，EnableSlot 完成丢失 → `cmd sick`。目标是严格单消费者后**去掉该让步**。
 
 ---

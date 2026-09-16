@@ -147,7 +147,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H-xhci-evt-excl：事件环单消费者（✅ 1…4）
 
-- 细则：[`../../Documents/XHCI事件环单消费者.md`](../../Documents/XHCI事件环单消费者.md)
+- 细则：[`../../Documents/Done/XHCI事件环单消费者.md`](../../Documents/Done/XHCI事件环单消费者.md)
 - **excl-1** ✅ TG `7c28c51`：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
 - **excl-2** ✅ TG `e982dd6`：`gEvtConsumerLock` + ProcessEventsLocked；Irq/Drain 与 HID 锁分离
 - **excl-3** ✅ TG `c26117c`：删 `fallback msc-claim`；真机永留 dual；irq-stall 认 `gStatEvtRing` 前进
@@ -163,7 +163,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 **冒烟勾选表**（上电→Boot→桌面/串口；xHCI/盘/网；交作业用一页总表）：
 
-→ [`../../Documents/真机冒烟清单.md`](../../Documents/真机冒烟清单.md)（**PR-PC-smoke**）
+→ [`../../Documents/Done/真机冒烟清单.md`](../../Documents/Done/真机冒烟清单.md)（**PR-PC-smoke**）
 
 ---
 
