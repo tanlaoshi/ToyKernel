@@ -12,7 +12,7 @@
 
 
 COMMAND gCommands[CMD_MAX];
-int gCmdCount;
+int gCommandCount;
 COMMAND_ALIAS gAliases[ALIAS_MAX];
 int gAliasCount;
 USER_ALIAS gUserAliases[USER_ALIAS_MAX];
@@ -89,7 +89,7 @@ static void CommandHelp(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
     ConsoleWrite("commands:\n");
-    for (i = 0; i < gCmdCount; i++) {
+    for (i = 0; i < gCommandCount; i++) {
         ConsoleWrite("  ");
         ConsoleWrite(gCommands[i].Name);
         if (gCommands[i].SubCount > 0) {
@@ -138,7 +138,7 @@ static void CommandEcho(int Argc, char **Argv) {
 static int FindCommandIndex(const char *Name) {
     int i;
 
-    for (i = 0; i < gCmdCount; i++) {
+    for (i = 0; i < gCommandCount; i++) {
         if (StrEq(gCommands[i].Name, Name)) {
             return i;
         }
@@ -176,17 +176,17 @@ void ConsoleRegister(const char *Name, const char *Help,
         gCommands[Idx].Handler = Handler;
         return;
     }
-    if (gCmdCount >= CMD_MAX) {
+    if (gCommandCount >= CMD_MAX) {
         HalConsoleWriteSerial("console: CMD_MAX full, drop ");
         HalConsoleWriteSerial(Name);
         HalConsoleWriteSerial("\n");
         return;
     }
-    gCommands[gCmdCount].Name = Name;
-    gCommands[gCmdCount].Help = Help ? Help : "";
-    gCommands[gCmdCount].Handler = Handler;
-    gCommands[gCmdCount].SubCount = 0;
-    gCmdCount++;
+    gCommands[gCommandCount].Name = Name;
+    gCommands[gCommandCount].Help = Help ? Help : "";
+    gCommands[gCommandCount].Handler = Handler;
+    gCommands[gCommandCount].SubCount = 0;
+    gCommandCount++;
 }
 
 /* 注册一级+二级；同一一级可多次调用追加二级 */
@@ -200,18 +200,18 @@ void ConsoleRegister2(const char *Level1, const char *Level2, const char *Help,
     }
     Idx = FindCommandIndex(Level1);
     if (Idx < 0) {
-        if (gCmdCount >= CMD_MAX) {
+        if (gCommandCount >= CMD_MAX) {
             HalConsoleWriteSerial("console: CMD_MAX full, drop ");
             HalConsoleWriteSerial(Level1);
             HalConsoleWriteSerial("\n");
             return;
         }
-        Idx = gCmdCount;
+        Idx = gCommandCount;
         gCommands[Idx].Name = Level1;
         gCommands[Idx].Help = "";
         gCommands[Idx].Handler = 0;
         gCommands[Idx].SubCount = 0;
-        gCmdCount++;
+        gCommandCount++;
     }
     /* 可保留已有 L1 Handler 作默认（如 list 列目录 + list tasks） */
 
