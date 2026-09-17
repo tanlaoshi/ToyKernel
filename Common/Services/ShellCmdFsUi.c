@@ -10,6 +10,7 @@
 #include "Font.h"
 #include "Theme.h"
 #include "Store.h"
+#include "Desktop.h"
 #include "Fat.h"
 #include "Hal.h"
 
@@ -281,6 +282,7 @@ static void CommandStore(int Argc, char **Argv) {
                 ConsoleWrite("hint: exec Apps/<ELF> — HELLO prints one line then exits (正常)\n");
             }
         }
+        DesktopNotifyAppsChanged();
         return;
     }
 
@@ -331,6 +333,7 @@ static void CommandStore(int Argc, char **Argv) {
         ConsoleWrite("store: removed ");
         ConsoleWrite(Argv[2]);
         ConsoleWrite("\n");
+        DesktopNotifyAppsChanged();
         return;
     }
 
@@ -350,6 +353,7 @@ static void CommandStore(int Argc, char **Argv) {
         ConsoleWrite("store: combo installed ");
         ConsoleWrite(Argv[2]);
         ConsoleWrite(" (+depends)\n");
+        DesktopNotifyAppsChanged();
         return;
     }
 
@@ -368,6 +372,7 @@ static void CommandStore(int Argc, char **Argv) {
         ConsoleWrite("store: combo removed ");
         ConsoleWrite(Argv[2]);
         ConsoleWrite("\n");
+        DesktopNotifyAppsChanged();
         return;
     }
 

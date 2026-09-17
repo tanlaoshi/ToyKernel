@@ -117,7 +117,7 @@ void HalVideoEnableFbWc(void) {
 
 /*
  * 填一行无 '\\n'：Boot: FB-PTE phys=… PWT= PCD= PAT= [2M] cache=…
- * PHOTO 直绘用，避免只靠 ring 尾（USB 日志易挤掉）。
+ * boot 日志用；避免只靠 ring 尾（USB 日志易挤掉）。
  */
 int HalVideoFbPteLine(char *Buf, UINTN Max) {
     UINT64 Phys;

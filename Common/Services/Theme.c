@@ -318,10 +318,10 @@ void ThemeApply(void) {
     (void)ThemeSave();
 }
 
-/* FontReloadAssets 后：偏好 id 越界则钳到当前合法字体 */
+/* FontReloadAssets 后：偏好 id 失效则改选紧凑字体（Sun 8x16 / 10x18），勿掉到 16×32 */
 void ThemeClampFontId(void) {
-    if (gFontId >= FontCount()) {
-        gFontId = FontCurrentId() < FontCount() ? FontCurrentId() : 0;
+    if (gFontId >= FontCount() || FontSetById(gFontId) != 0) {
+        gFontId = ThemeCompactFontId();
         (void)FontSetById(gFontId);
     }
 }

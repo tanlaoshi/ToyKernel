@@ -19,6 +19,7 @@ UINT32 UsbMscBlockCount(void);
 UINT32 UsbMscBlockSize(void);
 int UsbMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 int UsbMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
+int UsbMscFlush(void);
 int UsbMscMount(void);
 
 /* PR-H-msc-7b：Live 默认 1；UsbMscAutoSet(0) / 卷上 MSC.OFF|THEME msc=0 */

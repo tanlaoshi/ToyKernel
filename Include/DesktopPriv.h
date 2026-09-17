@@ -40,10 +40,10 @@
 #define MENU_W                200u
 #define MENU_ITEM_H           28u
 #define MENU_ICON_SZ          18u
-#define MENU_FIXED_TOP        4
+#define MENU_FIXED_TOP        5 /* Shell/Settings/Files/Store/Apps */
 #define MENU_FIXED_BOT        2
 #define MENU_APP_MAX          16
-#define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_APP_MAX + MENU_FIXED_BOT)
+#define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_FIXED_BOT)
 #define MENU_LABEL_MAX        40
 #define MENU_PATH_MAX         80
 #define WALL_FILE_MAX         (512u * 1024u)
@@ -72,6 +72,9 @@ typedef struct {
 /* ===== 全局变量 extern（定义在 Desktop.c） ===== */
 extern MENU_ROW gMenuRows[MENU_ROWS_MAX];
 extern int gMenuCount;
+extern MENU_ROW gMenuAppRows[MENU_APP_MAX];
+extern int gMenuAppCount;
+extern int gMenuAppsOpen;
 extern FAT_DIRECTORY_ENTRY gMenuDirScratch[FAT_LIST_MAX];
 extern STORE_INSTALLED gMenuInstScratch[STORE_INSTALLED_MAX];
 
@@ -132,6 +135,7 @@ void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now);
 
 void MenuCopyStr(char *Dst, int Max, const char *Src);
 void RebuildStartMenu(void);
+void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh);
 
 void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color);
 void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color);

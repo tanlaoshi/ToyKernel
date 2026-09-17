@@ -16,8 +16,12 @@ typedef enum {
     DESKTOP_ACTION_STORE,
     DESKTOP_ACTION_SHUTDOWN,
     DESKTOP_ACTION_REBOOT,
-    DESKTOP_ACTION_EXEC /* PR-G-desk-2：跑 Apps/ 下 .ELF；路径见 OutExecPath */
+    DESKTOP_ACTION_EXEC, /* PR-G-desk-2：跑 Apps/ 下 .ELF；路径见 OutExecPath */
+    DESKTOP_ACTION_APPS  /* 开始菜单 Apps 一级；二级 flyout 列已装 ELF */
 } DESKTOP_ACTION;
+
+/* Store 装卸后：若开始菜单开着则重建（含 Apps 二级） */
+void DesktopNotifyAppsChanged(void);
 
 void DesktopInit(void);
 /* PR-G-hotres：分辨率热切后重建壁纸缓存/图标坐标，不重读 FAT（避免长循环重入） */
@@ -27,6 +31,12 @@ void DesktopSetPointOccupied(int (*Fn)(UINT32 X, UINT32 Y));
 void DesktopSetRequestRefresh(void (*Fn)(void));
 /* 在桌面背景上画图标+任务栏（GuiRedraw / 关窗露底后调用） */
 void DesktopDraw(void);
+/* 开始菜单弹出层（开着时叠画在窗上；点菜单外则收起，再按窗聚焦） */
+void DesktopDrawStartMenu(void);
+int DesktopStartMenuIsOpen(void);
+void DesktopDismissStartMenu(void);
+/* 点在任务栏条带上时优先于窗（开始钮）；菜单开时由 Gui 先走 DesktopHandleClick */
+int DesktopClickOnTaskbar(UINT32 X, UINT32 Y);
 /* 仅重绘与矩形相交的图标/任务栏（关窗擦除区域） */
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /* PR-G13：壁纸或 ThemeDesktopBackground 填矩形 */

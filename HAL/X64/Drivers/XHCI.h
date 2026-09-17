@@ -113,5 +113,6 @@ UINT32 XhciMscBlockSize(void);
 /* PR-H-msc-6：BOT READ(10)/WRITE(10)；成功 1 / 失败 0（同 Block） */
 int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 int XhciMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
+int XhciMscFlush(void);
 
 #endif

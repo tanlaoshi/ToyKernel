@@ -2,6 +2,7 @@
  * FileSystem.c — Block + GPT + VFS（PR-FS2 多卷；PR-F1 经 FsOps）
  */
 #include "FileSystem.h"
+#include "Store.h"
 #include "ShellCommands.h"
 #include "Block.h"
 #include "Gpt.h"
@@ -263,7 +264,12 @@ int FileSystemWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UI
 
 int FileSystemDeleteFile(const char *Path) {
     const char *Rel;
-    int Err = FileSystemPreparePath(Path, &Rel, 1);
+    int Err;
+
+    if (!StorePayloadBypassActive() && StoreIsManagedPayload(Path)) {
+        return FAT_ERR_STORE;
+    }
+    Err = FileSystemPreparePath(Path, &Rel, 1);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -297,6 +303,10 @@ int FileSystemRename(const char *OldPath, const char *NewPath) {
 
     if (!OldPath || !NewPath) {
         return FAT_ERR_INVAL;
+    }
+    if (!StorePayloadBypassActive() &&
+        (StoreIsManagedPayload(OldPath) || StoreIsManagedPayload(NewPath))) {
+        return FAT_ERR_STORE;
     }
     Err = FileSystemResolve(OldPath, &OldVol, &OldRel);
     if (Err != FAT_OK) {

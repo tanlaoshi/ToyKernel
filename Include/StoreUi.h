@@ -18,5 +18,7 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons);
 /* 鼠标轮询末尾：执行已排队的 Install/Remove/Sync（勿在 OnPointer 里同步 IO） */
 void StoreUiPump(void);
 int StoreUiIsFocused(void);
+/* Install/Remove/Sync 进行中：跳过悬停重绘，只让光标跟着走 */
+int StoreUiIsBusy(void);
 
 #endif

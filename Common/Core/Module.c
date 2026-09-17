@@ -31,8 +31,8 @@ int ModulesRun(const MODULE *List, int Count) {
             return -1;
         }
         /*
-         * 真机 poll-USB：usb/PHOTO 之后 gui/console 初始化期间若无人 Drain，
-         * 中断 IN 完成会塞满事件环 → 桌面后键鼠假死（PHOTO 时 k= 仍涨）。
+         * 真机 poll-USB：usb 之后 gui/console 初始化期间若无人 Drain，
+         * 中断 IN 完成会塞满事件环 → 桌面后键鼠假死。
          */
         if (!HalCpuIsHypervisor()) {
             HalInputPoll();

@@ -30,11 +30,16 @@ static int MscWrite(UINT32 Drive, UINT32 Lba, UINT32 Count, const void *Buffer) 
     return UsbMscWriteSectors(Lba, Count, Buffer);
 }
 
+static int MscFlush(UINT32 Drive) {
+    (void)Drive;
+    return UsbMscFlush();
+}
+
 static const BLOCK_BACKEND gMscBackend = {
     .Probe = MscProbe,
     .ReadSectors = MscRead,
     .WriteSectors = MscWrite,
-    .Flush = 0,
+    .Flush = MscFlush,
 };
 
 void BlockMscInstall(void) {

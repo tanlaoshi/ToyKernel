@@ -201,7 +201,9 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
         /* PR-GUI-l3：与 Files 同挂 GuiPointerMove（GuiPollMouse / GuiOnMouse 共用） */
         SettingsUiOnPointer(X, Y, gCursorBtn);
     } else if (GuiFocusKind() == GUI_WIN_STORE) {
-        StoreUiOnPointer(X, Y, gCursorBtn);
+        if (!StoreUiIsBusy()) {
+            StoreUiOnPointer(X, Y, gCursorBtn);
+        }
     }
 }
 

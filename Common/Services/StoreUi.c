@@ -5,6 +5,7 @@
  */
 #include "StoreUi.h"
 #include "Store.h"
+#include "Desktop.h"
 #include "Gui.h"
 #include "GuiPriv.h"
 #include "HalVideo.h"
@@ -595,7 +596,10 @@ void StoreUiPump(void) {
         Err = StoreSyncCatalog();
         SetStatus(Err == 0 ? "sync ok" : "sync fail (need repo)");
     }
+    GuiPollMouseMotion();
     Reload();
+    GuiPollMouseMotion();
+    DesktopNotifyAppsChanged();
     if (StoreUiIsFocused()) {
         StoreUiRepaint();
     }
@@ -666,6 +670,10 @@ void StoreUiOnClick(UINT32 X, UINT32 Y) {
     }
 }
 
+int StoreUiIsBusy(void) {
+    return (gJobBusy || gJobPending != 0) ? 1 : 0;
+}
+
 void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
     UINT32 Cx, Cy, Cw, Ch, Bg;
     int Side = -1;
@@ -678,6 +686,12 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
     UINT32 Bx;
     int i;
     static UINT8 sPrevBtn;
+
+    /* 装卸中只挪光标（CursorMove 已做）；禁止整窗重绘抢 Present */
+    if (gJobBusy) {
+        sPrevBtn = Buttons;
+        return;
+    }
 
     if (!StoreUiIsFocused()) {
         if (gHoverSide >= 0 || gHoverRow >= 0 || gHoverBtn >= 0 || gPressBtn >= 0) {

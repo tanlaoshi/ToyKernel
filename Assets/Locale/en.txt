@@ -11,6 +11,7 @@ MSG_ICON_SHELL=Shell
 MSG_ICON_SETTINGS=Settings
 MSG_ICON_FILES=Files
 MSG_ICON_STORE=Store
+MSG_ICON_APPS=Apps
 MSG_ICON_SHUTDOWN=Shutdown
 MSG_ICON_REBOOT=Reboot
 MSG_START=Start
@@ -38,6 +39,7 @@ MSG_FILES_RENAME=Rename to
 MSG_FILES_PROMPT_HINT=Enter=ok  Esc=cancel  Backspace
 MSG_FILES_EMPTY=This folder is empty
 MSG_FILES_EMPTY_HINT=n = mkdir    f = new file
+MSG_FILES_STORE_MANAGED=Store app — remove in Store
 MSG_CON_WELCOME=ToyOS console. Type help.
 MSG_CON_READY=ToyOS ready. Type shell / settings, or any key to open Shell.
 MSG_LANG_USAGE=usage: lang en|zh|reload\n

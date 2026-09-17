@@ -187,6 +187,7 @@ const char *FatStrError(int Err) {
     case FAT_ERR_NAMETOOLONG: return "name too long";
     case FAT_ERR_FILE_TOO_BIG:      return "file too large";
     case FAT_ERR_ROFS:      return "read-only";
+    case FAT_ERR_STORE:     return "cannot delete: use Store Remove";
     default:                return "error";
     }
 }

@@ -112,24 +112,72 @@ void GuiOnArrowKey(UINT8 Key) {
 }
 
 
-/* PR-I3：右键占位 — 串口记一笔；不弹菜单（菜单另刀） */
+/* PR-I3：右键占位 — 仅串口记一笔；不弹菜单、不派发点击（菜单另刀） */
 void GuiRightClickPlaceholder(UINT32 X, UINT32 Y) {
+    (void)X;
+    (void)Y;
     ToyLogGui("Gui: right-click\n");
-    DebugWrite("Gui: right-click x=");
-    DebugHex32(X);
-    DebugWrite(" y=");
-    DebugHex32(Y);
-    DebugWrite("\n");
 }
 
 int GuiHandleClick(UINT32 X, UINT32 Y) {
     int i;
     int Hit;
+    DESKTOP_ACTION Act = DESKTOP_ACTION_NONE;
+    char ExecPath[96];
 
     /* 关闭钮可能被其它窗口挡住；先扫一遍所有窗口的 × 区域 */
     for (i = MAX_WINS - 1; i >= 0; i--) {
         if (gWindows[i].Active && PointInClose(&gWindows[i], X, Y)) {
             CloseWindow(i);
+            return 1;
+        }
+    }
+
+    ExecPath[0] = 0;
+    /*
+     * 开始菜单聚焦优先级：
+     * 1) 点在菜单/flyout/开始钮 → DesktopHandleClick（可点菜单项）
+     * 2) 点在菜单外且落在窗上 → HandleTaskbarClick 已收起菜单，再 fall through 聚焦置顶
+     * 3) 菜单未开时任务栏仍优先于窗（开始钮）
+     */
+    {
+        int DoDesktop = 0;
+
+        if (DesktopStartMenuIsOpen()) {
+            if (DesktopHandleClick(X, Y, &Act, ExecPath, sizeof(ExecPath))) {
+                DoDesktop = 1;
+            }
+            /* 未命中菜单：已在 HandleTaskbarClick 收起；继续下面 Raise 窗 */
+        } else if (DesktopClickOnTaskbar(X, Y) &&
+                   DesktopHandleClick(X, Y, &Act, ExecPath, sizeof(ExecPath))) {
+            DoDesktop = 1;
+        }
+        if (DoDesktop) {
+            if (DesktopIconDragActive()) {
+                GfxIrqEnter();
+                CursorRestore();
+                GfxIrqLeave();
+            }
+            if (Act == DESKTOP_ACTION_SHELL) {
+                (void)GuiOpenShell();
+            } else if (Act == DESKTOP_ACTION_SETTINGS) {
+                (void)GuiOpenSettings();
+            } else if (Act == DESKTOP_ACTION_FILES) {
+                (void)GuiOpenFiles();
+            } else if (Act == DESKTOP_ACTION_STORE) {
+                (void)GuiOpenStore();
+            } else if (Act == DESKTOP_ACTION_EXEC) {
+                if (ExecPath[0]) {
+                    DebugWrite("desktop: exec ");
+                    DebugWrite(ExecPath);
+                    DebugWrite("\n");
+                    (void)ProcessExec(ExecPath);
+                }
+            } else if (Act == DESKTOP_ACTION_SHUTDOWN) {
+                HalCpuShutdown();
+            } else if (Act == DESKTOP_ACTION_REBOOT) {
+                HalCpuReboot();
+            }
             return 1;
         }
     }

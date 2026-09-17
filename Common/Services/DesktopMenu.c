@@ -1,8 +1,7 @@
 /*
  * DesktopMenu.c — 开始菜单重建（PR-S-desktop-split-3）
  *
- * 从 Desktop.c 迁出；只搬家、不改逻辑。Menu* 辅助多数 static；
- * MenuCopyStr 非 static（DesktopHandleClick 也用）。
+ * 系统项 + Apps 一级；已装 ELF / INST 灰显进二级 flyout。
  */
 #include "DesktopPriv.h"
 
@@ -91,12 +90,12 @@ static int MenuPathExists(const char *Path) {
     return FileSystemFileStat(Path, &St) == 0;
 }
 
-static int MenuAlreadyHasPath(const char *Path) {
+static int MenuAlreadyHasAppPath(const char *Path) {
     int i;
 
-    for (i = 0; i < gMenuCount; i++) {
-        if (gMenuRows[i].Action == DESKTOP_ACTION_EXEC &&
-            MenuNameEqIgnoreCase(gMenuRows[i].Path, Path)) {
+    for (i = 0; i < gMenuAppCount; i++) {
+        if (gMenuAppRows[i].Action == DESKTOP_ACTION_EXEC &&
+            MenuNameEqIgnoreCase(gMenuAppRows[i].Path, Path)) {
             return 1;
         }
     }
@@ -109,26 +108,18 @@ static int MenuMaxAppSlots(void) {
     UINT32 BarY;
     UINT32 Room;
     int MaxRows;
-    int Apps;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
     (void)Sw;
     Room = BarY > 8u ? (BarY - 8u) : 0;
     MaxRows = (int)(Room / MENU_ITEM_H);
-    if (MaxRows < MENU_FIXED_TOP + MENU_FIXED_BOT) {
-        MaxRows = MENU_FIXED_TOP + MENU_FIXED_BOT;
+    if (MaxRows < 1) {
+        MaxRows = 1;
     }
-    if (MaxRows > MENU_ROWS_MAX) {
-        MaxRows = MENU_ROWS_MAX;
+    if (MaxRows > MENU_APP_MAX) {
+        MaxRows = MENU_APP_MAX;
     }
-    Apps = MaxRows - MENU_FIXED_TOP - MENU_FIXED_BOT;
-    if (Apps < 0) {
-        Apps = 0;
-    }
-    if (Apps > MENU_APP_MAX) {
-        Apps = MENU_APP_MAX;
-    }
-    return Apps;
+    return MaxRows;
 }
 
 static void MenuAddRow(DESKTOP_ACTION Act, const char *Label, const char *Path,
@@ -139,6 +130,21 @@ static void MenuAddRow(DESKTOP_ACTION Act, const char *Label, const char *Path,
         return;
     }
     R = &gMenuRows[gMenuCount++];
+    R->Action = Act;
+    R->Enabled = Enabled ? 1 : 0;
+    R->IconSrc = IconSrc;
+    MenuCopyStr(R->Label, sizeof(R->Label), Label ? Label : "");
+    MenuCopyStr(R->Path, sizeof(R->Path), Path ? Path : "");
+}
+
+static void MenuAddAppRow(DESKTOP_ACTION Act, const char *Label, const char *Path,
+                          int Enabled, int IconSrc) {
+    MENU_ROW *R;
+
+    if (gMenuAppCount >= MENU_APP_MAX) {
+        return;
+    }
+    R = &gMenuAppRows[gMenuAppCount++];
     R->Action = Act;
     R->Enabled = Enabled ? 1 : 0;
     R->IconSrc = IconSrc;
@@ -171,7 +177,67 @@ static void MenuEnrichLabelFromCatalog(const char *File, char *Label, int Max) {
     }
 }
 
-/* 打开开始菜单时重建：系统项 + Apps/ 下 .ELF + 缺文件的 INST(app) 灰显 */
+static void MenuBuildAppsPath(char *Path, int PathMax, const char *File) {
+    int P = 0;
+
+    MenuCopyStr(Path, PathMax, STORE_APPS_DIR);
+    while (Path[P]) {
+        P++;
+    }
+    if (P + 1 < PathMax) {
+        Path[P++] = '/';
+        Path[P] = 0;
+    }
+    MenuCopyStr(Path + P, PathMax - P, File);
+}
+
+void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
+    UINT32 Mx;
+    UINT32 My;
+    UINT32 Mw;
+    UINT32 Mh;
+    UINT32 Sw;
+    UINT32 Sh;
+    UINT32 BarY;
+    int AppsIdx = -1;
+    int i;
+    int Rows;
+
+    if (!Fx || !Fy || !Fw || !Fh) {
+        return;
+    }
+    TaskbarGeom(&BarY, &Sw, &Sh);
+    MenuGeom(&Mx, &My, &Mw, &Mh);
+    for (i = 0; i < gMenuCount; i++) {
+        if (gMenuRows[i].Action == DESKTOP_ACTION_APPS) {
+            AppsIdx = i;
+            break;
+        }
+    }
+    if (AppsIdx < 0) {
+        AppsIdx = MENU_FIXED_TOP - 1;
+    }
+    Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
+    *Fw = MENU_W;
+    if (*Fw + 8u > Sw) {
+        *Fw = Sw > 8u ? Sw - 8u : Sw;
+    }
+    *Fh = MENU_ITEM_H * (UINT32)Rows;
+    *Fx = Mx + Mw;
+    if (*Fx + *Fw > Sw && Mw + 4u < Sw) {
+        /* 右侧放不下则叠在主菜单右侧内缩 */
+        *Fx = (Sw > *Fw + 4u) ? (Sw - *Fw - 4u) : 0;
+    }
+    *Fy = My + (UINT32)AppsIdx * MENU_ITEM_H;
+    if (*Fy + *Fh > BarY && *Fh <= BarY) {
+        *Fy = BarY - *Fh;
+    }
+    if (*Fy + *Fh > BarY) {
+        *Fh = (BarY > *Fy) ? (BarY - *Fy) : MENU_ITEM_H;
+    }
+}
+
+/* 打开开始菜单时重建：系统项含 Apps 一级；ELF/INST → 二级 */
 void RebuildStartMenu(void) {
     int AppCap;
     int AppN = 0;
@@ -184,6 +250,7 @@ void RebuildStartMenu(void) {
     const char *L;
 
     gMenuCount = 0;
+    gMenuAppCount = 0;
     AppCap = MenuMaxAppSlots();
 
     L = LocStr(MSG_ICON_SHELL);
@@ -194,6 +261,8 @@ void RebuildStartMenu(void) {
     MenuAddRow(DESKTOP_ACTION_FILES, L ? L : "Files", 0, 1, 2);
     L = LocStr(MSG_ICON_STORE);
     MenuAddRow(DESKTOP_ACTION_STORE, L ? L : "Store", 0, 1, 3);
+    L = LocStr(MSG_ICON_APPS);
+    MenuAddRow(DESKTOP_ACTION_APPS, L ? L : "Apps", 0, 1, 2);
 
     Err = FileSystemListEntries(STORE_APPS_DIR, gMenuDirScratch, FAT_LIST_MAX,
                                 &DirN);
@@ -207,22 +276,10 @@ void RebuildStartMenu(void) {
             if (!MenuEndsWithElf(E->Name)) {
                 continue;
             }
-            MenuCopyStr(Path, sizeof(Path), STORE_APPS_DIR);
-            /* Apps/ + name */
-            {
-                int P = 0;
-                while (Path[P]) {
-                    P++;
-                }
-                if (P + 1 < (int)sizeof(Path)) {
-                    Path[P++] = '/';
-                    Path[P] = 0;
-                }
-                MenuCopyStr(Path + P, (int)sizeof(Path) - P, E->Name);
-            }
+            MenuBuildAppsPath(Path, (int)sizeof(Path), E->Name);
             MenuLabelFromElf(E->Name, Label, sizeof(Label));
             MenuEnrichLabelFromCatalog(E->Name, Label, sizeof(Label));
-            MenuAddRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
+            MenuAddAppRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
             AppN++;
         }
     }
@@ -239,26 +296,14 @@ void RebuildStartMenu(void) {
             if (!In->File[0]) {
                 continue;
             }
-            MenuCopyStr(Path, sizeof(Path), STORE_APPS_DIR);
-            {
-                int P = 0;
-                while (Path[P]) {
-                    P++;
-                }
-                if (P + 1 < (int)sizeof(Path)) {
-                    Path[P++] = '/';
-                    Path[P] = 0;
-                }
-                MenuCopyStr(Path + P, (int)sizeof(Path) - P, In->File);
-            }
-            if (MenuAlreadyHasPath(Path)) {
+            MenuBuildAppsPath(Path, (int)sizeof(Path), In->File);
+            if (MenuAlreadyHasAppPath(Path)) {
                 continue;
             }
             if (MenuPathExists(Path)) {
-                /* 已在盘上但 list 漏了：仍加一行可开 */
                 MenuLabelFromElf(In->File, Label, sizeof(Label));
                 MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
-                MenuAddRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
+                MenuAddAppRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
                 AppN++;
                 continue;
             }
@@ -267,7 +312,7 @@ void RebuildStartMenu(void) {
             if (!Label[0]) {
                 MenuCopyStr(Label, sizeof(Label), In->Id);
             }
-            MenuAddRow(DESKTOP_ACTION_EXEC, Label, Path, 0, -1);
+            MenuAddAppRow(DESKTOP_ACTION_EXEC, Label, Path, 0, -1);
             AppN++;
         }
     }

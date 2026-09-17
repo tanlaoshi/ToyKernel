@@ -293,7 +293,6 @@ void DrawStartMenuRaw(void) {
             UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00C08020);
             HasIcon = 1;
         } else if (R->Action == DESKTOP_ACTION_EXEC && gIcons[0].BmpReady) {
-            /* 用户 ELF：复用 Shell 小图标 */
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gIcons[0].Bmp);
             HasIcon = 1;
@@ -310,6 +309,68 @@ void DrawStartMenuRaw(void) {
                                        ? (MENU_ITEM_H - FontCellH()) / 2
                                        : 0),
                              R->Label[0] ? R->Label : "?", Fg);
+        if (R->Action == DESKTOP_ACTION_APPS) {
+            HalVideoDrawStringAt(Mx + Mw - 14u,
+                                 Iy + (MENU_ITEM_H > FontCellH()
+                                           ? (MENU_ITEM_H - FontCellH()) / 2
+                                           : 0),
+                                 gMenuAppsOpen ? "v" : ">", Fg);
+        }
+    }
+
+    if (gMenuAppsOpen) {
+        UINT32 Fx;
+        UINT32 Fy;
+        UINT32 Fw;
+        UINT32 Fh;
+        int Rows;
+
+        AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+        UiFillRectangleAlpha(Fx, Fy, Fw, Fh, ThemeControlFace(),
+                             ThemeMenuPanelAlpha());
+        UiDrawRectangle(Fx, Fy, Fw, Fh, COLOR_BLACK);
+        Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
+        for (i = 0; i < Rows; i++) {
+            MENU_ROW *R;
+            UINT32 Iy = Fy + (UINT32)i * MENU_ITEM_H;
+            UINT32 IconX;
+            UINT32 IconY;
+            UINT32 TextX;
+            UINT32 Fg;
+            const char *Lab;
+
+            UiDrawRectangle(Fx, Iy, Fw, MENU_ITEM_H, ThemeWindowBorderIdle());
+            if (gMenuAppCount <= 0) {
+                HalVideoDrawStringAt(Fx + 10u,
+                                     Iy + (MENU_ITEM_H > FontCellH()
+                                               ? (MENU_ITEM_H - FontCellH()) / 2
+                                               : 0),
+                                     "(empty)", ThemeControlBorder());
+                break;
+            }
+            R = &gMenuAppRows[i];
+            Lab = R->Label[0] ? R->Label : "?";
+            Fg = R->Enabled ? COLOR_BLACK : ThemeControlBorder();
+            IconX = Fx + 6;
+            IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ
+                              ? (MENU_ITEM_H - MENU_ICON_SZ) / 2
+                              : 0);
+            TextX = Fx + 10;
+            if (gIcons[0].BmpReady) {
+                BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                                 &gIcons[0].Bmp);
+                TextX = IconX + MENU_ICON_SZ + 6u;
+            } else {
+                UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                                gIcons[0].IconColor);
+                TextX = IconX + MENU_ICON_SZ + 6u;
+            }
+            HalVideoDrawStringAt(TextX,
+                                 Iy + (MENU_ITEM_H > FontCellH()
+                                           ? (MENU_ITEM_H - FontCellH()) / 2
+                                           : 0),
+                                 Lab, Fg);
+        }
     }
 }
 

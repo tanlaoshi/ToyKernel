@@ -59,6 +59,19 @@ int StoreIsInstalled(const char *Id);
 void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags);
 int StoreGetDepends(const char *Id, char *Out, int OutMax);
 
+/*
+ * 商店托管载荷：Apps 下 catalog/si 登记的 .ELF，或 Fonts/Packs 中已登记项。
+ * 文档/数据（README、THEME、用户文件等）返回 0，可直接删。
+ * 安装包约定：装入须登记 si.*；自带 uninstall 卸完后须 StoreUnregister。
+ */
+int StoreIsManagedPayload(const char *Path);
+/* Store 内部删托管文件（绕过 FileSystem 保护） */
+int StoreDeleteManagedFile(const char *Path);
+/* 仅清清单（文件已由卸载程序删掉）；成功 FAT_OK */
+int StoreUnregister(const char *Id);
+/* FileSystem 删/改名前查询：1=允许绕过托管保护（Store 内部） */
+int StorePayloadBypassActive(void);
+
 /* 当前本机 arch 标签（如 x86_64） */
 const char *StoreHostArch(void);
 

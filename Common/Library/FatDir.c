@@ -251,7 +251,10 @@ int NameIsDot(const UINT8 *E) {
 }
 /*
  * 查找 Name 对应 SFN 下标，或 Need 个连续空闲槽起点。
- * 找到已存在时 *FoundExisting=1 且 *OutIndex 为 SFN；空闲时为第一槽。
+ * 找到已存在时 *FoundExisting=1 且 *OutIndex 为 SFN；否则为第一空闲槽。
+ *
+ * 必须先扫完全表再认空闲：若中途遇 E5 就 return，后面的同名活项会漏掉，
+ * store remove 表现为 NOENT + DirHasFileCI 仍在（file remains）。
  */
 int FindDirIndex(FAT_DIR_CTX Dir, const char *Name, int Need,
                         int *OutIndex, int *FoundExisting,
@@ -262,11 +265,15 @@ int FindDirIndex(FAT_DIR_CTX Dir, const char *Name, int Need,
     int i;
     int FreeRun = 0;
     int FreeStart = 0;
+    int BestFree = -1;
 
     *FoundExisting = 0;
     *OldCluster = 0;
     if (OldAttr) {
         *OldAttr = 0;
+    }
+    if (Need < 1) {
+        Need = 1;
     }
     LfnAccClear(&Acc);
 
@@ -278,9 +285,13 @@ int FindDirIndex(FAT_DIR_CTX Dir, const char *Name, int Need,
             if (FreeRun == 0) {
                 FreeStart = i;
             }
-            FreeRun = Max - i;
-            if (FreeRun >= Need) {
+            /* 目录尾：从 FreeStart 到表末均可用 */
+            if (Max - FreeStart >= Need) {
                 *OutIndex = FreeStart;
+                return 1;
+            }
+            if (BestFree >= 0) {
+                *OutIndex = BestFree;
                 return 1;
             }
             return 0;
@@ -291,9 +302,8 @@ int FindDirIndex(FAT_DIR_CTX Dir, const char *Name, int Need,
                 FreeStart = i;
             }
             FreeRun++;
-            if (FreeRun >= Need) {
-                *OutIndex = FreeStart;
-                return 1;
+            if (FreeRun >= Need && BestFree < 0) {
+                BestFree = FreeStart;
             }
             continue;
         }
@@ -316,6 +326,10 @@ int FindDirIndex(FAT_DIR_CTX Dir, const char *Name, int Need,
             return 1;
         }
         LfnAccClear(&Acc);
+    }
+    if (BestFree >= 0) {
+        *OutIndex = BestFree;
+        return 1;
     }
     return 0;
 }
@@ -460,24 +474,51 @@ int Make83Alias(FAT_DIR_CTX Dir, const char *LongName, UINT8 Out[11]) {
     return 0;
 }
 
+/*
+ * 摘掉 SFN 前的 LFN 链。同扇区内的多项在内存里一并标 0xE5 再写回一次，
+ * 避免 USB 写缓存下「读-改-写」把前一次 E5 盖回。
+ * 不在此 BlockFlush：MSC 上 SYNCHRONIZE 失败曾导致刚写入被丢掉。
+ */
 int DeleteLfnPrefix(FAT_DIR_CTX Dir, int SfnIndex, UINT8 Cksum) {
     int i;
+    UINT32 DirtyLba = 0xFFFFFFFFu;
+
     for (i = SfnIndex - 1; i >= 0; i--) {
         UINT8 E[32];
+        UINT32 Lba = 0;
+        UINT32 Off = 0;
         int Last;
-        if (!DirReadEntry(Dir, (UINT32)i, E)) {
+        int k;
+
+        if (!DirGetEntryPos(Dir, (UINT32)i, &Lba, &Off)) {
             return 0;
+        }
+        if (Lba != DirtyLba) {
+            if (DirtyLba != 0xFFFFFFFFu) {
+                if (!StoreSector(DirtyLba)) {
+                    return 0;
+                }
+            }
+            if (!LoadSector(Lba)) {
+                return 0;
+            }
+            DirtyLba = Lba;
+        }
+        for (k = 0; k < 32; k++) {
+            E[k] = gSector[Off + k];
         }
         if (!EntryIsLfn(E) || E[13] != Cksum) {
             break;
         }
         Last = (E[0] & 0x40) != 0;
-        E[0] = 0xE5;
-        if (!DirWriteEntry(Dir, (UINT32)i, E)) {
-            return 0;
-        }
+        gSector[Off] = 0xE5;
         if (Last) {
             break;
+        }
+    }
+    if (DirtyLba != 0xFFFFFFFFu) {
+        if (!StoreSector(DirtyLba)) {
+            return 0;
         }
     }
     return 1;

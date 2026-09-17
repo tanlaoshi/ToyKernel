@@ -5,6 +5,18 @@
 #include "FatPriv.h"
 #include "Block.h"
 
+static void (*gFatIoBreath)(void);
+
+void FatSetIoBreath(void (*Fn)(void)) {
+    gFatIoBreath = Fn;
+}
+
+static void FatIoBreath(void) {
+    if (gFatIoBreath) {
+        gFatIoBreath();
+    }
+}
+
 int ReadFileClusters(UINT32 Cluster, UINT32 Size, void *Buffer, UINTN MaxSize,
                             UINTN *OutSize) {
     UINT8 *Dst = (UINT8 *)Buffer;
@@ -302,6 +314,22 @@ int FatWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len
         Existing = 0;
         FirstCluster = 0;
         OldSize = 0;
+        /* USB：上块 Write 可能已建项但本趟 Find 读到旧目录 → 再刷再找，防重复建项 */
+        (void)BlockFlush();
+        if (FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &FirstCluster, &OldAttr) &&
+            Existing) {
+            if (OldAttr & FAT_ATTR_DIR) {
+                return FAT_ERR_ISDIR;
+            }
+            if (DirReadEntry(Parent, (UINT32)Index, E)) {
+                OldSize = Read32(E + 28);
+                FirstCluster = EntryCluster(E);
+            }
+        } else {
+            Existing = 0;
+            FirstCluster = 0;
+            OldSize = 0;
+        }
     }
 
     FinalSize = (UINT32)(Offset + Len);
@@ -344,6 +372,7 @@ int FatWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len
         if (!StoreCluster(Cl)) {
             return FAT_ERR_IO;
         }
+        FatIoBreath();
         Done += Chunk;
         OffInCl = 0;
         if (Done >= Len) {
@@ -493,6 +522,7 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
                 return FAT_ERR_IO;
             }
             Written += Chunk;
+            FatIoBreath();
         }
         /*
          * vvfat：同长覆写只写数据簇；勿无 FatSet 截断链、勿改目录项。
@@ -559,6 +589,7 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
             return FAT_ERR_IO;
         }
         Written += Chunk;
+        FatIoBreath();
     }
 
     if (Existing) {
@@ -591,7 +622,30 @@ int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {
     return FAT_OK;
 }
 
+static int FatDeleteFileOnce(const char *Path);
+
 int FatDeleteFile(const char *Path) {
+    int Round;
+    int Any = 0;
+    int Err;
+
+    /*
+     * 同名多目录项：最多摘几轮。勿再对 MSC 狂刷 SYNCHRONIZE（见 XhciMscFlush）。
+     */
+    for (Round = 0; Round < 4; Round++) {
+        Err = FatDeleteFileOnce(Path);
+        if (Err == FAT_ERR_NOENT) {
+            return Any ? FAT_OK : FAT_ERR_NOENT;
+        }
+        if (Err != FAT_OK) {
+            return Err;
+        }
+        Any = 1;
+    }
+    return FAT_OK;
+}
+
+static int FatDeleteFileOnce(const char *Path) {
     FAT_DIR_CTX Parent;
     char Leaf[FAT_NAME_MAX + 1];
     int Index = 0;
@@ -599,6 +653,11 @@ int FatDeleteFile(const char *Path) {
     UINT32 Cluster = 0;
     UINT8 Attr = 0;
     UINT8 E[32];
+    UINT32 SfnLba = 0;
+    UINT32 SfnOff = 0;
+    UINT32 DirtyLba = 0xFFFFFFFFu;
+    int i;
+    UINT8 Cksum;
 
     if (!Path || !Path[0]) {
         return FAT_ERR_INVAL;
@@ -612,9 +671,6 @@ int FatDeleteFile(const char *Path) {
     if (!FindDirIndex(Parent, Leaf, 1, &Index, &Existing, &Cluster, &Attr) || !Existing) {
         return FAT_ERR_NOENT;
     }
-    if (Attr & FAT_ATTR_RO) {
-        return FAT_ERR_ROFS;
-    }
     if (Attr & FAT_ATTR_DIR) {
         FAT_DIR_CTX Sub;
         Sub.IsFat16Root = 0;
@@ -626,19 +682,112 @@ int FatDeleteFile(const char *Path) {
             return FAT_ERR_NOTEMPTY;
         }
     }
-    if (!DirReadEntry(Parent, (UINT32)Index, E)) {
+    if (!DirGetEntryPos(Parent, (UINT32)Index, &SfnLba, &SfnOff)) {
         return FAT_ERR_IO;
     }
-    DeleteLfnPrefix(Parent, Index, Fat83Checksum(E));
+    if (!LoadSector(SfnLba)) {
+        return FAT_ERR_IO;
+    }
+    DirtyLba = SfnLba;
+    for (i = 0; i < 32; i++) {
+        E[i] = gSector[SfnOff + i];
+    }
+    /* 宿主 vvfat / 预制 ELF / USB 同步常带 RO/HIDDEN/SYSTEM；课堂允许删文件 */
+    if ((Attr & (FAT_ATTR_RO | 0x02u | 0x04u)) && !(Attr & FAT_ATTR_DIR)) {
+        E[11] = (UINT8)(Attr & (UINT8)~(FAT_ATTR_RO | 0x02u | 0x04u));
+        for (i = 0; i < 32; i++) {
+            gSector[SfnOff + i] = E[i];
+        }
+        Attr = E[11];
+    } else if (Attr & FAT_ATTR_RO) {
+        return FAT_ERR_ROFS;
+    }
+
+    Cksum = Fat83Checksum(E);
     /*
-     * 不在此 FatFreeChain：QEMU fat:rw(vvfat) 在 guest 释放簇后再 commit
-     * 常触发 commit_one_file 断言（store remove / 删刚写入的文件）。
-     * 只标 0xE5；vvfat 按目录项删宿主文件。真盘会有簇泄漏，课堂可接受。
+     * 先看 LFN 是否全在 SFN 同扇区。是则内存里一次改完再写；
+     * 否则 DeleteLfnPrefix 跨扇区摘（只 WRITE，不 Flush）。
+     */
+    {
+        int SameSectorLfn = 1;
+        int j;
+
+        for (j = Index - 1; j >= 0; j--) {
+            UINT32 Lba = 0;
+            UINT32 Off = 0;
+            UINT8 T[32];
+            int k;
+
+            if (!DirGetEntryPos(Parent, (UINT32)j, &Lba, &Off)) {
+                SameSectorLfn = 0;
+                break;
+            }
+            if (Lba != SfnLba) {
+                SameSectorLfn = 0;
+                break;
+            }
+            for (k = 0; k < 32; k++) {
+                T[k] = gSector[Off + k];
+            }
+            if (!EntryIsLfn(T) || T[13] != Cksum) {
+                break;
+            }
+            if (T[0] & 0x40) {
+                break;
+            }
+        }
+
+        if (SameSectorLfn) {
+            for (j = Index - 1; j >= 0; j--) {
+                UINT32 Lba = 0;
+                UINT32 Off = 0;
+                UINT8 T[32];
+                int k;
+                int Last;
+
+                if (!DirGetEntryPos(Parent, (UINT32)j, &Lba, &Off) || Lba != SfnLba) {
+                    break;
+                }
+                for (k = 0; k < 32; k++) {
+                    T[k] = gSector[Off + k];
+                }
+                if (!EntryIsLfn(T) || T[13] != Cksum) {
+                    break;
+                }
+                Last = (T[0] & 0x40) != 0;
+                gSector[Off] = 0xE5;
+                if (Last) {
+                    break;
+                }
+            }
+        } else {
+            if (!StoreSector(SfnLba)) {
+                return FAT_ERR_IO;
+            }
+            DirtyLba = 0xFFFFFFFFu;
+            if (!DeleteLfnPrefix(Parent, Index, Cksum)) {
+                return FAT_ERR_IO;
+            }
+            if (!LoadSector(SfnLba)) {
+                return FAT_ERR_IO;
+            }
+            DirtyLba = SfnLba;
+            for (i = 0; i < 32; i++) {
+                E[i] = gSector[SfnOff + i];
+            }
+        }
+    }
+
+    /*
+     * 不在此 FatFreeChain：QEMU fat:rw(vvfat) 释放簇后再 commit 易断言。
+     * 只标 0xE5；真盘会有簇泄漏，课堂可接受。
      */
     (void)Cluster;
-    E[0] = 0xE5;
-    if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
-        return FAT_ERR_IO;
+    gSector[SfnOff] = 0xE5;
+    if (DirtyLba != 0xFFFFFFFFu) {
+        if (!StoreSector(DirtyLba)) {
+            return FAT_ERR_IO;
+        }
     }
     return FAT_OK;
 }

@@ -394,6 +394,7 @@ void SyncWindowVisualsEx(int ClearDesktop) {
             DrawWindowShadowAt(i);
         }
     }
+    DesktopDrawStartMenu();
     GfxIrqEnter();
     CursorPaint();
     GfxPresent(); /* 尊重 gDeferPresent：开窗填内容前勿把空框刷到 GOP */

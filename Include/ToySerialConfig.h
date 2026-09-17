@@ -6,8 +6,8 @@
  *   1 → 正常 Probe；各模块由 TOY_SERIAL_* 决定是否往 UART 打
  *
  * 屏幕总开关 TOY_SCREEN_LOG：
- *   0 → boot GOP 不上字、跳过 PHOTO 读秒（ring 仍收；Mute/Mirror API 仍在）
- *   1 → 各模块 SCREEN_LOG_* 上滚；PHOTO 黄字/读秒也属屏幕日志
+ *   0 → boot GOP 不上字（ring 仍收；Mute/Mirror API 仍在）
+ *   1 → 各模块 SCREEN_LOG_* 上滚
  *
  * 分模块（仅对应总开=1 时有效；0=该模块 quiet）：
  *   BOOT USB SMP GUI NET FS MEM DRV MISC
@@ -19,7 +19,7 @@
  *   ./build.sh SCREEN_LOG_SMP=1          # 课堂默认 SMP 不上屏；可打开
  *   NO_COM1=1 仍可用，等价于 SERIAL=0（兼容旧课堂开关）
  *
- * 说明：SERIAL=0 只关 UART；SCREEN_LOG=0 关 boot GOP 上滚 + PHOTO 读秒。
+ * 说明：SERIAL=0 只关 UART；SCREEN_LOG=0 关 boot GOP 上滚。
  * ring 始终收。运行时 Mute / Mirror 仍是真机安全阀。
  * Shell 回显走 HalSerialWrite（MISC）+ Console FB，不纳入 SCREEN_LOG（本柱不做）。
  */

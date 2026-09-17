@@ -394,15 +394,11 @@ int FontReloadAssets(void) {
     UINT32 Cur = gCurrentId;
 
     (void)FontLoadAssets();
-    if (FontSetById(Cur) != 0) {
-        (void)FontSetById(0);
-        Cur = 0;
+    /* 原 id 若是已卸 runtime：勿强行掉到 0（16×32）；ThemeClampFontId 会选紧凑字 */
+    if (FontSetById(Cur) != 0 && FontCount() > 0) {
+        UINT32 Fallback = FontCount() > 2 ? 2 : (FontCount() - 1);
+        (void)FontSetById(Fallback);
     }
-    /*
-     * Theme 偏好可能仍指向已消失的 runtime id（如卸掉第二包后）。
-     * 由调用方 ThemeClampFontId 同步；此处保证 gCurrentId 合法。
-     */
-    (void)Cur;
     return 0;
 }
 

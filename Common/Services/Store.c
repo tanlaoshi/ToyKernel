@@ -4,7 +4,11 @@
  *           PR-M1：depends=（catalog 第 8 段 / PKG.TXT）；缺依赖拒绝安装
  *           PR-M2：store combo / uncombo — 按依赖顺序装卸多包「功能」
  *
- * 载荷查找顺序：Store/<file> → <file>（卷根）→ Assets/Store/packages/<id>/<file>
+ * 载荷查找顺序：Store/<file> → Assets/Store/packages/<id>/<file> → 卷根 <file>
+ *
+ * 卸装删的是 Apps/（或 Fonts/Packs）里的已装副本，不是 Store/ 仓库。
+ * 只删 U 盘 Store/*.ELF：商店目录仍在（catalog）；已装的仍在 Apps/；
+ * 卷根还有 HELLO.ELF 等教学镜像，Install 仍可能成功。
  * sha256=- 时跳过校验（教学默认）。
  * 清单键：si.<id>=type|file ；依赖 sd.<id>=逗号 id 或 -
  */
@@ -21,10 +25,13 @@
 
 #define STORE_CATALOG_MAX  (8u * 1024u)
 #define STORE_COPY_MAX     FAT_WRITE_MAX
+/* 装卸拷贝：每块后 StoreIoBreath，避免整 ELF 写盘时鼠标冻住 */
+#define STORE_IO_BREATH_BYTES  4096u
 #define STORE_PKG_MAX      1024u
 #define STORE_KIND_APP     0
 #define STORE_KIND_FONT    1
 #define STORE_KIND_ASSET   2
+#define STORE_KIND_LIB     3 /* 公共库：uncombo 不随 app 卸 */
 #define STORE_CHECK_NONE   0
 #define STORE_CHECK_ELF    1
 #define STORE_CHECK_TOYF   2
@@ -34,6 +41,7 @@ static STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
 /* combo 嵌套卸装时合并 FontReload，避免连删字体卡死/重入 */
 static int gStoreComboDepth;
 static int gNeedFontReload;
+static int gStorePayloadBypass;
 
 static void StoreIoBreath(void) {
     GuiPollMouseMotion();
@@ -47,6 +55,9 @@ static void StoreFlushFontReload(void) {
     StoreIoBreath();
     (void)FontReloadAssets();
     ThemeClampFontId();
+    /* 字高变了须重合成，否则桌面仍按旧度量画 */
+    GuiComposeThemeScene();
+    (void)ThemeSave();
     StoreIoBreath();
 }
 
@@ -105,6 +116,51 @@ static int DirHasFileCI(const char *Dir, const char *File) {
         }
         if (StrEqIgnoreCase(Ents[i].Name, File)) {
             return 1;
+        }
+    }
+    return 0;
+}
+
+/* 返回目录里真实名（大小写以盘为准），供 Delete 路径 */
+static int DirResolveFileCI(const char *Dir, const char *File, char *Out, int OutMax) {
+    static FAT_DIRECTORY_ENTRY Ents[FAT_LIST_MAX];
+    char Want[STORE_FILE_MAX];
+    int N = 0;
+    int i;
+    int w;
+
+    if (!Out || OutMax <= 0) {
+        return 0;
+    }
+    Out[0] = 0;
+    if (!Dir || !File || File[0] == 0) {
+        return 0;
+    }
+    /* File 与 Out 可能同缓冲：先拷走 */
+    w = 0;
+    while (File[w] && w + 1 < (int)sizeof(Want)) {
+        Want[w] = File[w];
+        w++;
+    }
+    Want[w] = 0;
+    if (Want[0] == 0) {
+        return 0;
+    }
+    if (FileSystemListEntries(Dir, Ents, FAT_LIST_MAX, &N) != FAT_OK || N <= 0) {
+        return 0;
+    }
+    for (i = 0; i < N; i++) {
+        if (Ents[i].Attr & FAT_ATTR_DIR) {
+            continue;
+        }
+        if (StrEqIgnoreCase(Ents[i].Name, Want)) {
+            int k = 0;
+            while (Ents[i].Name[k] && k + 1 < OutMax) {
+                Out[k] = Ents[i].Name[k];
+                k++;
+            }
+            Out[k] = 0;
+            return Out[0] != 0;
         }
     }
     return 0;
@@ -394,10 +450,21 @@ static int EntryKind(const char *Type) {
     if (StrEq(Type, "asset")) {
         return STORE_KIND_ASSET;
     }
+    if (StrEq(Type, "lib") || StrEq(Type, "library")) {
+        return STORE_KIND_LIB;
+    }
     if (StrEq(Type, "app") || Type[0] == 0) {
         return STORE_KIND_APP;
     }
     return -1;
+}
+
+/* 字体/资源包/库：可被多 app 引用，uncombo 只卸叶子 app，不级联卸这些 */
+static int PackageIsSharedDep(int Kind) {
+    return Kind == STORE_KIND_FONT ||
+           Kind == STORE_KIND_ASSET ||
+           Kind == STORE_KIND_LIB ||
+           Kind < 0; /* 未知类型宁可保留 */
 }
 
 /*
@@ -655,6 +722,7 @@ static int ComboInstallRec(const char *Id, int Depth) {
         if (Tok[0] == 0) {
             continue;
         }
+        StoreIoBreath();
         Err = ComboInstallRec(Tok, Depth + 1);
         if (Err != FAT_OK) {
             return Err;
@@ -664,6 +732,7 @@ static int ComboInstallRec(const char *Id, int Depth) {
     HalConsoleWriteSerial("store combo: +");
     HalConsoleWriteSerial(Id);
     HalConsoleWriteSerial("\n");
+    StoreIoBreath();
     return StoreInstall(Id);
 }
 
@@ -695,13 +764,22 @@ static int TryCopy(const char *Src, const char *Dst, int Check) {
         return FAT_ERR_NOSPC;
     }
     Got = 0;
-    StoreIoBreath();
-    Err = FileSystemReadFile(Src, Buf, Size, &Got);
-    StoreIoBreath();
-    if (Err != FAT_OK || Got != Size) {
-        PhysicalMemoryFreePages(Buf, Pages);
-        return Err != FAT_OK ? Err : FAT_ERR_IO;
+    while (Got < Size) {
+        UINTN Chunk = Size - Got;
+        UINTN N = 0;
+
+        if (Chunk > STORE_IO_BREATH_BYTES) {
+            Chunk = STORE_IO_BREATH_BYTES;
+        }
+        StoreIoBreath();
+        Err = FileSystemReadFileAt(Src, Got, Buf + Got, Chunk, &N);
+        if (Err != FAT_OK || N != Chunk) {
+            PhysicalMemoryFreePages(Buf, Pages);
+            return Err != FAT_OK ? Err : FAT_ERR_IO;
+        }
+        Got += N;
     }
+    StoreIoBreath();
     if (Check == STORE_CHECK_ELF) {
         if (!(Buf[0] == 0x7F && Buf[1] == 'E' && Buf[2] == 'L' && Buf[3] == 'F')) {
             PhysicalMemoryFreePages(Buf, Pages);
@@ -713,9 +791,12 @@ static int TryCopy(const char *Src, const char *Dst, int Check) {
             return FAT_ERR_INVAL;
         }
     }
-    (void)FileSystemDeleteFile(Dst);
+    (void)StoreDeleteManagedFile(Dst);
     StoreIoBreath();
+    /* 一次 WriteFile：避免分块 WriteFileAt 在 USB 上重复建同名目录项 */
+    FatSetIoBreath(StoreIoBreath);
     Err = FileSystemWriteFile(Dst, Buf, Got);
+    FatSetIoBreath(0);
     StoreIoBreath();
     PhysicalMemoryFreePages(Buf, Pages);
     return Err;
@@ -727,18 +808,19 @@ static int InstallFromSources(const char *Id, const char *File, const char *Dst,
     char Pkg[160];
     int Err;
 
+    /* 1) Store/<file> 仓库包；2) Assets/Store/packages/<id>/；3) 卷根教学镜像 */
     JoinPath(Src, (int)sizeof(Src), "Store", File);
     Err = TryCopy(Src, Dst, Check);
     if (Err == FAT_OK) {
         return FAT_OK;
     }
-    Err = TryCopy(File, Dst, Check);
+    JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
+    JoinPath(Src, (int)sizeof(Src), Pkg, File);
+    Err = TryCopy(Src, Dst, Check);
     if (Err == FAT_OK) {
         return FAT_OK;
     }
-    JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
-    JoinPath(Src, (int)sizeof(Src), Pkg, File);
-    return TryCopy(Src, Dst, Check);
+    return TryCopy(File, Dst, Check);
 }
 
 static int StoreMarkInstalled(const char *Id, const char *Type, const char *File,
@@ -767,7 +849,7 @@ int StoreInstall(const char *Id) {
         }
         Kind = EntryKind(Tab[i].Type);
         if (Kind < 0) {
-            HalConsoleWriteSerial("store: bad type (app|font|asset)\n");
+            HalConsoleWriteSerial("store: bad type (app|font|asset|lib)\n");
             return FAT_ERR_INVAL;
         }
         if (!ArchOk(Tab[i].Arch)) {
@@ -840,6 +922,42 @@ static int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {
     }
     Out[i] = 0;
     return Id[j] == 0;
+}
+
+/* si.* 或 catalog 的 type → STORE_KIND_*；未知 -1 */
+static int LookupPackageKind(const char *Id) {
+    char Key[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+    char Type[12];
+    STORE_ENTRY *Tab;
+    int Count = 0;
+    int i;
+    int Err;
+
+    if (!Id || Id[0] == 0) {
+        return -1;
+    }
+    if (MakeDbKey(Key, (int)sizeof(Key), "si.", Id) &&
+        DbGet(Key, Val, sizeof(Val)) == DB_OK) {
+        i = 0;
+        while (Val[i] && Val[i] != '|' && i < (int)sizeof(Type) - 1) {
+            Type[i] = Val[i];
+            i++;
+        }
+        Type[i] = 0;
+        return EntryKind(Type);
+    }
+    Tab = gStoreTab;
+    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+    if (Err < 0 || Count <= 0) {
+        return -1;
+    }
+    for (i = 0; i < Count; i++) {
+        if (StrEq(Tab[i].Id, Id)) {
+            return EntryKind(Tab[i].Type);
+        }
+    }
+    return -1;
 }
 
 static int StoreHasSi(const char *Id) {
@@ -990,16 +1108,67 @@ int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount) {
     return FAT_OK;
 }
 
+/* 删托管载荷并刷盘；已 Resolve 存在时，勿把 NOENT 当成功。
+ * 同名多目录项时循环摘除，直到 Dir 扫不到。 */
+static int StoreUnlinkPayload(const char *Dir, const char *Want) {
+    char Dst[96];
+    char Prefixed[112];
+    char Leaf[STORE_FILE_MAX];
+    FAT_FILE_STAT St;
+    int Err;
+    int Round;
+
+    if (!Dir || !Want || Want[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+
+    for (Round = 0; Round < 8; Round++) {
+        if (!DirResolveFileCI(Dir, Want, Leaf, (int)sizeof(Leaf))) {
+            return FAT_OK;
+        }
+        JoinPath(Dst, (int)sizeof(Dst), Dir, Leaf);
+        StoreIoBreath();
+        Err = StoreDeleteManagedFile(Dst);
+        (void)FileSystemFileSync("");
+        if (Err == FAT_ERR_NOENT) {
+            int n = 0;
+            const char *Pre = "TOYOS:";
+            while (Pre[n]) {
+                Prefixed[n] = Pre[n];
+                n++;
+            }
+            CopyStr(Prefixed + n, (int)sizeof(Prefixed) - n, Dst);
+            Err = StoreDeleteManagedFile(Prefixed);
+            (void)FileSystemFileSync("");
+        }
+        if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+            return Err;
+        }
+        if (!DirHasFileCI(Dir, Want) && FileSystemFileStat(Dst, &St) != FAT_OK) {
+            return FAT_OK;
+        }
+    }
+    JoinPath(Dst, (int)sizeof(Dst), Dir, Want);
+    if (DirHasFileCI(Dir, Want) || FileSystemFileStat(Dst, &St) == FAT_OK) {
+        HalConsoleWriteSerial("store: remove failed (file remains) ");
+        HalConsoleWriteSerial(Dst);
+        HalConsoleWriteSerial("\n");
+        return FAT_ERR_IO;
+    }
+    return FAT_OK;
+}
+
 int StoreRemove(const char *Id) {
     char Key[DB_KEY_MAX];
     char DepKey[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
     char Type[12];
     char File[STORE_FILE_MAX];
-    char Dst[96];
+    char Real[STORE_FILE_MAX];
     char Users[STORE_INSTALLED_MAX][STORE_ID_MAX];
     STORE_ENTRY *Tab;
     const char *Bar;
+    const char *Dir;
     int i;
     int Kind;
     int Err;
@@ -1028,18 +1197,15 @@ int StoreRemove(const char *Id) {
             }
             Kind = EntryKind(Tab[i].Type);
             if (Kind == STORE_KIND_FONT) {
-                JoinPath(Dst, (int)sizeof(Dst), STORE_FONTS_DIR, Tab[i].File);
-            } else if (Kind == STORE_KIND_ASSET) {
-                JoinPath(Dst, (int)sizeof(Dst), STORE_PACKS_DIR, Tab[i].File);
+                Dir = STORE_FONTS_DIR;
+            } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
+                Dir = STORE_PACKS_DIR;
             } else if (Kind == STORE_KIND_APP) {
-                JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, Tab[i].File);
+                Dir = STORE_APPS_DIR;
             } else {
                 return FAT_ERR_INVAL;
             }
-            if (!DirHasFileCI(
-                    Kind == STORE_KIND_FONT ? STORE_FONTS_DIR :
-                    Kind == STORE_KIND_ASSET ? STORE_PACKS_DIR : STORE_APPS_DIR,
-                    Tab[i].File)) {
+            if (!DirResolveFileCI(Dir, Tab[i].File, Real, (int)sizeof(Real))) {
                 return FAT_ERR_NOENT;
             }
             UserN = CollectDependents(Id, Users, STORE_INSTALLED_MAX);
@@ -1047,9 +1213,9 @@ int StoreRemove(const char *Id) {
                 HalConsoleWriteSerial("store: still required by dependents\n");
                 return FAT_ERR_INVAL;
             }
-            Err = FileSystemDeleteFile(Dst);
+            Err = StoreUnlinkPayload(Dir, Real);
             StoreIoBreath();
-            if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+            if (Err != FAT_OK) {
                 return Err;
             }
             if (Kind == STORE_KIND_FONT) {
@@ -1101,17 +1267,24 @@ int StoreRemove(const char *Id) {
 
     Kind = EntryKind(Type);
     if (Kind == STORE_KIND_FONT) {
-        JoinPath(Dst, (int)sizeof(Dst), STORE_FONTS_DIR, File);
-    } else if (Kind == STORE_KIND_ASSET) {
-        JoinPath(Dst, (int)sizeof(Dst), STORE_PACKS_DIR, File);
+        Dir = STORE_FONTS_DIR;
+    } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
+        Dir = STORE_PACKS_DIR;
     } else {
-        JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, File);
+        Dir = STORE_APPS_DIR;
+    }
+    if (!DirResolveFileCI(Dir, File, Real, (int)sizeof(Real))) {
+        /* si 指向已无文件：仍清 DB，算卸装成功 */
+        (void)DbDelete(Key);
+        if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+            (void)DbDelete(DepKey);
+        }
+        return FAT_OK;
     }
 
-    Err = FileSystemDeleteFile(Dst);
+    Err = StoreUnlinkPayload(Dir, Real);
     StoreIoBreath();
-    /* vvfat：删刚写入文件曾宿主断言；现 FatDeleteFile 已改为只摘目录项 */
-    if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+    if (Err != FAT_OK) {
         return Err;
     }
     (void)DbDelete(Key);
@@ -1189,11 +1362,24 @@ int StoreComboRemove(const char *Id) {
         return Err;
     }
 
-    /* 逆序卸依赖：仅当已无其他包引用 */
+    /*
+     * 逆序卸依赖：
+     * - font / asset / lib（公共依赖）一律保留，哪怕暂时无人引用
+     * - 仅级联卸 type=app 且已无其它包引用的依赖
+     */
     for (i = DepN - 1; i >= 0; i--) {
         char UsersArr[STORE_INSTALLED_MAX][STORE_ID_MAX];
+        int Kind;
+
         StoreIoBreath();
         if (!StoreIsInstalled(Deps[i])) {
+            continue;
+        }
+        Kind = LookupPackageKind(Deps[i]);
+        if (PackageIsSharedDep(Kind)) {
+            HalConsoleWriteSerial("store uncombo: keep shared ");
+            HalConsoleWriteSerial(Deps[i]);
+            HalConsoleWriteSerial("\n");
             continue;
         }
         Users = CollectDependents(Deps[i], UsersArr, STORE_INSTALLED_MAX);
@@ -1221,7 +1407,12 @@ int StoreComboRemove(const char *Id) {
 
 int StoreIsInstalled(const char *Id) {
     char Key[DB_KEY_MAX];
+    char DepKey[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
+    char Type[12];
+    char File[STORE_FILE_MAX];
+    const char *Bar;
+    const char *Dir;
     STORE_ENTRY *Tab;
     int Count = 0;
     int i;
@@ -1235,7 +1426,41 @@ int StoreIsInstalled(const char *Id) {
         return 0;
     }
     if (DbGet(Key, Val, sizeof(Val)) == DB_OK) {
-        return 1;
+        /* si.* 须对应盘上文件；否则清孤儿清单（Files 曾直删时） */
+        Bar = Val;
+        i = 0;
+        while (Val[i] && Val[i] != '|' && i < (int)sizeof(Type) - 1) {
+            Type[i] = Val[i];
+            i++;
+        }
+        Type[i] = 0;
+        File[0] = 0;
+        while (*Bar && *Bar != '|') {
+            Bar++;
+        }
+        if (*Bar == '|') {
+            Bar++;
+            for (i = 0; Bar[i] && i < STORE_FILE_MAX - 1; i++) {
+                File[i] = Bar[i];
+            }
+            File[i] = 0;
+        }
+        Kind = EntryKind(Type);
+        if (Kind == STORE_KIND_FONT) {
+            Dir = STORE_FONTS_DIR;
+        } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
+            Dir = STORE_PACKS_DIR;
+        } else {
+            Dir = STORE_APPS_DIR;
+        }
+        if (File[0] && DirHasFileCI(Dir, File)) {
+            return 1;
+        }
+        (void)DbDelete(Key);
+        if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+            (void)DbDelete(DepKey);
+        }
+        return 0;
     }
     /*
      * 镜像预置（Apps/HELLO.ELF 等）无 si.* 时：按 catalog 落盘路径探测。
@@ -1257,7 +1482,7 @@ int StoreIsInstalled(const char *Id) {
         if (Kind == STORE_KIND_FONT) {
             return DirHasFileCI(STORE_FONTS_DIR, Tab[i].File);
         }
-        if (Kind == STORE_KIND_ASSET) {
+        if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
             return DirHasFileCI(STORE_PACKS_DIR, Tab[i].File);
         }
         return 0;
@@ -1295,7 +1520,8 @@ void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags) {
         }
         if (MakeDbKey(Key, (int)sizeof(Key), "si.", Tab[i].Id) &&
             DbGet(Key, Val, sizeof(Val)) == DB_OK) {
-            OutFlags[i] = 1;
+            /* 与 StoreIsInstalled 一致：有 si 无文件 → 不算已装（清孤儿） */
+            OutFlags[i] = StoreIsInstalled(Tab[i].Id) ? 1 : 0;
             continue;
         }
         Kind = EntryKind(Tab[i].Type);
@@ -1380,4 +1606,147 @@ int StoreGetDepends(const char *Id, char *Out, int OutMax) {
     }
     Out[i] = 0;
     return FAT_OK;
+}
+
+int StorePayloadBypassActive(void) {
+    return gStorePayloadBypass > 0;
+}
+
+int StoreDeleteManagedFile(const char *Path) {
+    int Err;
+
+    gStorePayloadBypass++;
+    Err = FileSystemDeleteFile(Path);
+    if (gStorePayloadBypass > 0) {
+        gStorePayloadBypass--;
+    }
+    return Err;
+}
+
+int StoreUnregister(const char *Id) {
+    char Key[DB_KEY_MAX];
+    char DepKey[DB_KEY_MAX];
+
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
+        return FAT_ERR_INVAL;
+    }
+    (void)DbDelete(Key);
+    if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+        (void)DbDelete(DepKey);
+    }
+    return FAT_OK;
+}
+
+static int PathEndsWithElf(const char *Name) {
+    int N = 0;
+
+    if (!Name) {
+        return 0;
+    }
+    while (Name[N]) {
+        N++;
+    }
+    if (N < 4) {
+        return 0;
+    }
+    return StrEqIgnoreCase(Name + N - 4, ".elf");
+}
+
+static int RelUnderDir(const char *Rel, const char *Dir, const char **OutLeaf) {
+    int i = 0;
+
+    if (!Rel || !Dir || !OutLeaf) {
+        return 0;
+    }
+    while (Rel[0] == '/' || Rel[0] == '\\') {
+        Rel++;
+    }
+    while (Dir[i]) {
+        char Ca = Dir[i];
+        char Cb = Rel[i];
+        if (Ca >= 'a' && Ca <= 'z') {
+            Ca = (char)(Ca - 'a' + 'A');
+        }
+        if (Cb >= 'a' && Cb <= 'z') {
+            Cb = (char)(Cb - 'a' + 'A');
+        }
+        if (Ca != Cb) {
+            return 0;
+        }
+        i++;
+    }
+    if (Rel[i] != '/' && Rel[i] != '\\') {
+        return 0;
+    }
+    *OutLeaf = Rel + i + 1;
+    return (*OutLeaf)[0] != 0;
+}
+
+static int SiListsFile(const char *File) {
+    STORE_INSTALLED Inst[STORE_INSTALLED_MAX];
+    int N = 0;
+    int i;
+
+    if (!File || !File[0]) {
+        return 0;
+    }
+    if (StoreListInstalled(Inst, STORE_INSTALLED_MAX, &N) != FAT_OK) {
+        return 0;
+    }
+    for (i = 0; i < N; i++) {
+        if (StrEqIgnoreCase(Inst[i].File, File)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int CatalogListsPayload(const char *File, int WantKind) {
+    STORE_ENTRY *Tab = gStoreTab;
+    int Count = 0;
+    int i;
+
+    if (!File || !File[0]) {
+        return 0;
+    }
+    if (StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count) < 0 || Count <= 0) {
+        return 0;
+    }
+    for (i = 0; i < Count; i++) {
+        if (EntryKind(Tab[i].Type) == WantKind &&
+            StrEqIgnoreCase(Tab[i].File, File)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int StoreIsManagedPayload(const char *Path) {
+    const char *Rel = Path;
+    const char *Leaf = 0;
+    int Vol;
+
+    if (!Path || Path[0] == 0) {
+        return 0;
+    }
+    if (FileSystemResolve(Path, &Vol, &Rel) != FAT_OK) {
+        Rel = Path;
+    }
+    (void)Vol;
+    if (RelUnderDir(Rel, STORE_APPS_DIR, &Leaf)) {
+        if (!PathEndsWithElf(Leaf)) {
+            return 0; /* Apps 下 README 等可删 */
+        }
+        return SiListsFile(Leaf) || CatalogListsPayload(Leaf, STORE_KIND_APP);
+    }
+    if (RelUnderDir(Rel, STORE_FONTS_DIR, &Leaf)) {
+        return SiListsFile(Leaf) || CatalogListsPayload(Leaf, STORE_KIND_FONT);
+    }
+    if (RelUnderDir(Rel, STORE_PACKS_DIR, &Leaf)) {
+        return SiListsFile(Leaf) || CatalogListsPayload(Leaf, STORE_KIND_ASSET);
+    }
+    return 0;
 }

@@ -2,17 +2,16 @@
  * HAL/X64/HalSerial.c — 调试日志门面
  *
  * 输出契约（串口是旁路，不得影响桌面/输入主路径）：
- *   1) 常驻 ring（Desktop 可叠画历史；PHOTO 从此刷屏）
+ *   1) 常驻 ring（Desktop 可叠画历史）
  *   2) COM1 TX：Probe 到才 SerialWrite；没有则不碰 UART
  *   3) COM1 RX→Shell 保留（CoolTerm）；Tasks 每轮限量读，勿抽干堵死 USB
- *   4) GOP：Mute 期间禁止一切帧缓冲写（含 BootMark）；进调度前关镜像
+ *   4) GOP：Mute 禁 Present；BootMark 仍可直写 front；进调度前关镜像
  *   5) 开机屏：单视口上滚（勿整页清屏）；只画 BOOT 关键行（类 Ubuntu）
  *
- * xHCI 枚举期 Mute 必须挡住 BootMark/Present，避免与 poll/DMA 打架。
+ * xHCI 枚举期 Mute 挡住普通镜像 Present；BootMark 不受 Mute，避免屏停字。
  */
 #include "HalSerial.h"
 #include "HalVideo.h"
-#include "HalDevices.h"
 #include "Hal.h"
 #include "Serial.h"
 #include "Font.h"
@@ -30,10 +29,9 @@ static UINTN gRingLen;
 static int gVideoUp;
 static int gGopBanner;
 static int gGopMute;
-static int gPhotoHold; /* 读秒：禁 Gop 卷屏/禁 BootMark 盖白字 */
 static int gSerialReady; /* HalSerialInitialize 已跑过（幂等；模块表可再调） */
 /*
- * 1 = boot/PHOTO 期间把日志画到 GOP（与有无 COM1 无关）。
+ * 1 = boot 期间把日志画到 GOP（与有无 COM1 无关）。
  * 0 = 桌面阶段：只 ring；有 COM1 再旁路写串口。
  */
 static int gGopMirror = 1;
@@ -211,8 +209,8 @@ static void GopFlushLine(void) {
     /* 整行字形必须在 Limit 之上；满则上滚一行，勿整页清黑 */
     Limit = (H > LineH + BOOT_LOG_MARGIN) ? (H - LineH - BOOT_LOG_MARGIN) : BootLogBodyY(LineH);
     if (gBootLogY > Limit) {
-        if (gGopBatch || gPhotoHold) {
-            /* 拍照/读秒：停笔，保留已画白字 */
+        if (gGopBatch) {
+            /* 批量 Present：停笔，保留已画白字 */
             gLineLen = 0;
             return;
         }
@@ -360,7 +358,7 @@ static int ChannelUartOn(int Channel) {
 }
 
 static void GopMirrorLine(const char *Text) {
-    if (!Text || !gGopMirror || !gVideoUp || gGopMute || gPhotoHold) {
+    if (!Text || !gGopMirror || !gVideoUp || gGopMute) {
         return;
     }
     GopWrite(Text);
@@ -370,7 +368,7 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
     if (!Text) {
         return;
     }
-    /* ring 始终收（PHOTO / Desktop） */
+    /* ring 始终收（boot / Desktop） */
     RingAppend(Text);
     if (SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
@@ -408,14 +406,15 @@ int HalSerialGopMirroring(void) {
     return (gGopMirror && gVideoUp && !gGopMute) ? 1 : 0;
 }
 
-/* 真机 xHCI RS 后枚举：禁 Present，避免清屏/blit 与控制器打架 */
+/* 真机 xHCI 枚举：Mute 禁 Present/后缓冲 blit，避免与 poll 打架。
+ * BootMark 仍直写 front（GopWrite 不 Present），否则屏停在 try# 而串口继续。 */
 void HalSerialGopMute(int Mute) {
     gGopMute = Mute ? 1 : 0;
 }
 
 /*
  * 真机 boot 进度：ring 始终；UART 受 TOY_SERIAL_*；屏受 TOY_SCREEN_LOG_*。
- * USB BootMark（键鼠里程碑）默认上屏（SCREEN_LOG_USB=1）；细日志走 ToyLogUsb。
+ * USB BootMark：Mute 期间也上屏（front only）。
  */
 void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (!Text) {
@@ -425,9 +424,11 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
     }
-    if (ChannelGopOn(Channel)) {
-        GopMirrorLine(Text);
+    if (!ChannelGopOn(Channel) || !gGopMirror || !gVideoUp) {
+        return;
     }
+    /* 绕过 gGopMute：里程碑必须看得见；细日志走 ToyLog* → GopMirrorLine 仍受 Mute */
+    GopWrite(Text);
 }
 
 void HalSerialBootMark(const char *Text) {
@@ -457,135 +458,4 @@ void HalSerialBootLogRewind(void) {
     LineH = BootLogLineH();
     gBootLogY = BootLogBodyY(LineH);
     gLineLen = 0;
-}
-
-#if TOY_SCREEN_LOG
-static UINT64 ReadTsc(void) {
-    UINT32 Lo;
-    UINT32 Hi;
-
-    __asm__ volatile ("rdtsc" : "=a"(Lo), "=d"(Hi));
-    return ((UINT64)Hi << 32) | Lo;
-}
-
-static void PhotoMarkLeft(UINT32 Left) {
-    char Msg[192];
-    char Diag[144];
-    const char *P = "PHOTO ";
-    int N = 0;
-    UINT32 W;
-    UINT32 H;
-    UINT32 LineH;
-    UINT32 Y;
-
-    while (*P && N < 8) {
-        Msg[N++] = *P++;
-    }
-    Msg[N++] = (char)('0' + ((Left / 10) % 10));
-    Msg[N++] = (char)('0' + (Left % 10));
-    Msg[N++] = 's';
-    Diag[0] = 0;
-    HalInputDiagFormat(Diag, (int)sizeof(Diag));
-    {
-        int i = 0;
-        while (Diag[i] && N + 1 < (int)sizeof(Msg) - 1) {
-            Msg[N++] = Diag[i++];
-        }
-    }
-    Msg[N] = 0;
-    /* 串口旁路一份；屏底直写（不经 Mute） */
-    if (SerialPresent()) {
-        SerialWrite(Msg);
-        SerialWrite("\n");
-    }
-    if (!gVideoUp) {
-        return;
-    }
-    HalVideoGetSize(&W, &H);
-    LineH = BootLogLineH();
-    if (H > LineH + 8) {
-        Y = H - LineH - 8;
-    } else {
-        Y = BootLogBodyY(LineH);
-    }
-    if (W == 0) {
-        W = 1024;
-    }
-    HalVideoDrawBeginFront();
-    HalVideoFillRect(0, Y, W, LineH + 2, 0x00000000u);
-    HalVideoDrawStringAt(BOOT_LOG_X, Y, Msg, 0x00FFFF00u);
-    HalVideoDrawEndFront();
-}
-#endif /* TOY_SCREEN_LOG */
-
-/*
- * 真机读秒：接住已上滚的 boot 日志（只改顶栏标题），底栏 PHOTO 读秒。
- * SCREEN_LOG=0：整段跳过（无黄字/无读秒/不等待），调用方继续进桌面。
- * 默认秒数由调用方决定。
- */
-void HalSerialGopPhotoHold(UINT32 Seconds) {
-#if !TOY_SCREEN_LOG
-    (void)Seconds;
-    return;
-#else
-    UINT32 W;
-    UINT32 H;
-    UINT32 LineH;
-    UINT32 Left;
-    UINT64 T0;
-    UINT64 Now;
-    UINT64 OneSec;
-
-    if (Seconds == 0) {
-        return;
-    }
-    if (Seconds > 120) {
-        Seconds = 120; /* 上限防误传；真机拍照常用 30 */
-    }
-
-    /*
-     * 必须 Mute：PHOTO 中 Present/后缓冲 blit 会与真机 xHCI poll
-     * 打架 → k= 一直为 0。无串口时改为直写 front（BeginFront），不 Present。
-     */
-    gPhotoHold = 1;
-    HalSerialGopMute(1);
-
-    if (gVideoUp) {
-        /*
-         * PR-K-log-cont：勿全屏清黑再刷 ring——NUC 上会从「ToyOS boot」跳成「PHOTO」闪屏。
-         * 屏上已有连续上滚日志；只改顶栏标题，底栏读秒由 PhotoMarkLeft 更新。
-         */
-        HalVideoGetSize(&W, &H);
-        LineH = BootLogLineH();
-        if (W == 0) {
-            W = 1024;
-        }
-        (void)H;
-        HalVideoDrawBeginFront();
-        HalVideoFillRect(0, 0, W, BootLogBodyY(LineH), 0x00000000u);
-        HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y, "ToyOS PHOTO",
-                             0x00FFFF00u);
-        HalVideoDrawEndFront();
-    }
-
-    OneSec = 3000000000ULL;
-    for (Left = Seconds; Left > 0; Left--) {
-        PhotoMarkLeft(Left);
-        T0 = ReadTsc();
-        do {
-            HalInputPoll();
-            if (HalPowerButtonPressed()) {
-                HalSerialBootMark("Boot: Power Button -> Shutdown\n");
-                HalCpuShutdown();
-            }
-            __asm__ volatile ("pause");
-            Now = ReadTsc();
-        } while (Now - T0 < OneSec);
-    }
-
-    gPhotoHold = 0;
-    HalSerialGopMute(0);
-    HalSerialGopMirror(0);
-    HalSerialBootMark("Boot: PHOTO Done\n");
-#endif
 }

@@ -11,6 +11,8 @@
 /* 全局定义集中在宿主；其它 TU 经 DesktopPriv.h extern */
 MENU_ROW gMenuRows[MENU_ROWS_MAX];
 int gMenuCount;
+MENU_ROW gMenuAppRows[MENU_APP_MAX];
+int gMenuAppCount;
 FAT_DIRECTORY_ENTRY gMenuDirScratch[FAT_LIST_MAX];
 STORE_INSTALLED gMenuInstScratch[STORE_INSTALLED_MAX];
 
@@ -37,6 +39,7 @@ int gPowerBmpReady;
 BMP_IMAGE gRebootBmp;
 int gRebootBmpReady;
 int gMenuOpen;
+int gMenuAppsOpen;
 UINT8 gClockHour;
 UINT8 gClockMinute;
 int gClockValid;
@@ -250,7 +253,36 @@ void DesktopDraw(void) {
         DrawOneIconRaw(&gIcons[i], i == gDeskSelected);
     }
     DrawTaskbarRaw();
-    DrawStartMenuRaw();
+    /* 开始菜单不在此画：须叠在窗之上，见 DesktopDrawStartMenu */
+}
+
+void DesktopDrawStartMenu(void) {
+    if (gMenuOpen) {
+        DrawStartMenuRaw();
+    }
+}
+
+int DesktopStartMenuIsOpen(void) {
+    return gMenuOpen ? 1 : 0;
+}
+
+void DesktopDismissStartMenu(void) {
+    if (!gMenuOpen && !gMenuAppsOpen) {
+        return;
+    }
+    gMenuOpen = 0;
+    gMenuAppsOpen = 0;
+    RequestRefresh();
+}
+
+int DesktopClickOnTaskbar(UINT32 X, UINT32 Y) {
+    UINT32 BarY;
+    UINT32 Sw;
+    UINT32 Sh;
+
+    (void)X;
+    TaskbarGeom(&BarY, &Sw, &Sh);
+    return (Y >= BarY && Y < Sh) ? 1 : 0;
 }
 
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
@@ -280,6 +312,16 @@ void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         MenuGeom(&Mx, &My, &Mw, &Mh);
         if (RectsOverlap(X, Y, W, H, Mx, My, Mw, Mh)) {
             DrawStartMenuRaw();
+        } else if (gMenuAppsOpen) {
+            UINT32 Fx;
+            UINT32 Fy;
+            UINT32 Fw;
+            UINT32 Fh;
+
+            AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            if (RectsOverlap(X, Y, W, H, Fx, Fy, Fw, Fh)) {
+                DrawStartMenuRaw();
+            }
         }
     }
 }
@@ -314,6 +356,18 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
         if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
             *Out = ThemeControlFace();
             return 1;
+        }
+        if (gMenuAppsOpen) {
+            UINT32 Fx;
+            UINT32 Fy;
+            UINT32 Fw;
+            UINT32 Fh;
+
+            AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            if (X >= Fx && Y >= Fy && X < Fx + Fw && Y < Fy + Fh) {
+                *Out = ThemeControlFace();
+                return 1;
+            }
         }
     }
     if (Y >= BarY && Y < Sh) {
@@ -473,7 +527,13 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
     UINT32 My;
     UINT32 Mw;
     UINT32 Mh;
+    UINT32 Fx;
+    UINT32 Fy;
+    UINT32 Fw;
+    UINT32 Fh;
     int Item;
+    int InMain;
+    int InFly;
 
     if (OutExecPath && ExecPathMax > 0) {
         OutExecPath[0] = 0;
@@ -482,13 +542,61 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
     TaskbarGeom(&BarY, &Sw, &Sh);
     if (gMenuOpen) {
         MenuGeom(&Mx, &My, &Mw, &Mh);
-        if (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) {
+        InMain = (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) ? 1 : 0;
+        InFly = 0;
+        if (gMenuAppsOpen) {
+            AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            InFly = (X >= Fx && Y >= Fy && X < Fx + Fw && Y < Fy + Fh) ? 1 : 0;
+        }
+
+        if (InFly) {
+            Item = (int)((Y - Fy) / MENU_ITEM_H);
+            if (Item >= 0 && Item < gMenuAppCount) {
+                MENU_ROW *R = &gMenuAppRows[Item];
+                DESKTOP_ACTION Act = R->Action;
+
+                gMenuOpen = 0;
+                gMenuAppsOpen = 0;
+                if (Act != DESKTOP_ACTION_SHUTDOWN &&
+                    Act != DESKTOP_ACTION_REBOOT) {
+                    RequestRefresh();
+                }
+                if (!R->Enabled) {
+                    if (OutAction) {
+                        *OutAction = DESKTOP_ACTION_NONE;
+                    }
+                    return 1;
+                }
+                if (OutAction) {
+                    *OutAction = Act;
+                }
+                if (Act == DESKTOP_ACTION_EXEC && OutExecPath &&
+                    ExecPathMax > 0) {
+                    MenuCopyStr(OutExecPath, (int)ExecPathMax, R->Path);
+                }
+                return 1;
+            }
+            /* flyout 空白区：吞掉 */
+            return 1;
+        }
+
+        if (InMain) {
             Item = (int)((Y - My) / MENU_ITEM_H);
             if (Item >= 0 && Item < gMenuCount) {
                 MENU_ROW *R = &gMenuRows[Item];
                 DESKTOP_ACTION Act = R->Action;
 
+                if (Act == DESKTOP_ACTION_APPS) {
+                    gMenuAppsOpen = !gMenuAppsOpen;
+                    RequestRefresh();
+                    if (OutAction) {
+                        *OutAction = DESKTOP_ACTION_NONE;
+                    }
+                    return 1;
+                }
+
                 gMenuOpen = 0;
+                gMenuAppsOpen = 0;
                 if (Act != DESKTOP_ACTION_SHUTDOWN &&
                     Act != DESKTOP_ACTION_REBOOT) {
                     RequestRefresh();
@@ -509,8 +617,10 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
                 return 1;
             }
         }
+
         /* 点在菜单外：关菜单并刷新 */
         gMenuOpen = 0;
+        gMenuAppsOpen = 0;
         RequestRefresh();
         /* 若点在开始钮则下面再处理为打开 */
     }
@@ -524,6 +634,7 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
         StartBtnGeom(&Bx, &By, &Bw, &Bh);
         if (X >= Bx && X < Bx + Bw && Y >= By && Y < By + Bh) {
             gMenuOpen = !gMenuOpen;
+            gMenuAppsOpen = 0;
             if (gMenuOpen) {
                 RebuildStartMenu();
             }
@@ -533,11 +644,22 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
         /* 任务栏其它区域：吞掉点击 */
         if (gMenuOpen) {
             gMenuOpen = 0;
+            gMenuAppsOpen = 0;
             RequestRefresh();
         }
         return 1;
     }
     return 0;
+}
+
+void DesktopNotifyAppsChanged(void) {
+    gMenuCount = 0;
+    gMenuAppCount = 0;
+    gMenuAppsOpen = 0;
+    if (gMenuOpen) {
+        RebuildStartMenu();
+        RequestRefresh();
+    }
 }
 
 void DesktopInit(void) {
@@ -555,7 +677,9 @@ void DesktopInit(void) {
     gSelectX = 0;
     gSelectY = 0;
     gMenuOpen = 0;
+    gMenuAppsOpen = 0;
     gMenuCount = 0;
+    gMenuAppCount = 0;
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     LoadWallpaper();
@@ -575,6 +699,7 @@ void DesktopOnDisplayResize(void) {
     /* 热切：钳已存坐标，勿重置为默认竖列（PR-G-desk-1） */
     ClampAllIcons();
     gMenuOpen = 0;
+    gMenuAppsOpen = 0;
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     FreeWallScreen();
@@ -675,6 +800,7 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
         Dx <= DESKTOP_DBLCLICK_SLOP &&
         Dy <= DESKTOP_DBLCLICK_SLOP) {
         gMenuOpen = 0;
+        gMenuAppsOpen = 0;
         gIconDragIdx = -1;
         gIconDragMoved = 0;
         if (OutAction) {

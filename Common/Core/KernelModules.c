@@ -108,15 +108,12 @@ static int InitializeUsb(void) {
         ToyLogBoot("Boot: Input NONE (Continue)\n");
     }
     /*
-     * 真机：Arm 试 irq=msi (dual)（XhciEnableIrq→TryEnterDual），不通则
-     * irq=poll (fallback)；Drain 始终盲排空。QEMU 不走 PhotoHold。
+     * 真机：Arm 试 irq=msi (dual)，不通则 irq=poll；Drain 始终盲排空。
+     * 进 gui 前：对齐鼠坐标并抽空队列/残留键，避免钉死光标或吞首键。
      */
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();
-        /* PHOTO 只刷 ring 尾；fb-pte 原在 video 初期，会被卷掉——进 PHOTO 前再打一行 */
         HalVideoLogFbPte();
-        HalSerialGopPhotoHold(5); /* SCREEN_LOG=0 时内部直接返回，无读秒 */
-        /* PHOTO→gui：抽空鼠队列并对齐累加坐标，避免满队列+误绝对解析钉死光标 */
         {
             UINT32 Cx = 512;
             UINT32 Cy = 384;
@@ -132,16 +129,14 @@ static int InitializeUsb(void) {
             }
             HalInputMouseHandoffDesktop(Cx, Cy);
         }
-        /* PHOTO→gui 空窗：多 Drain 几轮，降低事件环溢满概率 */
         {
             int n;
             HAL_KEYBOARD_REPORT Dump;
             HAL_MOUSE_REPORT Mdump;
 
-            for (n = 0; n < 64; n++) {
+            for (n = 0; n < 8; n++) {
                 HalInputPoll();
             }
-            /* 读秒残留键勿带进桌面（易开空壳/吞首键） */
             while (HalKeyboardDequeue(&Dump)) {
             }
             while (HalMouseDequeue(&Mdump)) {

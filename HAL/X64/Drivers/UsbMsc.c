@@ -53,6 +53,10 @@ int UsbMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {
     return XhciMscWriteSectors(Lba, Count, Buffer);
 }
 
+int UsbMscFlush(void) {
+    return XhciMscFlush();
+}
+
 int UsbMscAutoEnabled(void) {
     return gMscAuto ? 1 : 0;
 }

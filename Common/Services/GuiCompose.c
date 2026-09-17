@@ -91,6 +91,7 @@ void GuiRedraw(void) {
     for (i = 0; i < MAX_WINS; i++) {
         DrawWindowAt(i);
     }
+    DesktopDrawStartMenu();
     GfxIrqEnter();
     CursorPaint();
     HalVideoPresent();
@@ -192,6 +193,9 @@ void GuiComposeThemeScene(void) {
             DrawWindowShadowAt(i);
         }
     }
+
+    /* 开始菜单盖住所有窗 */
+    DesktopDrawStartMenu();
 
     gFocusWin = SavedFocus;
     if (SavedFocus >= 0 && SavedFocus < MAX_WINS && gWindows[SavedFocus].Active) {

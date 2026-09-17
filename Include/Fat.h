@@ -21,6 +21,7 @@
 #define FAT_ERR_NAMETOOLONG (-9)  /* 名过长 */
 #define FAT_ERR_FILE_TOO_BIG       (-10)  /* 超过写大小上限 */
 #define FAT_ERR_ROFS       (-11)  /* 只读卷或只读目录项（PR-FS2 / PR-F2） */
+#define FAT_ERR_STORE      (-12)  /* 商店托管载荷：须 store remove，禁止直接删/改名 */
 
 /* PR-FS3：单次 FatWriteFile 上限（须有顶）；超过 → FAT_ERR_FILE_TOO_BIG */
 #define FAT_WRITE_MAX      (8u * 1024u * 1024u)
@@ -68,6 +69,9 @@ int FatFileStat(const char *Path, FAT_FILE_STAT *Out);
  *（后端无 Flush 时为成功空操作），便于教学与后续写缓存。
  */
 int FatFileSync(void);
+
+/* 长写盘时可挂回调（Store 装卸穿插鼠标）；Fn=NULL 取消 */
+void FatSetIoBreath(void (*Fn)(void));
 
 /*
  * PR-FS-inst-1：在 StartLba 起 SectorCount 扇区上建 FAT32（卷标最多 11 字符）。

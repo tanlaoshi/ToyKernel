@@ -4,6 +4,8 @@
  * 从 FilesUi.c 迁出 Actions；只搬家、不改逻辑。
  */
 #include "FilesUiPriv.h"
+#include "Store.h"
+#include "Fat.h"
 
 void OpenSelected(void) {
     FAT_DIRECTORY_ENTRY *E;
@@ -63,6 +65,8 @@ void OpenSelected(void) {
 }
 
 void BeginConfirmDelete(void) {
+    char Path[FILES_PATH_MAX];
+
     if (gMode != FILES_MODE_LIST || gSelected < 0 || gSelected >= gCount) {
         return;
     }
@@ -73,11 +77,24 @@ void BeginConfirmDelete(void) {
         Paint();
         return;
     }
+    if (!JoinPath(Path, sizeof(Path), gCwd, gEnts[gSelected].Name)) {
+        SetStatus("bad path");
+        Paint();
+        return;
+    }
+    /* 商店托管 ELF：直接提示，不进确认框 */
+    if (!(gEnts[gSelected].Attr & FAT_ATTR_DIR) && StoreIsManagedPayload(Path)) {
+        SetStatus(LocStr(MSG_FILES_STORE_MANAGED));
+        Paint();
+        return;
+    }
     gMode = FILES_MODE_CONFIRM;
     Paint();
 }
 
 void BeginPrompt(FILES_PROMPT_KIND Kind) {
+    char Path[FILES_PATH_MAX];
+
     if (gMode != FILES_MODE_LIST) {
         return;
     }
@@ -89,6 +106,12 @@ void BeginPrompt(FILES_PROMPT_KIND Kind) {
             (gEnts[gSelected].Name[1] == 0 ||
              (gEnts[gSelected].Name[1] == '.' && gEnts[gSelected].Name[2] == 0))) {
             SetStatus("cannot rename . / ..");
+            Paint();
+            return;
+        }
+        if (JoinPath(Path, sizeof(Path), gCwd, gEnts[gSelected].Name) &&
+            StoreIsManagedPayload(Path)) {
+            SetStatus(LocStr(MSG_FILES_STORE_MANAGED));
             Paint();
             return;
         }
@@ -112,13 +135,16 @@ void DoDelete(void) {
     }
     IsDir = (gEnts[gSelected].Attr & FAT_ATTR_DIR) != 0;
     if (!JoinPath(Path, sizeof(Path), gCwd, gEnts[gSelected].Name)) {
+        SetStatus("bad path");
         gMode = FILES_MODE_LIST;
         Paint();
         return;
     }
     Err = IsDir ? FileSystemRemoveDirectory(Path) : FileSystemDeleteFile(Path);
     gMode = FILES_MODE_LIST;
-    if (Err != FAT_OK) {
+    if (Err == FAT_ERR_STORE) {
+        SetStatus(LocStr(MSG_FILES_STORE_MANAGED));
+    } else if (Err != FAT_OK) {
         SetStatus(FatStrError(Err));
     } else {
         SetStatus("deleted");
@@ -159,7 +185,11 @@ void DoPromptCommit(void) {
             return;
         }
         Err = FileSystemRename(OldPath, Path);
-        SetStatus(Err == FAT_OK ? "renamed" : FatStrError(Err));
+        if (Err == FAT_ERR_STORE) {
+            SetStatus(LocStr(MSG_FILES_STORE_MANAGED));
+        } else {
+            SetStatus(Err == FAT_OK ? "renamed" : FatStrError(Err));
+        }
     }
     gMode = FILES_MODE_LIST;
     (void)ReloadList();

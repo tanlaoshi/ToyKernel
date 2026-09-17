@@ -137,10 +137,6 @@ void HalSerialBootMark(const char *Text) {
     HalSerialBootMarkChannel(TOY_SLOG_BOOT, Text);
 }
 
-void HalSerialGopPhotoHold(UINT32 Seconds) {
-    (void)Seconds;
-}
-
 void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits) {
     static const char Hex[] = "0123456789abcdef";
     int i;

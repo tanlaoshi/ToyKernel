@@ -128,7 +128,7 @@ static void CommandMsc(int Argc, char **Argv) {
 }
 
 void ShellCmdUsbRegister(void) {
-    ConsoleRegister2("show", "xhci", "xHCI mode= + PHOTO counters", CommandXhci);
+    ConsoleRegister2("show", "xhci", "xHCI mode= + counters", CommandXhci);
     ConsoleRegister("msc",
                     "USB MSC: scan|claim|capacity|mount; boot auto (msc-7b)",
                     CommandMsc);

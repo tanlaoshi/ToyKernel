@@ -58,14 +58,14 @@ int HalUsbMscMount(void);
 int HalUsbMscAutoEnabled(void);
 void HalUsbMscAutoSet(int On);
 int HalUsbMscAutoBeforeFs(void);
-/* 真机 PHOTO 后开 xHCI MSI-X；其它平台空操作 */
+/* 真机：usb 模块末尾开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
-/* 真机：PHOTO 后再枚举鼠标，避免踩键盘 IN */
+/* 真机：键鼠 ready 后再枚举鼠标，避免踩键盘 IN */
 void HalInputInitMouseDeferred(void);
-/* PHOTO→桌面：清空鼠队列并对齐累加坐标 */
+/* 进桌面前：清空鼠队列并对齐累加坐标 */
 void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 void HalInputPoll(void);
-/* PHOTO：t=任意xfer i=键鼠匹配 k/m推送 u未匹配 s=slot.ep c完成码 r环事件 d=Drain q=IRQ x=独占跳过 */
+/* 诊断串：mode= + t/i/k/m…（Shell show xhci） */
 void HalInputDiagFormat(char *Buf, int Max);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);

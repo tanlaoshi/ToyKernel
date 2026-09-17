@@ -7,6 +7,8 @@
 
 /* MSC 全局仍定义在 XhciCore.c（BSS 顺序影响 HID DMA 环地址；勿迁出） */
 
+static int gMscInSense;  /* REQUEST SENSE 重入保护 */
+
 /*
  * PR-H-msc-2/4：Bulk 环 Init；claim 后 Ready=1（仍无 SCSI）。
  */
@@ -121,7 +123,7 @@ int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
 
 /*
  * BOT：CBW → [DATA] → CSW。DataIn=1 时数据走 Bulk IN。
- * 成功 0；失败 -1（不 ClearHalt，留给后续刀）。
+ * 成功 0；失败 -1。CSW≠0 时发 REQUEST SENSE 清粘滞 sense（不少棒必须）。
  */
 static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
                   void *Data) {
@@ -182,7 +184,23 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
         return -1;
     }
     if (Csw[12] != 0) {
-        BootLogHex("Boot: MSC bot status=", Csw[12], 2);
+        if (!gMscInSense) {
+            UINT8 Sense[18] __attribute__((aligned(64)));
+            UINT8 Scdb[16];
+
+            BootLogHex("Boot: MSC bot status=", Csw[12], 2);
+            gMscInSense = 1;
+            ZeroMemory(Scdb, sizeof(Scdb));
+            Scdb[0] = 0x03; /* REQUEST SENSE */
+            Scdb[4] = 18;
+            ZeroMemory(Sense, sizeof(Sense));
+            if (MscBot(Scdb, 6, 18, 1, Sense) == 0) {
+                BootLogHex("Boot: MSC sense key=", Sense[2] & 0x0Fu, 2);
+                BootLogHex("Boot: MSC sense asc=", Sense[12], 2);
+                BootLogHex("Boot: MSC sense ascq=", Sense[13], 2);
+            }
+            gMscInSense = 0;
+        }
         return -1;
     }
     return 0;
@@ -272,8 +290,7 @@ UINT32 XhciMscBlockSize(void) {
 
 /*
  * PR-H-msc-6：逐扇区 BOT READ(10)/WRITE(10)。
- * 仅支持逻辑块 512（与 BLOCK_SECTOR_SIZE / FAT 一致）；bounce 对齐，避免脏缓冲 DMA。
- * 每扇区间 WaitBulk 仍 ServiceHidCompletions，勿关 Drain。
+ * 仅支持逻辑块 512；bounce 对齐。勿带 FUA/SYNC：不少棒 CSW=1 且会搞丢写缓存。
  */
 static int MscXferSectors(UINT32 Lba, UINT32 Count, void *Buffer, int Write) {
     UINT8 Bounce[512] __attribute__((aligned(64)));
@@ -321,6 +338,15 @@ int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
 
 int XhciMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {
     return MscXferSectors(Lba, Count, (void *)Buffer, 1);
+}
+
+/*
+ * USB MSC：多数棒不支持 SYNCHRONIZE CACHE；失败 CSW 后部分控制器会丢未刷写缓存，
+ * 表现为目录项「写成功」但读回旧内容 → store remove file remains。
+ * Flush 改为空操作；依赖 WRITE(10) 本身落盘。
+ */
+int XhciMscFlush(void) {
+    return 1;
 }
 
 /* 配置描述符中找 MSC Bulk IN/OUT（偏好 BOT；允许 UASP；兜底任一对 Bulk） */

@@ -23,7 +23,7 @@ const char *HalSerialLogText(void);
 void HalSerialBootLogRewind(void);
 void HalSerialGopMute(int Mute);
 /*
- * boot GOP 镜像开关。PHOTO/进调度前关：之后有 COM1 只旁路写串口，
+ * boot GOP 镜像开关。进调度前关：之后有 COM1 只旁路写串口，
  * 无 COM1 只写 ring——主路径不得因串口有无而分叉。
  */
 void HalSerialGopMirror(int Enable);
@@ -31,7 +31,6 @@ void HalSerialGopMirror(int Enable);
 int HalSerialGopMirroring(void);
 void HalSerialBootMark(const char *Text);
 void HalSerialBootMarkChannel(int Channel, const char *Text);
-void HalSerialGopPhotoHold(UINT32 Seconds);
 int HalSerialDataReady(void);
 char HalSerialReadChar(void);
 void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits);

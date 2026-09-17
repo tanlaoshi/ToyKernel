@@ -11,6 +11,7 @@ MSG_ICON_SHELL=外壳
 MSG_ICON_SETTINGS=设置
 MSG_ICON_FILES=文件
 MSG_ICON_STORE=商店
+MSG_ICON_APPS=应用
 MSG_ICON_SHUTDOWN=关机
 MSG_ICON_REBOOT=重启
 MSG_START=开始
@@ -38,6 +39,7 @@ MSG_FILES_RENAME=重命名为
 MSG_FILES_PROMPT_HINT=Enter=确认 Esc=取消 Backspace
 MSG_FILES_EMPTY=此文件夹为空
 MSG_FILES_EMPTY_HINT=n = 新建目录    f = 新建文件
+MSG_FILES_STORE_MANAGED=商店程序，请在商店卸载
 MSG_CON_WELCOME=ToyOS 控制台。输入 help。
 MSG_CON_READY=ToyOS 就绪。输入 shell / settings，或按任意键打开外壳。
 MSG_LANG_USAGE=用法: lang en|zh|reload\n
