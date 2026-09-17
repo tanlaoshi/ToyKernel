@@ -82,6 +82,8 @@ void GuiFocusClearClient(void);
 int GuiShellAcceptsInput(void);
 void GuiFocusHome(void);
 void GuiPollMouse(void);
+/* 长 IO（Store 拷贝）期间：只挪光标、吞按键边沿，避免点按卡死到操作结束 */
+void GuiPollMouseMotion(void);
 /* ThemeSave / 热切期间禁止 ShellTask 抢跑 GuiPollMouse（防 vvfat 重入写） */
 void GuiInputLock(int Locked);
 int GuiInputLocked(void);

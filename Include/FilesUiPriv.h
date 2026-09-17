@@ -27,8 +27,10 @@
 #define FILES_SB_W          12u
 #define FILES_SIDE_W        128u
 #define FILES_SIDE_BG       0x00A0A8B0u
-/* extern 不完整数组不能 sizeof；与 gBookmarks[] 四项一致 */
-#define FILES_BOOKMARK_COUNT 4
+/* 侧栏 = 已挂载卷（动态）；上限与 FS_MAX_VOLUMES 对齐 */
+#define FILES_PLACE_MAX        FS_MAX_VOLUMES
+#define FILES_PLACE_LABEL_MAX  20
+#define FILES_PLACE_PATH_MAX   12
 
 /* ===== 类型（布局不变） ===== */
 typedef enum {
@@ -57,7 +59,7 @@ typedef enum {
 typedef struct {
     const char *Label;
     const char *Path;
-} FILES_BOOKMARK;
+} FILES_PLACE;
 
 /* ===== 全局（定义在 FilesUi.c） ===== */
 extern char gCwd[FILES_PATH_MAX];
@@ -83,7 +85,10 @@ extern int gHoverIdx;
 extern int gSideHover;
 extern int gSideSel;
 
-extern const FILES_BOOKMARK gBookmarks[FILES_BOOKMARK_COUNT];
+extern FILES_PLACE gPlaces[FILES_PLACE_MAX];
+extern int gPlaceCount;
+extern char gPlaceLabels[FILES_PLACE_MAX][FILES_PLACE_LABEL_MAX];
+extern char gPlacePaths[FILES_PLACE_MAX][FILES_PLACE_PATH_MAX];
 
 extern UINT32 gSbX;
 extern UINT32 gSbY;
@@ -119,10 +124,13 @@ int PathEqIgnoreCase(const char *A, const char *B);
 void DrawLine(UINT32 X, UINT32 Y, const char *S, UINT32 Fg);
 
 /* ===== Nav（仍在 FilesUi.c，待 split-2） ===== */
-int BookmarkMatches(int Idx);
+void RebuildPlaces(void);
+int PlaceMatches(int Idx);
 void SyncSideSel(void);
 void GotoPath(const char *Path);
 int SideHitIndex(UINT32 X, UINT32 Y);
+/* WantPlaces=0：跳过卷枚举；WantPreview=0：不读文件内容（开窗加速） */
+int ReloadListEx(int WantPlaces, int WantPreview);
 int ReloadList(void);
 int IsMostlyText(const char *Buf, UINTN Len);
 void UpdatePreview(void);

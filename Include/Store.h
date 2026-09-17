@@ -55,6 +55,8 @@ int StoreComboRemove(const char *Id);
 
 /* PR-S5：可见性 — 是否已装 / 依赖串（sd.<id>，缺省 "-"） */
 int StoreIsInstalled(const char *Id);
+/* 批量填已装标志：每目录只 List 一次（UI 刷新用，避免 N 次扫盘） */
+void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags);
 int StoreGetDepends(const char *Id, char *Out, int OutMax);
 
 /* 当前本机 arch 标签（如 x86_64） */

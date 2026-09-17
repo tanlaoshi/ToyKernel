@@ -12,6 +12,7 @@
 #include "UI.h"
 #include "FilesUi.h"
 #include "SettingsUi.h"
+#include "StoreUi.h"
 #include "Desktop.h"
 
 /* 臂长：1080→6，2160→12；线半宽：1080→0（1px），2160→1（3px） */
@@ -199,6 +200,8 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
     } else if (GuiFocusKind() == GUI_WIN_SETTINGS) {
         /* PR-GUI-l3：与 Files 同挂 GuiPointerMove（GuiPollMouse / GuiOnMouse 共用） */
         SettingsUiOnPointer(X, Y, gCursorBtn);
+    } else if (GuiFocusKind() == GUI_WIN_STORE) {
+        StoreUiOnPointer(X, Y, gCursorBtn);
     }
 }
 

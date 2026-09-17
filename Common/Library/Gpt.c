@@ -79,10 +79,13 @@ static int MbrCollectFat(GPT_FAT_PART *Out, int Max, int *InOutCount) {
             SawGpt = 1;
             continue;
         }
-        if (Type == 0x0B || Type == 0x0C || Type == 0x0E || Type == 0x06 || Type == 0x04) {
+        /* 0xEF = EFI System（多数可启动 U 盘 MBR ESP）；FAT 类型一并挂 */
+        if (Type == 0x0B || Type == 0x0C || Type == 0x0E || Type == 0x06 ||
+            Type == 0x04 || Type == 0xEF) {
+            int IsEsp = (Type == 0xEF) ? 1 : 0;
             Start = (UINT32)P[8] | ((UINT32)P[9] << 8) |
                     ((UINT32)P[10] << 16) | ((UINT32)P[11] << 24);
-            *InOutCount = AddPart(Out, Max, *InOutCount, Start, 0);
+            *InOutCount = AddPart(Out, Max, *InOutCount, Start, IsEsp);
         }
     }
     return SawGpt ? 2 : (*InOutCount > 0 ? 1 : 0);

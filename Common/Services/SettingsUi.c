@@ -1,8 +1,8 @@
 /*
- * SettingsUi.c — Settings 菜单（PR-D5/D7 + PR-G12 控件化）
+ * SettingsUi.c — Settings 三分栏（类 Files：左大类 / 中条目 / 右详情）
  *
- * 分辨率：ThemeSave → TOYOS.DB + THEME.CFG；QEMU 优先 ThemeApplyDisplayLive（PR-G-hotres）。
- * 列表优先 Boot 传入的 GOP 模式（PR-G-modes）；热切失败时写盘，重启后 ToyBoot SetMode。
+ * 分辨率：ThemeSave → TOYOS.DB + THEME.CFG；QEMU 优先 ThemeApplyDisplayLive。
+ * 点选中间条目即应用（与旧子页语义一致）；数字键选条目。
  */
 #include "SettingsUi.h"
 #include "Gui.h"
@@ -14,14 +14,14 @@
 #include "Locale.h"
 
 typedef enum {
-    SETTINGS_PAGE_MAIN = 0,
-    SETTINGS_PAGE_DESKTOP_BG,
-    SETTINGS_PAGE_SHELL_BG,
-    SETTINGS_PAGE_FONT,
-    SETTINGS_PAGE_DISPLAY,
-    SETTINGS_PAGE_LANGUAGE,
-    SETTINGS_PAGE_SCALE
-} SETTINGS_PAGE;
+    SETTINGS_CAT_DESKTOP = 0,
+    SETTINGS_CAT_SHELL,
+    SETTINGS_CAT_FONT,
+    SETTINGS_CAT_DISPLAY,
+    SETTINGS_CAT_LANGUAGE,
+    SETTINGS_CAT_SCALE,
+    SETTINGS_CAT_COUNT
+} SETTINGS_CAT;
 
 typedef struct {
     const char *Label;
@@ -39,17 +39,34 @@ typedef struct {
     UINT32 Y;
     UINT32 W;
     UINT32 H;
-    int    Action; /* 与数字键相同：0=返回，1..=选项 */
+    int    Kind;   /* 0=左栏 1=中栏 2=右钮 */
+    int    Index;
 } SETTINGS_HIT;
 
-#define SETTINGS_HIT_MAX 16
+#define SETTINGS_HIT_MAX  48
+#define SETTINGS_SIDE_W   128u
+#define SETTINGS_SIDE_BG  0x00A0A8B0u
+#define SETTINGS_PREV_BG  0x00D8D8E0u
+#define SETTINGS_SB_W     12u
 
-static SETTINGS_PAGE gPage = SETTINGS_PAGE_MAIN;
+static SETTINGS_CAT gCat = SETTINGS_CAT_DESKTOP;
+static int gItemSel;
+static int gItemScroll;
 static int gDisplayHint; /* 0=无；1=须重启；2=已热切 */
 static SETTINGS_HIT gHits[SETTINGS_HIT_MAX];
 static int gHitCount;
-static int gHoverAction = -1; /* PR-GUI-l3：-1=无悬停 */
-static int gPressAction = -1; /* 按住中的 Action */
+static int gHoverKind = -1;
+static int gHoverIdx = -1;
+static int gPressKind = -1;
+static int gPressIdx = -1;
+
+/* 布局（Paint 写入，Click/Pointer 读取） */
+static UINT32 gSideX, gSideY, gSideW, gSideRow0, gSideLineH;
+static UINT32 gListX, gListTop, gListRowW, gListLineH;
+static int gListVisible;
+static UINT32 gSbX, gSbY, gSbW, gSbH;
+static int gSbVisible;
+static UINT32 gPrevX, gPrevW;
 
 static const SETTINGS_COLOR gDesktopColors[] = {
     { "Dark Gray", COLOR_DARK_GRAY },
@@ -67,7 +84,6 @@ static const SETTINGS_COLOR gShellColors[] = {
     { "Gray",       COLOR_GRAY },
 };
 
-/* 无退表：Boot 未传 GOP 列表时（旧 Boot / 非 x86） */
 static const SETTINGS_MODE gModesFallback[] = {
     { "800x600",    800,  600 },
     { "1024x768",  1024,  768 },
@@ -80,7 +96,6 @@ static SETTINGS_MODE gModes[BOOT_VIDEO_MODE_MAX];
 static char gModeLabels[BOOT_VIDEO_MODE_MAX][16];
 static int gModeCount;
 static int gModesReady;
-
 static const UINT32 gScales[] = { 50, 100, 150, 200 };
 
 #define DESKTOP_COLOR_COUNT \
@@ -90,8 +105,21 @@ static const UINT32 gScales[] = { 50, 100, 150, 200 };
 #define SCALE_COUNT ((int)(sizeof(gScales) / sizeof(gScales[0])))
 
 static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B);
+static void PaintMenu(void);
 
-/* PR-G-modes：Boot 传入的 GOP 模式（已按 EDID→同宽高比→就近排）；否则内置表 */
+static const char *CatLabel(SETTINGS_CAT C) {
+    /* 三分栏左侧短名（locale 已去掉「N.」与括号说明） */
+    switch (C) {
+    case SETTINGS_CAT_DESKTOP:  return LocStr(MSG_SET_DESKTOP_BG);
+    case SETTINGS_CAT_SHELL:    return LocStr(MSG_SET_SHELL_BG);
+    case SETTINGS_CAT_FONT:     return LocStr(MSG_SET_FONT);
+    case SETTINGS_CAT_DISPLAY:  return LocStr(MSG_SET_DISPLAY);
+    case SETTINGS_CAT_LANGUAGE: return LocStr(MSG_SET_LANGUAGE);
+    case SETTINGS_CAT_SCALE:    return LocStr(MSG_SET_SCALE);
+    default:                    return "?";
+    }
+}
+
 static void EnsureDisplayModes(void) {
     UINT32 N;
     UINT32 i;
@@ -112,8 +140,8 @@ static void EnsureDisplayModes(void) {
         if (HalVideoModeGet(i, &W, &H) != 0 || W < 640 || H < 480) {
             continue;
         }
-        L = 0;
         FormatUxU(gModeLabels[gModeCount], sizeof(gModeLabels[0]), W, H);
+        L = 0;
         while (gModeLabels[gModeCount][L]) {
             L++;
         }
@@ -136,6 +164,139 @@ static int ModeCount(void) {
     return gModeCount;
 }
 
+static int ItemCount(void) {
+    switch (gCat) {
+    case SETTINGS_CAT_DESKTOP:  return DESKTOP_COLOR_COUNT;
+    case SETTINGS_CAT_SHELL:    return SHELL_COLOR_COUNT;
+    case SETTINGS_CAT_FONT:     return (int)FontCount();
+    case SETTINGS_CAT_DISPLAY:  return 1 + ModeCount();
+    case SETTINGS_CAT_LANGUAGE: return 2;
+    case SETTINGS_CAT_SCALE:    return SCALE_COUNT;
+    default:                    return 0;
+    }
+}
+
+static void CopyStr(char *Dst, int DstMax, const char *S) {
+    int j;
+
+    if (DstMax <= 0) {
+        return;
+    }
+    if (!S) {
+        Dst[0] = 0;
+        return;
+    }
+    for (j = 0; S[j] && j < DstMax - 1; j++) {
+        Dst[j] = S[j];
+    }
+    Dst[j] = 0;
+}
+
+static void ItemLabel(int Idx, char *Out, int OutMax) {
+    const FONT_FACE *Face;
+    UINT32 Sc;
+    int P;
+
+    if (OutMax <= 0) {
+        return;
+    }
+    Out[0] = 0;
+    if (Idx < 0 || Idx >= ItemCount()) {
+        return;
+    }
+    switch (gCat) {
+    case SETTINGS_CAT_DESKTOP:
+        CopyStr(Out, OutMax, gDesktopColors[Idx].Label);
+        break;
+    case SETTINGS_CAT_SHELL:
+        CopyStr(Out, OutMax, gShellColors[Idx].Label);
+        break;
+    case SETTINGS_CAT_FONT:
+        Face = FontGetById((UINT32)Idx);
+        CopyStr(Out, OutMax, (Face && Face->Name) ? Face->Name : "?");
+        break;
+    case SETTINGS_CAT_DISPLAY:
+        if (Idx == 0) {
+            CopyStr(Out, OutMax, "Auto");
+        } else {
+            CopyStr(Out, OutMax, gModes[Idx - 1].Label);
+        }
+        break;
+    case SETTINGS_CAT_LANGUAGE:
+        CopyStr(Out, OutMax,
+                (Idx == 0) ? LocStr(MSG_SET_LANG_EN) : LocStr(MSG_SET_LANG_ZH));
+        break;
+    case SETTINGS_CAT_SCALE:
+        Sc = gScales[Idx];
+        P = 0;
+        if (Sc >= 100) {
+            Out[P++] = (char)('0' + (Sc / 100) % 10);
+        }
+        Out[P++] = (char)('0' + (Sc / 10) % 10);
+        Out[P++] = (char)('0' + (Sc % 10));
+        Out[P++] = '%';
+        Out[P] = 0;
+        break;
+    default:
+        break;
+    }
+}
+
+/* 当前已生效值在列表中的下标 */
+static int CurrentItemIndex(void) {
+    int i;
+    UINT32 Cur;
+    UINT32 PrefW;
+    UINT32 PrefH;
+    int HasPref;
+
+    switch (gCat) {
+    case SETTINGS_CAT_DESKTOP:
+        Cur = ThemeDesktopBackground();
+        for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
+            if (gDesktopColors[i].Color == Cur) {
+                return i;
+            }
+        }
+        return 0;
+    case SETTINGS_CAT_SHELL:
+        Cur = ThemeShellClientBackground();
+        for (i = 0; i < SHELL_COLOR_COUNT; i++) {
+            if (gShellColors[i].Color == Cur) {
+                return i;
+            }
+        }
+        return 0;
+    case SETTINGS_CAT_FONT:
+        return (int)ThemeFontId();
+    case SETTINGS_CAT_DISPLAY:
+        HasPref = ThemeHasDisplayPref();
+        if (!HasPref) {
+            return 0;
+        }
+        PrefW = ThemeDisplayWidth();
+        PrefH = ThemeDisplayHeight();
+        for (i = 0; i < ModeCount(); i++) {
+            if (gModes[i].W == PrefW && gModes[i].H == PrefH) {
+                return i + 1;
+            }
+        }
+        return 0;
+    case SETTINGS_CAT_LANGUAGE:
+        return (LocaleGet() == LOC_LANG_ZH) ? 1 : 0;
+    case SETTINGS_CAT_SCALE:
+        Cur = ThemeUiScale();
+        for (i = 0; i < SCALE_COUNT; i++) {
+            if (gScales[i] == Cur) {
+                return i;
+            }
+        }
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static int FocusSettingsWindow(void) {
     int i;
 
@@ -151,10 +312,6 @@ static int FocusSettingsWindow(void) {
     return 0;
 }
 
-/*
- * Settings「Now」：物理分辨率（GOP 真值）。UI scale 只改逻辑坐标，
- * 4K+200% 时逻辑常为 1920x1080，不能当成「当前显示器模式」。
- */
 static void FormatNowDisplay(char *Out, UINTN Max) {
     UINT32 PhysW = 0;
     UINT32 PhysH = 0;
@@ -248,23 +405,11 @@ static void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {
     Out[N] = 0;
 }
 
-static void CopyLabel(char *Dst, int DstMax, const char *S) {
-    int j;
-
-    if (DstMax <= 0) {
-        return;
-    }
-    for (j = 0; S[j] && j < DstMax - 1; j++) {
-        Dst[j] = S[j];
-    }
-    Dst[j] = 0;
-}
-
 static void HitClear(void) {
     gHitCount = 0;
 }
 
-static void HitAdd(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, int Action) {
+static void HitAdd(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, int Kind, int Index) {
     if (gHitCount >= SETTINGS_HIT_MAX || W == 0 || H == 0) {
         return;
     }
@@ -272,243 +417,42 @@ static void HitAdd(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, int Action) {
     gHits[gHitCount].Y = Y;
     gHits[gHitCount].W = W;
     gHits[gHitCount].H = H;
-    gHits[gHitCount].Action = Action;
+    gHits[gHitCount].Kind = Kind;
+    gHits[gHitCount].Index = Index;
     gHitCount++;
 }
 
-static void DrawHint(UINT32 X, UINT32 *Y, UINT32 MaxBottom, const char *Text, UINT32 Color) {
-    if (*Y + FontCellH() > MaxBottom) {
-        return;
+static void ClampItemScroll(void) {
+    int N = ItemCount();
+
+    if (gItemSel < 0) {
+        gItemSel = 0;
     }
-    HalVideoDrawStringAt(X, *Y, Text, Color);
-    *Y += FontAdvanceY();
+    if (N > 0 && gItemSel >= N) {
+        gItemSel = N - 1;
+    }
+    if (gListVisible < 1) {
+        gListVisible = 1;
+    }
+    if (gItemSel < gItemScroll) {
+        gItemScroll = gItemSel;
+    }
+    if (gItemSel >= gItemScroll + gListVisible) {
+        gItemScroll = gItemSel - gListVisible + 1;
+    }
+    if (gItemScroll < 0) {
+        gItemScroll = 0;
+    }
 }
 
-static void DrawButtonRow(UINT32 X, UINT32 *Y, UINT32 Bw, UINT32 Bh, UINT32 Gap,
-                          UINT32 MaxBottom, const char *Text, int Selected,
-                          int Action) {
-    UINT32 Bg;
-    UINT32 Fg;
-    int Hovered;
-    int Pressed;
-
-    if (*Y + Bh > MaxBottom) {
+static void SelectCategory(SETTINGS_CAT C) {
+    if (C < 0 || C >= SETTINGS_CAT_COUNT) {
         return;
     }
-    Bg = Selected ? ThemeControlAccent() : ThemeControlFace();
-    Fg = Selected ? COLOR_WHITE : COLOR_BLACK;
-    Hovered = (!Selected && Action == gHoverAction);
-    Pressed = (Action == gPressAction);
-    UiDrawButtonEx(X, *Y, Bw, Bh, Text, Fg, Bg, Hovered, Pressed);
-    HitAdd(X, *Y, Bw, Bh, Action);
-    *Y += Bh + Gap;
-}
-
-static void PaintMenu(void) {
-    UINT32 Cx;
-    UINT32 Cy;
-    UINT32 Cw;
-    UINT32 Ch;
-    UINT32 Bg;
-    UINT32 X0;
-    UINT32 Y;
-    UINT32 MaxBottom;
-    UINT32 Bw;
-    UINT32 Bh;
-    UINT32 Gap;
-    int i;
-    char Line[56];
-    char Btn[56];
-    const FONT_FACE *Face;
-    UINT32 CurColor;
-    UINT32 CurFont;
-    UINT32 NowW;
-    UINT32 NowH;
-    UINT32 PrefW;
-    UINT32 PrefH;
-    int HasPref;
-
-    if (GuiFocusKind() != GUI_WIN_SETTINGS) {
-        if (!FocusSettingsWindow()) {
-            return;
-        }
-    }
-    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
-        return;
-    }
-
-    HitClear();
-    GuiFrameBufferBegin();
-    HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
-    HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
-
-    if (Cw > 8 && Ch > 8) {
-        UiDrawRectangle(Cx + 4, Cy + 4, Cw - 8, Ch - 8, COLOR_DARK_GRAY);
-    }
-
-    X0 = Cx + 12;
-    Y = Cy + 8;
-    MaxBottom = Cy + Ch - 4;
-    Bw = Cw > 24 ? Cw - 24 : Cw;
-    Bh = FontCellH() + 10;
-    if (Bh < 24) {
-        Bh = 24;
-    }
-    Gap = 4;
-
-    DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_TITLE), COLOR_BLUE);
-    DrawHint(X0, &Y, MaxBottom, "----------------", COLOR_DARK_GRAY);
-    Y += 4;
-
-    if (gPage == SETTINGS_PAGE_MAIN) {
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_MAIN), COLOR_BLACK);
-        Y += 2;
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DESKTOP_BG), 0, 1);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_SHELL_BG), 0, 2);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_FONT), 0, 3);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_DISPLAY), 0, 4);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANGUAGE), 0, 5);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_SCALE), 0, 6);
-        FormatNowDisplay(Line, sizeof(Line));
-        if (ThemeHasDisplayPref()) {
-            UINTN N = 0;
-            while (Line[N]) {
-                N++;
-            }
-            if (N + 6 < sizeof(Line)) {
-                Line[N++] = ' ';
-                Line[N++] = 'n';
-                Line[N++] = 'x';
-                Line[N++] = 't';
-                Line[N++] = ' ';
-                FormatUxU(Line + N, sizeof(Line) - N,
-                          ThemeDisplayWidth(), ThemeDisplayHeight());
-            }
-        } else {
-            UINTN N = 0;
-            while (Line[N]) {
-                N++;
-            }
-            CopyLabel(Line + N, (int)(sizeof(Line) - N), " nxt auto");
-        }
-        DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_HINT_MAIN), COLOR_DARK_GRAY);
-        if (gDisplayHint == 2) {
-            DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
-        } else if (gDisplayHint == 1) {
-            DrawHint(X0, &Y, MaxBottom,
-                     LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC),
-                     COLOR_BLUE);
-        }
-    } else if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
-        CurColor = ThemeDesktopBackground();
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DESKTOP), COLOR_BLACK);
-        Y += 2;
-        for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
-            Btn[0] = (gDesktopColors[i].Color == CurColor) ? '*' : ' ';
-            Btn[1] = ' ';
-            CopyLabel(Btn + 2, (int)sizeof(Btn) - 2, gDesktopColors[i].Label);
-            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
-                          gDesktopColors[i].Color == CurColor, i + 1);
-        }
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-    } else if (gPage == SETTINGS_PAGE_SHELL_BG) {
-        CurColor = ThemeShellClientBackground();
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_SHELL), COLOR_BLACK);
-        Y += 2;
-        for (i = 0; i < SHELL_COLOR_COUNT; i++) {
-            Btn[0] = (gShellColors[i].Color == CurColor) ? '*' : ' ';
-            Btn[1] = ' ';
-            CopyLabel(Btn + 2, (int)sizeof(Btn) - 2, gShellColors[i].Label);
-            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
-                          gShellColors[i].Color == CurColor, i + 1);
-        }
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-    } else if (gPage == SETTINGS_PAGE_FONT) {
-        CurFont = ThemeFontId();
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_FONT), COLOR_BLACK);
-        Y += 2;
-        for (i = 0; (UINT32)i < FontCount(); i++) {
-            Face = FontGetById((UINT32)i);
-            Btn[0] = ((UINT32)i == CurFont) ? '*' : ' ';
-            Btn[1] = ' ';
-            CopyLabel(Btn + 2, (int)sizeof(Btn) - 2,
-                      (Face && Face->Name) ? Face->Name : "?");
-            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
-                          (UINT32)i == CurFont, i + 1);
-        }
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-    } else if (gPage == SETTINGS_PAGE_DISPLAY) {
-        HasPref = ThemeHasDisplayPref();
-        PrefW = ThemeDisplayWidth();
-        PrefH = ThemeDisplayHeight();
-        HalVideoGetPhysicalSize(&NowW, &NowH);
-        if (NowW == 0 || NowH == 0) {
-            HalVideoGetSize(&NowW, &NowH);
-        }
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_DISPLAY), COLOR_BLACK);
-        Y += 2;
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, "Auto", !HasPref, 1);
-        for (i = 0; i < ModeCount(); i++) {
-            int Mark = HasPref && gModes[i].W == PrefW && gModes[i].H == PrefH;
-            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, gModes[i].Label, Mark, 2 + i);
-        }
-        FormatNowDisplay(Line, sizeof(Line));
-        DrawHint(X0, &Y, MaxBottom, Line, COLOR_DARK_GRAY);
-        if (HasPref && (PrefW != NowW || PrefH != NowH)) {
-            DrawHint(X0, &Y, MaxBottom,
-                     LocStr(HalCpuIsHypervisor() ? MSG_SET_PREF_DIFF : MSG_SET_PREF_DIFF_PC),
-                     COLOR_BLUE);
-        }
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-        if (gDisplayHint == 2) {
-            DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
-        } else if (gDisplayHint == 1) {
-            DrawHint(X0, &Y, MaxBottom,
-                     LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC),
-                     COLOR_BLUE);
-        }
-    } else if (gPage == SETTINGS_PAGE_SCALE) {
-        UINT32 CurScale = ThemeUiScale();
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_SCALE), COLOR_BLACK);
-        Y += 2;
-        for (i = 0; i < SCALE_COUNT; i++) {
-            Btn[0] = (gScales[i] == CurScale) ? '*' : ' ';
-            Btn[1] = ' ';
-            {
-                UINT32 Sc = gScales[i];
-                int P = 2;
-                if (Sc >= 100) {
-                    Btn[P++] = (char)('0' + (Sc / 100) % 10);
-                }
-                Btn[P++] = (char)('0' + (Sc / 10) % 10);
-                Btn[P++] = (char)('0' + (Sc % 10));
-                Btn[P++] = '%';
-                Btn[P] = 0;
-            }
-            DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, Btn,
-                          gScales[i] == CurScale, i + 1);
-        }
-        DrawHint(X0, &Y, MaxBottom, "50=small  100=normal  150/200=large",
-                 COLOR_DARK_GRAY);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-        if (gDisplayHint == 2) {
-            DrawHint(X0, &Y, MaxBottom, "Applied (live)", COLOR_BLUE);
-        }
-    } else if (gPage == SETTINGS_PAGE_LANGUAGE) {
-        DrawHint(X0, &Y, MaxBottom, LocStr(MSG_SET_PAGE_LANG), COLOR_BLACK);
-        Y += 2;
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANG_EN),
-                      LocaleGet() == LOC_LANG_EN, 1);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_LANG_ZH),
-                      LocaleGet() == LOC_LANG_ZH, 2);
-        DrawButtonRow(X0, &Y, Bw, Bh, Gap, MaxBottom, LocStr(MSG_SET_HINT_BACK), 0, 0);
-    }
-
-    GuiBackupSyncRect(Cx, Cy, Cw, Ch);
-    HalVideoClearClip();
-    /* 客户区直角 Fill 会盖住底角切角 → 打回桌面 */
-    GuiFrameBufferEnd();
+    gCat = C;
+    gItemSel = CurrentItemIndex();
+    gItemScroll = 0;
+    ClampItemScroll();
 }
 
 static void ApplyDesktopColor(int Index) {
@@ -584,7 +528,6 @@ static void ApplyDisplayChoice(int Index) {
         return;
     }
 
-    /* 先热切（不碰盘）；再 ThemeSave。vvfat 写失败也不回滚已切分辨率。 */
     if (Index >= 1 && W != 0 && H != 0) {
         char Dim[24];
         FormatUxU(Dim, sizeof(Dim), W, H);
@@ -628,6 +571,283 @@ static void ApplyDisplayChoice(int Index) {
     PaintMenu();
 }
 
+static void ApplyItem(int Idx) {
+    if (Idx < 0 || Idx >= ItemCount()) {
+        return;
+    }
+    gItemSel = Idx;
+    switch (gCat) {
+    case SETTINGS_CAT_DESKTOP:
+        ApplyDesktopColor(Idx);
+        break;
+    case SETTINGS_CAT_SHELL:
+        ApplyShellColor(Idx);
+        break;
+    case SETTINGS_CAT_FONT:
+        ApplyFont(Idx);
+        break;
+    case SETTINGS_CAT_DISPLAY:
+        ApplyDisplayChoice(Idx);
+        return;
+    case SETTINGS_CAT_LANGUAGE:
+        (void)LocaleSet(Idx == 0 ? LOC_LANG_EN : LOC_LANG_ZH);
+        break;
+    case SETTINGS_CAT_SCALE:
+        ApplyScaleChoice(Idx);
+        return;
+    default:
+        break;
+    }
+    PaintMenu();
+}
+
+static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    UINT32 LineH;
+    UINT32 Ty;
+    UINT32 MaxY;
+    char Line[64];
+    char Item[40];
+    UINT32 Swatch;
+    UINT32 PrefW;
+    UINT32 PrefH;
+    UINT32 NowW;
+    UINT32 NowH;
+
+    LineH = FontAdvanceY();
+    if (LineH < 14) {
+        LineH = 14;
+    }
+    HalVideoFillRect(X, Y, W, H, SETTINGS_PREV_BG);
+    if (W > 3) {
+        HalVideoFillRect(X, Y, 3, H, COLOR_DARK_GRAY);
+    }
+    Ty = Y + 8;
+    MaxY = Y + H - 4;
+    HalVideoDrawStringAt(X + 10, Ty, "Detail", COLOR_BLACK);
+    Ty += LineH + 4;
+    HalVideoDrawStringAt(X + 10, Ty, CatLabel(gCat), COLOR_DARK_GRAY);
+    Ty += LineH + 2;
+
+    ItemLabel(gItemSel, Item, (int)sizeof(Item));
+    if (Item[0] && Ty + LineH < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, Item, COLOR_BLACK);
+        Ty += LineH + 4;
+    }
+
+    if (gCat == SETTINGS_CAT_DESKTOP || gCat == SETTINGS_CAT_SHELL) {
+        Swatch = (gCat == SETTINGS_CAT_DESKTOP)
+                     ? ((gItemSel >= 0 && gItemSel < DESKTOP_COLOR_COUNT)
+                            ? gDesktopColors[gItemSel].Color
+                            : ThemeDesktopBackground())
+                     : ((gItemSel >= 0 && gItemSel < SHELL_COLOR_COUNT)
+                            ? gShellColors[gItemSel].Color
+                            : ThemeShellClientBackground());
+        if (Ty + 36 < MaxY && W > 24) {
+            UiFillRectangle(X + 10, Ty, W > 40 ? 48 : W - 20, 28, Swatch);
+            UiDrawRectangle(X + 10, Ty, W > 40 ? 48 : W - 20, 28, COLOR_DARK_GRAY);
+            Ty += 36;
+        }
+    } else if (gCat == SETTINGS_CAT_FONT && Ty + LineH < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, "The quick brown fox", COLOR_BLACK);
+        Ty += LineH + 4;
+    } else if (gCat == SETTINGS_CAT_DISPLAY) {
+        if (Ty + LineH < MaxY) {
+            HalVideoDrawStringAt(X + 10, Ty,
+                                 HalCpuIsHypervisor()
+                                     ? "Change may need quit QEMU + rerun"
+                                     : "Change may need reboot to apply",
+                                 COLOR_DARK_GRAY);
+            Ty += LineH + 2;
+        }
+        FormatNowDisplay(Line, sizeof(Line));
+        if (Ty + LineH < MaxY) {
+            HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+            Ty += LineH + 2;
+        }
+        if (ThemeHasDisplayPref()) {
+            PrefW = ThemeDisplayWidth();
+            PrefH = ThemeDisplayHeight();
+            HalVideoGetPhysicalSize(&NowW, &NowH);
+            if (NowW == 0 || NowH == 0) {
+                HalVideoGetSize(&NowW, &NowH);
+            }
+            if ((PrefW != NowW || PrefH != NowH) && Ty + LineH < MaxY) {
+                HalVideoDrawStringAt(
+                    X + 10, Ty,
+                    LocStr(HalCpuIsHypervisor() ? MSG_SET_PREF_DIFF : MSG_SET_PREF_DIFF_PC),
+                    COLOR_BLUE);
+                Ty += LineH + 2;
+            }
+        }
+    } else if (gCat == SETTINGS_CAT_SCALE && Ty + LineH * 2 < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, "50=small 100=normal", COLOR_DARK_GRAY);
+        Ty += LineH;
+        HalVideoDrawStringAt(X + 10, Ty, "150/200=large", COLOR_DARK_GRAY);
+        Ty += LineH + 2;
+        FormatNowDisplay(Line, sizeof(Line));
+        if (Ty + LineH < MaxY) {
+            HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+            Ty += LineH + 2;
+        }
+    }
+
+    if (gDisplayHint == 2 && Ty + LineH < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, "Applied (live)", COLOR_BLUE);
+        Ty += LineH;
+    } else if (gDisplayHint == 1 && Ty + LineH < MaxY) {
+        HalVideoDrawStringAt(
+            X + 10, Ty,
+            LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC), COLOR_BLUE);
+        Ty += LineH;
+    }
+    if (Ty + LineH < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, "Click item to apply", COLOR_DARK_GRAY);
+    }
+}
+
+static void PaintMenu(void) {
+    UINT32 Cx, Cy, Cw, Ch, Bg;
+    UINT32 LineH;
+    UINT32 SideW;
+    UINT32 ContentX, ContentW;
+    UINT32 ListW;
+    UINT32 RowY;
+    UINT32 RowW;
+    int i;
+    int N;
+    int Applied;
+    char Label[48];
+    char Row[56];
+
+    if (GuiFocusKind() != GUI_WIN_SETTINGS) {
+        if (!FocusSettingsWindow()) {
+            return;
+        }
+    }
+    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
+        return;
+    }
+
+    HitClear();
+    GuiFrameBufferBegin();
+    HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
+    HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
+
+    LineH = FontAdvanceY();
+    if (LineH < 16) {
+        LineH = 16;
+    }
+
+    SideW = 0;
+    gSideW = 0;
+    if (Cw > SETTINGS_SIDE_W + 160u) {
+        SideW = SETTINGS_SIDE_W;
+    }
+    ContentX = Cx + SideW;
+    ContentW = Cw - SideW;
+
+    if (SideW > 0) {
+        gSideX = Cx;
+        gSideY = Cy;
+        gSideW = SideW;
+        gSideLineH = LineH;
+        gSideRow0 = Cy + 8 + LineH + 4;
+        RowW = SideW > 10 ? SideW - 10 : SideW;
+        HalVideoFillRect(Cx, Cy, SideW, Ch, SETTINGS_SIDE_BG);
+        if (SideW > 3) {
+            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, COLOR_DARK_GRAY);
+        }
+        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_SET_TITLE), COLOR_BLACK);
+        for (i = 0; i < SETTINGS_CAT_COUNT; i++) {
+            UiDrawListRow(Cx + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
+                          CatLabel((SETTINGS_CAT)i),
+                          i == (int)gCat,
+                          gHoverKind == 0 && gHoverIdx == i);
+            HitAdd(Cx + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH, 0, i);
+        }
+    }
+
+    gPrevW = 0;
+    gPrevX = ContentX;
+    if (ContentW > 360u) {
+        gPrevW = ContentW * 2u / 5u;
+        if (gPrevW < 160u) {
+            gPrevW = 160u;
+        }
+        if (gPrevW + 120u > ContentW) {
+            gPrevW = ContentW > 120u ? ContentW - 120u : 0;
+        }
+    }
+
+    ListW = ContentW - gPrevW;
+    gListX = ContentX;
+    gListTop = Cy + 8 + LineH + 4;
+    gListLineH = LineH;
+    N = ItemCount();
+    gListVisible = 1;
+    if (Ch > 8 + LineH * 2) {
+        gListVisible = (int)((Ch - 8 - LineH * 2) / LineH);
+    }
+    if (gListVisible < 1) {
+        gListVisible = 1;
+    }
+    ClampItemScroll();
+
+    gSbVisible = (N > gListVisible) ? 1 : 0;
+    gSbW = SETTINGS_SB_W;
+    gSbH = (UINT32)gListVisible * LineH;
+    if (gSbH + gListTop > Cy + Ch) {
+        gSbH = (Cy + Ch > gListTop) ? (Cy + Ch - gListTop) : 0;
+    }
+    gSbX = (ListW > SETTINGS_SB_W + 8) ? (ContentX + ListW - SETTINGS_SB_W - 4)
+                                      : (ContentX + 4);
+    if (gPrevW > 0 && gSbX + gSbW > ContentX + ListW) {
+        gSbX = ContentX + 4;
+    }
+    gSbY = gListTop;
+    gListRowW = ListW > 8 ? ListW - 8 : ListW;
+    if (gSbVisible && gListRowW > SETTINGS_SB_W + 8) {
+        gListRowW -= (SETTINGS_SB_W + 4);
+    }
+
+    HalVideoDrawStringAt(ContentX + 8, Cy + 8, CatLabel(gCat), COLOR_BLACK);
+
+    Applied = CurrentItemIndex();
+    RowY = gListTop;
+    for (i = 0; i < gListVisible && gItemScroll + i < N; i++) {
+        int Idx = gItemScroll + i;
+        int Mark = (Idx == Applied);
+        int Sel = (Idx == gItemSel);
+        int Hov = (gHoverKind == 1 && gHoverIdx == Idx);
+
+        ItemLabel(Idx, Label, (int)sizeof(Label));
+        Row[0] = Mark ? '*' : ' ';
+        Row[1] = ' ';
+        {
+            int j;
+            for (j = 0; Label[j] && j < (int)sizeof(Row) - 3; j++) {
+                Row[j + 2] = Label[j];
+            }
+            Row[j + 2] = 0;
+        }
+        UiDrawListRow(ContentX + 4, RowY, gListRowW, LineH, Row, Sel, Hov);
+        HitAdd(ContentX + 4, RowY, gListRowW, LineH, 1, Idx);
+        RowY += LineH;
+    }
+    if (gSbVisible && gSbH > 0) {
+        UiDrawScrollBar(gSbX, gSbY, gSbW, gSbH, gItemScroll, gListVisible, N);
+    }
+
+    if (gPrevW > 0) {
+        gPrevX = ContentX + ListW;
+        DrawDetail(gPrevX, Cy, gPrevW, Ch);
+    }
+
+    GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+    HalVideoClearClip();
+    GuiFrameBufferEnd();
+}
+
 int SettingsUiIsFocused(void) {
     return GuiFocusKind() == GUI_WIN_SETTINGS;
 }
@@ -648,12 +868,16 @@ void SettingsUiPaintFocused(void) {
 }
 
 void SettingsUiOpen(void) {
-    gPage = SETTINGS_PAGE_MAIN;
+    gCat = SETTINGS_CAT_DESKTOP;
+    gItemSel = CurrentItemIndex();
+    gItemScroll = 0;
     gDisplayHint = 0;
-    gHoverAction = -1;
-    gPressAction = -1;
+    gHoverKind = -1;
+    gHoverIdx = -1;
+    gPressKind = -1;
+    gPressIdx = -1;
     PaintMenu();
-    DebugWrite("settings: main menu\n");
+    DebugWrite("settings: three-pane open\n");
 }
 
 void SettingsUiRefresh(void) {
@@ -674,11 +898,7 @@ void SettingsUiOnEscape(void) {
     if (!SettingsUiIsFocused()) {
         return;
     }
-    if (gPage != SETTINGS_PAGE_MAIN) {
-        gPage = SETTINGS_PAGE_MAIN;
-        PaintMenu();
-        return;
-    }
+    /* 三分栏无「返回上级」；Esc 仅刷新 */
     PaintMenu();
 }
 
@@ -688,136 +908,104 @@ void SettingsUiOnDigit(char Digit) {
     if (!SettingsUiIsFocused()) {
         return;
     }
-    if (Digit < '0' || Digit > '9') {
+    if (Digit < '1' || Digit > '9') {
         return;
     }
-    N = Digit - '0';
-
-    if (gPage == SETTINGS_PAGE_MAIN) {
-        if (N == 1) {
-            gPage = SETTINGS_PAGE_DESKTOP_BG;
-            PaintMenu();
-        } else if (N == 2) {
-            gPage = SETTINGS_PAGE_SHELL_BG;
-            PaintMenu();
-        } else if (N == 3) {
-            gPage = SETTINGS_PAGE_FONT;
-            PaintMenu();
-        } else if (N == 4) {
-            gPage = SETTINGS_PAGE_DISPLAY;
-            PaintMenu();
-        } else if (N == 5) {
-            gPage = SETTINGS_PAGE_LANGUAGE;
-            PaintMenu();
-        } else if (N == 6) {
-            gPage = SETTINGS_PAGE_SCALE;
-            PaintMenu();
-        }
-        return;
-    }
-
-    if (N == 0) {
-        gPage = SETTINGS_PAGE_MAIN;
-        PaintMenu();
-        return;
-    }
-
-    if (gPage == SETTINGS_PAGE_DESKTOP_BG) {
-        ApplyDesktopColor(N - 1);
-        return;
-    }
-    if (gPage == SETTINGS_PAGE_SHELL_BG) {
-        ApplyShellColor(N - 1);
-        return;
-    }
-    if (gPage == SETTINGS_PAGE_FONT) {
-        ApplyFont(N - 1);
-        return;
-    }
-    if (gPage == SETTINGS_PAGE_DISPLAY) {
-        ApplyDisplayChoice(N - 1);
-        return;
-    }
-    if (gPage == SETTINGS_PAGE_SCALE) {
-        ApplyScaleChoice(N - 1);
-        return;
-    }
-    if (gPage == SETTINGS_PAGE_LANGUAGE) {
-        if (N == 1) {
-            (void)LocaleSet(LOC_LANG_EN);
-            PaintMenu();
-        } else if (N == 2) {
-            (void)LocaleSet(LOC_LANG_ZH);
-            PaintMenu();
-        }
-        return;
+    N = Digit - '1';
+    if (N < ItemCount()) {
+        ApplyItem(N);
     }
 }
 
-/* PR-G12：客户区点选 → 与数字键同一 Action */
 void SettingsUiOnClick(UINT32 X, UINT32 Y) {
     int i;
+    int First;
 
     if (!SettingsUiIsFocused()) {
         return;
     }
+    if (gSbVisible &&
+        UiScrollBarHit(gSbX, gSbY, gSbW, gSbH, gItemScroll, gListVisible,
+                       ItemCount(), X, Y, &First)) {
+        gItemScroll = First;
+        SettingsUiRepaint();
+        return;
+    }
     for (i = 0; i < gHitCount; i++) {
-        if (UiHitRect(gHits[i].X, gHits[i].Y, gHits[i].W, gHits[i].H, X, Y)) {
-            SettingsUiOnDigit((char)('0' + gHits[i].Action));
+        if (!UiHitRect(gHits[i].X, gHits[i].Y, gHits[i].W, gHits[i].H, X, Y)) {
+            continue;
+        }
+        if (gHits[i].Kind == 0) {
+            SelectCategory((SETTINGS_CAT)gHits[i].Index);
+            SettingsUiRepaint();
+            return;
+        }
+        if (gHits[i].Kind == 1) {
+            ApplyItem(gHits[i].Index);
             return;
         }
     }
 }
 
-/* PR-GUI-l3：悬停/按下态；抬起且仍在同一钮上才触发 OnClick（按下可看见凹陷） */
 void SettingsUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
     int i;
-    int Action = -1;
+    int Kind = -1;
+    int Idx = -1;
     int Need = 0;
-    int Fire = -1;
+    int FireKind = -1;
+    int FireIdx = -1;
     static UINT8 sPrevBtn;
 
     if (!SettingsUiIsFocused()) {
-        if (gHoverAction >= 0 || gPressAction >= 0) {
-            gHoverAction = -1;
-            gPressAction = -1;
+        if (gHoverKind >= 0 || gPressKind >= 0) {
+            gHoverKind = -1;
+            gHoverIdx = -1;
+            gPressKind = -1;
+            gPressIdx = -1;
         }
         sPrevBtn = Buttons;
         return;
     }
     for (i = 0; i < gHitCount; i++) {
         if (UiHitRect(gHits[i].X, gHits[i].Y, gHits[i].W, gHits[i].H, X, Y)) {
-            Action = gHits[i].Action;
+            Kind = gHits[i].Kind;
+            Idx = gHits[i].Index;
             break;
         }
     }
-    if (Action != gHoverAction) {
-        gHoverAction = Action;
+    if (Kind != gHoverKind || Idx != gHoverIdx) {
+        gHoverKind = Kind;
+        gHoverIdx = Idx;
         Need = 1;
     }
     if ((Buttons & 1u) && !(sPrevBtn & 1u)) {
-        /* 按下边沿 */
-        if (Action >= 0) {
-            gPressAction = Action;
+        if (Kind >= 0) {
+            gPressKind = Kind;
+            gPressIdx = Idx;
             Need = 1;
         }
-    } else if ((Buttons & 1u) && gPressAction >= 0 && Action != gPressAction) {
-        /* 按住拖出 */
-        gPressAction = -1;
+    } else if ((Buttons & 1u) && gPressKind >= 0 &&
+               (Kind != gPressKind || Idx != gPressIdx)) {
+        gPressKind = -1;
+        gPressIdx = -1;
         Need = 1;
-    } else if (!(Buttons & 1u) && (sPrevBtn & 1u) && gPressAction >= 0) {
-        /* 抬起边沿：仍在同一钮 → 触发 */
-        if (Action == gPressAction) {
-            Fire = gPressAction;
+    } else if (!(Buttons & 1u) && (sPrevBtn & 1u) && gPressKind >= 0) {
+        if (Kind == gPressKind && Idx == gPressIdx) {
+            FireKind = gPressKind;
+            FireIdx = gPressIdx;
         }
-        gPressAction = -1;
+        gPressKind = -1;
+        gPressIdx = -1;
         Need = 1;
     }
     sPrevBtn = Buttons;
     if (Need) {
         SettingsUiRepaint();
     }
-    if (Fire >= 0) {
-        SettingsUiOnDigit((char)('0' + Fire));
+    if (FireKind == 0) {
+        SelectCategory((SETTINGS_CAT)FireIdx);
+        SettingsUiRepaint();
+    } else if (FireKind == 1) {
+        ApplyItem(FireIdx);
     }
 }

@@ -232,22 +232,9 @@ int GuiOpenSettings(void) {
     if (Idx < 0) {
         return -1;
     }
-    /* 靠右放置；高度按字体行距预留，避免菜单画出窗外叠在 Shell/桌面上 */
-    W = 560;
-    {
-        UINT32 LineH = FontAdvanceY();
-        UINT32 NeedH;
-
-        if (LineH < 16) {
-            LineH = 16;
-        }
-        /* 标题 + 边距 + Display 页约 14 行（含 Now/提示） */
-        NeedH = TITLE_HEIGHT + GUI_CLIENT_PAD * 2 + 12 + LineH * 14 + 8;
-        H = NeedH;
-        if (H < 420) {
-            H = 420;
-        }
-    }
+    /* 三分栏：与 Files 同量级，靠右 */
+    W = 640;
+    H = 480;
     if (W + Margin * 2 > gScreenWidth) {
         W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
@@ -321,8 +308,8 @@ int GuiOpenStore(void) {
     if (Idx < 0) {
         return -1;
     }
-    W = 520;
-    H = 420;
+    W = 760;
+    H = 520;
     if (W + Margin * 2 > gScreenWidth) {
         W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
@@ -418,6 +405,8 @@ int GuiOpenFiles(void) {
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     GuiAnimateWindowFade(gFocusWin, 1);
+    /* ListEntries 放淡入后：窗先出来，目录填充可慢一点 */
+    FilesUiFinishOpen();
     DebugWrite("Gui: open files idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");

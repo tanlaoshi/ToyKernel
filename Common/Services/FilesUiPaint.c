@@ -106,35 +106,15 @@ void PaintList(void) {
         if (SideW > 3) {
             HalVideoFillRect(X + SideW - 3, Y, 3, H, COLOR_DARK_GRAY);
         }
-        DrawLine(X + 8, Y + 8, "Places", COLOR_BLACK);
-        for (i = 0; i < FILES_BOOKMARK_COUNT; i++) {
+        DrawLine(X + 8, Y + 8, "Volumes", COLOR_BLACK);
+        for (i = 0; i < gPlaceCount; i++) {
             UiDrawListRow(X + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
-                          gBookmarks[i].Label,
+                          gPlaces[i].Label,
                           i == gSideSel, i == gSideHover);
         }
     }
 
-    PathShow[0] = 0;
-    CopyStr(PathShow, sizeof(PathShow), "Path: ");
-    {
-        int n = 0;
-        while (PathShow[n]) {
-            n++;
-        }
-        if (gCwd[0]) {
-            CopyStr(PathShow + n, (int)sizeof(PathShow) - n, gCwd);
-        } else {
-            CopyStr(PathShow + n, (int)sizeof(PathShow) - n, "/");
-        }
-    }
-    DrawLine(Cx + 8, Y + 8, PathShow, COLOR_BLACK);
-    DrawLine(Cx + 8, Y + 8 + LineH,
-             "Enter open  d/Del rm  n mkdir  f file  r rename", COLOR_DARK_GRAY);
-    if (gStatus[0]) {
-        DrawLine(Cx + 8, Y + 8 + LineH * 2, gStatus, COLOR_BLUE);
-    }
-
-    /* PR-U3：内容区再分 列表 | 预览（窄则只列表） */
+    /* 先算预览宽，再画 Path/快捷键（避免右栏盖住 mkdir 等） */
     gPrevW = 0;
     gPrevX = Cx;
     if (Cw > 360u) {
@@ -148,11 +128,42 @@ void PaintList(void) {
     }
     {
         UINT32 ListW = Cw - gPrevW;
+        UINT32 HintMax;
+        const char *Hint1 = "Enter open  d/Del delete";
+        const char *Hint2 = "n mkdir  f newfile  r rename";
+
+        PathShow[0] = 0;
+        CopyStr(PathShow, sizeof(PathShow), "Path: ");
+        {
+            int n = 0;
+            while (PathShow[n]) {
+                n++;
+            }
+            if (gCwd[0]) {
+                CopyStr(PathShow + n, (int)sizeof(PathShow) - n, gCwd);
+            } else {
+                CopyStr(PathShow + n, (int)sizeof(PathShow) - n, "/");
+            }
+        }
+        HintMax = ListW > 16 ? ListW - 16 : ListW;
+        (void)HintMax;
+        DrawLine(Cx + 8, Y + 8, PathShow, COLOR_BLACK);
+        DrawLine(Cx + 8, Y + 8 + LineH, Hint1, COLOR_DARK_GRAY);
+        DrawLine(Cx + 8, Y + 8 + LineH * 2, Hint2, COLOR_DARK_GRAY);
+        if (gStatus[0]) {
+            DrawLine(Cx + 8, Y + 8 + LineH * 3, gStatus, COLOR_BLUE);
+        }
+    }
+
+    /* PR-U3：内容区再分 列表 | 预览（窄则只列表） */
+    {
+        UINT32 ListW = Cw - gPrevW;
         UINT32 ListX = Cx;
+        UINT32 HeadLines = gStatus[0] ? 4u : 3u;
 
         Visible = 0;
-        if (H > 8 + LineH * 4) {
-            Visible = (int)((H - 8 - LineH * 4) / LineH);
+        if (H > 8 + LineH * (HeadLines + 1)) {
+            Visible = (int)((H - 8 - LineH * (HeadLines + 1)) / LineH);
         }
         if (Visible < 1) {
             Visible = 1;
@@ -168,7 +179,7 @@ void PaintList(void) {
         }
 
         gListVisible = Visible;
-        gListTop = Y + 8 + LineH * 3 + 4;
+        gListTop = Y + 8 + LineH * HeadLines + 4;
         gListLineH = LineH;
         gSbVisible = (gCount > Visible) ? 1 : 0;
         gSbW = FILES_SB_W;

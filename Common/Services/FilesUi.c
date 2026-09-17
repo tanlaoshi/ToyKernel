@@ -4,7 +4,7 @@
  * 列表：进目录 / 开 ELF / 预览文本
  * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
  * U1：左栏固定宽 + 右栏列表
- * U2：侧栏卷/书签点击跳转（TOYOS: / ESP: / Apps/ / Assets/）
+ * U2：侧栏按已挂载卷列出（无 Apps/Assets 占位）；跨盘 ESP/TOYOS 标 drive
  * U3：右栏再分 列表 | 预览；空态/焦点行与 G12 一致
  * PR-S-filesui-split-1：Paint* → FilesUiPaint.c；本文件为全局宿主。
  */
@@ -33,13 +33,11 @@ int gHoverIdx = -1;
 int gSideHover = -1;
 int gSideSel = -1;
 
-/* PR-U2：侧栏快捷入口（路径走 FileSystem 卷前缀） */
-const FILES_BOOKMARK gBookmarks[FILES_BOOKMARK_COUNT] = {
-    { "TOYOS:", "TOYOS:" },
-    { "ESP:", "ESP:" },
-    { "Apps/", "TOYOS:Apps" },
-    { "Assets/", "TOYOS:Assets" },
-};
+/* 侧栏：RebuildPlaces() 填 Label/Path 缓冲 */
+char gPlaceLabels[FILES_PLACE_MAX][FILES_PLACE_LABEL_MAX];
+char gPlacePaths[FILES_PLACE_MAX][FILES_PLACE_PATH_MAX];
+FILES_PLACE gPlaces[FILES_PLACE_MAX];
+int gPlaceCount;
 
 UINT32 gSbX;
 UINT32 gSbY;
@@ -205,13 +203,41 @@ void DrawLine(UINT32 X, UINT32 Y, const char *S, UINT32 Fg) {
 }
 
 void FilesUiOpen(void) {
-    CopyStr(gCwd, sizeof(gCwd), "TOYOS:");
+    int Def;
+
+    /*
+     * 开窗路径：先侧栏+空列表上屏/淡入，目录 List 放到 FilesUiFinishOpen。
+     * RebuildPlaces 只读内存卷表，相对 ListEntries 可忽略。
+     */
+    RebuildPlaces();
+    gCwd[0] = 0;
+    Def = FileSystemDefaultVol();
+    if (Def >= 0 && Def < gPlaceCount && gPlaces[Def].Path && gPlaces[Def].Path[0]) {
+        CopyStr(gCwd, sizeof(gCwd), gPlaces[Def].Path);
+    } else if (gPlaceCount > 0 && gPlaces[0].Path) {
+        CopyStr(gCwd, sizeof(gCwd), gPlaces[0].Path);
+    }
     gMode = FILES_MODE_LIST;
+    gCount = 0;
+    gSelected = 0;
+    gScroll = 0;
     gClickSel = -1;
     gHoverIdx = -1;
     gSideHover = -1;
+    gPrevKind = PREV_EMPTY;
+    gViewLen = 0;
+    gViewTitle[0] = 0;
+    SyncSideSel();
     SetStatus("");
-    (void)ReloadList();
+    Paint();
+}
+
+void FilesUiFinishOpen(void) {
+    if (GuiFocusKind() != GUI_WIN_FILES) {
+        return;
+    }
+    /* 侧栏已有；此处只 List 当前卷，仍跳过文件内容预览 */
+    (void)ReloadListEx(0, 0);
     Paint();
 }
 
@@ -282,7 +308,7 @@ void FilesUiOnClick(UINT32 X, UINT32 Y) {
     if (gSideW > 0 && X < gContentX) {
         Idx = SideHitIndex(X, Y);
         if (Idx >= 0) {
-            GotoPath(gBookmarks[Idx].Path);
+            GotoPath(gPlaces[Idx].Path);
         }
         return;
     }

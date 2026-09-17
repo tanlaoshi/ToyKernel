@@ -197,16 +197,15 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 DrawWindowChromeAt(gFocusWin);
                 GuiFrameBufferEnd();
             }
-            /* 客户区：按下高亮由 OnPointer；抬起才 OnClick（见 SettingsUiOnPointer） */
+            /* 客户区：按下高亮由 OnPointer；抬起才触发（见 SettingsUiOnPointer / StoreUiOnPointer） */
         } else if (GuiFocusKind() == GUI_WIN_STORE) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 StoreUiRepaint();
                 GuiFrameBufferBegin();
                 DrawWindowChromeAt(gFocusWin);
                 GuiFrameBufferEnd();
-            } else {
-                StoreUiOnClick(X, Y);
             }
+            /* 客户区：同 Settings，不在按下时 OnClick */
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 FilesUiRepaint();
@@ -460,10 +459,13 @@ void GuiPollMouse(void) {
         if ((Raw.Buttons & 2) && !(LastBtn & 2)) {
             GuiRightClickPlaceholder(X, Y);
         }
-        /* Settings：仅按键边沿逐包（同批按下+抬起）；位移悬停合并到队尾 GuiPointerMove */
-        if (GuiFocusKind() == GUI_WIN_SETTINGS && gDragWin < 0 &&
-            ((Raw.Buttons ^ LastBtn) & 1u)) {
-            SettingsUiOnPointer(X, Y, Raw.Buttons);
+        /* Settings/Store：仅按键边沿逐包；位移悬停合并到队尾 GuiPointerMove */
+        if (gDragWin < 0 && ((Raw.Buttons ^ LastBtn) & 1u)) {
+            if (GuiFocusKind() == GUI_WIN_SETTINGS) {
+                SettingsUiOnPointer(X, Y, Raw.Buttons);
+            } else if (GuiFocusKind() == GUI_WIN_STORE) {
+                StoreUiOnPointer(X, Y, Raw.Buttons);
+            }
         }
         LastBtn = Raw.Buttons;
     }
@@ -503,4 +505,60 @@ void GuiPollMouse(void) {
     }
     GuiPresentDeferPop();
     DesktopTickClock();
+    /* 按钮抬起后排队的 Store 作业在此执行，OnPointer 内不再同步拷贝/删文件 */
+    StoreUiPump();
+}
+
+/*
+ * Store 长 IO：继续挪光标；吞掉按键边沿（写入 gMousePrevBtn），
+ * 避免卸装结束后突然触发一次「假抬起」。
+ */
+void GuiPollMouseMotion(void) {
+    HAL_MOUSE_REPORT Raw;
+    UINT32 Sw;
+    UINT32 Sh;
+    UINT32 X;
+    UINT32 Y;
+    int Any = 0;
+
+    if (gInputLocked) {
+        while (HalMouseDequeue(&Raw)) {
+            gMousePrevBtn = Raw.Buttons;
+            gCursorBtn = Raw.Buttons;
+        }
+        return;
+    }
+
+    HalVideoGetSize(&Sw, &Sh);
+    if (Sw == 0) {
+        Sw = gScreenWidth ? gScreenWidth : 1024;
+    }
+    if (Sh == 0) {
+        Sh = gScreenHeight ? gScreenHeight : 768;
+    }
+
+    HalInputPoll();
+    X = gCursorX;
+    Y = gCursorY;
+    while (HalMouseDequeue(&Raw)) {
+        if (Raw.Absolute || Raw.X > 4096u || Raw.Y > 4096u) {
+            X = (UINT32)((UINT64)Raw.X * (UINT64)Sw / 32767ull);
+            Y = (UINT32)((UINT64)Raw.Y * (UINT64)Sh / 32767ull);
+        } else {
+            X = Raw.X;
+            Y = Raw.Y;
+        }
+        if (X >= Sw) {
+            X = Sw > 0 ? Sw - 1 : 0;
+        }
+        if (Y >= Sh) {
+            Y = Sh > 0 ? Sh - 1 : 0;
+        }
+        gCursorBtn = Raw.Buttons;
+        gMousePrevBtn = Raw.Buttons;
+        Any = 1;
+    }
+    if (Any) {
+        GuiPointerMove(X, Y);
+    }
 }

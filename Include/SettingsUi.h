@@ -1,8 +1,9 @@
 /*
- * SettingsUi.h — Settings 菜单（PR-D5 / PR-D7 / PR-G12）
+ * SettingsUi.h — Settings 三分栏（类 Files）
  *
- * 一级：Desktop / Shell 背景、Font、Display（重启生效）、Language
- * 二级：具体颜色、字体或分辨率；数字键或鼠标点选，Esc/0 返回
+ * 左：Desktop / Shell / Font / Display / Language / Scale
+ * 中：该类下条目；点选即应用（数字键 1.. 亦可）
+ * 右：详情 / 色样 / Now 分辨率提示
  */
 #ifndef SETTINGS_UI_H
 #define SETTINGS_UI_H

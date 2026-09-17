@@ -13,6 +13,8 @@
 #include "Fat.h"
 #include "PhysicalMemory.h"
 #include "HalConsole.h"
+#include "Hal.h"
+#include "Gui.h"
 #include "Font.h"
 #include "Theme.h"
 #include "Db.h"
@@ -29,6 +31,24 @@
 
 /* 内核任务栈仅 8KiB；catalog 表放 BSS，避免 store sync/HTTP 栈溢出闪退 */
 static STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
+/* combo 嵌套卸装时合并 FontReload，避免连删字体卡死/重入 */
+static int gStoreComboDepth;
+static int gNeedFontReload;
+
+static void StoreIoBreath(void) {
+    GuiPollMouseMotion();
+}
+
+static void StoreFlushFontReload(void) {
+    if (!gNeedFontReload) {
+        return;
+    }
+    gNeedFontReload = 0;
+    StoreIoBreath();
+    (void)FontReloadAssets();
+    ThemeClampFontId();
+    StoreIoBreath();
+}
 
 STORE_ENTRY *StoreScratchTab(void) {
     return gStoreTab;
@@ -43,6 +63,51 @@ static int StrEq(const char *A, const char *B) {
         B++;
     }
     return *A == 0 && *B == 0;
+}
+
+static int StrEqIgnoreCase(const char *A, const char *B) {
+    if (!A || !B) {
+        return 0;
+    }
+    while (*A && *B) {
+        char Ca = *A;
+        char Cb = *B;
+        if (Ca >= 'a' && Ca <= 'z') {
+            Ca = (char)(Ca - 'a' + 'A');
+        }
+        if (Cb >= 'a' && Cb <= 'z') {
+            Cb = (char)(Cb - 'a' + 'A');
+        }
+        if (Ca != Cb) {
+            return 0;
+        }
+        A++;
+        B++;
+    }
+    return *A == 0 && *B == 0;
+}
+
+/* FAT 上文件名大小写不一（HELLO.ELF vs hello.elf） */
+static int DirHasFileCI(const char *Dir, const char *File) {
+    static FAT_DIRECTORY_ENTRY Ents[FAT_LIST_MAX];
+    int N = 0;
+    int i;
+
+    if (!Dir || !File || File[0] == 0) {
+        return 0;
+    }
+    if (FileSystemListEntries(Dir, Ents, FAT_LIST_MAX, &N) != FAT_OK || N <= 0) {
+        return 0;
+    }
+    for (i = 0; i < N; i++) {
+        if (Ents[i].Attr & FAT_ATTR_DIR) {
+            continue;
+        }
+        if (StrEqIgnoreCase(Ents[i].Name, File)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static void CopyTok(char *Dst, int DstMax, const char *Start, const char *End) {
@@ -523,12 +588,22 @@ static int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Ma
 }
 
 static int ComboInstallRec(const char *Id, int Depth);
+static int StoreHasSi(const char *Id);
+static int StoreAdoptInstalled(const char *Id);
 
 int StoreComboInstall(const char *Id) {
+    int Err;
+
     if (!Id || Id[0] == 0) {
         return FAT_ERR_INVAL;
     }
-    return ComboInstallRec(Id, 0);
+    gStoreComboDepth++;
+    Err = ComboInstallRec(Id, 0);
+    gStoreComboDepth--;
+    if (gStoreComboDepth == 0) {
+        StoreFlushFontReload();
+    }
+    return Err;
 }
 
 static int ComboInstallRec(const char *Id, int Depth) {
@@ -546,6 +621,13 @@ static int ComboInstallRec(const char *Id, int Depth) {
         return FAT_ERR_INVAL;
     }
     if (StoreIsInstalled(Id)) {
+        /* 盘上已有但无 si.*（镜像预置）：补登记，便于随后 Remove */
+        if (!StoreHasSi(Id)) {
+            Err = StoreAdoptInstalled(Id);
+            if (Err != FAT_OK) {
+                return Err;
+            }
+        }
         return FAT_OK;
     }
 
@@ -613,7 +695,9 @@ static int TryCopy(const char *Src, const char *Dst, int Check) {
         return FAT_ERR_NOSPC;
     }
     Got = 0;
+    StoreIoBreath();
     Err = FileSystemReadFile(Src, Buf, Size, &Got);
+    StoreIoBreath();
     if (Err != FAT_OK || Got != Size) {
         PhysicalMemoryFreePages(Buf, Pages);
         return Err != FAT_OK ? Err : FAT_ERR_IO;
@@ -630,7 +714,9 @@ static int TryCopy(const char *Src, const char *Dst, int Check) {
         }
     }
     (void)FileSystemDeleteFile(Dst);
+    StoreIoBreath();
     Err = FileSystemWriteFile(Dst, Buf, Got);
+    StoreIoBreath();
     PhysicalMemoryFreePages(Buf, Pages);
     return Err;
 }
@@ -728,8 +814,10 @@ int StoreInstall(const char *Id) {
             return Err;
         }
         if (Kind == STORE_KIND_FONT) {
-            (void)FontReloadAssets();
-            ThemeClampFontId();
+            gNeedFontReload = 1;
+            if (gStoreComboDepth == 0) {
+                StoreFlushFontReload();
+            }
         }
         (void)StoreMarkInstalled(Tab[i].Id, Tab[i].Type, Tab[i].File, DepBuf);
         return FAT_OK;
@@ -753,6 +841,24 @@ static int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {
     Out[i] = 0;
     return Id[j] == 0;
 }
+
+static int StoreHasSi(const char *Id) {
+    char Key[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+
+    if (!Id || Id[0] == 0) {
+        return 0;
+    }
+    if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
+        return 0;
+    }
+    return DbGet(Key, Val, sizeof(Val)) == DB_OK ? 1 : 0;
+}
+
+/*
+ * 镜像预置仅有文件、无 si.*：补登记，否则「Install 成功 → Remove 必 fail」。
+ */
+static int StoreAdoptInstalled(const char *Id);
 
 static int StoreMarkInstalled(const char *Id, const char *Type, const char *File,
                               const char *Depends) {
@@ -788,6 +894,34 @@ static int StoreMarkInstalled(const char *Id, const char *Type, const char *File
         }
     }
     return FAT_OK;
+}
+
+static int StoreAdoptInstalled(const char *Id) {
+    STORE_ENTRY *Tab = gStoreTab;
+    int Count = 0;
+    int i;
+    int Err;
+    char DepBuf[STORE_DEPENDS_MAX];
+
+    if (StoreHasSi(Id)) {
+        return FAT_OK;
+    }
+    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+    if (Err < 0) {
+        return Err;
+    }
+    for (i = 0; i < Count; i++) {
+        if (!StrEq(Tab[i].Id, Id)) {
+            continue;
+        }
+        CopyStr(DepBuf, (int)sizeof(DepBuf), Tab[i].Depends);
+        if (LoadPkgDepends(Tab[i].Id, DepBuf, (int)sizeof(DepBuf))) {
+            /* PKG 覆盖 */
+        }
+        NormalizeDepends(DepBuf);
+        return StoreMarkInstalled(Tab[i].Id, Tab[i].Type, Tab[i].File, DepBuf);
+    }
+    return FAT_ERR_NOENT;
 }
 
 typedef struct {
@@ -864,11 +998,13 @@ int StoreRemove(const char *Id) {
     char File[STORE_FILE_MAX];
     char Dst[96];
     char Users[STORE_INSTALLED_MAX][STORE_ID_MAX];
+    STORE_ENTRY *Tab;
     const char *Bar;
     int i;
     int Kind;
     int Err;
     int UserN;
+    int Count = 0;
 
     if (!Id || Id[0] == 0) {
         return FAT_ERR_INVAL;
@@ -877,6 +1013,53 @@ int StoreRemove(const char *Id) {
         return FAT_ERR_INVAL;
     }
     if (DbGet(Key, Val, sizeof(Val)) != DB_OK) {
+        /*
+         * 无 si.* 但仍标 installed（仅盘上有文件）：按 catalog 卸文件。
+         * 未先 Install/Adopt 时直接 Remove 也能成。
+         */
+        Tab = gStoreTab;
+        Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+        if (Err < 0 || Count <= 0) {
+            return FAT_ERR_NOENT;
+        }
+        for (i = 0; i < Count; i++) {
+            if (!StrEq(Tab[i].Id, Id)) {
+                continue;
+            }
+            Kind = EntryKind(Tab[i].Type);
+            if (Kind == STORE_KIND_FONT) {
+                JoinPath(Dst, (int)sizeof(Dst), STORE_FONTS_DIR, Tab[i].File);
+            } else if (Kind == STORE_KIND_ASSET) {
+                JoinPath(Dst, (int)sizeof(Dst), STORE_PACKS_DIR, Tab[i].File);
+            } else if (Kind == STORE_KIND_APP) {
+                JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, Tab[i].File);
+            } else {
+                return FAT_ERR_INVAL;
+            }
+            if (!DirHasFileCI(
+                    Kind == STORE_KIND_FONT ? STORE_FONTS_DIR :
+                    Kind == STORE_KIND_ASSET ? STORE_PACKS_DIR : STORE_APPS_DIR,
+                    Tab[i].File)) {
+                return FAT_ERR_NOENT;
+            }
+            UserN = CollectDependents(Id, Users, STORE_INSTALLED_MAX);
+            if (UserN > 0) {
+                HalConsoleWriteSerial("store: still required by dependents\n");
+                return FAT_ERR_INVAL;
+            }
+            Err = FileSystemDeleteFile(Dst);
+            StoreIoBreath();
+            if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+                return Err;
+            }
+            if (Kind == STORE_KIND_FONT) {
+                gNeedFontReload = 1;
+                if (gStoreComboDepth == 0) {
+                    StoreFlushFontReload();
+                }
+            }
+            return FAT_OK;
+        }
         return FAT_ERR_NOENT;
     }
 
@@ -926,6 +1109,7 @@ int StoreRemove(const char *Id) {
     }
 
     Err = FileSystemDeleteFile(Dst);
+    StoreIoBreath();
     /* vvfat：删刚写入文件曾宿主断言；现 FatDeleteFile 已改为只摘目录项 */
     if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
         return Err;
@@ -935,8 +1119,10 @@ int StoreRemove(const char *Id) {
         (void)DbDelete(DepKey);
     }
     if (Kind == STORE_KIND_FONT) {
-        (void)FontReloadAssets();
-        ThemeClampFontId();
+        gNeedFontReload = 1;
+        if (gStoreComboDepth == 0) {
+            StoreFlushFontReload();
+        }
     }
     return FAT_OK;
 }
@@ -962,6 +1148,11 @@ int StoreComboRemove(const char *Id) {
     DepBuf[0] = 0;
     (void)StoreGetDepends(Id, DepBuf, (int)sizeof(DepBuf));
     NormalizeDepends(DepBuf);
+    if (DepBuf[0] == 0) {
+        /* 无 sd.*（仅盘上 / 刚 Adopt 失败）：用 catalog 依赖做 uncombo */
+        (void)ResolveEntryDepends(Id, DepBuf, (int)sizeof(DepBuf));
+        NormalizeDepends(DepBuf);
+    }
 
     P = DepBuf;
     while (*P && DepN < STORE_ENTRIES_MAX) {
@@ -988,14 +1179,20 @@ int StoreComboRemove(const char *Id) {
     HalConsoleWriteSerial("store uncombo: -");
     HalConsoleWriteSerial(Id);
     HalConsoleWriteSerial("\n");
+    gStoreComboDepth++;
     Err = StoreRemove(Id);
     if (Err != FAT_OK) {
+        gStoreComboDepth--;
+        if (gStoreComboDepth == 0) {
+            StoreFlushFontReload();
+        }
         return Err;
     }
 
     /* 逆序卸依赖：仅当已无其他包引用 */
     for (i = DepN - 1; i >= 0; i--) {
         char UsersArr[STORE_INSTALLED_MAX][STORE_ID_MAX];
+        StoreIoBreath();
         if (!StoreIsInstalled(Deps[i])) {
             continue;
         }
@@ -1008,8 +1205,16 @@ int StoreComboRemove(const char *Id) {
         HalConsoleWriteSerial("\n");
         Err = StoreRemove(Deps[i]);
         if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+            gStoreComboDepth--;
+            if (gStoreComboDepth == 0) {
+                StoreFlushFontReload();
+            }
             return Err;
         }
+    }
+    gStoreComboDepth--;
+    if (gStoreComboDepth == 0) {
+        StoreFlushFontReload();
     }
     return FAT_OK;
 }
@@ -1017,6 +1222,11 @@ int StoreComboRemove(const char *Id) {
 int StoreIsInstalled(const char *Id) {
     char Key[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
+    STORE_ENTRY *Tab;
+    int Count = 0;
+    int i;
+    int Kind;
+    int Err;
 
     if (!Id || Id[0] == 0) {
         return 0;
@@ -1024,7 +1234,121 @@ int StoreIsInstalled(const char *Id) {
     if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
         return 0;
     }
-    return DbGet(Key, Val, sizeof(Val)) == DB_OK;
+    if (DbGet(Key, Val, sizeof(Val)) == DB_OK) {
+        return 1;
+    }
+    /*
+     * 镜像预置（Apps/HELLO.ELF 等）无 si.* 时：按 catalog 落盘路径探测。
+     * 开始菜单扫目录能看到，商店也应标 installed。
+     */
+    Tab = gStoreTab;
+    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
+    if (Err < 0 || Count <= 0) {
+        return 0;
+    }
+    for (i = 0; i < Count; i++) {
+        if (!StrEq(Tab[i].Id, Id)) {
+            continue;
+        }
+        Kind = EntryKind(Tab[i].Type);
+        if (Kind == STORE_KIND_APP) {
+            return DirHasFileCI(STORE_APPS_DIR, Tab[i].File);
+        }
+        if (Kind == STORE_KIND_FONT) {
+            return DirHasFileCI(STORE_FONTS_DIR, Tab[i].File);
+        }
+        if (Kind == STORE_KIND_ASSET) {
+            return DirHasFileCI(STORE_PACKS_DIR, Tab[i].File);
+        }
+        return 0;
+    }
+    return 0;
+}
+
+void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags) {
+    static FAT_DIRECTORY_ENTRY Apps[FAT_LIST_MAX];
+    static FAT_DIRECTORY_ENTRY Fonts[FAT_LIST_MAX];
+    static FAT_DIRECTORY_ENTRY Packs[FAT_LIST_MAX];
+    char Key[DB_KEY_MAX];
+    char Val[DB_VAL_MAX];
+    int Na = -1;
+    int Nf = -1;
+    int Np = -1;
+    int i;
+    int j;
+    int Kind;
+
+    if (!OutFlags) {
+        return;
+    }
+    if (!Tab || Count <= 0) {
+        return;
+    }
+    if (Count > STORE_ENTRIES_MAX) {
+        Count = STORE_ENTRIES_MAX;
+    }
+
+    for (i = 0; i < Count; i++) {
+        OutFlags[i] = 0;
+        if (!Tab[i].Id[0]) {
+            continue;
+        }
+        if (MakeDbKey(Key, (int)sizeof(Key), "si.", Tab[i].Id) &&
+            DbGet(Key, Val, sizeof(Val)) == DB_OK) {
+            OutFlags[i] = 1;
+            continue;
+        }
+        Kind = EntryKind(Tab[i].Type);
+        if (Kind == STORE_KIND_APP) {
+            if (Na < 0) {
+                Na = 0;
+                if (FileSystemListEntries(STORE_APPS_DIR, Apps, FAT_LIST_MAX, &Na) !=
+                    FAT_OK) {
+                    Na = 0;
+                }
+                StoreIoBreath();
+            }
+            for (j = 0; j < Na; j++) {
+                if (!(Apps[j].Attr & FAT_ATTR_DIR) &&
+                    StrEqIgnoreCase(Apps[j].Name, Tab[i].File)) {
+                    OutFlags[i] = 1;
+                    break;
+                }
+            }
+        } else if (Kind == STORE_KIND_FONT) {
+            if (Nf < 0) {
+                Nf = 0;
+                if (FileSystemListEntries(STORE_FONTS_DIR, Fonts, FAT_LIST_MAX, &Nf) !=
+                    FAT_OK) {
+                    Nf = 0;
+                }
+                StoreIoBreath();
+            }
+            for (j = 0; j < Nf; j++) {
+                if (!(Fonts[j].Attr & FAT_ATTR_DIR) &&
+                    StrEqIgnoreCase(Fonts[j].Name, Tab[i].File)) {
+                    OutFlags[i] = 1;
+                    break;
+                }
+            }
+        } else if (Kind == STORE_KIND_ASSET) {
+            if (Np < 0) {
+                Np = 0;
+                if (FileSystemListEntries(STORE_PACKS_DIR, Packs, FAT_LIST_MAX, &Np) !=
+                    FAT_OK) {
+                    Np = 0;
+                }
+                StoreIoBreath();
+            }
+            for (j = 0; j < Np; j++) {
+                if (!(Packs[j].Attr & FAT_ATTR_DIR) &&
+                    StrEqIgnoreCase(Packs[j].Name, Tab[i].File)) {
+                    OutFlags[i] = 1;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 int StoreGetDepends(const char *Id, char *Out, int OutMax) {

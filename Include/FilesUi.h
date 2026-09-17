@@ -10,6 +10,8 @@
 #include "BootTypes.h"
 
 void FilesUiOpen(void);
+/* 淡入后再扫目录：开窗体感贴近 Settings */
+void FilesUiFinishOpen(void);
 void FilesUiRepaint(void);
 void FilesUiPaintFocused(void);
 void FilesUiRefresh(void);

@@ -461,7 +461,26 @@ static int MountAllVolumes(void) {
                 CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
                 ToyVol = Idx;
             } else if (IsEsp) {
-                CopyName(V->Name, FS_VOL_NAME_MAX, "ESP");
+                /* 多 ESP 时第二块起名 ESP2…，避免 Resolve(ESP:) 撞名 */
+                {
+                    int EspN = 0;
+                    int j;
+                    for (j = 0; j < Idx; j++) {
+                        if (gVols[j].Name[0] == 'E' && gVols[j].Name[1] == 'S' &&
+                            gVols[j].Name[2] == 'P') {
+                            EspN++;
+                        }
+                    }
+                    if (EspN == 0) {
+                        CopyName(V->Name, FS_VOL_NAME_MAX, "ESP");
+                    } else {
+                        V->Name[0] = 'E';
+                        V->Name[1] = 'S';
+                        V->Name[2] = 'P';
+                        V->Name[3] = (char)('0' + (EspN + 1 > 9 ? 9 : EspN + 1));
+                        V->Name[4] = 0;
+                    }
+                }
                 V->ReadOnly = 1;
             }
 
@@ -518,12 +537,33 @@ static int MountAllVolumes(void) {
                 continue; /* RES 等合成卷保持原名 */
             }
             if (!gVols[i].HasToyId) {
+                int NeedEspName = 0;
                 gVols[i].ReadOnly = 1;
                 if (!(gVols[i].Name[0] && gVols[i].Name[1])) {
-                    CopyName(gVols[i].Name, FS_VOL_NAME_MAX, "ESP");
+                    NeedEspName = 1;
                 } else if (gVols[i].Name[0] == gVols[i].Letter &&
                            gVols[i].Name[1] == 0) {
-                    CopyName(gVols[i].Name, FS_VOL_NAME_MAX, "ESP");
+                    NeedEspName = 1;
+                }
+                if (NeedEspName) {
+                    int EspN = 0;
+                    int j;
+                    for (j = 0; j < i; j++) {
+                        if (gVols[j].Name[0] == 'E' && gVols[j].Name[1] == 'S' &&
+                            gVols[j].Name[2] == 'P') {
+                            EspN++;
+                        }
+                    }
+                    if (EspN == 0) {
+                        CopyName(gVols[i].Name, FS_VOL_NAME_MAX, "ESP");
+                    } else {
+                        gVols[i].Name[0] = 'E';
+                        gVols[i].Name[1] = 'S';
+                        gVols[i].Name[2] = 'P';
+                        gVols[i].Name[3] =
+                            (char)('0' + (EspN + 1 > 9 ? 9 : EspN + 1));
+                        gVols[i].Name[4] = 0;
+                    }
                 }
             }
         }
