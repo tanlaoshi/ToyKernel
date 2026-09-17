@@ -220,7 +220,7 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `cc7965e` |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | ✅ TG `f1772d7` |
 | 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | ⏪ **已回退**（几何/Punch/阴影交汇差，退回直角窗；保留 `0fb4ddf` 史） |
-| 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | ← JX（直角窗上实现） |
+| 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | ✅ TG `82978dd` |
 | 6 | **PR-GUI-l3-fade** | 窗口淡入淡出 | 2 天 | P2 |
 | 7 | **PR-GUI-l3-button** | 按钮悬停/按下 | 1 天 | P2 |
 | 8 | **PR-GUI-l2-font** | 抗锯齿字体（可选） | 3–5 天 | P3 |
@@ -232,7 +232,7 @@ PR-GUI-doc（本文）✅
   → PR-GUI-l1（视觉基础）
   → PR-GUI-alpha
   → PR-GUI-l2-shadow
-  → PR-GUI-l2-gradient   ← 当前（圆角 l2-round 已回退，不挡渐变）
+  → PR-GUI-l2-gradient   ✅（圆角 l2-round 已回退，不挡渐变；烙印热修同 `82978dd`）
   → PR-GUI-l3-fade / l3-button
   → PR-GUI-l2-font（可选）
   → （可选再议）PR-GUI-l2-round
