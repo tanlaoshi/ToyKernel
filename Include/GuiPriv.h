@@ -9,7 +9,8 @@
 
 #define DRAG_MIN_STEP 3
 #define DRAG_ROW_MAX  1920
-#define DRAG_BORDER_PAD 2
+/* 拖动脏区外扩：≥ ThemeWindowShadowSize（默认 6） */
+#define DRAG_BORDER_PAD 8
 
 #define MAX_WINS     GUI_MAX_WINS
 #define TITLE_HEIGHT GUI_TITLE_HEIGHT
@@ -150,6 +151,9 @@ void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W);
 void DrawWindowAtEx(int Idx, int Occlude);
 void DrawWindowAt(int Idx);
 void DrawWindowChromeAt(int Idx);
+void DrawWindowShadowAt(int Idx);
+/* 右/下 drop shadow：扩展 footprint（拖动清残影） */
+void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H);
 void RefreshOtherChrome(int SkipIdx);
 void SyncWindowVisualsEx(int ClearDesktop);
 void SyncWindowVisuals(void);

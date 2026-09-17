@@ -132,6 +132,92 @@ void FillRectOccluded(int Idx, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
     }
 }
 
+/* PR-GUI-l2-shadow：半透明遮挡填充 */
+static void BlendFillRectOccluded(int Idx, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                                  UINT32 Color, UINT8 Alpha) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (!W || !H || Alpha == 0) {
+        return;
+    }
+    if (Alpha == 255) {
+        FillRectOccluded(Idx, X, Y, W, H, Color);
+        return;
+    }
+    for (Row = 0; Row < H; Row++) {
+        UINT32 Py = Y + Row;
+
+        InRun = 0;
+        RunStart = 0;
+        for (Col = 0; Col < W; Col++) {
+            UINT32 Px = X + Col;
+            int Occ = PixelOccludedByAbove(Idx, Px, Py);
+
+            if (!Occ && !InRun) {
+                RunStart = Col;
+                InRun = 1;
+            } else if (Occ && InRun) {
+                HalVideoBlendFillRect(X + RunStart, Py, Col - RunStart, 1,
+                                      Color, Alpha);
+                InRun = 0;
+            }
+        }
+        if (InRun) {
+            HalVideoBlendFillRect(X + RunStart, Py, W - RunStart, 1, Color, Alpha);
+        }
+    }
+}
+
+void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H) {
+    UINT32 N = ThemeWindowShadowSize();
+
+    (void)X;
+    (void)Y;
+    if (N == 0 || W == 0 || H == 0 || *W == 0 || *H == 0) {
+        return;
+    }
+    /* drop shadow 只向右/下扩展 */
+    *W += N;
+    *H += N;
+}
+
+void DrawWindowShadowAt(int Idx) {
+    const GUI_WINDOW *W;
+    UINT32 N;
+    UINT8 MaxA;
+    UINT32 Color;
+    UINT32 d;
+
+    if (Idx < 0 || Idx >= MAX_WINS) {
+        return;
+    }
+    W = &gWindows[Idx];
+    if (!W->Active || W->Width == 0 || W->Height == 0) {
+        return;
+    }
+    N = ThemeWindowShadowSize();
+    MaxA = ThemeWindowShadowMaxAlpha();
+    Color = ThemeWindowShadowColor();
+    if (N == 0 || MaxA == 0) {
+        return;
+    }
+    HalVideoClearClip();
+    for (d = 0; d < N; d++) {
+        UINT8 A = (UINT8)(((UINT32)MaxA * (N - d)) / N);
+
+        /* 底边：右移 d；右边：下移 d；角点单独补 */
+        BlendFillRectOccluded(Idx, W->X + d, W->Y + W->Height + d,
+                              W->Width, 1, Color, A);
+        BlendFillRectOccluded(Idx, W->X + W->Width + d, W->Y + d,
+                              1, W->Height, Color, A);
+        BlendFillRectOccluded(Idx, W->X + W->Width + d, W->Y + W->Height + d,
+                              1, 1, Color, A);
+    }
+}
+
 
 void DrawHLineOccluded(int Idx, UINT32 X0, UINT32 X1, UINT32 Y,
                               UINT32 Color) {
@@ -326,6 +412,8 @@ void DrawWindowAtEx(int Idx, int Occlude) {
     Border = WindowBorderColor(Idx);
     /* 标题在客户区外；若仍开着 Shell/Settings clip，DrawString 会被裁掉 */
     HalVideoClearClip();
+    /* 先画阴影（窗外），再画本体；上层窗稍后覆盖 */
+    DrawWindowShadowAt(Idx);
     if (Occlude) {
         FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
         DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, Border);

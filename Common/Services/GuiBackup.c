@@ -217,6 +217,7 @@ void PaintWindowFromBackup(int Idx) {
                        gWinBackup[Idx]);
         /* 备份里是拖动前的标题栏色，按当前焦点重画 chrome */
         DrawWindowChromeAt(Idx);
+        DrawWindowShadowAt(Idx);
         return;
     }
     DrawWindowAt(Idx);

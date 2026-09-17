@@ -133,6 +133,18 @@ UINT8 ThemeMenuPanelAlpha(void) {
     return 220u;
 }
 
+UINT32 ThemeWindowShadowSize(void) {
+    return 6u; /* 窗外 N 像素 */
+}
+
+UINT8 ThemeWindowShadowMaxAlpha(void) {
+    return 128u; /* 贴边约 50%，外缘收到 0 */
+}
+
+UINT32 ThemeWindowShadowColor(void) {
+    return COLOR_BLACK;
+}
+
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
 static UINT32 ThemeCompactFontId(void) {
     UINT32 i;

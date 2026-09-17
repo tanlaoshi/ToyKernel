@@ -470,9 +470,15 @@ void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
     const GUI_WINDOW *Drag = &gWindows[DragIdx];
     UINT32 Ww = Drag->Width;
     UINT32 Wh = Drag->Height;
+    UINT32 Fx = OldX;
+    UINT32 Fy = OldY;
+    UINT32 Fw = Ww;
+    UINT32 Fh = Wh;
 
     HalVideoClearClip();
-    ClearOldDragFootprint(OldX, OldY, Ww, Wh, DragIdx);
+    ExpandRectByWindowShadow(&Fx, &Fy, &Fw, &Fh);
+    ClipRectToScreen(&Fx, &Fy, &Fw, &Fh);
+    ClearOldDragFootprint(Fx, Fy, Fw, Fh, DragIdx);
     if (gWinBackupValid[DragIdx] && gWinBackup[DragIdx] != 0) {
         PaintWindowFromBackup(DragIdx);
     } else {
@@ -549,10 +555,17 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         RedrawDragFrame(Idx, Ox, Oy);
         /* RedrawDragFrame 内已 Present */
     } else if (gDragWin >= 0) {
+        UINT32 Fx = Ox;
+        UINT32 Fy = Oy;
+        UINT32 Fw = Ww;
+        UINT32 Fh = Wh;
+
         W->X = NewX;
         W->Y = NewY;
         HalVideoClearClip();
-        ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
+        ExpandRectByWindowShadow(&Fx, &Fy, &Fw, &Fh);
+        ClipRectToScreen(&Fx, &Fy, &Fw, &Fh);
+        ClearOldDragFootprint(Fx, Fy, Fw, Fh, Idx);
         if (gWinBackupValid[Idx]) {
             PaintWindowFromBackup(Idx);
         } else {
@@ -562,12 +575,20 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         HalVideoPresent();
         GfxIrqLeave();
     } else {
+        UINT32 Fx = Ox;
+        UINT32 Fy = Oy;
+        UINT32 Fw = Ww;
+        UINT32 Fh = Wh;
+
         HalVideoCopyRect(Ox, Oy, NewX, NewY, Ww, Wh);
         W->X = NewX;
         W->Y = NewY;
-        ClearOldDragFootprint(Ox, Oy, Ww, Wh, Idx);
+        ExpandRectByWindowShadow(&Fx, &Fy, &Fw, &Fh);
+        ClipRectToScreen(&Fx, &Fy, &Fw, &Fh);
+        ClearOldDragFootprint(Fx, Fy, Fw, Fh, Idx);
         RefreshOtherChrome(Idx);
         DrawWindowChromeAt(Idx);
+        DrawWindowShadowAt(Idx);
     }
     if (gDragWin < 0) {
         GfxIrqEnter();

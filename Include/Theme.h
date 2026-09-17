@@ -41,6 +41,10 @@ UINT32 ThemeClientPadding(void);
 /* PR-GUI-alpha：半透明面板不透明度（0..255）；暂不进 THEME.CFG */
 UINT8 ThemeTaskbarAlpha(void);
 UINT8 ThemeMenuPanelAlpha(void);
+/* PR-GUI-l2-shadow：窗外 drop shadow（右/下）；暂不进 THEME.CFG */
+UINT32 ThemeWindowShadowSize(void);
+UINT8 ThemeWindowShadowMaxAlpha(void);
+UINT32 ThemeWindowShadowColor(void);
 
 void ThemeSetDesktopBackground(UINT32 Color);
 void ThemeSetShellClientBackground(UINT32 Color);
