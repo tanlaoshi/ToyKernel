@@ -8,6 +8,7 @@
 #include "PCIe.h"
 #include "ToySerialLog.h"
 #include "VirtualMemory.h"
+#include "Debug.h"
 
 #define SmpLog(Text) ToyLogSmp(Text)
 #define SmpLogHex32(V) ToyLogSmpHex32(V)
@@ -523,11 +524,16 @@ static void PowerStallMs(UINT32 Ms) {
 }
 
 static void PowerBootLine(const char *Text) {
-    SmpLog(Text);
+    /* 只走 BootMark 一次：勿再 SmpLog，否则串口双打 */
     HalSerialBootMark(Text);
 }
 
 static void PowerBootHex(const char *Prefix, UINT32 Value) {
+#if !TOY_DEBUG
+    (void)Prefix;
+    (void)Value;
+    return;
+#else
     char Line[56];
     char Hex[12];
     int n = 0;
@@ -544,6 +550,7 @@ static void PowerBootHex(const char *Prefix, UINT32 Value) {
     Line[n++] = '\n';
     Line[n] = 0;
     PowerBootLine(Line);
+#endif
 }
 
 static ACPI_SDT_HEADER *FindFacp(UINT64 RsdpPhys) {
@@ -889,7 +896,9 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     if (Flags & FADT_FLAG_PWR_BUTTON) {
         PowerBootLine("boot: ACPI pwrbtn=aml (still arm fixed)\n");
     } else {
+#if TOY_DEBUG
         PowerBootLine("boot: ACPI pwrbtn=fixed\n");
+#endif
     }
 
     gPowerReady = 1;

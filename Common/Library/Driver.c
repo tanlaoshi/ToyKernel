@@ -4,6 +4,7 @@
 #include "Driver.h"
 #include "Hal.h"
 #include "ToySerialLog.h"
+#include "Debug.h"
 
 static const TOY_DRIVER *gDrivers[TOY_DRIVER_MAX_DRIVERS];
 static UINTN gDriverCount;
@@ -88,6 +89,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
         gInstanceCount++;
         Bound++;
     }
+#if TOY_DEBUG
     ToyLogDrv("driver: registered=");
     ToyLogDrvHex32((UINT32)gDriverCount);
     ToyLogDrv(" bound=");
@@ -95,6 +97,9 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
     ToyLogDrv(" (+");
     ToyLogDrvHex32((UINT32)Bound);
     ToyLogDrv(")\n");
+#else
+    (void)Bound;
+#endif
     return 0;
 }
 

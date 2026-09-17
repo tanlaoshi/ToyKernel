@@ -1,7 +1,8 @@
 /*
  * BootHandoff.h - ToyBoot <-> Kernel handoff ABI (PR-R1)
  *
- * Single layout source for EDK2 and freestanding kernel.
+ * 内核侧副本（freestanding）。ToyBoot 侧镜像：ToyBoot/BootHandoff.h
+ * （Boot 不依赖本树即可编）。改布局必须两边一起改。
  * Keep out of ToyKernel/Include (Common stays UEFI-free).
  *
  * x86_64 sizes: VIDEO 32, MEMORY_MAP 40, BOOT_CONFIG 368（含 GOP 模式表）.

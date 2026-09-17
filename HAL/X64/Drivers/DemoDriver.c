@@ -6,6 +6,7 @@
  */
 #include "Driver.h"
 #include "Hal.h"
+#include "Debug.h"
 
 static int DemoProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     (void)Self;
@@ -13,13 +14,13 @@ static int DemoProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     if (OutPriv) {
         *OutPriv = 0;
     }
-    HalSerialWrite("demo: probe called\n");
+    DebugWrite("demo: probe called\n");
     return 0; /* 恒匹配，课堂证明路径 */
 }
 
 static int DemoBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    HalSerialWrite("demo: bind called\n");
+    DebugWrite("demo: bind called\n");
     /*
      * 故意不调用 ToyDriverInputAttach。
      * 只占 Driver 实例槽，使 lsdev 可见；真 Input 仍由 xhci-hid / ps2-kbd 管理。

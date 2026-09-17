@@ -110,7 +110,9 @@ void HalVideoEnableFbWc(void) {
         return;
     }
     gFbWcMapped = 1;
-    HalSerialBootMark("boot: fb-wc ok (PAT PA1, LFB PWT)\n");
+    if (!HalCpuIsHypervisor()) {
+        HalSerialBootMark("boot: fb-wc ok (PAT PA1, LFB PWT)\n");
+    }
 }
 
 /*
@@ -209,7 +211,9 @@ void HalVideoLogFbPte(void) {
         Line[N++] = '\n';
         Line[N] = 0;
     }
-    HalSerialBootMark(Line);
+    if (!HalCpuIsHypervisor()) {
+        HalSerialBootMark(Line);
+    }
 }
 
 void HalVideoSet(const VIDEO_CONFIG *Config) {

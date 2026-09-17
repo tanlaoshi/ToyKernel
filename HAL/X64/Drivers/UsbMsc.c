@@ -93,18 +93,15 @@ int UsbMscAutoBeforeFs(void) {
     int Rc;
 
     if (!UsbMscAutoEnabled()) {
-        ToyLogBoot("boot: msc auto off\n");
         return 1;
     }
 
-    ToyLogBoot("boot: msc auto try\n");
     Claim = UsbMscClaim();
     if (Claim < 0) {
         ToyLogBoot("boot: msc auto no hc\n");
         return -1;
     }
     if (Claim == 0) {
-        ToyLogBoot("boot: msc auto none\n");
         return 1;
     }
 

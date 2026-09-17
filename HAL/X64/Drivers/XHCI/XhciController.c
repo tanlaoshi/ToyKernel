@@ -225,10 +225,12 @@ int StartController(UINT32 MaxSlots) {
             BootLog("boot: xhci scratchpad >max\n");
             return 0;
         }
-        BootLog("boot: xhci scratchpad=");
-        HalSerialFormatHex(B, Scratch, 4);
-        ToyLogUsb(B);
-        ToyLogUsb("\n");
+        BootLogV("boot: xhci scratchpad=");
+        if (DiagVerbose()) {
+            HalSerialFormatHex(B, Scratch, 4);
+            ToyLogUsb(B);
+            ToyLogUsb("\n");
+        }
         ZeroMemory(gScratchPtr, sizeof(gScratchPtr));
         for (Si = 0; Si < Scratch; Si++) {
             gScratchPtr[Si] = PointerToPhysical(gScratchBuf[Si]);
@@ -239,20 +241,20 @@ int StartController(UINT32 MaxSlots) {
         }
         gDcbaa[0] = PointerToPhysical(gScratchPtr);
         FlushDma(gScratchPtr, sizeof(UINT64) * Scratch);
-        BootLog("boot: xhci scratch ptrs ok\n");
+        BootLogV("boot: xhci scratch ptrs ok\n");
     }
 
-    BootLog("boot: xhci prog CONFIG/DCBAAP\n");
+    BootLogV("boot: xhci prog CONFIG/DCBAAP\n");
     WriteMmio32(gOperationalBase + 0x38, MaxSlots);
     FlushDma(gDcbaa, sizeof(gDcbaa));
     WriteMmio64(gOperationalBase + 0x30, PointerToPhysical(gDcbaa));
 
-    BootLog("boot: xhci prog CRCR\n");
+    BootLogV("boot: xhci prog CRCR\n");
     InitRing(gCmdRing, &gCmd, RING_SIZE);
     FlushDma(gCmdRing, sizeof(gCmdRing));
     WriteMmio64(gOperationalBase + 0x18, PointerToPhysical(gCmdRing) | 1);
 
-    BootLog("boot: xhci prog ERST\n");
+    BootLogV("boot: xhci prog ERST\n");
     ZeroMemory(gEvtRing, sizeof(gEvtRing));
     gEvtDeq = 0;
     gEvtCcs = 1;
@@ -271,14 +273,16 @@ int StartController(UINT32 MaxSlots) {
 
     Fence();
     Sts = ReadMmio32(gOperationalBase + 4);
-    BootLog("boot: xhci USBSTS before RS=");
-    HalSerialFormatHex(B, Sts, 8);
-    ToyLogUsb(B);
-    ToyLogUsb("\n");
-    ToyBootMarkUsb("boot: xhci before RS\n");
+    BootLogV("boot: xhci USBSTS before RS=");
+    if (DiagVerbose()) {
+        HalSerialFormatHex(B, Sts, 8);
+        ToyLogUsb(B);
+        ToyLogUsb("\n");
+    }
+    BootMarkV("boot: xhci before RS\n");
     WriteMmio32(gOperationalBase, USBCMD_RS | USBCMD_INTE);
     Fence();
-    ToyBootMarkUsb("boot: xhci after RS\n");
+    BootMarkV("boot: xhci after RS\n");
 
     if (!WaitClear(gOperationalBase + 4, USBSTS_HCH, 1000000)) {
         Sts = ReadMmio32(gOperationalBase + 4);
@@ -288,7 +292,7 @@ int StartController(UINT32 MaxSlots) {
     }
     Sts = ReadMmio32(gOperationalBase + 4);
     DiagChk("StartController.RS", !(Sts & USBSTS_HCH), "HCH=0 running", Sts, 8);
-    ToyBootMarkUsb("boot: xhci RS running\n");
+    BootMarkV("boot: xhci RS running\n");
     (void)gDcbaaFromFirmware;
     return 1;
 }

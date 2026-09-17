@@ -229,7 +229,7 @@ int XhciInit(UINT64 BaseAddress) {
         BootLog("xhci diag: VERBOSE\n");
     }
     /* 刷机核对：没有这行 = NUC 仍在跑旧 Kernel.elf */
-    BootLog("boot: xhci build=kbd-v8\n");
+    BootLogV("boot: xhci build=kbd-v8\n");
     gCtrlFailLogged = 0;
 
     /*
@@ -400,7 +400,7 @@ int XhciInit(UINT64 BaseAddress) {
             return 0;
         }
     }
-    ToyLogUsb("boot: xhci controller running\n");
+    BootLogV("boot: xhci controller running\n");
     DebugWrite("XHCI: controller running\n");
     PowerConnectedPorts();
 

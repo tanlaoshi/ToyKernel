@@ -547,7 +547,6 @@ void DesktopInit(void) {
     }
     gDesktopBusy = 1;
 
-    ToyLogGui("boot: desktop icons\n");
     PlaceDesktopIcons();
     LoadIconLayout();
 
@@ -559,9 +558,7 @@ void DesktopInit(void) {
     gMenuCount = 0;
     gIconDragIdx = -1;
     gIconDragMoved = 0;
-    ToyLogGui("boot: desktop wallpaper\n");
     LoadWallpaper();
-    ToyLogGui("boot: desktop bmp icons\n");
     LoadDesktopIcons();
     ToyLogGui("boot: desktop ready\n");
     DebugWrite("desktop: icons+taskbar ready (TOYOS Assets or solid)\n");

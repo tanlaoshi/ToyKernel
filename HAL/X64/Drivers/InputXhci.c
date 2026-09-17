@@ -124,7 +124,6 @@ static const INPUT_BACKEND gXhciInputBackend = {
 };
 
 static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
-    char B[20];
     int RealPc = !HalCpuIsHypervisor();
 
     if (Base == 0) {
@@ -139,10 +138,9 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
     if (RealPc) {
         ToyBootMarkUsb("boot: xhci-B10 mapped\n");
     } else {
-        ToyLogUsb("boot: xhci try BAR=");
-        HalSerialFormatHex(B, Base, 16);
-        ToyLogUsb(B);
-        ToyLogUsb("\n");
+        DebugWrite("XHCI: try BAR ");
+        DebugHex64(Base);
+        DebugWrite("\n");
     }
     /* 拒绝明显非 MMIO 的 BAR（运行时误探曾出现 0x193A50） */
     if (Base < 0x100000ULL) {
@@ -152,9 +150,6 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
         }
         return 0;
     }
-    DebugWrite("XHCI: try BAR ");
-    DebugHex64(Base);
-    DebugWrite("\n");
     if (!XhciInit(Base)) {
         if (RealPc) {
             HalSerialGopMute(0);
@@ -197,13 +192,16 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     }
 
     Count = PciScanUSBControllers(Controllers, 8);
-    ToyLogUsb("boot: xHCI controllers=");
-    HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
-    ToyLogUsb(B);
-    ToyLogUsb("\n");
     DebugWrite("XHCI: controllers=");
     DebugHex32((UINT32)Count);
     DebugWrite("\n");
+    /* 真机 PHOTO 要抄 BAR；QEMU 默认安静 */
+    if (RealPc) {
+        ToyLogUsb("boot: xHCI controllers=");
+        HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
+        ToyLogUsb(B);
+        ToyLogUsb("\n");
+    }
 
     /* 刀：先列出所有 ProgIF=0x30（含 BAR），PHOTO 可抄 */
     XhciN = 0;
@@ -211,7 +209,7 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         if (Controllers[i].Type != 0x30) {
             continue;
         }
-        {
+        if (RealPc) {
             char Msg[72];
             int n = 0;
             const char *P = "boot: xhci#";
@@ -219,7 +217,6 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
                 Msg[n++] = *P++;
             }
             Msg[n++] = (char)('0' + (XhciN % 10));
-            P = " ";
             Msg[n++] = ' ';
             HalSerialFormatHex(B, Controllers[i].Bus, 2);
             Msg[n++] = B[2];
@@ -244,12 +241,11 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
             }
             Msg[n++] = '\n';
             Msg[n] = 0;
-            ToyBootMarkUsb(Msg);
-            ToyLogUsb(Msg);
+            ToyBootMarkUsb(Msg); /* 已含 UART，勿再 ToyLogUsb 双打 */
         }
         XhciN++;
     }
-    {
+    if (RealPc) {
         char Msg[28];
         int n = 0;
         const char *P = "boot: xHCI n=";
@@ -261,7 +257,6 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         Msg[n++] = '\n';
         Msg[n] = 0;
         ToyBootMarkUsb(Msg);
-        ToyLogUsb(Msg);
     }
 
     XhciIdx = 0;
@@ -269,7 +264,7 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         if (Controllers[i].Type != 0x30) {
             continue;
         }
-        {
+        if (RealPc) {
             char Msg[24];
             int n = 0;
             const char *P = "boot: xhci try#";
@@ -280,7 +275,6 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
             Msg[n++] = '\n';
             Msg[n] = 0;
             ToyBootMarkUsb(Msg);
-            ToyLogUsb(Msg);
         }
         DebugWrite("XHCI: pci ");
         DebugHex32(Controllers[i].Bus);
@@ -291,7 +285,9 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         DebugWrite("\n");
         gXhciDev = Controllers[i];
         if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
-            ToyLogUsb("boot: xhci init returned\n");
+            if (RealPc) {
+                ToyLogUsb("boot: xhci init returned\n");
+            }
             if (XhciHidKeyboardReady() || XhciMousePresent()) {
                 gXhciReady = 1;
                 if (!XhciHidKeyboardReady() && XhciMousePresent()) {

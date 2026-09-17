@@ -148,11 +148,43 @@ const char *CmdTrbName(UINT32 Control) {
 
 
 void BootLog(const char *Text) {
+    const char *P;
+    int Milestone = 0;
+    int Fail = 0;
+
+    if (!Text) {
+        return;
+    }
     if (!HalCpuIsHypervisor()) {
+        /* 真机：步进也上屏，便于 PHOTO */
         ToyBootMarkUsb(Text);
         return;
     }
-    ToyLogUsb(Text);
+    /* QEMU：默认只留 keyboard / mouse / irq=；步进需 XHCI_DIAG_VERBOSE=1 */
+    if (DiagVerbose()) {
+        ToyLogUsb(Text);
+        return;
+    }
+    for (P = Text; *P; P++) {
+        if (P[0] == 'f' && P[1] == 'a' && P[2] == 'i' && P[3] == 'l') {
+            Fail = 1;
+        }
+        if (P[0] == 't' && P[1] == 'i' && P[2] == 'm' && P[3] == 'e' &&
+            P[4] == 'o' && P[5] == 'u' && P[6] == 't') {
+            Fail = 1;
+        }
+        /* xhci-hid … */
+        if (P[0] == 'x' && P[1] == 'h' && P[2] == 'c' && P[3] == 'i' &&
+            P[4] == '-' && P[5] == 'h' && P[6] == 'i' && P[7] == 'd') {
+            Milestone = 1;
+        }
+        if (P[0] == 'i' && P[1] == 'r' && P[2] == 'q' && P[3] == '=') {
+            Milestone = 1;
+        }
+    }
+    if (Milestone || Fail) {
+        ToyLogUsb(Text);
+    }
 }
 
 

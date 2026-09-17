@@ -201,8 +201,11 @@ void HalSerialInitialize(void) {
         RingAppend("boot: serial disabled (TOY_SERIAL=0)\n");
 #endif
     } else {
-        SerialWrite("boot: COM1 serial ok\n");
-        RingAppend("boot: COM1 ok\n");
+        /* 与 ToyBoot 同构：首行名，次行 COM1 状态（PR-K-log-uart） */
+        SerialWrite("ToyKernel\n");
+        SerialWrite("[COM1]:初始化OK\n");
+        RingAppend("ToyKernel\n");
+        RingAppend("[COM1]:初始化OK\n");
     }
 }
 
