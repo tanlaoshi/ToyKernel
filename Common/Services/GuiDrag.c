@@ -8,6 +8,7 @@
 #include "Debug.h"
 #include "PhysicalMemory.h"
 #include "Desktop.h"
+#include "Theme.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
@@ -427,12 +428,15 @@ void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
 void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
                                       int SkipIdx) {
     int i;
+    UINT32 N = ThemeWindowShadowSize();
 
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWindows[i].Active || i == SkipIdx) {
             continue;
         }
-        if (RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width, gWindows[i].Height,
+        /* 含影扩边：足迹只擦到邻窗阴影时也要贴回本体，否则影被桌面清掉后不补 */
+        if (RectIntersects(gWindows[i].X, gWindows[i].Y,
+                           gWindows[i].Width + N, gWindows[i].Height + N,
                            Fx, Fy, Fw, Fh)) {
             PaintWindowFromBackup(i);
         }
@@ -444,17 +448,19 @@ void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
 void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh,
                                   int DragIdx) {
     int i;
+    UINT32 N = ThemeWindowShadowSize();
 
     RestoreWindowsInFootprint(Ox, Oy, Ww, Wh, DragIdx);
     FillDesktopRectClipped(Ox, Oy, Ww, Wh);
     DesktopDrawRect(Ox, Oy, Ww, Wh);
-    /* 相交他窗阴影（被拖窗阴影由调用方在贴窗后画，避免叠两次） */
+    /* 相交他窗阴影（含影扩边相交；被拖窗阴影由调用方在贴窗后画） */
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWindows[i].Active || i == DragIdx) {
             continue;
         }
-        if (RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width,
-                           gWindows[i].Height, Ox, Oy, Ww, Wh)) {
+        if (RectIntersects(gWindows[i].X, gWindows[i].Y,
+                           gWindows[i].Width + N, gWindows[i].Height + N,
+                           Ox, Oy, Ww, Wh)) {
             DrawWindowShadowAt(i);
         }
     }

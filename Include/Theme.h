@@ -50,6 +50,12 @@ UINT32 ThemeWindowShadowColor(void);
  * 顶色仍走 ThemeWindowTitleFocus/Idle/Hover；绘制侧逐行插值到本色。
  */
 UINT32 ThemeWindowTitleGradientBottom(UINT32 Top);
+/*
+ * PR-GUI-l3-fade：开关窗淡入淡出中间帧数；0=关动画。
+ * THEME.CFG / DB 键 fade=（默认 6；真机卡可设 fade=0）。
+ */
+UINT32 ThemeWindowFadeSteps(void);
+void ThemeSetWindowFadeSteps(UINT32 Steps);
 
 void ThemeSetDesktopBackground(UINT32 Color);
 void ThemeSetShellClientBackground(UINT32 Color);

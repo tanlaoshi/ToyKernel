@@ -31,6 +31,15 @@ void CloseWindow(int Idx) {
     Y = gWindows[Idx].Y;
     Ww = gWindows[Idx].Width;
     Wh = gWindows[Idx].Height;
+
+    /* PR-GUI-l3-fade：仍 Active 时淡出；随后走原收尾合成 */
+    if (ThemeWindowFadeSteps() != 0) {
+        if (!gWinBackupValid[Idx]) {
+            BackupWindowAt(Idx);
+        }
+        GuiAnimateWindowFade(Idx, 0);
+    }
+
     if (gWindows[Idx].Kind == GUI_WIN_USER) {
         gWindows[Idx].ClosePending = 1;
     }
@@ -202,6 +211,8 @@ int GuiOpenShell(void) {
     RaiseWindow(Idx);
     SyncWindowVisuals();
     GuiFocusApply();
+    BackupWindowAt(Idx);
+    GuiAnimateWindowFade(Idx, 1);
     DebugWrite("gui: open shell idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -273,6 +284,7 @@ int GuiOpenSettings(void) {
     BackupWindowAt(Idx);
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
+    GuiAnimateWindowFade(gFocusWin, 1);
     DebugWrite("gui: open settings idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -347,6 +359,7 @@ int GuiOpenStore(void) {
     BackupWindowAt(Idx);
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
+    GuiAnimateWindowFade(gFocusWin, 1);
     DebugWrite("gui: open store idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -404,6 +417,7 @@ int GuiOpenFiles(void) {
     BackupWindowAt(Idx);
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
+    GuiAnimateWindowFade(gFocusWin, 1);
     DebugWrite("gui: open files idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -483,6 +497,7 @@ int GuiOpenEdit(const char *Path) {
     BackupWindowAt(Idx);
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
+    GuiAnimateWindowFade(gFocusWin, 1);
     DebugWrite("gui: open edit idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");

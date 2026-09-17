@@ -22,6 +22,7 @@ static UINT32 gFontId;
 static UINT32 gModeW;
 static UINT32 gModeH;
 static UINT32 gUiScale = 100; /* 50 / 100 / 150 / 200 */
+static UINT32 gFadeSteps = 6; /* PR-GUI-l3-fade；0=关 */
 
 static UINT32 NormalizeUiScale(UINT32 Percent) {
     if (Percent <= 75) {
@@ -44,6 +45,7 @@ void ThemeInitialize(void) {
     gModeW = 0;
     gModeH = 0;
     gUiScale = 100;
+    gFadeSteps = 6;
     (void)FontSetById(gFontId);
 }
 
@@ -149,6 +151,17 @@ UINT32 ThemeWindowShadowColor(void) {
 UINT32 ThemeWindowTitleGradientBottom(UINT32 Top) {
     /* 向黑插值：保留约 60% 顶色 → 标题栏自上而下略暗 */
     return UiBlendRgb(COLOR_BLACK, Top, 153u);
+}
+
+UINT32 ThemeWindowFadeSteps(void) {
+    return gFadeSteps;
+}
+
+void ThemeSetWindowFadeSteps(UINT32 Steps) {
+    if (Steps > 16u) {
+        Steps = 16u;
+    }
+    gFadeSteps = Steps;
 }
 
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
@@ -493,6 +506,13 @@ static void ApplyLine(const char *Line) {
         if (ParseDecU32(Val, &V, 0) == 0) {
             gUiScale = NormalizeUiScale(V);
         }
+        return;
+    }
+    Val = ValueAfterKey(Line, "fade");
+    if (Val) {
+        if (ParseDecU32(Val, &V, 0) == 0) {
+            ThemeSetWindowFadeSteps(V);
+        }
     }
 }
 
@@ -623,7 +643,8 @@ int ThemeLoad(void) {
     int ModeFromCfg;
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
-             ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale");
+             ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale") +
+             ApplyDbKey("fade");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
@@ -666,17 +687,19 @@ int ThemeLoad(void) {
 }
 
 int ThemeSave(void) {
-    char Buf[192];
+    char Buf[224];
     UINTN N = 0;
     char Hex[7];
     char FontVal[8];
     char ModeVal[24];
     char ScaleVal[8];
+    char FadeVal[8];
     UINTN ModeLen = 0;
     UINTN ScaleLen = 0;
+    UINTN FadeLen = 0;
     int i;
     int DbOk = 1;
-    static char sLastCfg[192];
+    static char sLastCfg[224];
     static UINTN sLastCfgN;
     static int sBusy;
 
@@ -703,6 +726,9 @@ int ThemeSave(void) {
     ScaleLen = 0;
     PutDec(ScaleVal, ThemeUiScale(), &ScaleLen);
     ScaleVal[ScaleLen] = 0;
+    FadeLen = 0;
+    PutDec(FadeVal, ThemeWindowFadeSteps(), &FadeLen);
+    FadeVal[FadeLen] = 0;
 
     /*
      * 先写 THEME.CFG：QEMU edid / ToyBoot 认 CFG；若先写 DB 再 CFG 失败，
@@ -767,6 +793,15 @@ int ThemeSave(void) {
         Buf[N++] = ScaleVal[i];
     }
     Buf[N++] = '\n';
+    Buf[N++] = 'f';
+    Buf[N++] = 'a';
+    Buf[N++] = 'd';
+    Buf[N++] = 'e';
+    Buf[N++] = '=';
+    for (i = 0; FadeVal[i]; i++) {
+        Buf[N++] = FadeVal[i];
+    }
+    Buf[N++] = '\n';
     Buf[N] = 0;
 
     /*
@@ -829,6 +864,9 @@ int ThemeSave(void) {
         (void)DbDelete("mode");
     }
     if (DbSet("scale", ScaleVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("fade", FadeVal) != DB_OK) {
         DbOk = 0;
     }
     if (DbEndBatch() != DB_OK) {

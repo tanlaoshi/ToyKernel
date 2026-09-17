@@ -170,6 +170,8 @@ void BackupWindowAt(int Idx);
 UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py);
 void PaintWindowFromBackup(int Idx);
 void ShiftWinBackupsUp(int From, int To);
+/* PR-GUI-l3-fade：FadeIn=1 开窗，0 关窗；ThemeWindowFadeSteps()==0 则空操作 */
+void GuiAnimateWindowFade(int Idx, int FadeIn);
 int RectIntersects(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
                    UINT32 Bx, UINT32 By, UINT32 Bw, UINT32 Bh);
 void ClipRectToScreen(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H);

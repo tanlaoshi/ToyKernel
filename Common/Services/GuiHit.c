@@ -111,7 +111,8 @@ void GuiRaiseToFront(int Idx) {
     }
     RaiseWindow(Idx);
     Top = gFocusWin; /* Raise 后窗已挪槽，勿再用旧 Idx */
-    SyncWindowVisuals();
+    /* ClearDesktop：QEMU 上 Sync(0) 易留透视/脏影；真机亦更干净 */
+    SyncWindowVisualsEx(1);
     GuiFocusApply();
     /* 顶层无有效备份时补内容，再抓一份干净备份 */
     if (Top < 0 || Top >= MAX_WINS || !gWindows[Top].Active) {
