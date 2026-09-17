@@ -17,6 +17,8 @@ void SettingsUiOnDigit(char Digit);
 void SettingsUiOnEscape(void);
 /* PR-G12：客户区鼠标点选（与 OnDigit 等价） */
 void SettingsUiOnClick(UINT32 X, UINT32 Y);
+/* PR-GUI-l3：客户区指针移动/按住 → 悬停与按下高亮 */
+void SettingsUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons);
 int SettingsUiIsFocused(void);
 
 #endif

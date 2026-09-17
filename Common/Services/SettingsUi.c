@@ -48,6 +48,8 @@ static SETTINGS_PAGE gPage = SETTINGS_PAGE_MAIN;
 static int gDisplayHint; /* 0=无；1=须重启；2=已热切 */
 static SETTINGS_HIT gHits[SETTINGS_HIT_MAX];
 static int gHitCount;
+static int gHoverAction = -1; /* PR-GUI-l3：-1=无悬停 */
+static int gPressAction = -1; /* 按住中的 Action */
 
 static const SETTINGS_COLOR gDesktopColors[] = {
     { "Dark Gray", COLOR_DARK_GRAY },
@@ -287,13 +289,17 @@ static void DrawButtonRow(UINT32 X, UINT32 *Y, UINT32 Bw, UINT32 Bh, UINT32 Gap,
                           int Action) {
     UINT32 Bg;
     UINT32 Fg;
+    int Hovered;
+    int Pressed;
 
     if (*Y + Bh > MaxBottom) {
         return;
     }
-    Bg = Selected ? COLOR_BLUE : COLOR_LIGHT_GRAY;
+    Bg = Selected ? ThemeControlAccent() : ThemeControlFace();
     Fg = Selected ? COLOR_WHITE : COLOR_BLACK;
-    UiDrawButton(X, *Y, Bw, Bh, Text, Fg, Bg);
+    Hovered = (!Selected && Action == gHoverAction);
+    Pressed = (Action == gPressAction);
+    UiDrawButtonEx(X, *Y, Bw, Bh, Text, Fg, Bg, Hovered, Pressed);
     HitAdd(X, *Y, Bw, Bh, Action);
     *Y += Bh + Gap;
 }
@@ -644,6 +650,8 @@ void SettingsUiPaintFocused(void) {
 void SettingsUiOpen(void) {
     gPage = SETTINGS_PAGE_MAIN;
     gDisplayHint = 0;
+    gHoverAction = -1;
+    gPressAction = -1;
     PaintMenu();
     DebugWrite("settings: main menu\n");
 }
@@ -758,5 +766,58 @@ void SettingsUiOnClick(UINT32 X, UINT32 Y) {
             SettingsUiOnDigit((char)('0' + gHits[i].Action));
             return;
         }
+    }
+}
+
+/* PR-GUI-l3：悬停/按下态；抬起且仍在同一钮上才触发 OnClick（按下可看见凹陷） */
+void SettingsUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
+    int i;
+    int Action = -1;
+    int Need = 0;
+    int Fire = -1;
+    static UINT8 sPrevBtn;
+
+    if (!SettingsUiIsFocused()) {
+        if (gHoverAction >= 0 || gPressAction >= 0) {
+            gHoverAction = -1;
+            gPressAction = -1;
+        }
+        sPrevBtn = Buttons;
+        return;
+    }
+    for (i = 0; i < gHitCount; i++) {
+        if (UiHitRect(gHits[i].X, gHits[i].Y, gHits[i].W, gHits[i].H, X, Y)) {
+            Action = gHits[i].Action;
+            break;
+        }
+    }
+    if (Action != gHoverAction) {
+        gHoverAction = Action;
+        Need = 1;
+    }
+    if ((Buttons & 1u) && !(sPrevBtn & 1u)) {
+        /* 按下边沿 */
+        if (Action >= 0) {
+            gPressAction = Action;
+            Need = 1;
+        }
+    } else if ((Buttons & 1u) && gPressAction >= 0 && Action != gPressAction) {
+        /* 按住拖出 */
+        gPressAction = -1;
+        Need = 1;
+    } else if (!(Buttons & 1u) && (sPrevBtn & 1u) && gPressAction >= 0) {
+        /* 抬起边沿：仍在同一钮 → 触发 */
+        if (Action == gPressAction) {
+            Fire = gPressAction;
+        }
+        gPressAction = -1;
+        Need = 1;
+    }
+    sPrevBtn = Buttons;
+    if (Need) {
+        SettingsUiRepaint();
+    }
+    if (Fire >= 0) {
+        SettingsUiOnDigit((char)('0' + Fire));
     }
 }

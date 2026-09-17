@@ -38,6 +38,12 @@ void UiFillTriangle(UINT32 X1, UINT32 Y1, UINT32 X2, UINT32 Y2, UINT32 X3, UINT3
 
 // 高级 UI 元素（PR-G12：按钮/列表行/滚动条；即时模式，无控件树）
 void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text, UINT32 TextColor, UINT32 BgColor);
+/*
+ * PR-GUI-l3：Hovered / Pressed。Pressed 优先于 Hovered；Selected 由调用方用颜色表达亦可。
+ * 按下：背景加深 + 文字右下偏 1px（凹陷感）。
+ */
+void UiDrawButtonEx(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text,
+                    UINT32 TextColor, UINT32 BgColor, int Hovered, int Pressed);
 void UiDrawProgressBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Progress, UINT32 MaxProgress, UINT32 Color, UINT32 BgColor);
 void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text,
                    int Selected, int Hovered);

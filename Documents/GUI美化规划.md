@@ -22,9 +22,10 @@
 
 **核心原则**：
 
-- 先视觉基础（配色/间距/边框），再视觉进阶（窗口圆角/阴影/渐变），最后交互（动画）
+- 先视觉基础（配色/间距/边框），再视觉进阶（阴影/渐变），最后交互（淡入淡出 / 按钮态）
 - 每步可独立编译、可独立验证
 - 不破坏现有功能（Shell / Files / Settings 不回归）
+- **不规划窗口 chrome 圆角**（`PR-GUI-l2-round` 已删）；控件圆角 `Ui*RoundRectangle` 已有，按钮按需用即可
 
 ---
 
@@ -60,10 +61,10 @@
 | **颜色** | 大量 `COLOR_BLUE` / `COLOR_LIGHT_GRAY` / `COLOR_DARK_GRAY`；Theme 只管桌面/Shell 底色等 | 控件/窗框未统一走 Theme，层次弱 |
 | **字体** | 点阵：默认倾向 Terminus **10×18** / Sun 8×16；16×32 为旧默认；CJK 16×16；运行时 TOYF | 边缘硬，无抗锯齿 |
 | **窗口边框** | 窗框仍是矩形 1px 级描边 | 窗口扁平 |
-| **控件圆角** | **已有**：`UiDrawRoundRectangle` / `UiFillRoundRectangle`；`UiDrawButton` 圆角 5 | 按钮已圆；**窗口外框未用** |
-| **阴影** | 无 | 窗口与桌面分离感弱 |
+| **控件圆角** | **已有**：`Ui*RoundRectangle`；`UiDrawButton` 圆角 5 | 按钮可用；**不接窗口 chrome** |
+| **阴影** | ✅ `DrawWindowShadowAt`（L2-shadow） | 有右/下 drop shadow |
 | **图标** | 桌面 48×48 BMP（G13）或纯色块 | 能用，风格不统一 |
-| **动画** | 无 | 开关窗口硬切 |
+| **动画** | ✅ 窗口淡入淡出（L3-fade，`GuiFade.c`） | 开关窗有中间帧；按钮态待做 |
 | **光标** | 简单箭头 | 可接受 |
 | **文字排版** | 左对齐 + 固定行高 | 标题/正文/提示未分层 |
 | **任务栏 / 开始菜单** | 纯色矩形 + 按钮/列表 | 简陋 |
@@ -81,7 +82,7 @@ GUI 底层已经具备做美化的大部分条件：
 | 主题系统 | ✅ `Theme.c`（底色/字体/mode/缩放） | **扩展**统一配色，勿另起炉灶 |
 | BMP | ✅ `Bmp.c`（无 alpha 通道） | 图标；抗锯齿图标需扩格式 |
 | 像素 blit | ✅ `HalVideoWriteRect` | 画任意图形 |
-| 圆角几何 | ✅ `UI.c` 已实现 | 接到窗框/标题栏即可 |
+| 圆角几何 | ✅ `UI.c` 已实现 | 控件/按钮用；**不规划窗框圆角** |
 
 **缺的是「把已有能力接到窗口/桌面主路径」**，不是从零写光栅器。
 
@@ -95,21 +96,17 @@ GUI 底层已经具备做美化的大部分条件：
 |------|------|
 | 点阵 1bpp 字体 | 无抗锯齿 |
 | 控件/窗框硬编码 `COLOR_*` | Theme 管不全，无层次 |
-| 窗口几何仍是直角矩形 | 圆角 API 闲置 |
-| 无 alpha | 无阴影、无半透明菜单 |
-| 无动画循环 | 开关窗硬切 |
+| 窗口几何仍是直角矩形 | 刻意保持；控件圆角另用 |
+| 曾无 alpha | 现已有混合；半透明菜单已冒烟 |
+| 曾无动画循环 | 淡入淡出已有；按钮态待做 |
 
 教学优先：学生能看懂每一行；视觉不是当时的交付目标。
 
 ### 3.2 不是「不能做」，是「没接到主路径」
 
-已有圆角/Theme/后缓冲/BMP。还缺：
+已有控件圆角/Theme/后缓冲/BMP/alpha/阴影/渐变/淡入淡出。还缺：
 
-- 通用 alpha 混合（后缓冲像素）
-- 窗口外阴影
-- 窗框走圆角 API
-- 标题栏渐变
-- 动画循环（定时器 + 脏区）
+- 按钮悬停/按下（L3 余下）
 - 4bpp/8bpp 字体（L2 最难，可后置）
 
 ---
@@ -134,7 +131,6 @@ GUI 底层已经具备做美化的大部分条件：
 |------|------|--------|----------|
 | **alpha 混合** | 后缓冲逐像素混合 | 1 天 | 后续阴影/渐变/动画的底座 |
 | **窗口阴影** | 窗外一圈半透明黑 | 2 天 | alpha + 窗口几何 |
-| **窗口圆角** | 窗框四角走已有 `Ui*RoundRectangle` | 2 天 | 合成/裁剪与命中测试要对齐 |
 | **标题栏渐变** | 逐行插值 | 1 天 | 可先不依赖 alpha |
 | **图标抗锯齿** | BMP 扩 alpha / 32bpp 真 alpha | 1 天 | 现 `Bmp.c` 仅 BI_RGB |
 | **抗锯齿字体** | 4bpp/8bpp + Font 渲染 | 3–5 天 | TOYF 扩展；**可后置** |
@@ -146,13 +142,13 @@ GUI 底层已经具备做美化的大部分条件：
 
 | 改进 | 说明 | 工作量 |
 |------|------|--------|
-| **窗口淡入淡出** | 开关窗中间帧 | 2 天 |
-| **按钮悬停/按下** | 变色 + 凹陷 | 1–1.5 天 |
+| **窗口淡入淡出** | 开关窗中间帧（✅ 已入 **PR-GUI-l3**） | 2 天 |
+| **按钮悬停/按下** | 变色 + 凹陷（← **PR-GUI-l3** 余下） | 1–1.5 天 |
 | **菜单展开** | 开始菜单下拉 | 2 天 |
 | **光标拖尾** | 可选 | 1 天 |
 | **提示气泡** | 悬停 hint | 1 天 |
 
-**收益**：从「好看」到「舒服」。真机 FPS 不够则做开关或仅 QEMU。
+**收益**：从「好看」到「舒服」。真机 FPS 不够则做开关或仅 QEMU。淡入 + 按钮态合为 **PR-GUI-l3** 一刀。
 
 ---
 
@@ -171,23 +167,21 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 
 写后缓冲，再走现有脏区 Present。门面：`HalVideoBlend*` / `UiFillRectangleAlpha` / `UiBlendRgb`。用途：阴影、半透明、灰度字、淡入淡出。
 
-### 5.2 圆角（L2）— **已回退**
-
-曾用 `ThemeWindowCornerRadius` + `PaintWindowChromeRound` / `PunchWindowRoundExterior`（TG `0fb4ddf`）。真机/QEMU 上切角 Punch、阴影交汇与叠放透视反复不稳，**已回退到直角窗**（代码回到 shadow 柱几何）。控件圆角（`Ui*RoundRectangle`）仍保留。窗口圆角若再开，需另立刀并先过拖动/叠放验收。
-
-### 5.3 阴影（L2）
+### 5.2 阴影（L2）
 
 窗外 N 像素（`ThemeWindowShadowSize`，默认 6）右/下 drop shadow：alpha 贴边约 `ThemeWindowShadowMaxAlpha`（128）收到 0。`DrawWindowShadowAt` + `HalVideoBlendFillRect`；命中仍矩形（阴影不进 `PointInWindow`）。拖动：`ExpandRectByWindowShadow` 扩 footprint，`RedrawDragFrame` / `MoveWindowTo` 同步清残影。
 
-### 5.4 标题栏渐变（L2）
+### 5.3 标题栏渐变（L2）
 
 顶色仍走三态 `ThemeWindowTitleFocus/Idle/Hover`；底色 `ThemeWindowTitleGradientBottom(Top)`（向黑约 40%）。直角标题栏按行 `TitleBarColorAtRow` 填充。`AnalyticWindowPixel` 同步按行取色。不改命中矩形；暂不进 THEME.CFG。
 
-### 5.5 动画（L3）— PR-GUI-l3-fade
+### 5.4 交互（L3）— **PR-GUI-l3**（淡入淡出 + 按钮态）
 
-`ThemeWindowFadeSteps()`（默认 6；`THEME.CFG` 键 `fade=`，`0`=关）。开/关窗：捕获无本窗桌面层 → 与窗备份逐帧 `HalVideoBlendRgb` → Present。实现：`GuiFade.c` / `GuiAnimateWindowFade`。阴影不参与中间帧（首/末随合成）。目标约 ≥30 FPS 手感；NUC 卡则 `fade=0`。
+**淡入淡出**（✅ TG `a9d4875`）：`ThemeWindowFadeSteps()`（默认 6；`THEME.CFG` 键 `fade=`，`0`=关）。开/关窗：捕获无本窗桌面层 → 与窗备份逐帧 `HalVideoBlendRgb` → Present。实现：`GuiFade.c` / `GuiAnimateWindowFade`。阴影不参与中间帧（首/末随合成）。目标约 ≥30 FPS 手感；NUC 卡则 `fade=0`。
 
-### 5.6 抗锯齿字体（L2 最难，可后置）
+**按钮悬停/按下**（Settings 已接）：`UiDrawButtonEx` + `SettingsUiOnPointer`（悬停提亮、按下凹陷）；控件圆角沿用 `Ui*RoundRectangle`。**不**再开窗口 chrome 圆角刀。
+
+### 5.5 抗锯齿字体（L2 最难，可后置）
 
 现状：1bpp 点阵（`Font*` / TOYF）。灰度字需要新格式 + 加载 + alpha 绘制。工作量最大，排 P3。
 
@@ -216,14 +210,14 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 序 | PR | 交付物 | 工作量 | 优先级 |
 |----|----|--------|--------|--------|
 | 0 | **PR-GUI-doc**（本文） | `Documents/GUI美化规划.md` | 0.5 天 | 已入库 |
-| 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `cc7965e` |
+| 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `7417d76` |
 | 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `cc7965e` |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | ✅ TG `f1772d7` |
-| 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | ⏪ **已回退**（几何/Punch/阴影交汇差，退回直角窗；保留 `0fb4ddf` 史） |
-| 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | ✅ TG `82978dd` |
-| 6 | **PR-GUI-l3-fade** | 窗口淡入淡出 | 2 天 | ✅ TG `a9d4875`（NUC 为准；QEMU 叠放透视已知不挡） |
-| 7 | **PR-GUI-l3-button** | 按钮悬停/按下 | 1 天 | ← **JX** |
-| 8 | **PR-GUI-l2-font** | 抗锯齿字体（可选） | 3–5 天 | P3 |
+| 4 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | ✅ TG `82978dd` |
+| 5 | **PR-GUI-l3** | L3：淡入淡出 + 按钮悬停/按下 | 3–3.5 天 | fade ✅ `a9d4875`；button ← **JX** |
+| 6 | **PR-GUI-l2-font** | 抗锯齿字体（可选） | 3–5 天 | P3 |
+
+> ~~PR-GUI-l2-round~~（窗口 chrome 圆角）**已取消**，不再排期；控件 `Ui*RoundRectangle` 仍可用。
 
 ### 7.2 推荐顺序
 
@@ -232,14 +226,12 @@ PR-GUI-doc（本文）✅
   → PR-GUI-l1（视觉基础）
   → PR-GUI-alpha
   → PR-GUI-l2-shadow
-  → PR-GUI-l2-gradient   ✅（圆角 l2-round 已回退，不挡渐变；烙印热修同 `82978dd`）
-  → PR-GUI-l3-fade       ✅ `a9d4875`（NUC 验收；QEMU 透视已知）
-  → PR-GUI-l3-button     ← 当前
+  → PR-GUI-l2-gradient   ✅ `82978dd`
+  → PR-GUI-l3            ← 当前（fade ✅ `a9d4875`；button 余下）
   → PR-GUI-l2-font（可选）
-  → （可选再议）PR-GUI-l2-round
 ```
 
-先 L1，再 alpha + 阴影 + 渐变 + 淡入淡出；**窗口圆角几何已回退**；下一刀按钮态，灰度字后置。
+先 L1，再 alpha + 阴影 + 渐变；**PR-GUI-l3** 合并淡入淡出与按钮态（fade 已交付，下一刀做 button）；灰度字后置。**不**再开窗口圆角刀。
 
 **进 JX**：须 R 柱 0～7 空，或明文改路线图文首 ★。表内「P0/P1」是**柱内**性价比，不是全仓优先级。
 
@@ -262,12 +254,12 @@ PR-GUI-doc（本文）✅
 | **P0** | L1 三态边框 | 0.5 天 | 中高 |
 | **P0** | alpha 混合 | 1 天 | 底座 |
 | **P0** | L2 窗口阴影 | 2 天 | 最高 |
-| **P1** | L2 窗口圆角 | 2 天 | 高（API 已有） |
 | **P1** | L2 标题栏渐变 | 1 天 | 中 |
-| **P1** | L3 淡入淡出 | 2 天 | 高 |
+| **P1** | L3 淡入淡出 + 按钮态（**PR-GUI-l3**） | 3–3.5 天 | 高 |
 | **P2** | 图标 alpha | 1 天 | 中 |
 | **P3** | 抗锯齿字体 | 3–5 天 | 最高但贵 |
 | **P3** | 其它动画 | 3–4 天 | 中低 |
+| — | ~~L2 窗口圆角~~ | — | **已取消** |
 
 ### 性能约束（真机 NUC）
 
@@ -275,7 +267,7 @@ PR-GUI-doc（本文）✅
 |------|------|
 | 鼠标移动 / 窗口拖动 | 流畅（等效 >60 FPS 手感） |
 | 开关窗动画 | ≥ 30 FPS，可关 |
-| 阴影/圆角 | 不拖垮拖动 |
+| 阴影 | 不拖垮拖动 |
 
 卡顿则提供低配开关，或降级「仅 QEMU」。
 
@@ -326,3 +318,4 @@ PR-GUI-doc（本文）✅
 | 2026-09-16 | 初版。按仓库校正路径（`UI.c`/`Bmp.c` 在 Library；无 `Font.c`；Compose 已拆）；圆角 API 已存在；Theme 已部分覆盖。**PR-GUI-doc** |
 | 2026-09-16 | 排期对齐路线图：本柱全仓 **P1**；不插队 P0 命名 R 柱 |
 | 2026-09-17 | **PR-GUI-l1**：Theme 窗框/任务栏/控件 getter；三态边框+悬停；`ThemeClientPadding`=8 |
+| 2026-09-17 | 取消窗口 chrome 圆角（删 §5.2 / l2-round）；**PR-GUI-l3** 合并 fade+button；现状表补阴影/淡入；控件圆角仅作按钮能力说明 |

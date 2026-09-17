@@ -196,9 +196,8 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 GuiFrameBufferBegin();
                 DrawWindowChromeAt(gFocusWin);
                 GuiFrameBufferEnd();
-            } else {
-                SettingsUiOnClick(X, Y);
             }
+            /* 客户区：按下高亮由 OnPointer；抬起才 OnClick（见 SettingsUiOnPointer） */
         } else if (GuiFocusKind() == GUI_WIN_STORE) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 StoreUiRepaint();
@@ -299,29 +298,19 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     }
 
     gCursorBtn = Mouse->Buttons;
-    GuiPointerMove(Mouse->X, Mouse->Y);
-
-    /* PR-I2：滚轮 — Files 列表 / Shell 客户区；其它忽略 */
-    if (Mouse->Wheel != 0) {
-        if (GuiFocusKind() == GUI_WIN_FILES) {
-            FilesUiOnWheel(Mouse->Wheel);
-        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
-            ConsoleOnWheel(Mouse->Wheel);
-        }
-    }
 
     if ((Mouse->Buttons & 1) && !(gMousePrevBtn & 1)) {
-        GuiHandleClick(gCursorX, gCursorY);
+        GuiHandleClick(Mouse->X, Mouse->Y);
     } else if ((Mouse->Buttons & 1) && gDragWin >= 0) {
         /* PR-G10 L2：与 GuiPollMouse 统一，按住拖动时持续更新 */
-        GuiDragUpdate(gCursorX, gCursorY);
+        GuiDragUpdate(Mouse->X, Mouse->Y);
     } else if ((Mouse->Buttons & 1) && DesktopIconDragActive()) {
         if (gCursorVisible) {
             GfxIrqEnter();
             CursorRestore();
             GfxIrqLeave();
         }
-        DesktopIconDragUpdate(gCursorX, gCursorY);
+        DesktopIconDragUpdate(Mouse->X, Mouse->Y);
     }
     if (!(Mouse->Buttons & 1) && (gMousePrevBtn & 1)) {
         int WasIconDrag = DesktopIconDragActive();
@@ -337,7 +326,19 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     }
     /* PR-I3：右键按下边沿 → 占位回调（bit1） */
     if ((Mouse->Buttons & 2) && !(gMousePrevBtn & 2)) {
-        GuiRightClickPlaceholder(gCursorX, gCursorY);
+        GuiRightClickPlaceholder(Mouse->X, Mouse->Y);
+    }
+
+    /* 边沿处理后再 Move/悬停，避免 Sync 抹掉 Settings 按下高亮 */
+    GuiPointerMove(Mouse->X, Mouse->Y);
+
+    /* PR-I2：滚轮 — Files 列表 / Shell 客户区；其它忽略 */
+    if (Mouse->Wheel != 0) {
+        if (GuiFocusKind() == GUI_WIN_FILES) {
+            FilesUiOnWheel(Mouse->Wheel);
+        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+            ConsoleOnWheel(Mouse->Wheel);
+        }
     }
     gMousePrevBtn = Mouse->Buttons;
 }
@@ -458,6 +459,11 @@ void GuiPollMouse(void) {
         }
         if ((Raw.Buttons & 2) && !(LastBtn & 2)) {
             GuiRightClickPlaceholder(X, Y);
+        }
+        /* Settings：仅按键边沿逐包（同批按下+抬起）；位移悬停合并到队尾 GuiPointerMove */
+        if (GuiFocusKind() == GUI_WIN_SETTINGS && gDragWin < 0 &&
+            ((Raw.Buttons ^ LastBtn) & 1u)) {
+            SettingsUiOnPointer(X, Y, Raw.Buttons);
         }
         LastBtn = Raw.Buttons;
     }
