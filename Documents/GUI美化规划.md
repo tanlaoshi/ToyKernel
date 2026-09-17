@@ -217,8 +217,8 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 序 | PR | 交付物 | 工作量 | 优先级 |
 |----|----|--------|--------|--------|
 | 0 | **PR-GUI-doc**（本文） | `Documents/GUI美化规划.md` | 0.5 天 | 已入库 |
-| 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `{h}` |
-| 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `{h}` |
+| 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `cc7965e` |
+| 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `cc7965e` |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | P1 |
 | 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | P1 |
 | 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | P1 |
