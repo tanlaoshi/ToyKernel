@@ -7,6 +7,7 @@
  * 壁纸/图标：优先 TOYOS:Assets/…（BI_RGB BMP）；读不到则纯色块（不内嵌像素、不走 RES:）。
  */
 #include "DesktopPriv.h"
+#include "Gui.h" /* GuiCursorHide/Show：时钟重绘任务栏勿穿光标 */
 
 /* 全局定义集中在宿主；其它 TU 经 DesktopPriv.h extern */
 MENU_ROW gMenuRows[MENU_ROWS_MAX];
@@ -747,12 +748,23 @@ void DesktopTickClock(void) {
      * 勿 BeginFront：UI scale≠100 时逻辑坐标直写物理 GOP →
      * 屏幕中部出现「更细」假任务栏，鼠标 Present 像橡皮擦掉。
      * 走后缓冲 + Present（含缩放）与桌面其它绘制一致。
+     * 先擦光标、铺回任务栏带再画一次，避免 Alpha 叠画 + 开始钮实心方块烙印。
      */
-    DrawTaskbarRaw();
-    if (gMenuOpen) {
-        DrawStartMenuRaw();
+    {
+        UINT32 BarY;
+        UINT32 Sw;
+        UINT32 Sh;
+
+        TaskbarGeom(&BarY, &Sw, &Sh);
+        GuiCursorHide();
+        DesktopFillRect(0, BarY, Sw, TASKBAR_H);
+        DrawTaskbarRaw();
+        if (gMenuOpen) {
+            DrawStartMenuRaw();
+        }
+        GuiCursorShow();
+        HalVideoPresent();
     }
-    HalVideoPresent();
 }
 
 int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,

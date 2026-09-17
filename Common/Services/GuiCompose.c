@@ -100,18 +100,17 @@ void GuiRedraw(void) {
 }
 
 
-/* PR-G13：菜单开合后清桌面并恢复窗备份（避免全屏 Fill 抹掉刚打开的 Shell） */
+/* PR-G13：菜单开合后整屏合成（开/关都走 Compose，避免 Sync 备份残留方块烙印） */
 void GuiRefreshDesktop(void) {
     if (DesktopStartMenuIsOpen()) {
-        /* 弹出开始菜单：其它窗失焦；整屏合成避免半透烙进备份 */
+        /* 弹出开始菜单：其它窗失焦；禁止半透/chrome 镂进菜单 */
         if (gFocusWin >= 0) {
             GuiFocusSave();
             gFocusWin = -1;
         }
-        GuiComposeThemeScene();
-        return;
+        gHoverWin = -1;
     }
-    SyncWindowVisualsEx(1);
+    GuiComposeThemeScene();
 }
 
 

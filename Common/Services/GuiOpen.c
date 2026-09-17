@@ -42,6 +42,35 @@ static void OpenFadeIn(int Idx) {
     GuiPresentDeferPop();
 }
 
+/*
+ * 单例应用：Settings / Store（及 Edit）已有则前置焦点，不新开。
+ * Shell / Files 允许多开（各占一槽；Files 内容态仍为全局宿主，见 FilesUi）。
+ */
+static int FocusExistingKind(GUI_WIN_KIND Kind, void (*Repaint)(void),
+                             const char *LogTag) {
+    int i;
+
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWindows[i].Active && gWindows[i].Kind == Kind) {
+            gFocusWin = i;
+            RaiseWindow(i);
+            SyncWindowVisuals();
+            if (Repaint) {
+                Repaint();
+            }
+            GuiFocusApply();
+            BackupWindowAt(gFocusWin);
+            DebugWrite("Gui: focus existing ");
+            DebugWrite(LogTag);
+            DebugWrite(" idx=");
+            DebugHex32((UINT32)gFocusWin);
+            DebugWrite("\n");
+            return gFocusWin;
+        }
+    }
+    return -1;
+}
+
 void CloseWindow(int Idx) {
     UINT32 X;
     UINT32 Y;
@@ -243,6 +272,11 @@ int GuiOpenSettings(void) {
     UINT32 H;
     UINT32 Margin = 48;
 
+    Idx = FocusExistingKind(GUI_WIN_SETTINGS, SettingsUiRepaint, "settings");
+    if (Idx >= 0) {
+        return Idx;
+    }
+
     Idx = AllocWindowSlot();
     if (Idx < 0) {
         return -1;
@@ -284,27 +318,15 @@ int GuiOpenSettings(void) {
 
 int GuiOpenStore(void) {
     int Idx;
-    int i;
     UINT32 X;
     UINT32 Y;
     UINT32 W;
     UINT32 H;
     UINT32 Margin = 40;
 
-    /* 单实例：已有 Store 则前置焦点，不新开 */
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_STORE) {
-            gFocusWin = i;
-            RaiseWindow(i);
-            SyncWindowVisuals();
-            StoreUiRepaint();
-            GuiFocusApply();
-            BackupWindowAt(gFocusWin);
-            DebugWrite("Gui: focus existing store idx=");
-            DebugHex32((UINT32)gFocusWin);
-            DebugWrite("\n");
-            return gFocusWin;
-        }
+    Idx = FocusExistingKind(GUI_WIN_STORE, StoreUiRepaint, "store");
+    if (Idx >= 0) {
+        return Idx;
     }
 
     Idx = AllocWindowSlot();
@@ -393,7 +415,7 @@ int GuiOpenFiles(void) {
 
 int GuiOpenEdit(const char *Path) {
     int Idx;
-    int i;
+    int Existing;
     UINT32 X;
     UINT32 Y;
     UINT32 W;
@@ -404,20 +426,16 @@ int GuiOpenEdit(const char *Path) {
         return -1;
     }
 
-    /* 复用已有 Edit 窗 */
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_EDIT) {
-            gFocusWin = i;
-            RaiseWindow(i);
-            SyncWindowVisuals();
-            EditUiOpen(Path);
-            DrawWindowAt(i);
-            EditUiRepaint();
-            BackupWindowAt(i);
-            GuiFocusApply();
-            BackupWindowAt(gFocusWin);
-            return gFocusWin;
-        }
+    /* Edit 亦单例：复用已有窗并换文件 */
+    Existing = FocusExistingKind(GUI_WIN_EDIT, 0, "edit");
+    if (Existing >= 0) {
+        EditUiOpen(Path);
+        DrawWindowAt(Existing);
+        EditUiRepaint();
+        BackupWindowAt(Existing);
+        GuiFocusApply();
+        BackupWindowAt(gFocusWin);
+        return gFocusWin;
     }
 
     Idx = AllocWindowSlot();

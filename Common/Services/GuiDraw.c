@@ -69,8 +69,20 @@ int TopWindowAt(UINT32 X, UINT32 Y) {
 }
 
 void GuiHoverUpdate(UINT32 X, UINT32 Y) {
-    int Next = TopWindowAt(X, Y);
-    int Prev = gHoverWin;
+    int Next;
+    int Prev;
+
+    /*
+     * 开始菜单叠在所有窗之上，但不是 GUI_WINDOW。
+     * 若仍按命中窗重画 chrome，会从菜单「镂」出标题栏/边框方块烙印。
+     */
+    if (DesktopStartMenuIsOpen()) {
+        gHoverWin = -1;
+        return;
+    }
+
+    Next = TopWindowAt(X, Y);
+    Prev = gHoverWin;
 
     if (Next == Prev) {
         return;
