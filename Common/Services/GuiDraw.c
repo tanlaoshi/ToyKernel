@@ -184,6 +184,328 @@ void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H) {
     *H += N;
 }
 
+/* PR-GUI-l2-round：局部像素是否在圆角矩形内（与 UI 圆角判定一致） */
+int PixelInWindowRound(UINT32 Lx, UINT32 Ly, UINT32 Ww, UINT32 Wh, UINT32 R) {
+    INT32 Dx;
+    INT32 Dy;
+    INT32 R2;
+
+    if (Ww == 0 || Wh == 0 || Lx >= Ww || Ly >= Wh) {
+        return 0;
+    }
+    if (R == 0) {
+        return 1;
+    }
+    if (R > Ww / 2) {
+        R = Ww / 2;
+    }
+    if (R > Wh / 2) {
+        R = Wh / 2;
+    }
+    R2 = (INT32)(R * R);
+    if (Lx < R && Ly < R) {
+        Dx = (INT32)Lx - (INT32)R;
+        Dy = (INT32)Ly - (INT32)R;
+        return (Dx * Dx + Dy * Dy) <= R2;
+    }
+    if (Lx > Ww - 1 - R && Ly < R) {
+        Dx = (INT32)Lx - (INT32)(Ww - 1 - R);
+        Dy = (INT32)Ly - (INT32)R;
+        return (Dx * Dx + Dy * Dy) <= R2;
+    }
+    if (Lx < R && Ly > Wh - 1 - R) {
+        Dx = (INT32)Lx - (INT32)R;
+        Dy = (INT32)Ly - (INT32)(Wh - 1 - R);
+        return (Dx * Dx + Dy * Dy) <= R2;
+    }
+    if (Lx > Ww - 1 - R && Ly > Wh - 1 - R) {
+        Dx = (INT32)Lx - (INT32)(Ww - 1 - R);
+        Dy = (INT32)Ly - (INT32)(Wh - 1 - R);
+        return (Dx * Dx + Dy * Dy) <= R2;
+    }
+    return 1;
+}
+
+static UINT32 ClampWindowRadius(UINT32 Ww, UINT32 Wh, UINT32 R) {
+    if (R == 0 || Ww < 4 || Wh < 4) {
+        return 0;
+    }
+    if (R > Ww / 2) {
+        R = Ww / 2;
+    }
+    if (R > Wh / 2) {
+        R = Wh / 2;
+    }
+    return R;
+}
+
+/* 只扫四角 R×R；中间矩形走 FillRect（规格：中间仍矩形） */
+static void FillCornerDisk(int Idx, int Occlude, UINT32 Ox, UINT32 Oy, UINT32 R,
+                           INT32 Cx, INT32 Cy, UINT32 Color) {
+    UINT32 Row;
+    UINT32 Col;
+    INT32 R2 = (INT32)(R * R);
+
+    for (Row = 0; Row < R; Row++) {
+        for (Col = 0; Col < R; Col++) {
+            INT32 Dx = (INT32)Col - Cx;
+            INT32 Dy = (INT32)Row - Cy;
+            UINT32 Px;
+            UINT32 Py;
+
+            if (Dx * Dx + Dy * Dy > R2) {
+                continue;
+            }
+            Px = Ox + Col;
+            Py = Oy + Row;
+            if (Occlude) {
+                if (!PixelOccludedByAbove(Idx, Px, Py)) {
+                    HalVideoDrawPixelRaw(Px, Py, Color);
+                }
+            } else {
+                HalVideoDrawPixelRaw(Px, Py, Color);
+            }
+        }
+    }
+}
+
+static void FillRoundRectBody(int Idx, int Occlude, UINT32 X, UINT32 Y,
+                              UINT32 W, UINT32 H, UINT32 R, UINT32 Color) {
+    if (R == 0) {
+        if (Occlude) {
+            FillRectOccluded(Idx, X, Y, W, H, Color);
+        } else {
+            HalVideoFillRect(X, Y, W, H, Color);
+        }
+        return;
+    }
+    /* 中间竖条 + 左右腰 */
+    if (W > 2 * R) {
+        if (Occlude) {
+            FillRectOccluded(Idx, X + R, Y, W - 2 * R, H, Color);
+        } else {
+            HalVideoFillRect(X + R, Y, W - 2 * R, H, Color);
+        }
+    }
+    if (H > 2 * R) {
+        if (Occlude) {
+            FillRectOccluded(Idx, X, Y + R, R, H - 2 * R, Color);
+            FillRectOccluded(Idx, X + W - R, Y + R, R, H - 2 * R, Color);
+        } else {
+            HalVideoFillRect(X, Y + R, R, H - 2 * R, Color);
+            HalVideoFillRect(X + W - R, Y + R, R, H - 2 * R, Color);
+        }
+    }
+    /* 四角：圆心相对角块为 (R,R)/(R-1,R)/(R,R-1)/(R-1,R-1) */
+    FillCornerDisk(Idx, Occlude, X, Y, R, (INT32)R, (INT32)R, Color);                 /* TL */
+    FillCornerDisk(Idx, Occlude, X + W - R, Y, R, (INT32)R - 1, (INT32)R, Color);     /* TR */
+    FillCornerDisk(Idx, Occlude, X, Y + H - R, R, (INT32)R, (INT32)R - 1, Color);     /* BL */
+    FillCornerDisk(Idx, Occlude, X + W - R, Y + H - R, R, (INT32)R - 1, (INT32)R - 1,
+                   Color);                                                           /* BR */
+}
+
+static void DrawRoundBorder(int Idx, int Occlude, UINT32 X, UINT32 Y,
+                            UINT32 W, UINT32 H, UINT32 R, UINT32 Color) {
+    INT32 r;
+    INT32 cx1;
+    INT32 cy1;
+    INT32 cx2;
+    INT32 cy2;
+    INT32 cx3;
+    INT32 cy3;
+    INT32 cx4;
+    INT32 cy4;
+    INT32 x;
+    INT32 y;
+    INT32 d;
+
+    if (W < 2 || H < 2) {
+        return;
+    }
+    if (R == 0) {
+        if (Occlude) {
+            DrawHLineOccluded(Idx, X, X + W - 1, Y, Color);
+            DrawHLineOccluded(Idx, X, X + W - 1, Y + H - 1, Color);
+            DrawVLineOccluded(Idx, X, Y, Y + H - 1, Color);
+            DrawVLineOccluded(Idx, X + W - 1, Y, Y + H - 1, Color);
+        } else {
+            HalVideoFillRect(X, Y, W, 1, Color);
+            HalVideoFillRect(X, Y + H - 1, W, 1, Color);
+            HalVideoFillRect(X, Y, 1, H, Color);
+            HalVideoFillRect(X + W - 1, Y, 1, H, Color);
+        }
+        return;
+    }
+    if (Occlude) {
+        DrawHLineOccluded(Idx, X + R, X + W - 1 - R, Y, Color);
+        DrawHLineOccluded(Idx, X + R, X + W - 1 - R, Y + H - 1, Color);
+        DrawVLineOccluded(Idx, X, Y + R, Y + H - 1 - R, Color);
+        DrawVLineOccluded(Idx, X + W - 1, Y + R, Y + H - 1 - R, Color);
+    } else {
+        HalVideoFillRect(X + R, Y, W - 2 * R, 1, Color);
+        HalVideoFillRect(X + R, Y + H - 1, W - 2 * R, 1, Color);
+        HalVideoFillRect(X, Y + R, 1, H - 2 * R, Color);
+        HalVideoFillRect(X + W - 1, Y + R, 1, H - 2 * R, Color);
+    }
+    r = (INT32)R;
+    cx1 = (INT32)(X + R);
+    cy1 = (INT32)(Y + R);
+    cx2 = (INT32)(X + W - 1 - R);
+    cy2 = (INT32)(Y + R);
+    cx3 = (INT32)(X + R);
+    cy3 = (INT32)(Y + H - 1 - R);
+    cx4 = (INT32)(X + W - 1 - R);
+    cy4 = (INT32)(Y + H - 1 - R);
+    x = 0;
+    y = r;
+    d = 3 - 2 * r;
+    while (x <= y) {
+        UINT32 Pts[8][2];
+        UINT32 Pi;
+
+        Pts[0][0] = (UINT32)(cx1 - x);
+        Pts[0][1] = (UINT32)(cy1 - y);
+        Pts[1][0] = (UINT32)(cx1 - y);
+        Pts[1][1] = (UINT32)(cy1 - x);
+        Pts[2][0] = (UINT32)(cx2 + x);
+        Pts[2][1] = (UINT32)(cy2 - y);
+        Pts[3][0] = (UINT32)(cx2 + y);
+        Pts[3][1] = (UINT32)(cy2 - x);
+        Pts[4][0] = (UINT32)(cx3 - x);
+        Pts[4][1] = (UINT32)(cy3 + y);
+        Pts[5][0] = (UINT32)(cx3 - y);
+        Pts[5][1] = (UINT32)(cy3 + x);
+        Pts[6][0] = (UINT32)(cx4 + x);
+        Pts[6][1] = (UINT32)(cy4 + y);
+        Pts[7][0] = (UINT32)(cx4 + y);
+        Pts[7][1] = (UINT32)(cy4 + x);
+        for (Pi = 0; Pi < 8; Pi++) {
+            if (Occlude && PixelOccludedByAbove(Idx, Pts[Pi][0], Pts[Pi][1])) {
+                continue;
+            }
+            HalVideoDrawPixelRaw(Pts[Pi][0], Pts[Pi][1], Color);
+        }
+        if (d < 0) {
+            d += 4 * x + 6;
+        } else {
+            d += 4 * (x - y) + 10;
+            y--;
+        }
+        x++;
+    }
+}
+
+static void PaintWindowChromeRound(int Idx, int Occlude, int PaintClient) {
+    const GUI_WINDOW *W = &gWindows[Idx];
+    UINT32 Border = WindowBorderColor(Idx);
+    UINT32 Title = TitleBarColor(Idx);
+    UINT32 R = ClampWindowRadius(W->Width, W->Height, ThemeWindowCornerRadius());
+    UINT32 Th = TITLE_HEIGHT;
+
+    if (Th > W->Height) {
+        Th = W->Height;
+    }
+    /* 先整窗圆角客户底，再盖标题（顶角同半径，避免直角露底） */
+    if (PaintClient) {
+        FillRoundRectBody(Idx, Occlude, W->X, W->Y, W->Width, W->Height, R,
+                          W->Background);
+    }
+    if (Th > 0) {
+        if (R == 0) {
+            if (Occlude) {
+                FillRectOccluded(Idx, W->X, W->Y, W->Width, Th, Title);
+            } else {
+                HalVideoFillRect(W->X, W->Y, W->Width, Th, Title);
+            }
+        } else {
+            /* 标题带：中间 + 顶两角；腰部左右到 Th */
+            if (W->Width > 2 * R) {
+                if (Occlude) {
+                    FillRectOccluded(Idx, W->X + R, W->Y, W->Width - 2 * R, Th, Title);
+                } else {
+                    HalVideoFillRect(W->X + R, W->Y, W->Width - 2 * R, Th, Title);
+                }
+            }
+            if (Th > R) {
+                if (Occlude) {
+                    FillRectOccluded(Idx, W->X, W->Y + R, R, Th - R, Title);
+                    FillRectOccluded(Idx, W->X + W->Width - R, W->Y + R, R, Th - R,
+                                     Title);
+                } else {
+                    HalVideoFillRect(W->X, W->Y + R, R, Th - R, Title);
+                    HalVideoFillRect(W->X + W->Width - R, W->Y + R, R, Th - R, Title);
+                }
+            }
+            FillCornerDisk(Idx, Occlude, W->X, W->Y, R, (INT32)R, (INT32)R, Title);
+            FillCornerDisk(Idx, Occlude, W->X + W->Width - R, W->Y, R, (INT32)R - 1,
+                           (INT32)R, Title);
+        }
+    }
+    DrawRoundBorder(Idx, Occlude, W->X, W->Y, W->Width, W->Height, R, Border);
+}
+
+/*
+ * 客户区 / 备份 WriteRect 是直角 AABB，会盖住圆角外切角。
+ * 把四角圆外像素恢复为桌面（含壁纸），上层窗遮挡则跳过。
+ */
+void PunchWindowRoundExterior(int Idx) {
+    const GUI_WINDOW *W;
+    UINT32 R;
+    UINT32 Col;
+    UINT32 Row;
+    UINT32 Ww;
+    UINT32 Wh;
+
+    if (Idx < 0 || Idx >= MAX_WINS) {
+        return;
+    }
+    W = &gWindows[Idx];
+    if (!W->Active || W->Width == 0 || W->Height == 0) {
+        return;
+    }
+    Ww = W->Width;
+    Wh = W->Height;
+    R = ClampWindowRadius(Ww, Wh, ThemeWindowCornerRadius());
+    if (R == 0) {
+        return;
+    }
+    HalVideoClearClip();
+    for (Row = 0; Row < R; Row++) {
+        for (Col = 0; Col < R; Col++) {
+            UINT32 Corners[4][2];
+            UINT32 Ci;
+
+            Corners[0][0] = Col;
+            Corners[0][1] = Row;
+            Corners[1][0] = Ww - R + Col;
+            Corners[1][1] = Row;
+            Corners[2][0] = Col;
+            Corners[2][1] = Wh - R + Row;
+            Corners[3][0] = Ww - R + Col;
+            Corners[3][1] = Wh - R + Row;
+            for (Ci = 0; Ci < 4; Ci++) {
+                UINT32 Lx = Corners[Ci][0];
+                UINT32 Ly = Corners[Ci][1];
+                UINT32 Px;
+                UINT32 Py;
+
+                if (PixelInWindowRound(Lx, Ly, Ww, Wh, R)) {
+                    continue;
+                }
+                Px = W->X + Lx;
+                Py = W->Y + Ly;
+                if (Px >= gScreenWidth || Py >= gScreenHeight) {
+                    continue;
+                }
+                if (PixelOccludedByAbove(Idx, Px, Py)) {
+                    continue;
+                }
+                HalVideoDrawPixelRaw(Px, Py, DesktopBgAt(Px, Py));
+            }
+        }
+    }
+}
+
 void DrawWindowShadowAt(int Idx) {
     const GUI_WINDOW *W;
     UINT32 N;
@@ -404,44 +726,20 @@ void DrawTitleStringOccluded(int Idx, const GUI_WINDOW *W) {
 
 void DrawWindowAtEx(int Idx, int Occlude) {
     const GUI_WINDOW *W = &gWindows[Idx];
-    UINT32 Border;
 
     if (!W->Active) {
         return;
     }
-    Border = WindowBorderColor(Idx);
     /* 标题在客户区外；若仍开着 Shell/Settings clip，DrawString 会被裁掉 */
     HalVideoClearClip();
-    /* 先画阴影（窗外），再画本体；上层窗稍后覆盖 */
+    /* 先画阴影（窗外），再画圆角本体；上层窗稍后覆盖 */
     DrawWindowShadowAt(Idx);
+    PaintWindowChromeRound(Idx, Occlude, 1 /* PaintClient */);
     if (Occlude) {
-        FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-        DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, Border);
-        DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
-                          Border);
-        DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, Border);
-        DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
-                          Border);
-        if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
-            FillRectOccluded(Idx, W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
-                             W->Height - TITLE_HEIGHT - 1, W->Background);
-        }
         DrawTitleStringOccluded(Idx, W);
         DrawCloseButton(Idx, W);
+        PunchWindowRoundExterior(Idx);
         return;
-    }
-    /*
-     * 不透明整窗（主题自下而上合成用）：上层稍后覆盖，勿 Occlude，
-     * 否则重叠区不画 → 标题镂空、客户区换色不全。
-     */
-    HalVideoFillRect(W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    HalVideoFillRect(W->X, W->Y, W->Width, 1, Border);
-    HalVideoFillRect(W->X, W->Y + W->Height - 1, W->Width, 1, Border);
-    HalVideoFillRect(W->X, W->Y, 1, W->Height, Border);
-    HalVideoFillRect(W->X + W->Width - 1, W->Y, 1, W->Height, Border);
-    if (W->Width > 2 && W->Height > TITLE_HEIGHT + 1) {
-        HalVideoFillRect(W->X + 1, W->Y + TITLE_HEIGHT, W->Width - 2,
-                         W->Height - TITLE_HEIGHT - 1, W->Background);
     }
     if (W->Title != 0 && W->Title[0] != 0) {
         HalVideoDrawStringAt(W->X + 8, W->Y + 4, W->Title, ThemeWindowTitleText());
@@ -475,6 +773,7 @@ void DrawWindowAtEx(int Idx, int Occlude) {
             }
         }
     }
+    PunchWindowRoundExterior(Idx);
 }
 
 
@@ -486,22 +785,16 @@ void DrawWindowAt(int Idx) {
 /* 仅重绘标题栏与边框，保留客户区已有文字；不画到上层窗口上 */
 void DrawWindowChromeAt(int Idx) {
     const GUI_WINDOW *W = &gWindows[Idx];
-    UINT32 Border;
 
     if (!W->Active) {
         return;
     }
-    Border = WindowBorderColor(Idx);
     HalVideoClearClip();
-    FillRectOccluded(Idx, W->X, W->Y, W->Width, TITLE_HEIGHT, TitleBarColor(Idx));
-    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y, Border);
-    DrawHLineOccluded(Idx, W->X, W->X + W->Width - 1, W->Y + W->Height - 1,
-                      Border);
-    DrawVLineOccluded(Idx, W->X, W->Y, W->Y + W->Height - 1, Border);
-    DrawVLineOccluded(Idx, W->X + W->Width - 1, W->Y, W->Y + W->Height - 1,
-                      Border);
+    /* 不重填客户区，只圆角标题+边框（避免直角露底） */
+    PaintWindowChromeRound(Idx, 1, 0 /* !PaintClient */);
     DrawTitleStringOccluded(Idx, W);
     DrawCloseButton(Idx, W);
+    PunchWindowRoundExterior(Idx);
 }
 
 

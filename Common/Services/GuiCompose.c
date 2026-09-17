@@ -182,6 +182,8 @@ void GuiComposeThemeScene(void) {
             gFocusWin = i;
             PaintUserClient(i);
         }
+        /* 客户区直角 Fill 会盖住圆角切角 → 打回桌面后再备份 */
+        PunchWindowRoundExterior(i);
         /* 上层尚未画上：整窗备份，避免重叠区镂空透视 */
         BackupWindowAtEx(i, 1);
     }

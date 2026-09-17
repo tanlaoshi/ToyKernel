@@ -186,6 +186,7 @@ UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     const GUI_WINDOW *W = &gWindows[Idx];
     UINT32 Lx;
     UINT32 Ly;
+    UINT32 R;
 
     if (!W->Active) {
         return DesktopBgAt(Px, Py);
@@ -195,6 +196,17 @@ UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     }
     Lx = Px - W->X;
     Ly = Py - W->Y;
+    R = ThemeWindowCornerRadius();
+    if (R > W->Width / 2) {
+        R = W->Width / 2;
+    }
+    if (R > W->Height / 2) {
+        R = W->Height / 2;
+    }
+    /* 圆角外（矩形命中内）仍露桌面，避免拖动合成画直角块 */
+    if (!PixelInWindowRound(Lx, Ly, W->Width, W->Height, R)) {
+        return DesktopBgAt(Px, Py);
+    }
     if (Ly < TITLE_HEIGHT) {
         return TitleBarColor(Idx);
     }
@@ -218,6 +230,7 @@ void PaintWindowFromBackup(int Idx) {
         /* 备份里是拖动前的标题栏色，按当前焦点重画 chrome */
         DrawWindowChromeAt(Idx);
         DrawWindowShadowAt(Idx);
+        PunchWindowRoundExterior(Idx);
         return;
     }
     DrawWindowAt(Idx);

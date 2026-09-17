@@ -145,6 +145,10 @@ UINT32 ThemeWindowShadowColor(void) {
     return COLOR_BLACK;
 }
 
+UINT32 ThemeWindowCornerRadius(void) {
+    return 8u;
+}
+
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
 static UINT32 ThemeCompactFontId(void) {
     UINT32 i;

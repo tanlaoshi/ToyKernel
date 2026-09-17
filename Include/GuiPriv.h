@@ -154,6 +154,10 @@ void DrawWindowChromeAt(int Idx);
 void DrawWindowShadowAt(int Idx);
 /* 右/下 drop shadow：扩展 footprint（拖动清残影） */
 void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H);
+/* PR-GUI-l2-round：局部坐标是否在圆角窗形内（命中仍用矩形） */
+int PixelInWindowRound(UINT32 Lx, UINT32 Ly, UINT32 Ww, UINT32 Wh, UINT32 R);
+/* 客户区直角 Fill 后，把 AABB 四角圆外像素打回桌面 */
+void PunchWindowRoundExterior(int Idx);
 void RefreshOtherChrome(int SkipIdx);
 void SyncWindowVisualsEx(int ClearDesktop);
 void SyncWindowVisuals(void);

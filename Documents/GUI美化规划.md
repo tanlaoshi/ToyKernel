@@ -173,12 +173,7 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 
 ### 5.2 圆角（L2）
 
-`UI.c` 已有圆角填充/描边。L2 要把**窗口外框/标题栏**接上，并保证：
-
-- 合成不要把直角底色露出来
-- 命中测试与圆角一致（可先视觉圆、命中仍矩形，文档写明）
-
-只算四角 `R×R`，中间仍矩形填充。
+`ThemeWindowCornerRadius`（默认 8）接到 `DrawWindowAt` / chrome：中间矩形 + 四角 `R×R` 圆盘（`PaintWindowChromeRound`）。合成不填圆角外像素，避免直角底色露边；客户区直角 Fill 后由 `PunchWindowRoundExterior` 把切角打回桌面。**命中仍矩形**（`PointInWindow` 不变；`AnalyticWindowPixel` 圆角外当桌面）。
 
 ### 5.3 阴影（L2）
 
@@ -220,7 +215,7 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `cc7965e` |
 | 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `cc7965e` |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | ✅ TG `f1772d7` |
-| 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | P1 |
+| 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | ✅ TG `{h}` |
 | 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | P1 |
 | 6 | **PR-GUI-l3-fade** | 窗口淡入淡出 | 2 天 | P2 |
 | 7 | **PR-GUI-l3-button** | 按钮悬停/按下 | 1 天 | P2 |
