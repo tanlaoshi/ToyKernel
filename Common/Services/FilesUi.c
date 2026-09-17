@@ -4,7 +4,8 @@
  * 列表：进目录 / 开 ELF / 预览文本
  * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
  * U1：左栏固定宽 + 右栏列表
- * U2：侧栏按已挂载卷列出（无 Apps/Assets 占位）；跨盘 ESP/TOYOS 标 drive
+ * U2：侧栏按已挂载卷列出（TOYOS 置顶；有 TOYOS 时附 Apps/Assets）；跨盘标 drive
+ * 开窗一次填满客户区后再淡入（勿空框 Present）
  * U3：右栏再分 列表 | 预览；空态/焦点行与 G12 一致
  * PR-S-filesui-split-1：Paint* → FilesUiPaint.c；本文件为全局宿主。
  */
@@ -203,19 +204,32 @@ void DrawLine(UINT32 X, UINT32 Y, const char *S, UINT32 Fg) {
 }
 
 void FilesUiOpen(void) {
-    int Def;
+    int i;
+    int ToyPlace = -1;
 
     /*
-     * 开窗路径：先侧栏+空列表上屏/淡入，目录 List 放到 FilesUiFinishOpen。
-     * RebuildPlaces 只读内存卷表，相对 ListEntries 可忽略。
+     * 开窗一次填满：侧栏 + 目录 List 都在淡入前完成，避免空框闪一下再刷内容。
+     * 侧栏 TOYOS 置顶；开窗优先进 TOYOS:。
      */
     RebuildPlaces();
     gCwd[0] = 0;
-    Def = FileSystemDefaultVol();
-    if (Def >= 0 && Def < gPlaceCount && gPlaces[Def].Path && gPlaces[Def].Path[0]) {
-        CopyStr(gCwd, sizeof(gCwd), gPlaces[Def].Path);
+    for (i = 0; i < gPlaceCount; i++) {
+        const char *P = gPlaces[i].Path;
+        if (P && (P[0] == 'T' || P[0] == 't') && (P[1] == 'O' || P[1] == 'o') &&
+            (P[2] == 'Y' || P[2] == 'y') && (P[3] == 'O' || P[3] == 'o') &&
+            (P[4] == 'S' || P[4] == 's') && P[5] == ':') {
+            ToyPlace = i;
+            break;
+        }
+    }
+    if (ToyPlace >= 0) {
+        CopyStr(gCwd, sizeof(gCwd), gPlaces[ToyPlace].Path);
+        SetStatus("");
     } else if (gPlaceCount > 0 && gPlaces[0].Path) {
         CopyStr(gCwd, sizeof(gCwd), gPlaces[0].Path);
+        SetStatus("No TOYOS volume (vols / msc mount)");
+    } else {
+        SetStatus("No volumes mounted");
     }
     gMode = FILES_MODE_LIST;
     gCount = 0;
@@ -228,17 +242,20 @@ void FilesUiOpen(void) {
     gViewLen = 0;
     gViewTitle[0] = 0;
     SyncSideSel();
-    SetStatus("");
+    /* 目录在首次 Paint 前就绪；跳过文件内容预览 */
+    (void)ReloadListEx(0, 0);
     Paint();
 }
 
 void FilesUiFinishOpen(void) {
+    /* 兼容旧调用点：内容已在 FilesUiOpen 填完 */
     if (GuiFocusKind() != GUI_WIN_FILES) {
         return;
     }
-    /* 侧栏已有；此处只 List 当前卷，仍跳过文件内容预览 */
-    (void)ReloadListEx(0, 0);
-    Paint();
+    if (gCount <= 0) {
+        (void)ReloadListEx(0, 0);
+        Paint();
+    }
 }
 
 void FilesUiRepaint(void) {

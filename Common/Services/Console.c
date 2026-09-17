@@ -375,7 +375,7 @@ static int ConsoleEnsureShell(void) {
         HalConsoleWriteSerial("shell: no free window\n");
         return 0;
     }
-    ConsoleOnShellOpened();
+    /* 欢迎语已在 GuiOpenShell 淡入前画好 */
     return 2;
 }
 

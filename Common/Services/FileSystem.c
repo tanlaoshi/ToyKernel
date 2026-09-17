@@ -594,6 +594,9 @@ static int MountAllVolumes(void) {
         }
         if (MarkerVol >= 0) {
             gDefaultVol = MarkerVol;
+            /* 无 TOYOS.ID 但有 Kernel/DB 标记 → 仍名 TOYOS，Files 侧栏可辨 */
+            CopyName(gVols[MarkerVol].Name, FS_VOL_NAME_MAX, "TOYOS");
+            ToyLogFs("Fs: Named TOYOS by marker (No TOYOS.ID)\n");
         } else if (PrefVol >= 0) {
             gDefaultVol = PrefVol;
         } else {

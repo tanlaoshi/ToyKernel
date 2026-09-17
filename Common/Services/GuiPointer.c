@@ -236,7 +236,6 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
     {
         DESKTOP_ACTION Act = DESKTOP_ACTION_NONE;
         char ExecPath[96];
-        int Idx;
 
         ExecPath[0] = 0;
         if (!DesktopHandleClick(X, Y, &Act, ExecPath, sizeof(ExecPath))) {
@@ -249,10 +248,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             GfxIrqLeave();
         }
         if (Act == DESKTOP_ACTION_SHELL) {
-            Idx = GuiOpenShell();
-            if (Idx >= 0) {
-                GuiConsoleOpsOnShellOpened();
-            }
+            (void)GuiOpenShell();
         } else if (Act == DESKTOP_ACTION_SETTINGS) {
             (void)GuiOpenSettings();
         } else if (Act == DESKTOP_ACTION_FILES) {

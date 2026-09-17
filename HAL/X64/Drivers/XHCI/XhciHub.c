@@ -430,10 +430,12 @@ int EnumHubChildrenForMouse(void) {
 /*
  * PR-H-msc-4：hub 子口找 MSC（Bulk）；跳过已占用键/鼠子口。
  * Address → XhciMscFinishClaim（SetConfig+Bulk，无 SCSI）。
+ * 真机：先统一上电再扫，空口多等几轮（U 盘上电慢 → 误判 hub empty）。
  */
 int EnumHubChildrenForMsc(void) {
     UINT8 Port;
     UINT8 MaxP = gHubNumPorts;
+    int Pass;
 
     if (gHubSlotId == 0 || gMscClaimed) {
         return 0;
@@ -444,94 +446,124 @@ int EnumHubChildrenForMsc(void) {
     BootLog("Boot: MSC claim hub children\n");
     BootLogHex("Boot: MSC claim hub slot=", gHubSlotId, 2);
     BootLogHex("Boot: MSC claim hub nports=", MaxP, 2);
-    for (Port = 1; Port <= MaxP; Port++) {
-        UINT32 St = 0;
-        UINT8 Speed;
-        volatile int D;
-        int t;
 
-        /* 与键盘 hub 枚举一致：上电后等足，否则 CCS 仍 0 → claim none */
+    /* Pass0：全部上电；Pass1+：读状态并认领 */
+    for (Port = 1; Port <= MaxP; Port++) {
         (void)HubSetPortFeat(Port, HUB_FEAT_PORT_POWER);
-        if (!HalCpuIsHypervisor()) {
-            StallMs(100);
-        } else {
-            for (D = 0; D < 80000; D++) {
-            }
+    }
+    if (!HalCpuIsHypervisor()) {
+        StallMs(250);
+    } else {
+        volatile int D;
+        for (D = 0; D < 80000; D++) {
         }
-        if (HubGetPortStatus(Port, &St) < 0) {
-            BootLogHex("Boot: MSC claim hub status fail port=", Port, 2);
-            continue;
+    }
+
+    for (Pass = 0; Pass < 3; Pass++) {
+        if (Pass > 0 && !HalCpuIsHypervisor()) {
+            BootLogHex("Boot: MSC claim hub rescan pass=", (UINT32)Pass, 1);
+            StallMs(200);
         }
-        if (!(St & HUB_PORT_CONNECTION)) {
-            BootLogHex("Boot: MSC claim hub empty port=", Port, 2);
-            continue;
-        }
-        if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
-            BootLogHex("Boot: MSC claim hub skip kbd port=", Port, 2);
-            continue;
-        }
-        if ((gMouseRoute & 0xF) == (UINT32)Port && gMouseSlotId != 0) {
-            BootLogHex("Boot: MSC claim hub skip mouse port=", Port, 2);
-            continue;
-        }
-        BootLogHex("Boot: MSC claim hub port=", Port, 2);
-        BootLogHex("Boot: MSC claim hub st=", St, 4);
-        if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
-            continue;
-        }
-        for (t = 0; t < (HalCpuIsHypervisor() ? 50000 : 40); t++) {
+        for (Port = 1; Port <= MaxP; Port++) {
+            UINT32 St = 0;
+            UINT8 Speed;
+            int t;
+            int Wait;
+
             if (HubGetPortStatus(Port, &St) < 0) {
-                break;
+                BootLogHex("Boot: MSC claim hub status fail port=", Port, 2);
+                continue;
             }
-            if (St & HUB_C_PORT_RESET) {
-                (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_RESET);
-                break;
+            if (!(St & HUB_PORT_CONNECTION)) {
+                /* 晚到的 CCS：多读几次再判 empty */
+                for (Wait = 0; Wait < 8 && !(St & HUB_PORT_CONNECTION); Wait++) {
+                    if (!HalCpuIsHypervisor()) {
+                        StallMs(40);
+                    }
+                    if (HubGetPortStatus(Port, &St) < 0) {
+                        break;
+                    }
+                }
+                if (!(St & HUB_PORT_CONNECTION)) {
+                    if (Pass == 2) {
+                        BootLogHex("Boot: MSC claim hub empty port=", Port, 2);
+                    }
+                    continue;
+                }
             }
-            if (!HalCpuIsHypervisor()) {
-                StallMs(5);
+            if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
+                BootLogHex("Boot: MSC claim hub skip kbd port=", Port, 2);
+                continue;
             }
-        }
-        for (t = 0; t < (HalCpuIsHypervisor() ? 20000 : 40); t++) {
-            if (HubGetPortStatus(Port, &St) < 0) {
-                break;
+            if ((gMouseRoute & 0xF) == (UINT32)Port && gMouseSlotId != 0) {
+                BootLogHex("Boot: MSC claim hub skip mouse port=", Port, 2);
+                continue;
             }
-            if (St & HUB_C_PORT_CONNECTION) {
-                (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_CONNECTION);
+            BootLogHex("Boot: MSC claim hub port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub st=", St, 4);
+            if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
+                continue;
             }
-            if (St & HUB_PORT_ENABLE) {
-                break;
+            for (t = 0; t < (HalCpuIsHypervisor() ? 50000 : 80); t++) {
+                if (HubGetPortStatus(Port, &St) < 0) {
+                    break;
+                }
+                if (St & HUB_C_PORT_RESET) {
+                    (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_RESET);
+                    break;
+                }
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(5);
+                }
             }
-            if (!HalCpuIsHypervisor()) {
-                StallMs(5);
+            for (t = 0; t < (HalCpuIsHypervisor() ? 20000 : 80); t++) {
+                if (HubGetPortStatus(Port, &St) < 0) {
+                    break;
+                }
+                if (St & HUB_C_PORT_CONNECTION) {
+                    (void)HubClearPortFeat(Port, HUB_FEAT_C_PORT_CONNECTION);
+                }
+                if (St & HUB_PORT_ENABLE) {
+                    break;
+                }
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(5);
+                }
             }
-        }
-        if (!(St & HUB_PORT_ENABLE)) {
-            BootLogHex("Boot: MSC claim hub not en port=", Port, 2);
-            continue;
-        }
-        Speed = HubPortSpeed(St);
-        if (gMscScanSlot != 0) {
-            DisableSlot(gMscScanSlot);
-            gMscScanSlot = 0;
-        }
-        gMscRoute = (UINT32)Port;
-        gMscHubSlot = (UINT8)gHubSlotId;
-        gMscTtPort = Port;
-        if (!AddressDeviceOnPort(gHubRootPort, Speed, &gMscScanSlot, gMscScanDevCtx,
-                                 (UINT32)Port, (UINT8)gHubSlotId, Port, 0, 0)) {
+            if (!(St & HUB_PORT_ENABLE)) {
+                BootLogHex("Boot: MSC claim hub not en port=", Port, 2);
+                continue;
+            }
+            Speed = HubPortSpeed(St);
             if (gMscScanSlot != 0) {
                 DisableSlot(gMscScanSlot);
                 gMscScanSlot = 0;
             }
-            BootLogHex("Boot: MSC claim hub addr fail port=", Port, 2);
-            continue;
-        }
-        if (gMscScanSlot <= DCBAA_SLOTS) {
-            gSlotEp0UsesKbdRing[gMscScanSlot] = 0;
-        }
-        if (XhciMscFinishClaim(gHubRootPort, Speed)) {
-            BootLog("Boot: MSC claim via hub\n");
-            return 1;
+            gMscRoute = (UINT32)Port;
+            gMscHubSlot = (UINT8)gHubSlotId;
+            gMscTtPort = Port;
+            if (!AddressDeviceOnPort(gHubRootPort, Speed, &gMscScanSlot, gMscScanDevCtx,
+                                     (UINT32)Port, (UINT8)gHubSlotId, Port, 0, 0)) {
+                if (gMscScanSlot != 0) {
+                    DisableSlot(gMscScanSlot);
+                    gMscScanSlot = 0;
+                }
+                BootLogHex("Boot: MSC claim hub addr fail port=", Port, 2);
+                /* Address 失败：子口再 reset 一次后本 Pass 继续下一口 */
+                (void)HubSetPortFeat(Port, HUB_FEAT_PORT_RESET);
+                continue;
+            }
+            if (gMscScanSlot <= DCBAA_SLOTS) {
+                gSlotEp0UsesKbdRing[gMscScanSlot] = 0;
+            }
+            if (XhciMscFinishClaim(gHubRootPort, Speed)) {
+                BootLog("Boot: MSC claim via hub\n");
+                return 1;
+            }
+            if (gMscScanSlot != 0) {
+                DisableSlot(gMscScanSlot);
+                gMscScanSlot = 0;
+            }
         }
     }
     return 0;

@@ -27,10 +27,10 @@
 #define FILES_SB_W          12u
 #define FILES_SIDE_W        128u
 #define FILES_SIDE_BG       0x00A0A8B0u
-/* 侧栏 = 已挂载卷（动态）；上限与 FS_MAX_VOLUMES 对齐 */
-#define FILES_PLACE_MAX        FS_MAX_VOLUMES
+/* 侧栏 = 已挂载卷（动态）+ 可选 Apps/Assets；TOYOS 置顶 */
+#define FILES_PLACE_MAX        (FS_MAX_VOLUMES + 2)
 #define FILES_PLACE_LABEL_MAX  20
-#define FILES_PLACE_PATH_MAX   12
+#define FILES_PLACE_PATH_MAX   16
 
 /* ===== 类型（布局不变） ===== */
 typedef enum {

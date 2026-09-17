@@ -396,7 +396,7 @@ void SyncWindowVisualsEx(int ClearDesktop) {
     }
     GfxIrqEnter();
     CursorPaint();
-    HalVideoPresent(); /* PR-G9：合成结束提交脏区 */
+    GfxPresent(); /* 尊重 gDeferPresent：开窗填内容前勿把空框刷到 GOP */
     GfxIrqLeave();
     ComposeEnd();
 }

@@ -16,6 +16,32 @@
 #include "EditUi.h"
 #include "Locale.h"
 
+/*
+ * 开窗：Defer Present，先画满 chrome+客户区再备份，最后一次淡入。
+ * 避免「空框 Present → 再填内容」闪白。
+ */
+static void OpenChromeDefer(int Idx) {
+    GuiPresentDeferPush();
+    ComposeBegin();
+    GfxIrqEnter();
+    CursorRestore();
+    GfxIrqLeave();
+    HalVideoClearClip();
+    DrawWindowAt(Idx);
+    ComposeEnd();
+    gFocusWin = Idx;
+    RaiseWindow(Idx);
+    SyncWindowVisuals();
+}
+
+static void OpenFadeIn(int Idx) {
+    BackupWindowAt(Idx);
+    GuiFocusApply();
+    BackupWindowAt(gFocusWin);
+    GuiAnimateWindowFade(gFocusWin, 1);
+    GuiPresentDeferPop();
+}
+
 void CloseWindow(int Idx) {
     UINT32 X;
     UINT32 Y;
@@ -194,25 +220,14 @@ int GuiOpenShell(void) {
     gWindows[Idx].TermSet = 0;
     gWindows[Idx].InputLen = 0;
     gWindows[Idx].WaitPrompt = 0;
-    /* 先标已 prompt，避免 FocusApply→FocusLoad 抢画；OnShellOpened 再清客户区重画 */
+    /* 先标已 prompt，避免 FocusApply→FocusLoad 抢画；下方 OnShellOpened 再画欢迎语 */
     gWindows[Idx].PromptShown = 1;
     gWindows[Idx].InputLine[0] = 0;
 
-    /* M3/G7：备份前必擦光标，避免十字烙进窗备份 */
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
-    HalVideoClearClip();
-    DrawWindowAt(Idx);
-    BackupWindowAt(Idx);
-    ComposeEnd();
+    OpenChromeDefer(Idx);
     GuiFocusSave();
-    RaiseWindow(Idx);
-    SyncWindowVisuals();
-    GuiFocusApply();
-    BackupWindowAt(Idx);
-    GuiAnimateWindowFade(Idx, 1);
+    GuiConsoleOpsOnShellOpened();
+    OpenFadeIn(Idx);
     DebugWrite("Gui: open shell idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -257,21 +272,9 @@ int GuiOpenSettings(void) {
     gWindows[Idx].PromptShown = 0;
     gWindows[Idx].InputLine[0] = 0;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
-    HalVideoClearClip();
-    DrawWindowAt(Idx);
-    ComposeEnd();
-    gFocusWin = Idx;
-    RaiseWindow(Idx);
-    SyncWindowVisuals();
+    OpenChromeDefer(Idx);
     SettingsUiOpen();
-    BackupWindowAt(Idx);
-    GuiFocusApply();
-    BackupWindowAt(gFocusWin);
-    GuiAnimateWindowFade(gFocusWin, 1);
+    OpenFadeIn(Idx);
     DebugWrite("Gui: open settings idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -332,21 +335,9 @@ int GuiOpenStore(void) {
     gWindows[Idx].PromptShown = 0;
     gWindows[Idx].InputLine[0] = 0;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
-    HalVideoClearClip();
-    DrawWindowAt(Idx);
-    ComposeEnd();
-    gFocusWin = Idx;
-    RaiseWindow(Idx);
-    SyncWindowVisuals();
+    OpenChromeDefer(Idx);
     StoreUiOpen();
-    BackupWindowAt(Idx);
-    GuiFocusApply();
-    BackupWindowAt(gFocusWin);
-    GuiAnimateWindowFade(gFocusWin, 1);
+    OpenFadeIn(Idx);
     DebugWrite("Gui: open store idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -390,23 +381,9 @@ int GuiOpenFiles(void) {
     gWindows[Idx].PromptShown = 0;
     gWindows[Idx].InputLine[0] = 0;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
-    HalVideoClearClip();
-    DrawWindowAt(Idx);
-    ComposeEnd();
-    gFocusWin = Idx;
-    RaiseWindow(Idx);
-    SyncWindowVisuals();
+    OpenChromeDefer(Idx);
     FilesUiOpen();
-    BackupWindowAt(Idx);
-    GuiFocusApply();
-    BackupWindowAt(gFocusWin);
-    GuiAnimateWindowFade(gFocusWin, 1);
-    /* ListEntries 放淡入后：窗先出来，目录填充可慢一点 */
-    FilesUiFinishOpen();
+    OpenFadeIn(Idx);
     DebugWrite("Gui: open files idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
@@ -471,22 +448,10 @@ int GuiOpenEdit(const char *Path) {
     gWindows[Idx].PromptShown = 0;
     gWindows[Idx].InputLine[0] = 0;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
-    HalVideoClearClip();
-    DrawWindowAt(Idx);
-    ComposeEnd();
-    gFocusWin = Idx;
-    RaiseWindow(Idx);
-    SyncWindowVisuals();
+    OpenChromeDefer(Idx);
     EditUiOpen(Path);
     EditUiRepaint();
-    BackupWindowAt(Idx);
-    GuiFocusApply();
-    BackupWindowAt(gFocusWin);
-    GuiAnimateWindowFade(gFocusWin, 1);
+    OpenFadeIn(Idx);
     DebugWrite("Gui: open edit idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");

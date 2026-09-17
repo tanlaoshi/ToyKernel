@@ -750,25 +750,60 @@ int XhciMscClaimPorts(void) {
         }
 
         /*
-         * Live U 盘常已 PED。旧日志 Force PED → ResetPort.PRC 超时 → claim none。
-         * 已 PED+CCS：跳过 ResetPortEx，直接 Address（与鼠标同策略）。
-         * 未 PED：Force PR；Address 失败再 Force 重试。
+         * MSC 认领必须稳：真机始终 Force PR 再 Address。
+         * 82978dd「PED 直 Address」在台式常 cc=0x04，再 Force 易 Why=not PED 丢 U 盘。
+         * QEMU（hypervisor）仍可 PED 直试（msc-8）；失败再 Force。
          */
         Force = 0;
-        if ((Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
+        if (HalCpuIsHypervisor() && (Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
             BootLogHex("Boot: MSC claim try PED port=", P, 2);
         } else {
+            int Attempt;
+            int Ready = 0;
+
             Force = 1;
             BootLogHex("Boot: MSC claim reset force port=", P, 2);
-            if (!ResetPortEx(P, 1)) {
-                BootLogHex("Boot: MSC claim reset fail port=", P, 2);
-                Ps = ReadMmio32(gOperationalBase + PortReg(P));
-                if (!((Ps & PORTSC_PED) && (Ps & PORTSC_CCS))) {
+            for (Attempt = 0; Attempt < 3 && !Ready; Attempt++) {
+                if (Attempt > 0) {
+                    int W;
+                    BootLogHex("Boot: MSC claim Force retry port=", P, 2);
+                    /* 丢 CCS 后等设备重新出现（Force 过猛常见） */
+                    for (W = 0; W < 50; W++) {
+                        Ps = ReadMmio32(gOperationalBase + PortReg(P));
+                        if (Ps & PORTSC_CCS) {
+                            break;
+                        }
+                        StallMs(20);
+                    }
+                }
+                if (!ResetPortEx(P, 1)) {
+                    Ps = ReadMmio32(gOperationalBase + PortReg(P));
+                    if ((Ps & PORTSC_CCS) && !(Ps & PORTSC_PED)) {
+                        int W;
+                        /* PRC 已到但 PED 慢：再等一会，勿立刻放弃 */
+                        for (W = 0; W < 50; W++) {
+                            StallMs(20);
+                            Ps = ReadMmio32(gOperationalBase + PortReg(P));
+                            if ((Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
+                                Ready = 1;
+                                BootLogHex("Boot: MSC claim late PED port=", P, 2);
+                                break;
+                            }
+                            if (!(Ps & PORTSC_CCS)) {
+                                break;
+                            }
+                        }
+                    }
                     continue;
                 }
-                BootLogHex("Boot: MSC claim Force fail; try Address port=", P, 2);
-            } else if (!HalCpuIsHypervisor()) {
-                StallMs(100);
+                Ready = 1;
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(100);
+                }
+            }
+            if (!Ready) {
+                BootLogHex("Boot: MSC claim reset fail port=", P, 2);
+                continue;
             }
         }
         Ps = ReadMmio32(gOperationalBase + PortReg(P));
@@ -786,7 +821,7 @@ int XhciMscClaimPorts(void) {
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
         }
-        /* Address 失败且刚才未 Force：再 Force PR 试一次；cmd sick 则恢复并停 */
+        /* QEMU PED 直 Address 失败：Force 再试（真机本轮已 Force） */
         if (!AddrOk && !Force) {
             if (gXhciCmdSick) {
                 gDiagQuiet = QuietSave;
@@ -800,6 +835,26 @@ int XhciMscClaimPorts(void) {
                 if (!HalCpuIsHypervisor()) {
                     StallMs(100);
                 }
+                Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
+                AddrOk = AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx,
+                                             0, 0, 0, 0, 0);
+                if (!AddrOk && gMscScanSlot != 0) {
+                    DisableSlot(gMscScanSlot);
+                    gMscScanSlot = 0;
+                }
+            }
+        }
+        /* 真机 Address 仍失败（cc=0x04/0x11）：再 Force+Address 一轮 */
+        if (!AddrOk && Force && !HalCpuIsHypervisor() &&
+            (gCmdCode == 4 || gCmdCode == 0x11) && !gXhciCmdSick) {
+            BootLogHex("Boot: MSC claim addr 2nd Force port=", P, 2);
+            if (gMscScanSlot != 0) {
+                DisableSlot(gMscScanSlot);
+                gMscScanSlot = 0;
+            }
+            StallMs(50);
+            if (ResetPortEx(P, 1)) {
+                StallMs(150);
                 Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
                 AddrOk = AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx,
                                              0, 0, 0, 0, 0);
@@ -884,9 +939,20 @@ int XhciMscClaimPorts(void) {
                     continue;
                 }
                 if (ClaimHubOnRootPort(P, Speed, Was)) {
+                    if (!HalCpuIsHypervisor()) {
+                        StallMs(150);
+                    }
                     if (EnumHubChildrenForMsc()) {
                         Ok = 1;
                         goto done;
+                    }
+                    /* 空 hub：再扫一轮后再决定是否释放（U 盘上电慢） */
+                    if (!HalCpuIsHypervisor()) {
+                        StallMs(300);
+                        if (EnumHubChildrenForMsc()) {
+                            Ok = 1;
+                            goto done;
+                        }
                     }
                     /* HID 未占用此 hub：无 MSC 则放掉，试其它根口 */
                     if (HubBefore == 0 && gHubSlotId != 0 && gHubRootPort == P) {

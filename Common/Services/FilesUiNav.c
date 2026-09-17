@@ -1,7 +1,7 @@
 /*
  * FilesUiNav.c — Files 路径/卷侧栏/预览
  *
- * 侧栏按 FileSystem 已挂载卷动态生成（无 Apps/Assets 占位）。
+ * 侧栏按 FileSystem 已挂载卷动态生成；TOYOS 置顶；有 TOYOS 时附 Apps/Assets。
  */
 #include "FilesUiPriv.h"
 #include "Fat.h"
@@ -38,53 +38,75 @@ static void AppendDriveTag(char *Label, int Max, UINT32 Drive) {
     Label[n] = 0;
 }
 
+static int NameIsToy(const char *Name) {
+    return Name && Name[0] == 'T' && Name[1] == 'O' && Name[2] == 'Y' &&
+           (Name[3] == 'O' || Name[3] == 'o') &&
+           (Name[4] == 'S' || Name[4] == 's') && Name[5] == 0;
+}
+
+static int NameIsRes(const char *Name) {
+    return Name && (Name[0] == 'R' || Name[0] == 'r') &&
+           (Name[1] == 'E' || Name[1] == 'e') &&
+           (Name[2] == 'S' || Name[2] == 's') && Name[3] == 0;
+}
+
+static int NameIsEsp(const char *Name) {
+    return Name && (Name[0] == 'E' || Name[0] == 'e') &&
+           (Name[1] == 'S' || Name[1] == 's') &&
+           (Name[2] == 'P' || Name[2] == 'p');
+}
+
 void RebuildPlaces(void) {
     int N;
     int i;
     int j;
+    int PlaceN = 0;
     int MarkDrive = 0;
-    int ToyIdx = -1;
-    int EspIdx = -1;
+    int ToyVol = -1;
+    int EspVol = -1;
     UINT32 ToyDrive = 0;
     UINT32 EspDrive = 0;
-    char Names[FILES_PLACE_MAX][FS_VOL_NAME_MAX];
-    UINT32 Drives[FILES_PLACE_MAX];
-    char Letters[FILES_PLACE_MAX];
+    char Names[FS_MAX_VOLUMES][FS_VOL_NAME_MAX];
+    UINT32 Drives[FS_MAX_VOLUMES];
+    char Letters[FS_MAX_VOLUMES];
+    int Order[FS_MAX_VOLUMES];
+    int VolN = 0;
 
     gPlaceCount = 0;
     N = FileSystemVolCount();
-    if (N > FILES_PLACE_MAX) {
-        N = FILES_PLACE_MAX;
+    if (N > FS_MAX_VOLUMES) {
+        N = FS_MAX_VOLUMES;
     }
+
     for (i = 0; i < N; i++) {
         UINT32 Drive = 0;
         int Ro = 0;
-        Names[i][0] = 0;
-        if (FileSystemVolInfo(i, Names[i], FS_VOL_NAME_MAX, &Drive, 0, &Ro) != 0) {
+
+        Names[VolN][0] = 0;
+        if (FileSystemVolInfo(i, Names[VolN], FS_VOL_NAME_MAX, &Drive, 0, &Ro) != 0) {
             continue;
         }
-        Drives[i] = Drive;
-        Letters[i] = (char)('A' + i);
-        if (Names[i][0] == 'T' && Names[i][1] == 'O' && Names[i][2] == 'Y') {
-            ToyIdx = i;
+        Drives[VolN] = Drive;
+        Letters[VolN] = (char)('A' + i);
+        Order[VolN] = VolN;
+        if (NameIsToy(Names[VolN])) {
+            ToyVol = VolN;
             ToyDrive = Drive;
         }
-        if (Names[i][0] == 'E' && Names[i][1] == 'S' && Names[i][2] == 'P') {
-            if (EspIdx < 0) {
-                EspIdx = i;
-                EspDrive = Drive;
-            }
+        if (EspVol < 0 && NameIsEsp(Names[VolN])) {
+            EspVol = VolN;
+            EspDrive = Drive;
         }
+        VolN++;
     }
 
     /* ESP 与 TOYOS 不在同一盘 → 侧栏标 dN */
-    if (ToyIdx >= 0 && EspIdx >= 0 && ToyDrive != EspDrive &&
+    if (ToyVol >= 0 && EspVol >= 0 && ToyDrive != EspDrive &&
         ToyDrive != 0xFFFFFFFEu && EspDrive != 0xFFFFFFFEu) {
         MarkDrive = 1;
     }
-    /* 同名卷（如双 ESP）也标盘号 */
-    for (i = 0; i < N && !MarkDrive; i++) {
-        for (j = i + 1; j < N; j++) {
+    for (i = 0; i < VolN && !MarkDrive; i++) {
+        for (j = i + 1; j < VolN; j++) {
             if (FilesUiStrEqIgnoreCase(Names[i], Names[j])) {
                 MarkDrive = 1;
                 break;
@@ -92,115 +114,152 @@ void RebuildPlaces(void) {
         }
     }
 
-    for (i = 0; i < N; i++) {
+    /* 排序：TOYOS 置顶，RES 垫底，其余保持挂载序 */
+    for (i = 0; i < VolN; i++) {
+        for (j = i + 1; j < VolN; j++) {
+            int Ai = Order[i];
+            int Aj = Order[j];
+            int Swap = 0;
+
+            if (NameIsToy(Names[Aj]) && !NameIsToy(Names[Ai])) {
+                Swap = 1;
+            } else if (!NameIsToy(Names[Ai]) && !NameIsToy(Names[Aj])) {
+                if (NameIsRes(Names[Ai]) && !NameIsRes(Names[Aj])) {
+                    Swap = 1;
+                }
+            }
+            if (Swap) {
+                int T = Order[i];
+                Order[i] = Order[j];
+                Order[j] = T;
+            }
+        }
+    }
+
+    for (i = 0; i < VolN && PlaceN < FILES_PLACE_MAX; i++) {
+        int V = Order[i];
         int k;
         int NameUnique = 1;
 
-        for (j = 0; j < N; j++) {
-            if (j != i && FilesUiStrEqIgnoreCase(Names[i], Names[j])) {
+        for (j = 0; j < VolN; j++) {
+            if (j != V && FilesUiStrEqIgnoreCase(Names[V], Names[j])) {
                 NameUnique = 0;
                 break;
             }
         }
         /* 名唯一 → TOYOS: / ESP:；撞名 → A: 等字母前缀 */
-        if (NameUnique && Names[i][0]) {
-            for (k = 0; Names[i][k] && k < FILES_PLACE_PATH_MAX - 2; k++) {
-                gPlacePaths[i][k] = Names[i][k];
+        if (NameUnique && Names[V][0]) {
+            for (k = 0; Names[V][k] && k < FILES_PLACE_PATH_MAX - 2; k++) {
+                gPlacePaths[PlaceN][k] = Names[V][k];
             }
-            gPlacePaths[i][k++] = ':';
-            gPlacePaths[i][k] = 0;
+            gPlacePaths[PlaceN][k++] = ':';
+            gPlacePaths[PlaceN][k] = 0;
         } else {
-            gPlacePaths[i][0] = Letters[i];
-            gPlacePaths[i][1] = ':';
-            gPlacePaths[i][2] = 0;
+            gPlacePaths[PlaceN][0] = Letters[V];
+            gPlacePaths[PlaceN][1] = ':';
+            gPlacePaths[PlaceN][2] = 0;
         }
 
-        for (k = 0; Names[i][k] && k < FILES_PLACE_LABEL_MAX - 1; k++) {
-            gPlaceLabels[i][k] = Names[i][k];
+        /* 标签带冒号，与旧书签 TOYOS: 观感一致 */
+        for (k = 0; gPlacePaths[PlaceN][k] && k < FILES_PLACE_LABEL_MAX - 1; k++) {
+            gPlaceLabels[PlaceN][k] = gPlacePaths[PlaceN][k];
         }
-        gPlaceLabels[i][k] = 0;
-        if (MarkDrive && Drives[i] != 0xFFFFFFFEu) {
-            AppendDriveTag(gPlaceLabels[i], FILES_PLACE_LABEL_MAX, Drives[i]);
+        gPlaceLabels[PlaceN][k] = 0;
+        if (MarkDrive && Drives[V] != 0xFFFFFFFEu) {
+            AppendDriveTag(gPlaceLabels[PlaceN], FILES_PLACE_LABEL_MAX, Drives[V]);
         }
 
-        gPlaces[i].Label = gPlaceLabels[i];
-        gPlaces[i].Path = gPlacePaths[i];
-        gPlaceCount++;
+        gPlaces[PlaceN].Label = gPlaceLabels[PlaceN];
+        gPlaces[PlaceN].Path = gPlacePaths[PlaceN];
+        PlaceN++;
     }
+
+    /* 有 TOYOS 时恢复 Apps/Assets 捷径（旧 U2） */
+    if (ToyVol >= 0 && PlaceN + 2 <= FILES_PLACE_MAX) {
+        CopyStr(gPlaceLabels[PlaceN], FILES_PLACE_LABEL_MAX, "Apps/");
+        CopyStr(gPlacePaths[PlaceN], FILES_PLACE_PATH_MAX, "TOYOS:Apps");
+        gPlaces[PlaceN].Label = gPlaceLabels[PlaceN];
+        gPlaces[PlaceN].Path = gPlacePaths[PlaceN];
+        PlaceN++;
+
+        CopyStr(gPlaceLabels[PlaceN], FILES_PLACE_LABEL_MAX, "Assets/");
+        CopyStr(gPlacePaths[PlaceN], FILES_PLACE_PATH_MAX, "TOYOS:Assets");
+        gPlaces[PlaceN].Label = gPlaceLabels[PlaceN];
+        gPlaces[PlaceN].Path = gPlacePaths[PlaceN];
+        PlaceN++;
+    }
+
+    gPlaceCount = PlaceN;
 }
 
-/* 当前 cwd 是否落在该侧栏卷（卷根或卷内子路径） */
+/* cwd 是否落在该侧栏项（卷根、卷内子路径、或 Apps/Assets） */
 int PlaceMatches(int Idx) {
     const char *P;
     int n;
     int i;
-    char Name[FS_VOL_NAME_MAX];
-    char NamePath[FS_VOL_NAME_MAX + 2];
 
     if (Idx < 0 || Idx >= gPlaceCount) {
         return 0;
     }
     P = gPlaces[Idx].Path;
+    if (!P || !P[0]) {
+        return 0;
+    }
     if (PathEqIgnoreCase(gCwd, P)) {
         return 1;
     }
-    /* 字母卷根 "A:" 匹配空 cwd 且该卷为默认卷 */
+
     n = 0;
     while (P[n]) {
         n++;
     }
-    if (n == 2 && P[1] == ':' && gCwd[0] == 0 && Idx == FileSystemDefaultVol()) {
-        return 1;
-    }
-    /* cwd 以 "A:" 或 "TOYOS:" 开头 */
-    if (n >= 2 && P[1] == ':') {
-        for (i = 0; i < 2 && gCwd[i]; i++) {
-            char Ca = P[i];
-            char Cb = gCwd[i];
-            if (Ca >= 'A' && Ca <= 'Z') {
-                Ca = (char)(Ca - 'A' + 'a');
+
+    /* 空 cwd：仅默认卷的卷根项命中 */
+    if (gCwd[0] == 0 && n > 0 && P[n - 1] == ':') {
+        char DefName[FS_VOL_NAME_MAX];
+        char DefPath[FS_VOL_NAME_MAX + 2];
+        int Def = FileSystemDefaultVol();
+        int L = 0;
+
+        if (Def >= 0 &&
+            FileSystemVolInfo(Def, DefName, (int)sizeof(DefName), 0, 0, 0) == 0 &&
+            DefName[0]) {
+            while (DefName[L] && L < FS_VOL_NAME_MAX - 1) {
+                DefPath[L] = DefName[L];
+                L++;
             }
-            if (Cb >= 'A' && Cb <= 'Z') {
-                Cb = (char)(Cb - 'A' + 'a');
-            }
-            if (Ca != Cb) {
-                break;
-            }
-        }
-        if (i == 2 && (gCwd[2] == 0 || gCwd[2] == '/' || n == 2)) {
-            if (gCwd[2] == 0 || gCwd[2] == '/') {
+            DefPath[L++] = ':';
+            DefPath[L] = 0;
+            if (PathEqIgnoreCase(P, DefPath)) {
                 return 1;
             }
         }
+        return 0;
     }
-    /* 亦匹配卷名路径 TOYOS:... */
-    if (FileSystemVolInfo(Idx, Name, (int)sizeof(Name), 0, 0, 0) == 0 && Name[0]) {
-        int L = 0;
-        while (Name[L]) {
-            NamePath[L] = Name[L];
-            L++;
+
+    /* 前缀匹配（大小写不敏感） */
+    for (i = 0; P[i] && gCwd[i]; i++) {
+        char Ca = P[i];
+        char Cb = gCwd[i];
+        if (Ca >= 'A' && Ca <= 'Z') {
+            Ca = (char)(Ca - 'A' + 'a');
         }
-        NamePath[L++] = ':';
-        NamePath[L] = 0;
-        if (PathEqIgnoreCase(gCwd, NamePath)) {
-            return 1;
+        if (Cb >= 'A' && Cb <= 'Z') {
+            Cb = (char)(Cb - 'A' + 'a');
         }
-        for (i = 0; NamePath[i] && gCwd[i]; i++) {
-            char Ca = NamePath[i];
-            char Cb = gCwd[i];
-            if (Ca >= 'A' && Ca <= 'Z') {
-                Ca = (char)(Ca - 'A' + 'a');
-            }
-            if (Cb >= 'A' && Cb <= 'Z') {
-                Cb = (char)(Cb - 'A' + 'a');
-            }
-            if (Ca != Cb) {
-                return 0;
-            }
+        if (Ca != Cb) {
+            return 0;
         }
-        if (NamePath[i] == 0 && (gCwd[i] == 0 || gCwd[i] == '/')) {
-            return 1;
-        }
+    }
+    if (P[i] != 0) {
+        return 0;
+    }
+    /* Path 耗尽：卷根 TOYOS: 匹配 TOYOS:Apps；目录捷径需边界 / 或结束 */
+    if (n > 0 && P[n - 1] == ':') {
+        return 1;
+    }
+    if (gCwd[i] == 0 || gCwd[i] == '/') {
+        return 1;
     }
     return 0;
 }

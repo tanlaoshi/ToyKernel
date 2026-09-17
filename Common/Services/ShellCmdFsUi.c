@@ -23,7 +23,7 @@ static void CommandShell(int Argc, char **Argv) {
         ConsoleWrite("shell: no free window\n");
         return;
     }
-    ConsoleOnShellOpened();
+    /* 欢迎语已在 GuiOpenShell 淡入前画好 */
 }
 
 static void CommandSettings(int Argc, char **Argv) {

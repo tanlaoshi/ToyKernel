@@ -229,7 +229,8 @@ int ResetPortEx(UINT32 Port1, int Force) {
             return 0;
         }
         if (!(Val & PORTSC_PED)) {
-            Ok = WaitSetMs(Ps, PORTSC_PED, 1000);
+            /* Force PR 后 PED 可明显慢于 PRC（台式 Live U 盘常见） */
+            Ok = WaitSetMs(Ps, PORTSC_PED, Force ? 2000 : 1000);
             Val = ReadMmio32(Ps);
         }
         DiagChk("ResetPort.PED", (Val & PORTSC_PED) && (Val & PORTSC_CCS),
