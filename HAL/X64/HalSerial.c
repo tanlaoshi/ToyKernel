@@ -22,7 +22,8 @@
 #define BOOT_LOG_X 8u
 #define BOOT_LOG_TITLE_Y 8u
 #define BOOT_LOG_MARGIN 8u
-#define BOOT_LOG_LINE_MIN 24u
+/* PR-K-log-geom：4K/8px ≈ 480 列；512 够满宽一行，超宽软换行 */
+#define BOOT_LOG_LINE_MAX 512u
 
 static char gRing[GOP_RING];
 static UINTN gRingLen;
@@ -37,16 +38,50 @@ static int gSerialReady; /* HalSerialInitialize 已跑过（幂等；模块表�
  */
 static int gGopMirror = 1;
 static UINT32 gBootLogY;
-static char gLine[160];
+static char gLine[BOOT_LOG_LINE_MAX];
 static UINTN gLineLen;
 
+/* PR-K-log-geom：行高跟字体，勿硬地板 24（否则 4K 竖向像只用上半屏） */
 static UINT32 BootLogLineH(void) {
     UINT32 LineH = FontAdvanceY();
-    /* 真机底行半截：AdvanceY 偏小，固定至少 24px 行距 */
-    if (LineH < BOOT_LOG_LINE_MIN) {
-        LineH = BOOT_LOG_LINE_MIN;
+    if (LineH == 0) {
+        LineH = 16;
     }
     return LineH;
+}
+
+static UINT32 BootLogCellW(void) {
+    UINT32 Cell = FontAdvanceX();
+    if (Cell == 0) {
+        Cell = 8;
+    }
+    return Cell;
+}
+
+/* 当前分辨率下屏上最多几列（不含边距） */
+static UINT32 BootLogMaxCols(void) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 Cell;
+    UINT32 Cols;
+
+    HalVideoGetSize(&W, &H);
+    (void)H;
+    if (W == 0) {
+        W = 1024;
+    }
+    if (W <= BOOT_LOG_X + BOOT_LOG_MARGIN) {
+        return 1;
+    }
+    Cell = BootLogCellW();
+    Cols = (W - BOOT_LOG_X - BOOT_LOG_MARGIN) / Cell;
+    if (Cols == 0) {
+        Cols = 1;
+    }
+    if (Cols > BOOT_LOG_LINE_MAX - 1) {
+        Cols = BOOT_LOG_LINE_MAX - 1;
+    }
+    return Cols;
 }
 
 static UINT32 BootLogBodyY(UINT32 LineH) {
@@ -163,15 +198,23 @@ static void GopFlushLine(void) {
 }
 
 static void GopWrite(const char *Text) {
+    UINT32 MaxCols;
+
     if (!Text || !*Text) {
         return;
     }
     GopBannerOnce();
+    MaxCols = BootLogMaxCols();
     while (*Text) {
         if (*Text == '\n') {
             GopFlushLine();
             Text++;
             continue;
+        }
+        /* 满宽软换行：4K 用满横向，不再 160 截断 */
+        if (gLineLen >= MaxCols) {
+            GopFlushLine();
+            MaxCols = BootLogMaxCols();
         }
         if (gLineLen + 1 < sizeof(gLine)) {
             gLine[gLineLen++] = *Text;
@@ -203,7 +246,7 @@ void HalSerialInitialize(void) {
     if (!KeepGop) {
         gVideoUp = 0;
         gGopBanner = 0;
-        gBootLogY = BOOT_LOG_TITLE_Y + 24;
+        gBootLogY = BootLogBodyY(BootLogLineH());
     }
     if (!SerialPresent()) {
 #if TOY_SERIAL
@@ -235,7 +278,7 @@ void HalSerialGopEnable(void) {
     }
     gVideoUp = 1;
     gGopBanner = 0;
-    gBootLogY = BOOT_LOG_TITLE_Y + 24;
+    gBootLogY = BootLogBodyY(BootLogLineH());
     gLineLen = 0;
     /*
      * 勿把整段 ring（SMP hello / MEM 细节）一次性刷屏——会翻多「页」。
