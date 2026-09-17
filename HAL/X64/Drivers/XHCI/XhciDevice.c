@@ -76,10 +76,10 @@ int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
     if (Command(0, TRB_TYPE(TRB_ENABLE_SLOT), SlotOut) < 0 || *SlotOut == 0 ||
         *SlotOut > gDcbaaMaxSlot) {
         DiagChkStr("AddressDev", 0, "EnableSlot ok", "fail");
-        BootLogHex("boot: xhci EnableSlot cc=", gCmdCode, 2);
-        BootLogHex("boot: xhci EnableSlot slot=", *SlotOut, 2);
-        BootLogHex("boot: xhci EnableSlot done=", gCmdDone, 1);
-        EnumWhy("boot: why=enable slot\n");
+        BootLogHex("Boot: XHCI EnableSlot cc=", gCmdCode, 2);
+        BootLogHex("Boot: XHCI EnableSlot slot=", *SlotOut, 2);
+        BootLogHex("Boot: XHCI EnableSlot done=", gCmdDone, 1);
+        EnumWhy("Boot: Why=enable slot\n");
         return 0;
     }
 
@@ -140,8 +140,8 @@ int AddressDeviceOnPort(UINT32 RootPort, UINT8 Speed, UINT32 *SlotOut,
     Ok = Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_ADDRESS_DEV) | TRB_SLOT(*SlotOut), 0) == 0;
     DiagChk("AddressDev", Ok, "AddressDev cc=1", gCmdCode, 2);
     if (!Ok) {
-        BootLogHex("boot: xhci addr cc=", gCmdCode, 2);
-        EnumWhy("boot: why=address fail\n");
+        BootLogHex("Boot: XHCI addr cc=", gCmdCode, 2);
+        EnumWhy("Boot: Why=address fail\n");
         if (gXhciCmdSick && SlotOut) {
             *SlotOut = 0;
         }
@@ -345,11 +345,11 @@ int EvaluateHubSlot(UINT32 SlotId, UINT32 RootPort, UINT8 Speed, UINT8 NumPorts)
     FlushDma(gHubDevCtx, 2048);
     /* EDK2 走 Configure Endpoint（非 Evaluate）更新 hub Slot */
     if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) != 0) {
-        BootLogHex("boot: xhci hub cfg cc=", gCmdCode, 2);
+        BootLogHex("Boot: XHCI hub cfg cc=", gCmdCode, 2);
         return 0;
     }
-    BootLogHex("boot: xhci hub mtt=", gHubMtt, 1);
-    BootLogHex("boot: xhci hub ttt=", gHubTtt, 1);
+    BootLogHex("Boot: XHCI hub mtt=", gHubMtt, 1);
+    BootLogHex("Boot: XHCI hub ttt=", gHubTtt, 1);
     return 1;
 }
 
@@ -391,7 +391,7 @@ int GetDeviceDesc(void) {
         DiagChk("GetDesc8", Ok, "xfer ok", Ok ? gCtrlBuf[7] : gXferCode, 2);
     }
     if (!Ok) {
-        EnumWhy("boot: why=desc8\n");
+        EnumWhy("Boot: Why=desc8\n");
         return -1;
     }
     Mps = gCtrlBuf[7];
@@ -406,7 +406,7 @@ int GetDeviceDesc(void) {
         DiagChk("GetDesc18", Ok, "len>=18 class", Ok ? gCtrlBuf[4] : gXferCode, 2);
     }
     if (!Ok) {
-        EnumWhy("boot: why=desc18\n");
+        EnumWhy("Boot: Why=desc18\n");
         return -1;
     }
     return 0;

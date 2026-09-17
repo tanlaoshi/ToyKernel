@@ -148,7 +148,7 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
                     Controllers[Count].BaseAddress = BaseAddress;
                     Controllers[Count].Type = ProgIF;
 
-#if TOY_DEBUG
+#if TOY_KERNEL_DEBUG
                     {
                         char *TypeStr;
                         if (ProgIF == 0x00) TypeStr = "UHCI";

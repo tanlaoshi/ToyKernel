@@ -109,12 +109,12 @@ static int InitializeSmp(void) {
 }
 
 static int InitializeUsb(void) {
-    ToyLogBoot("boot: input probe (USB then PS/2)\n");
+    ToyLogBoot("Boot: Input Probe (USB Then PS/2)\n");
     (void)HalUsbInit();
     if (ToyDriverInputReady()) {
-        ToyLogBoot("boot: input backend ready\n");
+        ToyLogBoot("Boot: Input Backend Ready\n");
     } else {
-        ToyLogBoot("boot: input NONE (continue)\n");
+        ToyLogBoot("Boot: Input NONE (Continue)\n");
     }
     /*
      * 真机：Arm 试 irq=msi (dual)（XhciEnableIrq→TryEnterDual），不通则
@@ -202,13 +202,13 @@ static int InitializeDriver(void) {
     /*
      * PR-D2：只早 Probe Block（ATA PIO 无需 MMIO）。
      * 勿 ProbeAll：VMM 前 xHCI/AHCI/NVMe/Net 本会跳过，但 ps2-kbd 会跑 Ps2InitHw；
-     * 真机无经典 8042 时 STATUS 常浮空 0xFF（OBF 永真）→ 排空 while 死循环，屏停 [mod] driver。
+     * 真机无经典 8042 时 STATUS 常浮空 0xFF（OBF 永真）→ 排空 while 死循环，屏停 [Mod] driver。
      * Input / Net 仍由后续 usb / network 模块 Probe。
      */
     HalDriverRegister();
-    ToyLogBoot("boot: driver register ok\n");
+    ToyLogBoot("Boot: Driver Register OK\n");
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_BLOCK);
-    ToyLogBoot("boot: driver block probe done\n");
+    ToyLogBoot("Boot: Driver Block Probe Done\n");
     return 0;
 }
 
@@ -232,47 +232,47 @@ static int InitializeConsole(void) {
 
 /* x86 全量：PR-H-msc-7a — usb（xHCI/HID）在 file-system 之前，供 7b FS 前 auto */
 static const MODULE gModulesFull[] = {
-    { "serial",  InitializeSerial },
-    { "memory",     InitializePhysicalMemory },
-    { "driver",     InitializeDriver },
-    { "virtual-memory",     InitializeVirtualMemory },
-    { "video",   InitializeVideo },
-    { "cpu",     InitializeCpu },
-    { "smp",     InitializeSmp },
-    { "usb",     InitializeUsb },
-    { "file-system",      InitializeFileSystem },
-    { "network",     InitializeNetwork },
-    { "gui",     InitializeGui },
-    { "scheduler",   InitializeScheduler },
-    { "console", InitializeConsole },
+    { "Serial",  InitializeSerial },
+    { "Memory",     InitializePhysicalMemory },
+    { "Driver",     InitializeDriver },
+    { "VirtualMemory",     InitializeVirtualMemory },
+    { "Video",   InitializeVideo },
+    { "Cpu",     InitializeCpu },
+    { "Smp",     InitializeSmp },
+    { "Usb",     InitializeUsb },
+    { "FileSystem",      InitializeFileSystem },
+    { "Network",     InitializeNetwork },
+    { "Gui",     InitializeGui },
+    { "Scheduler",   InitializeScheduler },
+    { "Console", InitializeConsole },
 };
 
 /* PR-A8 / B1：HalConsoleOnly — 串口子集（无 FB / 命令行靶） */
 static const MODULE gModulesVirt[] = {
-    { "serial",  InitializeSerial },
-    { "memory",     InitializePhysicalMemory },
-    { "driver",     InitializeDriver },
-    { "virtual-memory",     InitializeVirtualMemory },
-    { "cpu",     InitializeCpu },
-    { "smp",     InitializeSmp },
-    { "scheduler",   InitializeScheduler },
-    { "console", InitializeConsole },
+    { "Serial",  InitializeSerial },
+    { "Memory",     InitializePhysicalMemory },
+    { "Driver",     InitializeDriver },
+    { "VirtualMemory",     InitializeVirtualMemory },
+    { "Cpu",     InitializeCpu },
+    { "Smp",     InitializeSmp },
+    { "Scheduler",   InitializeScheduler },
+    { "Console", InitializeConsole },
 };
 
 /* PR-V5/N10/A14：virt 桌面（输入在 usb；N10 挂 net） */
 static const MODULE gModulesVirtDesktop[] = {
-    { "serial",  InitializeSerial },
-    { "memory",     InitializePhysicalMemory },
-    { "driver",     InitializeDriver },
-    { "virtual-memory",     InitializeVirtualMemory },
-    { "video",   InitializeVideo },
-    { "cpu",     InitializeCpu },
-    { "smp",     InitializeSmp },
-    { "file-system",      InitializeFileSystem },
-    { "network",     InitializeNetwork },
-    { "gui",     InitializeGui },
-    { "scheduler",   InitializeScheduler },
-    { "console", InitializeConsole },
+    { "Serial",  InitializeSerial },
+    { "Memory",     InitializePhysicalMemory },
+    { "Driver",     InitializeDriver },
+    { "VirtualMemory",     InitializeVirtualMemory },
+    { "Video",   InitializeVideo },
+    { "Cpu",     InitializeCpu },
+    { "Smp",     InitializeSmp },
+    { "FileSystem",      InitializeFileSystem },
+    { "Network",     InitializeNetwork },
+    { "Gui",     InitializeGui },
+    { "Scheduler",   InitializeScheduler },
+    { "Console", InitializeConsole },
 };
 
 int KernelModulesVirtDesktop(void) {

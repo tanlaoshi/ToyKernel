@@ -103,7 +103,7 @@ void XhciDrainEvents(void) {
             gIrqMode = XHCI_IRQ_MODE_IRQ;
             sLastIrq = gStatIrq;
             sIrqStall = 0;
-            BootLog("boot: xhci irq=msi (irq)\n");
+            BootLog("Boot: XHCI IRQ=MSI (IRQ)\n");
             Passes = 1;
         }
     }
@@ -144,7 +144,7 @@ void XhciFallbackToPoll(const char *Why) {
     UINT32 Cmd;
     char Line[72];
     int n = 0;
-    const char *P = "boot: xhci irq=poll (fallback)";
+    const char *P = "Boot: XHCI IRQ=POLL (Fallback)";
     const char *W = Why;
 
     gUseIrq = 0;
@@ -194,7 +194,7 @@ int XhciTryEnterDual(USB_CONTROLLER *Device) {
     XhciDrainEvents();
     gUseIrq = 1;
     gIrqMode = XHCI_IRQ_MODE_DUAL;
-    BootLog("boot: xhci irq=msi (dual)\n"); /* PHOTO ring 可抄 */
+    BootLog("Boot: XHCI IRQ=MSI (Dual)\n"); /* PHOTO ring 可抄 */
     return 1;
 }
 
@@ -216,7 +216,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
         DebugWrite("XHCI: no interrupt EP, IRQ unused\n");
         gUseIrq = 0;
         gIrqMode = XHCI_IRQ_MODE_POLL;
-        ToyLogUsb("boot: xhci irq=none\n");
+        ToyLogUsb("Boot: XHCI IRQ=None\n");
         return 0;
     }
 
@@ -274,7 +274,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
             XhciDrainEvents();
             gUseIrq = 1;
             gIrqMode = XHCI_IRQ_MODE_DUAL;
-            ToyLogUsb("boot: xhci irq=ioapic (dual)\n");
+            ToyLogUsb("Boot: XHCI IRQ=IOAPIC (Dual)\n");
             return 1;
         }
     }

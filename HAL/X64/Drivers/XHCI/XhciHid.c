@@ -43,11 +43,11 @@ void XhciPollKbdGetReport(void) {
         gXferFast = 0;
         gGetReportFails++;
         if (gGetReportFails == 1) {
-            BootLog("boot: xhci get-report stall/retry\n");
+            BootLog("Boot: XHCI get-report stall/retry\n");
         }
         if (gGetReportFails >= 32) {
             gKbdPollReport = 0;
-            BootLog("boot: xhci kbd get-report give up\n");
+            BootLog("Boot: XHCI kbd get-report give up\n");
         }
         gGetReportBusy = 0;
         return;
@@ -182,7 +182,7 @@ int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed,
 
     if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(gSlotId), 0) < 0) {
         DebugWrite("XHCI: Configure Endpoint failed\n");
-        EnumWhy("boot: why=cfg ep\n");
+        EnumWhy("Boot: Why=cfg ep\n");
         if (MouseEpAddr != 0) {
             gMouseIntrDci = 0;
             gMouseEpAddr = 0;
@@ -192,13 +192,13 @@ int ConfigureIntr(UINT8 EpAddr, UINT16 Mps, UINT8 BInterval, UINT8 Speed,
     if (MouseEpAddr != 0) {
         gMouseSlotId = gSlotId;
         ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
-        BootLog("boot: xhci mouse with-kbd cfg ok\n");
+        BootLog("Boot: XHCI mouse with-kbd cfg ok\n");
     }
     {
         char Line[64];
         char Hex[12];
         int n = 0;
-        const char *P = "boot: xhci kbd ep=";
+        const char *P = "Boot: XHCI kbd ep=";
         while (*P && n < 20) {
             Line[n++] = *P++;
         }
@@ -277,7 +277,7 @@ int PrepCompositeMouse(UINT16 Total, UINT8 Speed, UINT8 KbdIface, UINT8 KbdEp,
         char Line[72];
         char Hex[12];
         int n = 0;
-        const char *P = "boot: xhci mouse cfg i=";
+        const char *P = "Boot: XHCI mouse cfg i=";
         while (*P && n < 28) {
             Line[n++] = *P++;
         }
@@ -357,7 +357,7 @@ int SyncIntrDequeue(UINT32 Slot, UINT32 Dci, XHCI_TRB *Ring, RING_STATE *St,
     FlushDma(Ring, RingBytes);
     Deq = PointerToPhysical(&Ring[St->Enq]) | (St->Pcs & 1u);
     if (Command(Deq, TRB_TYPE(TRB_SET_TR_DEQ) | TRB_SLOT(Slot) | EpField, 0) < 0) {
-        ToyLogUsb("boot: xhci sync deq fail\n");
+        ToyLogUsb("Boot: XHCI sync deq fail\n");
         return -1;
     }
     return 0;
@@ -452,11 +452,11 @@ int RealPcRejectMouseExtraAsKeyboard(UINT16 Total, UINT8 Speed) {
     if (gMouseParseScore < 2) {
         return 0;
     }
-    BootLog("boot: xhci skip mouse+extraHID as kbd\n");
+    BootLog("Boot: XHCI skip mouse+extraHID as kbd\n");
     {
         char Line[48];
         int n = 0;
-        const char *P = "boot: xhci kbd-score=";
+        const char *P = "Boot: XHCI kbd-score=";
         while (*P && n < 24) {
             Line[n++] = *P++;
         }
@@ -521,7 +521,7 @@ int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
         ConfigVal = 1;
     }
     if (SetConfig(ConfigVal) < 0) {
-        BootLog("boot: xhci mouse claim SetConfig fail\n");
+        BootLog("Boot: XHCI mouse claim SetConfig fail\n");
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
         return 0;
@@ -533,15 +533,15 @@ int ClaimAddressedSlotAsMouse(UINT32 RootPort, UINT8 Speed, UINT16 Total,
         SetIdle(Iface);
     }
     if (!ConfigureMouseIntr(gMouseSlotId, EpAddr, Mps, Interval, Speed)) {
-        BootLog("boot: xhci mouse claim ConfigEP fail\n");
+        BootLog("Boot: XHCI mouse claim ConfigEP fail\n");
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
         return 0;
     }
     ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
     QueueMouseIntr();
-    BootLogHexV("boot: xhci mouse claim score=", gMouseParseScore, 2);
-    BootLog("boot: xhci-hid mouse (claim after skip-kbd)\n");
+    BootLogHexV("Boot: XHCI mouse claim score=", gMouseParseScore, 2);
+    BootLog("Boot: XHCI-HID Mouse (Claim After Skip-Kbd)\n");
     return 1;
 }
 
@@ -739,7 +739,7 @@ int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
              * Running 时 Add 失败：再试 Stop 后 Add-only（旧 NUC 经验）。
              * 仍失败才 Drop+Add（保鼠标，键盘可能 k=0）。
              */
-            BootLog("boot: xhci mouse add-run fail, try stop+add\n");
+            BootLog("Boot: XHCI mouse add-run fail, try stop+add\n");
             (void)Command(0, TRB_TYPE(TRB_STOP_EP) | TRB_SLOT(SlotId) | EpField, 0);
             ProcessEvents();
             if (!HalCpuIsHypervisor()) {
@@ -766,11 +766,11 @@ int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
             FlushDma(gMouseIntrRing, sizeof(gMouseIntrRing));
             if (Command(PointerToPhysical(gInCtx),
                         TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) == 0) {
-                BootLog("boot: xhci mouse stop+add ok\n");
+                BootLog("Boot: XHCI mouse stop+add ok\n");
                 /* 键盘曾 Stop：调用方须 Sync+Queue */
                 return 2;
             }
-            BootLog("boot: xhci mouse stop+add fail, drop-add\n");
+            BootLog("Boot: XHCI mouse stop+add fail, drop-add\n");
             AddOnly = 0;
             ZeroMemory(gInCtx, sizeof(gInCtx));
             *(UINT32 *)(void *)(gInCtx + 0) = (1u << gIntrDci) | (1u << gMouseIntrDci);
@@ -819,7 +819,7 @@ int ConfigureMouseIntr(UINT32 SlotId, UINT8 EpAddr, UINT16 Mps, UINT8 BInterval,
         return 0;
     }
     if (Composite && AddOnly) {
-        BootLog("boot: xhci mouse add-only ok\n");
+        BootLog("Boot: XHCI mouse add-only ok\n");
         return 1; /* 键盘未 Stop：勿 Sync */
     }
     return 1;

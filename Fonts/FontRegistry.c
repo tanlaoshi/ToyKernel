@@ -244,12 +244,12 @@ static int TryLoadPath(const char *Path, FONT_RUNTIME_SLOT *Slot) {
     Err = ParseToyf(Buf, Size, Slot);
     PhysicalMemoryFreePages(Buf, Pages);
     if (Err != 0) {
-        HalConsoleWriteSerial("font: bad TOYF ");
+        HalConsoleWriteSerial("Font: bad TOYF ");
         HalConsoleWriteSerial(Path);
         HalConsoleWriteSerial("\n");
         return -1;
     }
-    HalConsoleWriteSerial("font: loaded ");
+    HalConsoleWriteSerial("Font: Loaded ");
     HalConsoleWriteSerial(Path);
     HalConsoleWriteSerial(" (");
     HalConsoleWriteSerial(Slot->Name);
@@ -289,7 +289,7 @@ int FontLoadAssets(void) {
     if (Slot < FONT_RUNTIME_MAX &&
         TryLoadPath("Assets/Fonts/VGA8X16.FNT", &gRuntime[Slot]) == 0) {
         if (FaceNameRegistered(gRuntime[Slot].Name, &gRuntime[Slot])) {
-            HalConsoleWriteSerial("font: skip duplicate name ");
+            HalConsoleWriteSerial("Font: skip duplicate name ");
             HalConsoleWriteSerial(gRuntime[Slot].Name);
             HalConsoleWriteSerial(" (VGA8X16.FNT)\n");
             FreeRuntimeSlot(&gRuntime[Slot]);
@@ -360,7 +360,7 @@ int FontLoadAssets(void) {
                 continue;
             }
             if (FaceNameRegistered(gRuntime[Slot].Name, &gRuntime[Slot])) {
-                HalConsoleWriteSerial("font: skip duplicate name ");
+                HalConsoleWriteSerial("Font: skip duplicate name ");
                 HalConsoleWriteSerial(gRuntime[Slot].Name);
                 HalConsoleWriteSerial(" (");
                 HalConsoleWriteSerial(Ents[i].Name);
@@ -384,7 +384,7 @@ int FontLoadAssets(void) {
 
     RebuildFontTable();
     if (!Any) {
-        HalConsoleWriteSerial("font: using built-in faces (no Assets/Fonts TOYF)\n");
+        HalConsoleWriteSerial("Font: using built-in faces (no Assets/Fonts TOYF)\n");
     }
     return Any ? 0 : -1;
 }

@@ -389,7 +389,7 @@ static void CommandFont(int Argc, char **Argv) {
         Argv[1][5] == 'd' && Argv[1][6] == 0) {
         (void)FontReloadAssets();
         ThemeClampFontId();
-        ConsoleWrite("font: assets reloaded\n");
+        ConsoleWrite("Font: assets reloaded\n");
         return;
     }
     if (Argc >= 2 && Argv[1][0] >= '0' && Argv[1][0] <= '9') {
@@ -398,11 +398,11 @@ static void CommandFont(int Argc, char **Argv) {
             Id = Id * 10u + (UINT32)(Argv[1][i] - '0');
         }
         if (Argv[1][i] != 0 || ThemeSetFontId(Id) != 0) {
-            ConsoleWrite("font: bad id\n");
+            ConsoleWrite("Font: bad id\n");
             return;
         }
         ThemeApply();
-        ConsoleWrite("font: set ");
+        ConsoleWrite("Font: set ");
         F = FontGetCurrent();
         ConsoleWrite(F && F->Name ? F->Name : "?");
         ConsoleWrite("\n");

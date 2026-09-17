@@ -176,5 +176,5 @@ void GuiInit(void) {
     GuiRedraw();
     /* 桌面已铺满：停 GOP 叠字 boot log，避免「gui ready / ToyOS ready」留在壁纸上 */
     HalSerialGopMute(1);
-    DebugWrite("gui: desktop ready (icons + no app windows)\n");
+    DebugWrite("Gui: desktop ready (icons + no app windows)\n");
 }

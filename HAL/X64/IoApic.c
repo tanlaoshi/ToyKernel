@@ -107,7 +107,7 @@ int IoApicInit(void) {
     }
 
     gReady = 1;
-    ToyLogSmp("boot: ioapic base=");
+    ToyLogSmp("Boot: IOAPIC Base=");
     ToyLogSmpHex64(Phys);
     ToyLogSmp(" maxredir=");
     ToyLogSmpHex32(gMaxRedir);
@@ -164,7 +164,7 @@ int IoApicRouteGsi(UINT32 Gsi, UINT8 Vector, UINT8 DestApicId,
     Hi = ((UINT32)DestApicId) << 24;
     WriteRte(Index, Lo, Hi);
 
-    ToyLogSmp("boot: ioapic route gsi=");
+    ToyLogSmp("Boot: IOAPIC Route GSI=");
     ToyLogSmpHex32(Gsi);
     ToyLogSmp(" vec=");
     ToyLogSmpHex32(Vector);
@@ -214,7 +214,7 @@ int IoApicRoutePciIntx(USB_CONTROLLER *Device, UINT8 Vector, UINT8 DestApicId) {
     Dw = PciReadConfig(Device->Bus, Device->Device, Device->Function, 0x3C);
     Line = (UINT8)(Dw & 0xFFu);
     if (Line == 0 || Line == 0xFF || Line > 23) {
-        ToyLogSmp("boot: ioapic pci intx: no line\n");
+        ToyLogSmp("Boot: IOAPIC PCI INTx: No Line\n");
         return -1;
     }
 

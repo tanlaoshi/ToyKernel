@@ -20,7 +20,7 @@ static void CommandNet(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
     if (!HalNetReady()) {
-        ConsoleWrite("net: not available (no virtio-net)\n");
+        ConsoleWrite("Net: not available (no virtio-net)\n");
         return;
     }
     HalNetGetMacAddress(Mac);
@@ -83,7 +83,7 @@ static void CommandPing(int Argc, char **Argv) {
         return;
     }
     if (!HalNetReady()) {
-        ConsoleWrite("net: not available\n");
+        ConsoleWrite("Net: not available\n");
         return;
     }
     ConsoleWrite("ping ");
@@ -385,7 +385,7 @@ static void CommandTcpConnect(int Argc, char **Argv) {
         int Ret;
 
         if (!HalNetReady()) {
-            ConsoleWrite("net: not available\n");
+            ConsoleWrite("Net: not available\n");
             return;
         }
         if (HalNetParseIp(Argv[1], &Ip) != 0) {
@@ -427,7 +427,7 @@ static void CommandTcpConnect(int Argc, char **Argv) {
         ConsoleWrite("tcpconnect: closes tcplisten (single TCP slot)\n");
     }
     if (!HalNetReady()) {
-        ConsoleWrite("net: not available\n");
+        ConsoleWrite("Net: not available\n");
         return;
     }
     if (HalNetParseIp(Argv[1], &Ip) != 0) {

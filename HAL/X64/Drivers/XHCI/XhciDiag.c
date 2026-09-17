@@ -166,19 +166,24 @@ void BootLog(const char *Text) {
         return;
     }
     for (P = Text; *P; P++) {
-        if (P[0] == 'f' && P[1] == 'a' && P[2] == 'i' && P[3] == 'l') {
+        char C0 = P[0] | 0x20;
+        char C1 = P[1] | 0x20;
+        char C2 = P[2] | 0x20;
+        char C3 = P[3] | 0x20;
+        if (C0 == 'f' && C1 == 'a' && C2 == 'i' && C3 == 'l') {
             Fail = 1;
         }
-        if (P[0] == 't' && P[1] == 'i' && P[2] == 'm' && P[3] == 'e' &&
-            P[4] == 'o' && P[5] == 'u' && P[6] == 't') {
+        if (C0 == 't' && C1 == 'i' && C2 == 'm' && C3 == 'e' &&
+            (P[4] | 0x20) == 'o' && (P[5] | 0x20) == 'u' && (P[6] | 0x20) == 't') {
             Fail = 1;
         }
-        /* xhci-hid … */
-        if (P[0] == 'x' && P[1] == 'h' && P[2] == 'c' && P[3] == 'i' &&
-            P[4] == '-' && P[5] == 'h' && P[6] == 'i' && P[7] == 'd') {
+        /* XHCI-HID / xhci-hid …（命名规范 ALL_CAPS；过滤须大小写不敏感） */
+        if (C0 == 'x' && C1 == 'h' && C2 == 'c' && C3 == 'i' &&
+            P[4] == '-' && (P[5] | 0x20) == 'h' && (P[6] | 0x20) == 'i' &&
+            (P[7] | 0x20) == 'd') {
             Milestone = 1;
         }
-        if (P[0] == 'i' && P[1] == 'r' && P[2] == 'q' && P[3] == '=') {
+        if (C0 == 'i' && C1 == 'r' && C2 == 'q' && P[3] == '=') {
             Milestone = 1;
         }
     }
@@ -280,7 +285,7 @@ void XhciDiagFormat(char *Buf, int Max) {
 void XhciDiagLogArms(void) {
     char Line[96];
     int n = 0;
-    const char *P = "boot: xhci arms kbd=";
+    const char *P = "Boot: XHCI arms kbd=";
     while (*P && n < 28) {
         Line[n++] = *P++;
     }

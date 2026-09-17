@@ -127,7 +127,7 @@ void CloseWindow(int Idx) {
     HalVideoPresent();
     GfxIrqLeave();
     GuiFocusApply();
-    DebugWrite("gui: closed window\n");
+    DebugWrite("Gui: closed window\n");
 }
 
 
@@ -213,7 +213,7 @@ int GuiOpenShell(void) {
     GuiFocusApply();
     BackupWindowAt(Idx);
     GuiAnimateWindowFade(Idx, 1);
-    DebugWrite("gui: open shell idx=");
+    DebugWrite("Gui: open shell idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;
@@ -285,7 +285,7 @@ int GuiOpenSettings(void) {
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     GuiAnimateWindowFade(gFocusWin, 1);
-    DebugWrite("gui: open settings idx=");
+    DebugWrite("Gui: open settings idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;
@@ -310,7 +310,7 @@ int GuiOpenStore(void) {
             StoreUiRepaint();
             GuiFocusApply();
             BackupWindowAt(gFocusWin);
-            DebugWrite("gui: focus existing store idx=");
+            DebugWrite("Gui: focus existing store idx=");
             DebugHex32((UINT32)gFocusWin);
             DebugWrite("\n");
             return gFocusWin;
@@ -360,7 +360,7 @@ int GuiOpenStore(void) {
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     GuiAnimateWindowFade(gFocusWin, 1);
-    DebugWrite("gui: open store idx=");
+    DebugWrite("Gui: open store idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;
@@ -418,7 +418,7 @@ int GuiOpenFiles(void) {
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     GuiAnimateWindowFade(gFocusWin, 1);
-    DebugWrite("gui: open files idx=");
+    DebugWrite("Gui: open files idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;
@@ -498,7 +498,7 @@ int GuiOpenEdit(const char *Path) {
     GuiFocusApply();
     BackupWindowAt(gFocusWin);
     GuiAnimateWindowFade(gFocusWin, 1);
-    DebugWrite("gui: open edit idx=");
+    DebugWrite("Gui: open edit idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;

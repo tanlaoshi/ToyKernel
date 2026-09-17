@@ -119,7 +119,7 @@ static void VirtQueueSubmitAvailable(VIRTQ *Q, UINT16 Head) {
     UINT16 Slot;
 
     if (Head >= Q->Size) {
-        DebugWrite("net: bad avail head\n");
+        DebugWrite("Net: bad avail head\n");
         return;
     }
     Slot = Q->AvailIdx % Q->Size;
@@ -296,7 +296,7 @@ int VirtioNetStart(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 BarPhys) {
 
     (void)BarPhys;
     if (!VirtioParseCaps(Bus, Dev, Fn, &Common, &DevCfg, &NotifyBase, &NotifyMult)) {
-        DebugWrite("net: missing virtio pci caps\n");
+        DebugWrite("Net: missing virtio pci caps\n");
         return -1;
     }
     gCommon = Common;
@@ -312,15 +312,15 @@ int VirtioNetStart(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 BarPhys) {
     __asm__ volatile("mfence" ::: "memory");
     if ((Common->DeviceStatus & VIRTIO_STATUS_FEATURES_OK) == 0) {
         Common->DeviceStatus = VIRTIO_STATUS_FAILED;
-        DebugWrite("net: FEATURES_OK rejected\n");
+        DebugWrite("Net: FEATURES_OK rejected\n");
         return -1;
     }
     if (VirtQueueSetup(&gRxQ, RX_QUEUE_ID, Common, NotifyBase, NotifyMult) != 0) {
-        DebugWrite("net: rx queue setup failed\n");
+        DebugWrite("Net: rx queue setup failed\n");
         return -1;
     }
     if (VirtQueueSetup(&gTxQ, TX_QUEUE_ID, Common, NotifyBase, NotifyMult) != 0) {
-        DebugWrite("net: tx queue setup failed\n");
+        DebugWrite("Net: tx queue setup failed\n");
         return -1;
     }
 
@@ -340,7 +340,7 @@ int VirtioNetStart(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 BarPhys) {
     VirtQueueKick(&gTxQ, TX_QUEUE_ID);
 
     NetMemCpy(gMac, (const void *)DevCfg->Mac, 6);
-    DebugWrite("net: qsz rx=");
+    DebugWrite("Net: qsz rx=");
     DebugHex32(gRxQ.Size);
     DebugWrite(" tx=");
     DebugHex32(gTxQ.Size);

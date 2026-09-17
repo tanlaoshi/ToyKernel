@@ -11,25 +11,25 @@ int main(void) {
     int Fd;
     ToySockAddrIn Sa;
 
-    printf("net: ToyNet %s\n", TOY_NET_ABI_VERSION_STRING);
+    printf("Net: ToyNet %s\n", TOY_NET_ABI_VERSION_STRING);
 
     Fd = socket(AF_INET, SOCK_STREAM, 0);
     if (Fd < 0) {
-        printf("net: socket fail\n");
+        printf("Net: socket fail\n");
         return 1;
     }
     if (ToyNetGetAddrIn(&Sa, "10.0.2.2", 8888) != 0) {
-        printf("net: resolve fail\n");
+        printf("Net: resolve fail\n");
         close(Fd);
         return 1;
     }
     if (ToyNetConnectIn(Fd, &Sa) != 0) {
-        printf("net: connect fail\n");
+        printf("Net: connect fail\n");
         close(Fd);
         return 1;
     }
     send(Fd, "hi\n", 3, 0);
     close(Fd);
-    printf("net: ok\n");
+    printf("Net: ok\n");
     return 0;
 }

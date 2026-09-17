@@ -559,7 +559,7 @@ int E1000Setup(void) {
             (0x10u << E1000_TCTL_CT_SHIFT) | (0x40u << E1000_TCTL_COLD_SHIFT));
 
     if (!WaitLinkUp()) {
-        ToyLogNet("boot: e1000 link timeout\n");
+        ToyLogNet("Boot: E1000 Link Timeout\n");
         DebugWrite("e1000: STATUS.LU timeout\n");
         /* soft-fail：不置 gReady，桌面仍起 */
         gBar = 0;
@@ -571,14 +571,14 @@ int E1000Setup(void) {
     gUseIrq = 0;
     if (TryEnableMsiRx()) {
         if (gPciDid == E1000_DID_82574L) {
-            ToyLogNet("boot: e1000e irq=msi\n");
+            ToyLogNet("Boot: E1000E IRQ=MSI\n");
         } else {
-            ToyLogNet("boot: e1000 irq=msi\n");
+            ToyLogNet("Boot: E1000 IRQ=MSI\n");
         }
     } else if (gPciDid == E1000_DID_82574L) {
-        ToyLogNet("boot: e1000e\n");
+        ToyLogNet("Boot: E1000E\n");
     } else {
-        ToyLogNet("boot: e1000\n");
+        ToyLogNet("Boot: E1000\n");
     }
     DebugWrite("e1000: did=");
     DebugHex32((UINT32)gPciDid);

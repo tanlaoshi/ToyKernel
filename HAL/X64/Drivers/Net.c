@@ -442,15 +442,15 @@ static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
     }
     gLwIpRx = 0;
     if (!VirtioFindNet(&Bus, &Dev, &Fn, &Bar)) {
-        DebugWrite("net: virtio-net not found\n");
+        DebugWrite("Net: virtio-net not found\n");
         return -1;
     }
     if (VirtioNetStart(Bus, Dev, Fn, Bar) != 0) {
-        DebugWrite("net: virtio init failed\n");
+        DebugWrite("Net: virtio init failed\n");
         return -1;
     }
     gNetOk = 1;
-    DebugWrite("net: virtio-net up\n");
+    DebugWrite("Net: virtio-net up\n");
     if (OutPriv) {
         *OutPriv = 0;
     }
@@ -531,7 +531,7 @@ int NetBindE1000(void) {
     gNicE1000 = 1;
     gLwIpRx = 0;
     gNetOk = 1;
-    DebugWrite("net: e1000 up\n");
+    DebugWrite("Net: e1000 up\n");
     return ToyDriverNetAttach(&gNetBackend);
 }
 
@@ -658,11 +658,11 @@ int NetParseIp(const char *Text, UINT32 *Ip) {
 void NetInfo(void) {
     char IpBuf[20];
     if (!gNetOk) {
-        DebugWrite("net: not available\n");
+        DebugWrite("Net: not available\n");
         return;
     }
     NetFormatIp(gIp, IpBuf, sizeof(IpBuf));
-    DebugWrite("net: mac ");
+    DebugWrite("Net: mac ");
     for (int i = 0; i < 6; i++) {
         DebugWrite(Uint8ToDecimal(gMac[i]));
         if (i < 5) {
@@ -686,7 +686,7 @@ static int NetResolve(UINT32 TargetIp, UINT8 Mac[6], int TimeoutMs) {
             return 0;
         }
     }
-    DebugWrite("net: arp fail");
+    DebugWrite("Net: arp fail");
     {
         UINT32 TxDone = 0;
         UINT32 RxFrames = 0;

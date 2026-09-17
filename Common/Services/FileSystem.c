@@ -470,7 +470,7 @@ static int MountAllVolumes(void) {
             gActiveDrive = d;
             gActiveLba = Start;
 
-            DebugWrite("fs: vol ");
+            DebugWrite("Fs: vol ");
             DebugWrite(V->Name);
             DebugWrite(" letter=");
             DebugHex32((UINT32)(UINT8)V->Letter);
@@ -500,8 +500,8 @@ static int MountAllVolumes(void) {
             gActiveOps = V->Ops;
             gActiveDrive = V->Drive;
             gActiveLba = 0;
-            DebugWrite("fs: vol RES (resfs)\n");
-            HalConsoleWriteSerial("fs: res volume RES:\n");
+            DebugWrite("Fs: vol RES (resfs)\n");
+            HalConsoleWriteSerial("Fs: RES Volume RES:\n");
         }
     }
 
@@ -562,14 +562,14 @@ static int MountAllVolumes(void) {
             gVols[gDefaultVol].Name[0] == 'E' && gVols[gDefaultVol].Name[1] == 'S' &&
             gVols[gDefaultVol].Name[2] == 'P') {
             HalConsoleWriteSerial(
-                "fs: default=ESP (no TOYOS.ID; put rootfs on a FAT with TOYOS.ID)\n");
+                "Fs: default=ESP (no TOYOS.ID; put rootfs on a FAT with TOYOS.ID)\n");
         }
     }
     if (FileSystemActivate(gDefaultVol) != FAT_OK) {
         return 0;
     }
 
-    HalConsoleWriteSerial("fs: mounted ");
+    HalConsoleWriteSerial("Fs: Mounted ");
     {
         char Msg[8];
         Msg[0] = (char)('0' + (gVolCount > 9 ? 9 : gVolCount));
@@ -664,10 +664,10 @@ int FileSystemInitialize(void) {
             if (HasToy) {
                 Auto = 0;
                 HalUsbMscAutoSet(0);
-                HalConsoleWriteSerial("boot: msc auto off (msc=0/MSC.OFF)\n");
+                HalConsoleWriteSerial("Boot: MSC Auto Off (MSC=0/MSC.OFF)\n");
             } else {
                 HalConsoleWriteSerial(
-                    "boot: msc auto keep (no TOYOS.ID; ignore msc=0)\n");
+                    "Boot: MSC Auto Keep (No TOYOS.ID; Ignore MSC=0)\n");
             }
         }
     } else {
@@ -677,7 +677,7 @@ int FileSystemInitialize(void) {
     if (!HasToy && !Auto) {
         Auto = 1;
         HalUsbMscAutoSet(1);
-        HalConsoleWriteSerial("boot: msc auto force (need TOYOS)\n");
+        HalConsoleWriteSerial("Boot: MSC Auto Force (Need TOYOS)\n");
     }
 
     if (Auto) {
@@ -721,7 +721,7 @@ int FileSystemInitialize(void) {
     ShellCommandsRegisterFs();
     DebugWrite("FS ready (ls, cat, write, wrbig, dirstress, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");
     if (!AnyVolumeHasToyId()) {
-        HalConsoleWriteSerial("fs: WARN no TOYOS.ID on any volume\n");
+        HalConsoleWriteSerial("Fs: WARN no TOYOS.ID on any volume\n");
     }
     return 0;
 }

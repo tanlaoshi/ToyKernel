@@ -14,7 +14,7 @@ int main(void) {
 
     Wid = ToyUiCreateWindow("MyGui", 420, 280);
     if (Wid < 0) {
-        printf("gui: create fail\n");
+        printf("Gui: create fail\n");
         return 1;
     }
     ToyUiSetLabel(Wid, "click box / list / field");
@@ -25,7 +25,7 @@ int main(void) {
     ToyUiListAddItem(Wid, 0, "Blue");
     ToyUiAddTextField(Wid, 0, 16, 116, 160);
     ToyUiAddButton(Wid, 0, "OK");
-    printf("gui: wid=%d (ToyUi %s)\n", Wid, TOY_UI_ABI_VERSION_STRING);
+    printf("Gui: wid=%d (ToyUi %s)\n", Wid, TOY_UI_ABI_VERSION_STRING);
 
     for (;;) {
         Ev = ToyUiPoll(Wid);

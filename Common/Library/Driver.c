@@ -89,7 +89,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
         gInstanceCount++;
         Bound++;
     }
-#if TOY_DEBUG
+#if TOY_KERNEL_DEBUG
     ToyLogDrv("driver: registered=");
     ToyLogDrvHex32((UINT32)gDriverCount);
     ToyLogDrv(" bound=");

@@ -44,7 +44,7 @@ int InitMouseOnKeyboardSlot(void) {
      * QEMU tablet 走独立口 InitMouseOnPort，不受此限。
      */
     if (!HalCpuIsHypervisor() && gMouseParseScore < 2) {
-        BootLogHexV("boot: xhci skip weak composite score=", gMouseParseScore, 2);
+        BootLogHexV("Boot: XHCI skip weak composite score=", gMouseParseScore, 2);
         return 0;
     }
     if (Iface == gKbdIface) {
@@ -80,16 +80,16 @@ int InitMouseOnKeyboardSlot(void) {
     }
     (void)SetIdle(Iface);
 
-    BootLogHexV("boot: xhci mouse iface=", Iface, 2);
-    BootLogHexV("boot: xhci mouse proto=", gMouseIfaceProto, 2);
-    BootLogHexV("boot: xhci mouse ep=", EpAddr, 2);
-    BootLogHexV("boot: xhci mouse mps=", Mps, 2);
+    BootLogHexV("Boot: XHCI mouse iface=", Iface, 2);
+    BootLogHexV("Boot: XHCI mouse proto=", gMouseIfaceProto, 2);
+    BootLogHexV("Boot: XHCI mouse ep=", EpAddr, 2);
+    BootLogHexV("Boot: XHCI mouse mps=", Mps, 2);
     /* 单行汇总：串口好抄 */
     {
         char Line[72];
         char Hex[12];
         int n = 0;
-        const char *P = "boot: xhci mouse cfg i=";
+        const char *P = "Boot: XHCI mouse cfg i=";
         while (*P && n < 28) {
             Line[n++] = *P++;
         }
@@ -135,7 +135,7 @@ int InitMouseOnKeyboardSlot(void) {
 
         MouseCfg = ConfigureMouseIntr(gSlotId, EpAddr, Mps, Interval, gSpeed);
         if (!MouseCfg) {
-            BootLog("boot: xhci composite mouse ep fail\n");
+            BootLog("Boot: XHCI composite mouse ep fail\n");
             gMouseIntrDci = 0;
             gMouseEpAddr = 0;
             return 0;
@@ -150,19 +150,19 @@ int InitMouseOnKeyboardSlot(void) {
          */
         if (MouseCfg >= 2 && gSlotId != 0 && gIntrDci != 0) {
             if (SyncIntrDequeue(gSlotId, gIntrDci, gIntrRing, &gIntr, sizeof(gIntrRing)) == 0) {
-                BootLog("boot: xhci sync kbd after mouse\n");
+                BootLog("Boot: XHCI sync kbd after mouse\n");
             } else {
-                BootLog("boot: xhci sync kbd after mouse fail\n");
+                BootLog("Boot: XHCI sync kbd after mouse fail\n");
             }
             QueueIntr();
         }
         QueueMouseIntr();
-        BootLog("boot: xhci composite kbd rearm\n");
+        BootLog("Boot: XHCI composite kbd rearm\n");
     }
     {
         char Line[80];
         int n = 0;
-        const char *P = "boot: xhci kbd iface=";
+        const char *P = "Boot: XHCI kbd iface=";
         while (*P && n < 24) {
             Line[n++] = *P++;
         }
@@ -185,9 +185,9 @@ int InitMouseOnKeyboardSlot(void) {
         BootLog(Line);
     }
     if (gMouseAbsolute) {
-        BootLog("boot: xhci-hid mouse (composite abs)\n");
+        BootLog("Boot: XHCI-HID Mouse (Composite Abs)\n");
     } else {
-        BootLog("boot: xhci-hid mouse (composite)\n");
+        BootLog("Boot: XHCI-HID Mouse (Composite)\n");
     }
     return 1;
 }
@@ -201,10 +201,10 @@ int InitMouseOnPort(UINT32 Port1) {
     UINT8 DevClass;
 
     if (gPortNoHid & (1u << Port1)) {
-        BootLogHexV("boot: xhci mouse skip port=", Port1, 2);
+        BootLogHexV("Boot: XHCI mouse skip port=", Port1, 2);
         return 0;
     }
-    BootLogHexV("boot: xhci mouse try port=", Port1, 2);
+    BootLogHexV("Boot: XHCI mouse try port=", Port1, 2);
     if (!(Ps & PORTSC_CCS)) {
         return 0;
     }
@@ -261,7 +261,7 @@ int InitMouseOnPort(UINT32 Port1) {
     DevClass = gCtrlBuf[4];
     /* Mass Storage / Wireless：非鼠标，快跳过，避免 SetupHid 超时拖死启动 */
     if (DevClass == 0x08 || DevClass == 0xE0) {
-        BootLogHex("boot: xhci mouse skip class=", DevClass, 2);
+        BootLogHex("Boot: XHCI mouse skip class=", DevClass, 2);
         gPortNoHid |= (1u << Port1);
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
@@ -270,7 +270,7 @@ int InitMouseOnPort(UINT32 Port1) {
     if (IsHubDeviceDesc()) {
         WasSlot = gMouseSlotId;
         gMouseSlotId = 0;
-        BootLogV("boot: xhci mouse-scan hub (class 9)\n");
+        BootLogV("Boot: XHCI mouse-scan hub (class 9)\n");
         if (ClaimHubOnRootPort(Port1, Speed, WasSlot)) {
             return EnumHubChildrenForMouse();
         }
@@ -289,13 +289,13 @@ int InitMouseOnPort(UINT32 Port1) {
          * SetupHidDevice（其内部会再取描述符）。勿在 EP0 失步时直接放弃。
          */
         if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
-            BootLog("boot: xhci mouse cfg desc retry\n");
+            BootLog("Boot: XHCI mouse cfg desc retry\n");
             RecoverEp0(gMouseSlotId);
             gXferSlot = gMouseSlotId;
         } else if (ConfigHasHubIface(gCtrlBuf, Total)) {
             WasSlot = gMouseSlotId;
             gMouseSlotId = 0;
-            BootLog("boot: xhci mouse-scan hub (iface 9)\n");
+            BootLog("Boot: XHCI mouse-scan hub (iface 9)\n");
             if (ClaimHubOnRootPort(Port1, Speed, WasSlot)) {
                 return EnumHubChildrenForMouse();
             }
@@ -308,7 +308,7 @@ int InitMouseOnPort(UINT32 Port1) {
         /* 再 Force PR + 重 Address 一次（port4 真鼠曾卡在 cfg） */
         if (!HalCpuIsHypervisor()) {
             UINT32 Old = gMouseSlotId;
-            BootLogV("boot: xhci mouse root retry\n");
+            BootLogV("Boot: XHCI mouse root retry\n");
             DisableSlot(Old);
             gMouseSlotId = 0;
             if (ResetPortEx(Port1, 1)) {
@@ -364,19 +364,19 @@ int InitMouseOnPort(UINT32 Port1) {
     }
     if (!ParseConfigMouse(gCtrlBuf, Total, Speed, &Iface, &EpAddr, &Mps, &Interval)) {
         DebugWrite("XHCI: mouse no interrupt EP\n");
-        BootLog("boot: xhci skip non-mouse HID\n");
+        BootLog("Boot: XHCI skip non-mouse HID\n");
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
         return 0;
     }
     if (!HalCpuIsHypervisor() && gMouseParseScore < 2) {
-                BootLogHexV("boot: xhci skip weak root mouse score=", gMouseParseScore, 2);
+                BootLogHexV("Boot: XHCI skip weak root mouse score=", gMouseParseScore, 2);
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
         return 0;
     }
     gMouseIface = Iface;
-    BootLogHexV("boot: xhci mouse root score=", gMouseParseScore, 2);
+    BootLogHexV("Boot: XHCI mouse root score=", gMouseParseScore, 2);
     if (!ConfigureMouseIntr(gMouseSlotId, EpAddr, Mps, Interval, Speed)) {
         DebugWrite("XHCI: mouse endpoint failed\n");
         DisableSlot(gMouseSlotId);
@@ -387,9 +387,9 @@ int InitMouseOnPort(UINT32 Port1) {
     QueueMouseIntr();
     DebugWrite("XHCI: mouse ready\n");
     if (gMouseAbsolute) {
-        BootLog("boot: xhci-hid mouse (abs)\n");
+        BootLog("Boot: XHCI-HID Mouse (Abs)\n");
     } else {
-        BootLog("boot: xhci-hid mouse\n");
+        BootLog("Boot: XHCI-HID Mouse\n");
     }
     return 1;
 }
@@ -402,7 +402,7 @@ void XhciInitMouseDeferred(void) {
     if (gMouseSlotId != 0) {
         return;
     }
-    ToyLogUsb("boot: xhci mouse deferred start\n");
+    ToyLogUsb("Boot: XHCI mouse deferred start\n");
     if (gHubSlotId != 0) {
         (void)EnumHubChildrenForMouse();
     }
@@ -429,9 +429,9 @@ void XhciInitMouseDeferred(void) {
         QueueIntr();
     }
     if (gMouseSlotId != 0) {
-        ToyLogUsb("boot: xhci mouse deferred ok\n");
+        ToyLogUsb("Boot: XHCI mouse deferred ok\n");
     } else {
-        ToyLogUsb("boot: xhci mouse deferred none\n");
+        ToyLogUsb("Boot: XHCI mouse deferred none\n");
     }
 }
 
@@ -583,7 +583,7 @@ void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
         gMouseAbsY = MaxY;
     }
     SpinLockRelease(&gHidQueueLock);
-    ToyLogUsb("boot: xhci mouse handoff desktop\n");
+    ToyLogUsb("Boot: XHCI mouse handoff desktop\n");
 }
 
 int XhciDequeueMouse(USB_MOUSE_REPORT *Report) {

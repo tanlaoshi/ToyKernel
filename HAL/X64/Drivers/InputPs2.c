@@ -341,7 +341,7 @@ static int Ps2InitHw(void) {
 
     CtrlCmd(0xAA);
     if (!KbdRead(&Ack) || Ack != 0x55) {
-        ToyLogDrv("boot: ps2-kbd self-test fail\n");
+        ToyLogDrv("Boot: PS2-KBD Self-Test Fail\n");
         return 0;
     }
 
@@ -364,11 +364,11 @@ static int Ps2InitHw(void) {
     (void)ExpectAck();
 
     if (Ps2StatusLooksDead(HalIoRead8(PS2_STATUS))) {
-        ToyLogDrv("boot: ps2-kbd died after init\n");
+        ToyLogDrv("Boot: PS2-KBD Died After Init\n");
         return 0;
     }
 
-    ToyLogDrv("boot: ps2-kbd keyboard (set2)\n");
+    ToyLogDrv("Boot: PS2-KBD Keyboard (Set2)\n");
     return 1;
 }
 
@@ -388,7 +388,7 @@ static int Ps2DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
         return 0;
     }
     if (!Ps2InitHw()) {
-        ToyLogDrv("boot: ps2-kbd probe failed\n");
+        ToyLogDrv("Boot: PS2-KBD Probe Failed\n");
         return -1;
     }
     gPs2Ready = 1;

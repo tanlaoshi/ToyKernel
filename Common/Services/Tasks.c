@@ -49,7 +49,7 @@ static void YieldForPollInput(void) {
     if (!HalCpuIsHypervisor()) {
         UINT32 i;
         if (HalPowerButtonPressed()) {
-            ToyLogBoot("boot: power button -> shutdown\n");
+            ToyLogBoot("Boot: Power Button -> Shutdown\n");
             HalCpuShutdown();
         }
         /* 真机 poll-USB：勿 hlt 等 tick，否则光标锁 ~10ms+ */
@@ -310,7 +310,7 @@ void ShellTask(void) {
         TcpPoll();
 #endif
         if (HalPowerButtonPressed()) {
-            ToyLogBoot("boot: power button -> shutdown\n");
+            ToyLogBoot("Boot: Power Button -> Shutdown\n");
             HalCpuShutdown();
         }
         {

@@ -6,7 +6,7 @@
 
 #include "BootTypes.h"
 
-void SerialInit(void);
+void SerialInitialize(void);
 int SerialPresent(void);
 void SerialWrite(const char *Text);
 int SerialDataReady(void);

@@ -309,7 +309,7 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     CursorPaint();
     HalVideoPresent();
     GfxIrqLeave();
-    DebugWrite("gui: open user idx=");
+    DebugWrite("Gui: open user idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");
     return gFocusWin;

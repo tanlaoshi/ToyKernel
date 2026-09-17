@@ -136,7 +136,7 @@ void ProcessEventsLocked(void) {
                     if (gDiagIntrCcLogged < 4) {
                         char Line[64];
                         int n = 0;
-                        const char *P = "boot: xhci kbd-intr cc=";
+                        const char *P = "Boot: XHCI kbd-intr cc=";
                         while (*P && n < 28) {
                             Line[n++] = *P++;
                         }
@@ -179,7 +179,7 @@ void ProcessEventsLocked(void) {
                     if (gDiagIntrCcLogged < 4) {
                         char Line[64];
                         int n = 0;
-                        const char *P = "boot: xhci mouse-intr cc=";
+                        const char *P = "Boot: XHCI mouse-intr cc=";
                         while (*P && n < 30) {
                             Line[n++] = *P++;
                         }
@@ -197,7 +197,7 @@ void ProcessEventsLocked(void) {
                 if (gDiagXferLogged < 8) {
                     char Line[80];
                     int n = 0;
-                    const char *P = "boot: xhci xfer s=";
+                    const char *P = "Boot: XHCI xfer s=";
                     while (*P && n < 24) {
                         Line[n++] = *P++;
                     }

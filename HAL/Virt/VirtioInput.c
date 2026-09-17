@@ -443,7 +443,7 @@ static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
         if (VirtioMmioSetupQueue(&gKbd, S.KbdBase, VIRTIO_DEV_INPUT, 8, 0) == 0) {
             RefillQueue(&gKbd, gKbdEvBuf, gKbd.QueueSize);
             gKbdOn = 1;
-            ToyLogDrv("boot: virtio-input keyboard\n");
+            ToyLogDrv("Boot: VirtIO-Input Keyboard\n");
         }
     }
     if (S.TabBase) {
@@ -452,7 +452,7 @@ static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
             ReadAbsInfo(S.TabBase, ABS_Y, &gAbsMinY, &gAbsMaxY);
             RefillQueue(&gTab, gTabEvBuf, gTab.QueueSize);
             gTabOn = 1;
-            ToyLogDrv("boot: virtio-input tablet\n");
+            ToyLogDrv("Boot: VirtIO-Input Tablet\n");
         }
     }
     if (!(gKbdOn || gTabOn)) {

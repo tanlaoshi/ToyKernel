@@ -111,7 +111,7 @@ int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
     RingDoorbell(gMscScanSlot, Dci);
     if (WaitBulk() < 0) {
         XhciEventLeaveExclusive();
-        BootLogHex("boot: msc bulk fail cc=", gBulkCode, 2);
+        BootLogHex("Boot: MSC bulk fail cc=", gBulkCode, 2);
         return -1;
     }
     XhciEventLeaveExclusive();
@@ -162,27 +162,27 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
     }
 
     if (XhciBulkXfer(0, Cbw, 31) < 0) {
-        BootLog("boot: msc bot cbw fail\n");
+        BootLog("Boot: MSC bot cbw fail\n");
         return -1;
     }
     if (DataLen != 0) {
         if (XhciBulkXfer(DataIn ? 1 : 0, Data, DataLen) < 0) {
-            BootLog("boot: msc bot data fail\n");
+            BootLog("Boot: MSC bot data fail\n");
             return -1;
         }
     }
     ZeroMemory(Csw, sizeof(Csw));
     if (XhciBulkXfer(1, Csw, 13) < 0) {
-        BootLog("boot: msc bot csw fail\n");
+        BootLog("Boot: MSC bot csw fail\n");
         return -1;
     }
     /* USBS */
     if (Csw[0] != 0x55 || Csw[1] != 0x53 || Csw[2] != 0x42 || Csw[3] != 0x53) {
-        BootLog("boot: msc bot csw sig\n");
+        BootLog("Boot: MSC bot csw sig\n");
         return -1;
     }
     if (Csw[12] != 0) {
-        BootLogHex("boot: msc bot status=", Csw[12], 2);
+        BootLogHex("Boot: MSC bot status=", Csw[12], 2);
         return -1;
     }
     return 0;
@@ -200,7 +200,7 @@ int XhciMscCapacity(void) {
     UINT32 Bsz;
 
     if (!gMscClaimed || gMscScanSlot == 0) {
-        BootLog("boot: msc capacity not claimed\n");
+        BootLog("Boot: MSC capacity not claimed\n");
         return -1;
     }
 
@@ -213,14 +213,14 @@ int XhciMscCapacity(void) {
     Cdb[4] = 36;
     ZeroMemory(Inquiry, sizeof(Inquiry));
     if (MscBot(Cdb, 6, 36, 1, Inquiry) < 0) {
-        BootLog("boot: msc inquiry fail\n");
+        BootLog("Boot: MSC inquiry fail\n");
         return -1;
     }
-    BootLogHex("boot: msc inquiry pdt=", Inquiry[0] & 0x1Fu, 2);
+    BootLogHex("Boot: MSC inquiry pdt=", Inquiry[0] & 0x1Fu, 2);
     {
         char Line[48];
         int n = 0;
-        const char *P = "boot: msc vendor=";
+        const char *P = "Boot: MSC vendor=";
         int i;
 
         while (*P && n < 20) {
@@ -243,7 +243,7 @@ int XhciMscCapacity(void) {
     Cdb[0] = 0x25; /* READ CAPACITY(10) */
     ZeroMemory(Cap, sizeof(Cap));
     if (MscBot(Cdb, 10, 8, 1, Cap) < 0) {
-        BootLog("boot: msc readcap fail\n");
+        BootLog("Boot: MSC readcap fail\n");
         return -1;
     }
     LastLba = ((UINT32)Cap[0] << 24) | ((UINT32)Cap[1] << 16) |
@@ -251,14 +251,14 @@ int XhciMscCapacity(void) {
     Bsz = ((UINT32)Cap[4] << 24) | ((UINT32)Cap[5] << 16) |
           ((UINT32)Cap[6] << 8) | (UINT32)Cap[7];
     if (Bsz == 0) {
-        BootLog("boot: msc readcap bsz0\n");
+        BootLog("Boot: MSC readcap bsz0\n");
         return -1;
     }
     gMscBlockCount = LastLba + 1u;
     gMscBlockSize = Bsz;
     gMscCapacityOk = 1;
-    BootLogHex("boot: msc blocks=", gMscBlockCount, 8);
-    BootLogHex("boot: msc bsize=", gMscBlockSize, 8);
+    BootLogHex("Boot: MSC blocks=", gMscBlockCount, 8);
+    BootLogHex("Boot: MSC bsize=", gMscBlockSize, 8);
     return 0;
 }
 
@@ -438,10 +438,10 @@ static void LogMscCfgIfaces(UINT8 *Cfg, UINT16 Total) {
             break;
         }
         if (Type == 4 && Len >= 9) {
-            BootLogHex("boot: msc claim iface=", Cfg[Off + 2], 2);
-            BootLogHex("boot: msc claim iclass=", Cfg[Off + 5], 2);
-            BootLogHex("boot: msc claim isub=", Cfg[Off + 6], 2);
-            BootLogHex("boot: msc claim iproto=", Cfg[Off + 7], 2);
+            BootLogHex("Boot: MSC claim iface=", Cfg[Off + 2], 2);
+            BootLogHex("Boot: MSC claim iclass=", Cfg[Off + 5], 2);
+            BootLogHex("Boot: MSC claim isub=", Cfg[Off + 6], 2);
+            BootLogHex("Boot: MSC claim iproto=", Cfg[Off + 7], 2);
             N++;
         }
         Off = (UINT16)(Off + Len);
@@ -505,7 +505,7 @@ static int ConfigureMscBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
     FlushDma(gMscScanDevCtx, sizeof(gMscScanDevCtx));
 
     if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) < 0) {
-        BootLog("boot: msc claim cfg ep fail\n");
+        BootLog("Boot: MSC claim cfg ep fail\n");
         return 0;
     }
 
@@ -535,22 +535,22 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
     }
     gXferSlot = gMscScanSlot;
     if (GetDeviceDesc() < 0) {
-        BootLog("boot: msc claim desc fail\n");
+        BootLog("Boot: MSC claim desc fail\n");
         goto fail;
     }
     DevClass = gCtrlBuf[4];
-    BootLogHex("boot: msc claim dclass=", DevClass, 2);
+    BootLogHex("Boot: MSC claim dclass=", DevClass, 2);
     if (DevClass == 0x09) {
-        BootLog("boot: msc claim skip hub device\n");
+        BootLog("Boot: MSC claim skip hub device\n");
         goto fail;
     }
     if (DevClass == 0x03 || DevClass == 0xE0) {
-        BootLogHex("boot: msc claim skip class=", DevClass, 2);
+        BootLogHex("Boot: MSC claim skip class=", DevClass, 2);
         goto fail;
     }
 
     if (GetDesc(0x0200, 0, 9, gMscCfgBuf) < 0) {
-        BootLog("boot: msc claim cfg9 fail\n");
+        BootLog("Boot: MSC claim cfg9 fail\n");
         goto fail;
     }
     Total = (UINT16)(gMscCfgBuf[2] | (gMscCfgBuf[3] << 8));
@@ -558,7 +558,7 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
         Total = 9;
     }
     if (Total > sizeof(gMscCfgBuf)) {
-        BootLogHex("boot: msc claim cfg trunc want=", Total, 4);
+        BootLogHex("Boot: MSC claim cfg trunc want=", Total, 4);
         Total = (UINT16)sizeof(gMscCfgBuf);
     }
     ConfigVal = gMscCfgBuf[5] ? gMscCfgBuf[5] : 1;
@@ -566,26 +566,26 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
         RecoverEp0(gMscScanSlot);
         gXferSlot = gMscScanSlot;
         if (GetDesc(0x0200, 0, Total, gMscCfgBuf) < 0) {
-            BootLog("boot: msc claim cfg fail\n");
+            BootLog("Boot: MSC claim cfg fail\n");
             goto fail;
         }
     }
-    BootLogHex("boot: msc claim cfg len=", Total, 4);
+    BootLogHex("Boot: MSC claim cfg len=", Total, 4);
 
     if (ConfigHasHubIface(gMscCfgBuf, Total)) {
         /* 根口应在 ClaimPorts 已认领；子口嵌套 hub 跳过 */
-        BootLogHex("boot: msc claim cfg hub iface port=", RootPort, 2);
+        BootLogHex("Boot: MSC claim cfg hub iface port=", RootPort, 2);
         goto fail;
     }
 
     if (!ParseMscBulk(gMscCfgBuf, Total, &Iface, &EpIn, &MpsIn, &EpOut, &MpsOut)) {
-        BootLogHex("boot: msc claim no bulk port=", RootPort, 2);
+        BootLogHex("Boot: MSC claim no bulk port=", RootPort, 2);
         LogMscCfgIfaces(gMscCfgBuf, Total);
         goto fail;
     }
 
     if (SetConfig(ConfigVal) < 0) {
-        BootLog("boot: msc claim setcfg fail\n");
+        BootLog("Boot: MSC claim setcfg fail\n");
         goto fail;
     }
 
@@ -595,13 +595,13 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
 
     gMscPort = RootPort;
     gMscClaimed = 1;
-    BootLogHex("boot: msc claim ok port=", RootPort, 2);
-    BootLogHex("boot: msc claim slot=", gMscScanSlot, 2);
-    BootLogHex("boot: msc claim iface=", Iface, 2);
-    BootLogHex("boot: msc claim epin=", EpIn, 2);
-    BootLogHex("boot: msc claim epout=", EpOut, 2);
-    BootLogHex("boot: msc claim route=", gMscRoute, 2);
-    BootLog("boot: msc claim bulk ok\n");
+    BootLogHex("Boot: MSC claim ok port=", RootPort, 2);
+    BootLogHex("Boot: MSC claim slot=", gMscScanSlot, 2);
+    BootLogHex("Boot: MSC claim iface=", Iface, 2);
+    BootLogHex("Boot: MSC claim epin=", EpIn, 2);
+    BootLogHex("Boot: MSC claim epout=", EpOut, 2);
+    BootLogHex("Boot: MSC claim route=", gMscRoute, 2);
+    BootLog("Boot: MSC claim bulk ok\n");
     return 1;
 
 fail:
@@ -623,11 +623,11 @@ int XhciMscScanPorts(void) {
     int Found = 0;
 
     if (!gXhciStarted || gOperationalBase == 0 || gMaxPorts == 0) {
-        BootLog("boot: msc scan no hc\n");
+        BootLog("Boot: MSC scan no hc\n");
         return -1;
     }
 
-    BootLog("boot: msc scan begin (portsc only)\n");
+    BootLog("Boot: MSC scan begin (portsc only)\n");
 
     for (P = 1; P <= gMaxPorts && P <= 32u; P++) {
         UINT32 Ps = ReadMmio32(gOperationalBase + PortReg(P));
@@ -637,35 +637,35 @@ int XhciMscScanPorts(void) {
             continue;
         }
         if (gSlotId != 0 && P == gPort1) {
-            BootLogHex("boot: msc scan skip kbd port=", P, 2);
+            BootLogHex("Boot: MSC scan skip kbd port=", P, 2);
             continue;
         }
         if (gMouseSlotId != 0 && P == gMousePort) {
-            BootLogHex("boot: msc scan skip mouse port=", P, 2);
+            BootLogHex("Boot: MSC scan skip mouse port=", P, 2);
             continue;
         }
         if (gHubSlotId != 0 && P == gHubRootPort) {
-            BootLogHex("boot: msc scan skip hub port=", P, 2);
+            BootLogHex("Boot: MSC scan skip hub port=", P, 2);
             continue;
         }
         if (gMscClaimed && P == gMscPort) {
-            BootLogHex("boot: msc scan skip claimed port=", P, 2);
+            BootLogHex("Boot: MSC scan skip claimed port=", P, 2);
             continue;
         }
 
         Speed = PortSpeed(Ps);
-        BootLogHex("boot: msc scan port=", P, 2);
-        BootLogHex("boot: msc scan speed=", Speed, 1);
-        BootLogHex("boot: msc scan ped=", (Ps & PORTSC_PED) ? 1u : 0u, 1);
-        BootLogHex("boot: msc scan portsc=", Ps, 8);
+        BootLogHex("Boot: MSC scan port=", P, 2);
+        BootLogHex("Boot: MSC scan speed=", Speed, 1);
+        BootLogHex("Boot: MSC scan ped=", (Ps & PORTSC_PED) ? 1u : 0u, 1);
+        BootLogHex("Boot: MSC scan portsc=", Ps, 8);
         if (!(Ps & PORTSC_PED)) {
-            BootLog("boot: msc scan note: claim will Force PR\n");
+            BootLog("Boot: MSC scan note: claim will Force PR\n");
             gPortNeedForcePr |= (1u << P);
         }
         Found++;
     }
 
-    BootLogHex("boot: msc scan done n=", (UINT32)Found, 2);
+    BootLogHex("Boot: MSC scan done n=", (UINT32)Found, 2);
     return Found;
 }
 
@@ -679,15 +679,15 @@ int XhciMscClaimPorts(void) {
     int Ok = 0;
 
     if (!gXhciStarted || gOperationalBase == 0 || gMaxPorts == 0) {
-        BootLog("boot: msc claim no hc\n");
+        BootLog("Boot: MSC claim no hc\n");
         return -1;
     }
     if (gMscClaimed && gMscScanSlot != 0) {
-        BootLogHex("boot: msc claim already port=", gMscPort, 2);
+        BootLogHex("Boot: MSC claim already port=", gMscPort, 2);
         return 1;
     }
 
-    BootLog("boot: msc claim begin\n");
+    BootLog("Boot: MSC claim begin\n");
     /*
      * excl-3：不再 FallbackToPoll("msc-claim")。
      * 事件环由 excl-1/2 单消费者 + 消费锁串行；claim 保持 dual/irq。
@@ -697,7 +697,7 @@ int XhciMscClaimPorts(void) {
      * soft-fail 会留下挂起 TRB → irq-stall；恢复为正常 CA+重试，并重武装 HID。
      */
     if (gXhciCmdSick) {
-        BootLog("boot: msc claim recover cmd sick\n");
+        BootLog("Boot: MSC claim recover cmd sick\n");
         RecoverCommandRing();
         gXhciCmdSick = 0;
         if (gSlotId != 0 && gIntrDci != 0) {
@@ -756,24 +756,24 @@ int XhciMscClaimPorts(void) {
          */
         Force = 0;
         if ((Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
-            BootLogHex("boot: msc claim try PED port=", P, 2);
+            BootLogHex("Boot: MSC claim try PED port=", P, 2);
         } else {
             Force = 1;
-            BootLogHex("boot: msc claim reset force port=", P, 2);
+            BootLogHex("Boot: MSC claim reset force port=", P, 2);
             if (!ResetPortEx(P, 1)) {
-                BootLogHex("boot: msc claim reset fail port=", P, 2);
+                BootLogHex("Boot: MSC claim reset fail port=", P, 2);
                 Ps = ReadMmio32(gOperationalBase + PortReg(P));
                 if (!((Ps & PORTSC_PED) && (Ps & PORTSC_CCS))) {
                     continue;
                 }
-                BootLogHex("boot: msc claim Force fail; try Address port=", P, 2);
+                BootLogHex("Boot: MSC claim Force fail; try Address port=", P, 2);
             } else if (!HalCpuIsHypervisor()) {
                 StallMs(100);
             }
         }
         Ps = ReadMmio32(gOperationalBase + PortReg(P));
         if (!(Ps & PORTSC_PED) || !(Ps & PORTSC_CCS)) {
-            BootLogHex("boot: msc claim not PED port=", P, 2);
+            BootLogHex("Boot: MSC claim not PED port=", P, 2);
             continue;
         }
 
@@ -790,12 +790,12 @@ int XhciMscClaimPorts(void) {
         if (!AddrOk && !Force) {
             if (gXhciCmdSick) {
                 gDiagQuiet = QuietSave;
-                BootLog("boot: msc claim abort (cmd sick after PED Address)\n");
+                BootLog("Boot: MSC claim abort (cmd sick after PED Address)\n");
                 RecoverCommandRing();
                 gXhciCmdSick = 0;
                 break;
             }
-            BootLogHex("boot: msc claim addr retry Force port=", P, 2);
+            BootLogHex("Boot: MSC claim addr retry Force port=", P, 2);
             if (ResetPortEx(P, 1)) {
                 if (!HalCpuIsHypervisor()) {
                     StallMs(100);
@@ -811,11 +811,11 @@ int XhciMscClaimPorts(void) {
         }
         gDiagQuiet = QuietSave;
         if (!AddrOk) {
-            BootLogHex("boot: msc claim addr fail port=", P, 2);
-            BootLogHex("boot: msc claim addr cc=", gCmdCode, 2);
+            BootLogHex("Boot: MSC claim addr fail port=", P, 2);
+            BootLogHex("Boot: MSC claim addr cc=", gCmdCode, 2);
             gPortNeedForcePr |= (1u << P);
             if (gXhciCmdSick) {
-                BootLog("boot: msc claim abort (cmd sick)\n");
+                BootLog("Boot: MSC claim abort (cmd sick)\n");
                 break;
             }
             continue;
@@ -830,7 +830,7 @@ int XhciMscClaimPorts(void) {
 
         gXferSlot = gMscScanSlot;
         if (GetDeviceDesc() < 0) {
-            BootLogHex("boot: msc claim desc fail port=", P, 2);
+            BootLogHex("Boot: MSC claim desc fail port=", P, 2);
             gPortNeedForcePr |= (1u << P);
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
@@ -858,7 +858,7 @@ int XhciMscClaimPorts(void) {
                     if (GetDesc(0x0200, 0, Total, gMscCfgBuf) == 0 &&
                         ConfigHasHubIface(gMscCfgBuf, Total)) {
                         Hubish = 1;
-                        BootLogHex("boot: msc claim hub iface root=", P, 2);
+                        BootLogHex("Boot: MSC claim hub iface root=", P, 2);
                     }
                 } else {
                     RecoverEp0(gMscScanSlot);
@@ -871,7 +871,7 @@ int XhciMscClaimPorts(void) {
                 UINT32 HubBefore = gHubSlotId;
 
                 gMscScanSlot = 0;
-                BootLogHex("boot: msc claim hub on root=", P, 2);
+                BootLogHex("Boot: MSC claim hub on root=", P, 2);
                 /*
                  * 已有 HID hub 时 ClaimHubOnRootPort 会 DisableSlot(Was)，
                  * 正是外接第二 hub（U 盘所在）→ none + 长时间 Stall 像卡死。
@@ -893,7 +893,7 @@ int XhciMscClaimPorts(void) {
                         DisableSlot(gHubSlotId);
                         gHubSlotId = 0;
                         gHubRootPort = 0;
-                        BootLog("boot: msc claim hub no msc, release\n");
+                        BootLog("Boot: MSC claim hub no msc, release\n");
                     }
                 } else if (Was != 0) {
                     DisableSlot(Was);
@@ -909,7 +909,7 @@ int XhciMscClaimPorts(void) {
         }
     }
 
-    BootLog("boot: msc claim none\n");
+    BootLog("Boot: MSC claim none\n");
 
 done:
     /*
@@ -917,7 +917,7 @@ done:
      * 此处再 Recover 清 sick，并 poll fallback（硬失败兜底；非 msc-claim 路径）。
      */
     if (gXhciCmdSick) {
-        BootLog("boot: msc claim recover after sick\n");
+        BootLog("Boot: MSC claim recover after sick\n");
         RecoverCommandRing();
         gXhciCmdSick = 0;
         XhciFallbackToPoll("cmd-sick");

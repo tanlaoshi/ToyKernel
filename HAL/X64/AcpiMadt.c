@@ -152,7 +152,7 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
     }
     Rsdp = (ACPI_RSDP *)(UINTN)RsdpPhys;
     if (!MemEq(Rsdp->Signature, "RSD PTR ", 8)) {
-        SmpLog("smp: bad RSDP signature\n");
+        SmpLog("Smp: Bad RSDP Signature\n");
         return -1;
     }
 
@@ -170,7 +170,7 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
         }
     }
     if (Madt == 0) {
-        SmpLog("smp: MADT not found\n");
+        SmpLog("Smp: MADT Not Found\n");
         return -1;
     }
 
@@ -202,7 +202,7 @@ int AcpiMadtParse(UINT64 RsdpPhys, UINT8 *ApicIds, int MaxCpus, int *OutCount,
     }
 
     if (Count == 0) {
-        SmpLog("smp: no enabled Local APICs\n");
+        SmpLog("Smp: No Enabled Local APICs\n");
         return -1;
     }
     if (OutBspApicId) {
@@ -529,7 +529,7 @@ static void PowerBootLine(const char *Text) {
 }
 
 static void PowerBootHex(const char *Prefix, UINT32 Value) {
-#if !TOY_DEBUG
+#if !TOY_KERNEL_DEBUG
     (void)Prefix;
     (void)Value;
     return;
@@ -669,7 +669,7 @@ static void ParseSlpTypFromFacp(UINT64 RsdpPhys, ACPI_SDT_HEADER *Facp, UINT8 *P
     if (Dsdt != 0 &&
         ParseSlpTypFromAml((const UINT8 *)(UINTN)Dsdt, Dsdt->Length, &Typ) == 0) {
         gSlpTypA = Typ;
-        PowerBootHex("boot: ACPI _S5_ typ=", gSlpTypA);
+        PowerBootHex("Boot: ACPI _S5_ Typ=", gSlpTypA);
         return;
     }
 
@@ -694,7 +694,7 @@ static void ParseSlpTypFromFacp(UINT64 RsdpPhys, ACPI_SDT_HEADER *Facp, UINT8 *P
                 }
                 if (ParseSlpTypFromAml((const UINT8 *)(UINTN)Tab, Tab->Length, &Typ) == 0) {
                     gSlpTypA = Typ;
-                    PowerBootHex("boot: ACPI _S5_ typ=", gSlpTypA);
+                    PowerBootHex("Boot: ACPI _S5_ Typ=", gSlpTypA);
                     return;
                 }
             }
@@ -757,11 +757,11 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
     gResetAccess = 1;
     Facp = FindFacp(RsdpPhys);
     if (!Facp || Facp->Length < 116) {
-        PowerBootLine("boot: ACPI no FACP\n");
+        PowerBootLine("Boot: ACPI No FACP\n");
         return -1;
     }
     if (MapPhys((UINT64)(UINTN)Facp, Facp->Length) != 0) {
-        PowerBootLine("boot: ACPI FACP map fail\n");
+        PowerBootLine("Boot: ACPI FACP Map Fail\n");
         return -1;
     }
     P = (UINT8 *)Facp;
@@ -812,13 +812,13 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
         Pm1bCnt = LegCntB;
     }
     if (Pm1aCnt == 0 || Pm1aCnt > 0xFFFFu || Pm1aEvt == 0 || Pm1aEvt > 0xFFFFu) {
-        PowerBootLine("boot: ACPI power ports missing\n");
+        PowerBootLine("Boot: ACPI Power Ports Missing\n");
         return -1;
     }
     /* 选出的口若全 1（未解码），改试 legacy */
     if (HalIoRead16((UINT16)Pm1aCnt) == 0xFFFFu && LegCnt != 0 && LegCnt <= 0xFFFFu &&
         LegCnt != Pm1aCnt) {
-        PowerBootLine("boot: ACPI X_GAS dead, use legacy\n");
+        PowerBootLine("Boot: ACPI X_GAS Dead, Use Legacy\n");
         Pm1aEvt = LegEvt;
         Pm1aCnt = LegCnt;
         Pm1bEvt = LegEvtB;
@@ -872,7 +872,7 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
         } else if (Space == 1 && Ra == 0xCF9ull) {
             /* 部分固件漏 RESET_REG_SUP，但 GAS 已填 CF9 */
             Want = 1;
-            PowerBootLine("boot: ACPI reset=cf9 (no flag)\n");
+            PowerBootLine("Boot: ACPI Reset=CF9 (No Flag)\n");
         }
         if (Want && (Space <= 2) && Ra != 0) {
             gResetSpace = Space;
@@ -882,22 +882,22 @@ int AcpiPowerInit(UINT64 RsdpPhys) {
             if (gResetAccess == 0) {
                 gResetAccess = 1;
             }
-            PowerBootHex("boot: ACPI reset space=", Space);
-            PowerBootHex("boot: ACPI reset addr=", (UINT32)Ra);
-            PowerBootHex("boot: ACPI reset val=", gResetValue);
+            PowerBootHex("Boot: ACPI Reset Space=", Space);
+            PowerBootHex("Boot: ACPI Reset Addr=", (UINT32)Ra);
+            PowerBootHex("Boot: ACPI Reset Val=", gResetValue);
         }
     }
 
-    PowerBootHex("boot: ACPI PM1 evt=", gPm1aEvt);
-    PowerBootHex("boot: ACPI PM1 cnt=", gPm1aCnt);
-    PowerBootHex("boot: ACPI PM1 en=", gPm1aEn);
-    PowerBootHex("boot: ACPI sci=", HalIoRead16(gPm1aCnt) & PM1_SCI_EN);
-    PowerBootHex("boot: ACPI enrd=", HalIoRead16(gPm1aEn) & PM1_PWRBTN_EN);
+    PowerBootHex("Boot: ACPI PM1 Evt=", gPm1aEvt);
+    PowerBootHex("Boot: ACPI PM1 Cnt=", gPm1aCnt);
+    PowerBootHex("Boot: ACPI PM1 En=", gPm1aEn);
+    PowerBootHex("Boot: ACPI SCI=", HalIoRead16(gPm1aCnt) & PM1_SCI_EN);
+    PowerBootHex("Boot: ACPI EnRd=", HalIoRead16(gPm1aEn) & PM1_PWRBTN_EN);
     if (Flags & FADT_FLAG_PWR_BUTTON) {
-        PowerBootLine("boot: ACPI pwrbtn=aml (still arm fixed)\n");
+        PowerBootLine("Boot: ACPI PwrBtn=AML (Still Arm Fixed)\n");
     } else {
-#if TOY_DEBUG
-        PowerBootLine("boot: ACPI pwrbtn=fixed\n");
+#if TOY_KERNEL_DEBUG
+        PowerBootLine("Boot: ACPI PwrBtn=Fixed\n");
 #endif
     }
 
@@ -944,7 +944,7 @@ void AcpiPowerOff(void) {
         Seen[7] = 1;
     }
 
-    PowerBootLine("boot: ACPI poweroff\n");
+    PowerBootLine("Boot: ACPI PowerOff\n");
     for (i = 0; i < N; i++) {
         Typ = Order[i];
         Pm1WriteSleep(gPm1aCnt, Typ);
@@ -991,7 +991,7 @@ void AcpiReset(void) {
     if (gResetAddr == 0) {
         return;
     }
-    PowerBootLine("boot: ACPI reset\n");
+    PowerBootLine("Boot: ACPI Reset\n");
     for (Pass = 0; Pass < 2; Pass++) {
         if (gResetSpace == 1) {
             /* SystemIO：CF9 用双写脉冲（与 Linux BOOT_CF9 一致） */
@@ -1024,7 +1024,7 @@ void AcpiCf9Reset(UINT8 Code) {
     if (Code == 0) {
         Code = 0x06;
     }
-    PowerBootLine("boot: CF9 reset\n");
+    PowerBootLine("Boot: CF9 Reset\n");
     Cf9Pulse(Code);
 }
 

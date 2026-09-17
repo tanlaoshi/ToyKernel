@@ -99,24 +99,24 @@ void HalVideoEnableFbWc(void) {
     Base = VideoFrameBufferBase();
     Size = VideoFrameBufferSize();
     if (Base == 0 || Size == 0) {
-        HalSerialBootMark("boot: fb-wc skip (no fb)\n");
+        HalSerialBootMark("Boot: FB-WC Skip (No FB)\n");
         return;
     }
 
     HalPatApplyWc();
     Flags = HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE | HAL_PAGE_PWT;
     if (VirtualMemoryMapRange(Base, Base, (UINTN)Size, Flags) != 0) {
-        HalSerialBootMark("boot: fb-wc map fail (keep WB)\n");
+        HalSerialBootMark("Boot: FB-WC Map Fail (Keep WB)\n");
         return;
     }
     gFbWcMapped = 1;
     if (!HalCpuIsHypervisor()) {
-        HalSerialBootMark("boot: fb-wc ok (PAT PA1, LFB PWT)\n");
+        HalSerialBootMark("Boot: FB-WC OK (PAT PA1, LFB PWT)\n");
     }
 }
 
 /*
- * 填一行无 '\\n'：boot: fb-pte phys=… PWT= PCD= PAT= [2M] cache=…
+ * 填一行无 '\\n'：Boot: FB-PTE phys=… PWT= PCD= PAT= [2M] cache=…
  * PHOTO 直绘用，避免只靠 ring 尾（USB 日志易挤掉）。
  */
 int HalVideoFbPteLine(char *Buf, UINTN Max) {
@@ -140,7 +140,7 @@ int HalVideoFbPteLine(char *Buf, UINTN Max) {
         return 0;
     }
     Leaf = FbLeafEntry(Phys, &Huge);
-    P = "boot: fb-pte phys=";
+    P = "Boot: FB-PTE Phys=";
     while (*P && N + 1 < Max) {
         Buf[N++] = *P++;
     }

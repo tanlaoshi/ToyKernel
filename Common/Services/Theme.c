@@ -649,13 +649,13 @@ int ThemeLoad(void) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
         }
-        HalConsoleWriteSerial("theme: loaded THEME.CFG\n");
+        HalConsoleWriteSerial("Theme: Loaded THEME.CFG\n");
     } else {
         ModeFromCfg = (ThemeOverlayModeFromCfg() == 0);
         if (ModeFromCfg) {
-            HalConsoleWriteSerial("theme: loaded TOYOS.DB (mode from THEME.CFG)\n");
+            HalConsoleWriteSerial("Theme: Loaded TOYOS.DB (mode from THEME.CFG)\n");
         } else {
-            HalConsoleWriteSerial("theme: loaded TOYOS.DB\n");
+            HalConsoleWriteSerial("Theme: Loaded TOYOS.DB\n");
         }
     }
     (void)FontSetById(gFontId);
@@ -668,7 +668,7 @@ int ThemeLoad(void) {
         (void)FontSetById(gFontId);
     }
     gUiScale = NormalizeUiScale(gUiScale);
-    DebugWrite("theme: desktop=");
+    DebugWrite("Theme: desktop=");
     DebugHex32(gDesktopBg);
     DebugWrite(" shell=");
     DebugHex32(gShellClientBg);
@@ -704,7 +704,7 @@ int ThemeSave(void) {
     static int sBusy;
 
     if (sBusy) {
-        HalConsoleWriteSerial("theme: save reenter skipped\n");
+        HalConsoleWriteSerial("Theme: save reenter skipped\n");
         return -1;
     }
     sBusy = 1;
@@ -821,14 +821,14 @@ int ThemeSave(void) {
             }
         }
         if (Same) {
-            HalConsoleWriteSerial("theme: already saved (skip)\n");
+            HalConsoleWriteSerial("Theme: already saved (skip)\n");
             sBusy = 0;
             return 0;
         }
     }
 
     if (FileSystemWriteFile(THEME_CFG_PATH, Buf, N) != FAT_OK) {
-        HalConsoleWriteSerial("theme: save THEME.CFG failed\n");
+        HalConsoleWriteSerial("Theme: save THEME.CFG failed\n");
         sBusy = 0;
         return -1;
     }
@@ -874,9 +874,9 @@ int ThemeSave(void) {
     }
 
     if (!DbOk) {
-        HalConsoleWriteSerial("theme: saved THEME.CFG (DB write failed)\n");
+        HalConsoleWriteSerial("Theme: saved THEME.CFG (DB write failed)\n");
     } else {
-        HalConsoleWriteSerial("theme: saved THEME.CFG + TOYOS.DB\n");
+        HalConsoleWriteSerial("Theme: saved THEME.CFG + TOYOS.DB\n");
     }
     sBusy = 0;
     return 0;

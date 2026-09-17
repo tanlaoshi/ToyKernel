@@ -98,7 +98,7 @@ int UsbMscAutoBeforeFs(void) {
 
     Claim = UsbMscClaim();
     if (Claim < 0) {
-        ToyLogBoot("boot: msc auto no hc\n");
+        ToyLogBoot("Boot: MSC Auto No HC\n");
         return -1;
     }
     if (Claim == 0) {
@@ -107,9 +107,9 @@ int UsbMscAutoBeforeFs(void) {
 
     Rc = UsbMscMount();
     if (Rc != 0) {
-        ToyLogBoot("boot: msc auto mux fail\n");
+        ToyLogBoot("Boot: MSC Auto Mux Fail\n");
         return Rc;
     }
-    ToyLogBoot("boot: msc auto mux ok\n");
+    ToyLogBoot("Boot: MSC Auto Mux OK\n");
     return 0;
 }

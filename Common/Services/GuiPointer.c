@@ -74,7 +74,7 @@ void GuiOnDisplayResize(void) {
      * 其它窗用户区空白。Compose 不受 lock 影响（lock 只挡点击）。
      */
     GuiComposeThemeScene();
-    DebugWrite("gui: display resize ");
+    DebugWrite("Gui: display resize ");
     DebugHex32(gScreenWidth);
     DebugWrite("x");
     DebugHex32(gScreenHeight);
@@ -114,8 +114,8 @@ void GuiOnArrowKey(UINT8 Key) {
 
 /* PR-I3：右键占位 — 串口记一笔；不弹菜单（菜单另刀） */
 void GuiRightClickPlaceholder(UINT32 X, UINT32 Y) {
-    ToyLogGui("gui: right-click\n");
-    DebugWrite("gui: right-click x=");
+    ToyLogGui("Gui: right-click\n");
+    DebugWrite("Gui: right-click x=");
     DebugHex32(X);
     DebugWrite(" y=");
     DebugHex32(Y);
@@ -174,7 +174,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         RaiseWindow(i);
         SyncWindowVisuals();
         GuiFocusApply();
-        DebugWrite("gui: focus ");
+        DebugWrite("Gui: focus ");
         DebugWrite(gWindows[gFocusWin].Title);
         DebugWrite("\n");
 

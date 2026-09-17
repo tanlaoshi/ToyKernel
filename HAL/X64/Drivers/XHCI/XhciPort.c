@@ -63,8 +63,8 @@ void PowerConnectedPorts(void) {
         return;
     }
 
-    BootLog("boot: xhci CCS=0, PP all\n");
-    BootLogHex("boot: xhci maxports=", gMaxPorts, 2);
+    BootLog("Boot: XHCI CCS=0, PP all\n");
+    BootLogHex("Boot: XHCI maxports=", gMaxPorts, 2);
     for (p = 1; p <= gMaxPorts && p <= 32; p++) {
         UINT64 Ps = gOperationalBase + PortReg(p);
         UINT32 Val = ReadMmio32(Ps);
@@ -96,7 +96,7 @@ void PowerConnectedPorts(void) {
             }
         }
         if (Surveyed > 0) {
-            BootLogHex("boot: xhci CCS after wait=", Surveyed, 2);
+            BootLogHex("Boot: XHCI CCS after wait=", Surveyed, 2);
             return;
         }
     }
@@ -110,7 +110,7 @@ void PowerConnectedPorts(void) {
         UINT32 Val = ReadMmio32(gOperationalBase + PortReg(p));
         char Pref[32];
         int n = 0;
-        const char *S = "boot: xhci PORTSC";
+        const char *S = "Boot: XHCI PORTSC";
         while (*S && n < 24) {
             Pref[n++] = *S++;
         }
@@ -154,7 +154,7 @@ int ResetPortEx(UINT32 Port1, int Force) {
         return 1;
     }
     if (RealPc && Force && (Val & PORTSC_PED) && (Val & PORTSC_CCS)) {
-        BootLogHexV("boot: xhci port PR force=", Port1, 2);
+        BootLogHexV("Boot: XHCI port PR force=", Port1, 2);
     }
 
     /* 端口上电（勿在已连接时清 PED） */
@@ -164,7 +164,7 @@ int ResetPortEx(UINT32 Port1, int Force) {
         Val = ReadMmio32(Ps);
         DiagChk("ResetPort.PP", Ok && (Val & PORTSC_PP), "PP=1", Val, 8);
         if (!Ok) {
-            EnumWhy("boot: why=PP timeout\n");
+            EnumWhy("Boot: Why=PP timeout\n");
             return 0;
         }
     }
@@ -225,7 +225,7 @@ int ResetPortEx(UINT32 Port1, int Force) {
         Val = ReadMmio32(Ps);
         DiagChk("ResetPort.PRC", Ok, "PRC|WRC", Val, 8);
         if (!Ok) {
-            EnumWhy("boot: why=reset timeout\n");
+            EnumWhy("Boot: Why=reset timeout\n");
             return 0;
         }
         if (!(Val & PORTSC_PED)) {
@@ -236,9 +236,9 @@ int ResetPortEx(UINT32 Port1, int Force) {
                 "PED+CCS", Val, 8);
         if (!(Val & PORTSC_PED) || !(Val & PORTSC_CCS)) {
             if (!(Val & PORTSC_CCS)) {
-                EnumWhy("boot: why=lost CCS\n");
+                EnumWhy("Boot: Why=lost CCS\n");
             } else {
-                EnumWhy("boot: why=not PED\n");
+                EnumWhy("Boot: Why=not PED\n");
             }
             return 0;
         }

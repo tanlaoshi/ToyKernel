@@ -90,7 +90,7 @@ void StartupMain(UINT64 DtbPhys) {
     }
 
     if (FromDtb) {
-        HalSerialWrite("boot: DTB @");
+        HalSerialWrite("Boot: DTB @");
         HexU64(UsedDtb);
         HalSerialWrite(" memory base=");
         HexU64(RamBase);
@@ -98,7 +98,7 @@ void StartupMain(UINT64 DtbPhys) {
         HexU64(RamSize);
         HalSerialWrite("\n");
     } else {
-        HalSerialWrite("boot: DTB memory missing, fallback 256MiB @0x40000000\n");
+        HalSerialWrite("Boot: DTB Memory Missing, Fallback 256MiB @0x40000000\n");
         RamBase = KernelStart;
         RamSize = 256ULL * 1024ULL * 1024ULL;
     }

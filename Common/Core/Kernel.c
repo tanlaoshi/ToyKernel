@@ -15,6 +15,9 @@ void KernelMain(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
 
+    /* 防御：非 UEFI 入口路径也保证串口已 Initialize（幂等） */
+    HalSerialInitialize();
+
     /* 尽早挂上帧缓冲，避免 mem 等模块 ConsoleWrite 时 Width=0 死循环 */
     HalVideoSet(&V);
     /* H0：进核即改像素（在开分页 / 驱动 Probe 之前），真机卡死时可区分 Boot vs Kernel */
@@ -23,11 +26,11 @@ void KernelMain(void) {
         HalVideoClearScreen(0x00000000u); /* 与 on-screen boot log 同底，勿蓝/灰分段 */
         HalVideoPresent();
         HalSerialGopEnable();
-        ToyLogBoot("boot: KernelMain live\n");
+        ToyLogBoot("Boot: KernelMain Live\n");
         {
             char Line[48];
             int n = 0;
-            const char *P = "boot: fb ";
+            const char *P = "Boot: FB ";
             UINT32 W = Info->HorizontalResolution;
             UINT32 H = Info->VerticalResolution;
             while (*P && n < 16) {

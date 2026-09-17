@@ -48,7 +48,7 @@ int FinishHubSetup(UINT8 *OutNumPorts) {
         *OutNumPorts = Nports;
     }
     gHubNumPorts = Nports;
-    BootLogV("boot: xhci hub ports ok\n");
+    BootLogV("Boot: XHCI hub ports ok\n");
     return 1;
 }
 
@@ -111,7 +111,7 @@ int TryConfigureKeyboardSlot(UINT8 Speed) {
     }
     HaveIntr = ParseConfig(gCtrlBuf, Total, Speed, &gKbdIface, &EpAddr, &Mps, &Interval);
     if (!HaveIntr) {
-        EnumWhy("boot: why=no hid ep\n");
+        EnumWhy("Boot: Why=no hid ep\n");
         return 0;
     }
     if (RealPcRejectMouseExtraAsKeyboard(Total, Speed)) {
@@ -145,8 +145,8 @@ int TryConfigureKeyboardSlot(UINT8 Speed) {
             }
             ZeroMemory(gReportBuf, 8);
             QueueIntr();
-            BootLog("boot: xhci kbd-only then bind mouse ports\n");
-            BootLog("boot: xhci kbd-fix=v8\n");
+            BootLog("Boot: XHCI kbd-only then bind mouse ports\n");
+            BootLog("Boot: XHCI kbd-fix=v8\n");
         } else if (WantMouse) {
             (void)SetInterface(gKbdIface, 0);
             (void)SetProtocolBoot(gKbdIface);
@@ -157,7 +157,7 @@ int TryConfigureKeyboardSlot(UINT8 Speed) {
             ZeroMemory(gReportBuf, 8);
             QueueIntr();
             QueueMouseIntr();
-            BootLog("boot: xhci-hid mouse (composite)\n");
+            BootLog("Boot: XHCI-HID Mouse (Composite)\n");
         } else {
             if (!ConfigureIntr(EpAddr, Mps, Interval, Speed, 0, 0, 0)) {
                 return 0;
@@ -224,7 +224,7 @@ int EnumHubChildrenForKeyboard(void) {
         if (!(St & HUB_PORT_CONNECTION)) {
             continue;
         }
-        BootLog("boot: xhci hub port connect\n");
+        BootLog("Boot: XHCI hub port connect\n");
         if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
             continue;
         }
@@ -278,7 +278,7 @@ int EnumHubChildrenForKeyboard(void) {
             DisableSlot(gSlotId);
             continue;
         }
-        BootLog("boot: xhci-hid via hub\n");
+        BootLog("Boot: XHCI-HID Via Hub\n");
         return 1;
     }
     return 0;
@@ -313,7 +313,7 @@ int EnumHubChildrenForMouse(void) {
         if (!(St & HUB_PORT_CONNECTION)) {
             continue;
         }
-        BootLogV("boot: xhci hub mouse port\n");
+        BootLogV("Boot: XHCI hub mouse port\n");
         /* 跳过已占用为键盘的子口（同 route） */
         if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
             continue;
@@ -352,7 +352,7 @@ int EnumHubChildrenForMouse(void) {
             }
         }
         if (!(St & HUB_PORT_ENABLE)) {
-            BootLogV("boot: xhci hub mouse not PED\n");
+            BootLogV("Boot: XHCI hub mouse not PED\n");
             continue;
         }
         Speed = HubPortSpeed(St);
@@ -393,21 +393,21 @@ int EnumHubChildrenForMouse(void) {
              * 误绑 → arms mouse=xx 但 PHOTO m=0；真鼠多在其它根口。
              */
             if (!HalCpuIsHypervisor() && gMouseParseScore < 2) {
-                BootLogHexV("boot: xhci hub skip weak mouse score=", gMouseParseScore, 2);
+                BootLogHexV("Boot: XHCI hub skip weak mouse score=", gMouseParseScore, 2);
                 DisableSlot(gMouseSlotId);
                 gMouseSlotId = 0;
                 continue;
             }
             gMousePort = gHubRootPort;
             gMouseIface = Iface;
-            BootLogHex("boot: xhci mouse hub ep=", EpAddr, 2);
-            BootLogHex("boot: xhci mouse hub mps=", Mps, 2);
-            BootLogHex("boot: xhci mouse hub iv=", Interval, 2);
-            BootLogHex("boot: xhci mouse hub spd=", Speed, 1);
-            BootLogHex("boot: xhci mouse hub score=", gMouseParseScore, 1);
-            BootLogHex("boot: xhci mouse hub tt=",
+            BootLogHex("Boot: XHCI mouse hub ep=", EpAddr, 2);
+            BootLogHex("Boot: XHCI mouse hub mps=", Mps, 2);
+            BootLogHex("Boot: XHCI mouse hub iv=", Interval, 2);
+            BootLogHex("Boot: XHCI mouse hub spd=", Speed, 1);
+            BootLogHex("Boot: XHCI mouse hub score=", gMouseParseScore, 1);
+            BootLogHex("Boot: XHCI mouse hub tt=",
                        ((UINT32)gMouseHubSlot << 8) | gMouseTtPort, 4);
-            BootLogHex("boot: xhci mouse hub route=", gMouseRoute, 2);
+            BootLogHex("Boot: XHCI mouse hub route=", gMouseRoute, 2);
             if (!ConfigureMouseIntr(gMouseSlotId, EpAddr, Mps, Interval, Speed)) {
                 DisableSlot(gMouseSlotId);
                 gMouseSlotId = 0;
@@ -416,11 +416,11 @@ int EnumHubChildrenForMouse(void) {
             {
                 UINT32 *EpOut = (UINT32 *)(void *)(gMouseDevCtx + gCtxSize * gMouseIntrDci);
                 FlushDma(EpOut, gCtxSize);
-                BootLogHex("boot: xhci mouse epst=", EpOut[0] & 7u, 1);
+                BootLogHex("Boot: XHCI mouse epst=", EpOut[0] & 7u, 1);
             }
             ZeroMemory(gMouseBuf, sizeof(gMouseBuf));
             QueueMouseIntr();
-            BootLog("boot: xhci-hid mouse via hub\n");
+            BootLog("Boot: XHCI-HID Mouse Via Hub\n");
             return 1;
         }
     }
@@ -441,9 +441,9 @@ int EnumHubChildrenForMsc(void) {
     if (MaxP == 0 || MaxP > 15) {
         MaxP = 8;
     }
-    BootLog("boot: msc claim hub children\n");
-    BootLogHex("boot: msc claim hub slot=", gHubSlotId, 2);
-    BootLogHex("boot: msc claim hub nports=", MaxP, 2);
+    BootLog("Boot: MSC claim hub children\n");
+    BootLogHex("Boot: MSC claim hub slot=", gHubSlotId, 2);
+    BootLogHex("Boot: MSC claim hub nports=", MaxP, 2);
     for (Port = 1; Port <= MaxP; Port++) {
         UINT32 St = 0;
         UINT8 Speed;
@@ -459,23 +459,23 @@ int EnumHubChildrenForMsc(void) {
             }
         }
         if (HubGetPortStatus(Port, &St) < 0) {
-            BootLogHex("boot: msc claim hub status fail port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub status fail port=", Port, 2);
             continue;
         }
         if (!(St & HUB_PORT_CONNECTION)) {
-            BootLogHex("boot: msc claim hub empty port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub empty port=", Port, 2);
             continue;
         }
         if ((gKbdRoute & 0xF) == (UINT32)Port && gSlotId != 0) {
-            BootLogHex("boot: msc claim hub skip kbd port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub skip kbd port=", Port, 2);
             continue;
         }
         if ((gMouseRoute & 0xF) == (UINT32)Port && gMouseSlotId != 0) {
-            BootLogHex("boot: msc claim hub skip mouse port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub skip mouse port=", Port, 2);
             continue;
         }
-        BootLogHex("boot: msc claim hub port=", Port, 2);
-        BootLogHex("boot: msc claim hub st=", St, 4);
+        BootLogHex("Boot: MSC claim hub port=", Port, 2);
+        BootLogHex("Boot: MSC claim hub st=", St, 4);
         if (HubSetPortFeat(Port, HUB_FEAT_PORT_RESET) < 0) {
             continue;
         }
@@ -506,7 +506,7 @@ int EnumHubChildrenForMsc(void) {
             }
         }
         if (!(St & HUB_PORT_ENABLE)) {
-            BootLogHex("boot: msc claim hub not en port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub not en port=", Port, 2);
             continue;
         }
         Speed = HubPortSpeed(St);
@@ -523,14 +523,14 @@ int EnumHubChildrenForMsc(void) {
                 DisableSlot(gMscScanSlot);
                 gMscScanSlot = 0;
             }
-            BootLogHex("boot: msc claim hub addr fail port=", Port, 2);
+            BootLogHex("Boot: MSC claim hub addr fail port=", Port, 2);
             continue;
         }
         if (gMscScanSlot <= DCBAA_SLOTS) {
             gSlotEp0UsesKbdRing[gMscScanSlot] = 0;
         }
         if (XhciMscFinishClaim(gHubRootPort, Speed)) {
-            BootLog("boot: msc claim via hub\n");
+            BootLog("Boot: MSC claim via hub\n");
             return 1;
         }
     }
@@ -556,8 +556,8 @@ int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed) {
         return EnumHubChildrenForMsc();
     }
 
-    BootLogHex("boot: msc claim 2nd hub slot=", HubSlot, 2);
-    BootLogHex("boot: msc claim 2nd hub root=", RootPort, 2);
+    BootLogHex("Boot: MSC claim 2nd hub slot=", HubSlot, 2);
+    BootLogHex("Boot: MSC claim 2nd hub root=", RootPort, 2);
 
     /* Ep0 走 msc 环，勿 InitRing(gHubEp0) 毁掉 HID hub dequeue */
     gMscProbeHubSlot = HubSlot;
@@ -570,7 +570,7 @@ int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed) {
     HubNoteMttFromDevDesc(Speed);
 
     if (!FinishHubSetup(&Nports)) {
-        BootLog("boot: msc claim 2nd hub cfg fail\n");
+        BootLog("Boot: MSC claim 2nd hub cfg fail\n");
         DisableSlot(HubSlot);
         gMscProbeHubSlot = 0;
         gHubSlotId = SavedSlot;
@@ -582,14 +582,14 @@ int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed) {
         return 0;
     }
     if (Usb2Hub && !EvaluateHubSlot(HubSlot, RootPort, Speed, Nports)) {
-        BootLog("boot: msc claim 2nd hub eval skip\n");
+        BootLog("Boot: MSC claim 2nd hub eval skip\n");
     }
 
     Ok = EnumHubChildrenForMsc();
     gMscProbeHubSlot = 0;
 
     if (Ok) {
-        BootLog("boot: msc claim 2nd hub keep parent\n");
+        BootLog("Boot: MSC claim 2nd hub keep parent\n");
         if (SavedSlot != 0) {
             gHubSlotId = SavedSlot;
             gHubRootPort = SavedRoot;
@@ -601,7 +601,7 @@ int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed) {
         return 1;
     }
 
-    BootLog("boot: msc claim 2nd hub no msc\n");
+    BootLog("Boot: MSC claim 2nd hub no msc\n");
     DisableSlot(HubSlot);
     gHubSlotId = SavedSlot;
     gHubRootPort = SavedRoot;
@@ -631,7 +631,7 @@ int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
         }
         return 1;
     }
-    BootLogV("boot: xhci claim hub\n");
+    BootLogV("Boot: XHCI claim hub\n");
     gHubRootPort = RootPort;
     gHubSpeed = Speed;
     /* Device Desc 多已在 gCtrlBuf；没有则补读再判 MTT */
@@ -645,7 +645,7 @@ int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
     HubNoteMttFromDevDesc(Speed);
 
     if (ExistingSlot != 0) {
-        BootLogV("boot: xhci hub adopt slot\n");
+        BootLogV("Boot: XHCI hub adopt slot\n");
         gHubSlotId = ExistingSlot;
         gXferSlot = ExistingSlot;
         gEp0Mps = SpeedMps(Speed);
@@ -654,17 +654,17 @@ int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
         if (!FinishHubSetup(&Nports)) {
             DisableSlot(gHubSlotId);
             gHubSlotId = 0;
-            EnumWhy("boot: why=hub cfg\n");
+            EnumWhy("Boot: Why=hub cfg\n");
             return 0;
         }
         if (Usb2Hub && !EvaluateHubSlot(gHubSlotId, RootPort, Speed, Nports)) {
             DisableSlot(gHubSlotId);
             gHubSlotId = 0;
-            EnumWhy("boot: why=hub eval\n");
+            EnumWhy("Boot: Why=hub eval\n");
             return 0;
         }
-        BootLogHex("boot: xhci hub spd=", Speed, 1);
-        BootLog("boot: xhci ep0=split\n");
+        BootLogHex("Boot: XHCI hub spd=", Speed, 1);
+        BootLog("Boot: XHCI ep0=split\n");
         return 1;
     }
 
@@ -672,7 +672,7 @@ int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
     if (!AddressDeviceOnPort(RootPort, Speed, &gHubSlotId, gHubDevCtx,
                              0, 0, 0, Usb2Hub ? 1 : 0, Usb2Hub ? 4 : 0)) {
         gHubSlotId = 0;
-        EnumWhy("boot: why=hub addr\n");
+        EnumWhy("Boot: Why=hub addr\n");
         return 0;
     }
     /* Address 后才有 Device Desc → 再定 MTT，随后 Evaluate 写入 */
@@ -685,14 +685,14 @@ int ClaimHubOnRootPort(UINT32 RootPort, UINT8 Speed, UINT32 ExistingSlot) {
         return 0;
     }
     if (Usb2Hub && !EvaluateHubSlot(gHubSlotId, RootPort, Speed, Nports)) {
-        BootLog("boot: xhci hub eval skip\n");
+        BootLog("Boot: XHCI hub eval skip\n");
     }
     return 1;
 }
 
 /* 根口已 Address：device class=9 或配置含 hub iface → 枚举子口找键盘 */
 int TryHubOnRootPort(UINT32 RootPort, UINT8 Speed) {
-    BootLog("boot: xhci hub on root\n");
+    BootLog("Boot: XHCI hub on root\n");
     /* 重新 Address 为 Hub 设备（带 Hub 位）；此时 gSlotId 是误 Address 的非 hub */
     DisableSlot(gSlotId);
     gSlotId = 0;

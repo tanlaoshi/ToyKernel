@@ -211,17 +211,17 @@ int XhciInit(UINT64 BaseAddress) {
 
     if (gXhciStarted) {
         if (XhciHidKeyboardReady() || XhciMousePresent()) {
-            ToyLogUsb("boot: xhci init skipped (already up)\n");
+            ToyLogUsb("Boot: XHCI init skipped (already up)\n");
             return 1;
         }
         /* 控制器曾起但无 HID：勿假成功，否则 Probe/fallback 会挡住 PS/2 */
-        ToyLogUsb("boot: xhci already up, no HID\n");
+        ToyLogUsb("Boot: XHCI already up, no HID\n");
         return 0;
     }
 
     /* 运行时误调 / 损坏指针：QEMU 曾见 BAR=0x193A50 → Cap=0 后异常 */
     if (BaseAddress < 0x100000ULL || (BaseAddress & 0xFULL) != 0) {
-        ToyLogUsb("boot: xhci reject BAR\n");
+        ToyLogUsb("Boot: XHCI reject BAR\n");
         return 0;
     }
 
@@ -229,7 +229,7 @@ int XhciInit(UINT64 BaseAddress) {
         BootLog("xhci diag: VERBOSE\n");
     }
     /* 刷机核对：没有这行 = NUC 仍在跑旧 Kernel.elf */
-    BootLogV("boot: xhci build=kbd-v8\n");
+    BootLogV("Boot: XHCI build=kbd-v8\n");
     gCtrlFailLogged = 0;
 
     /*
@@ -238,7 +238,7 @@ int XhciInit(UINT64 BaseAddress) {
      */
     if (RealPc) {
         HalSerialGopMute(1);
-        ToyBootMarkUsb("boot: xhci-Hhid enter\n");
+        ToyBootMarkUsb("Boot: XHCI-HHID Enter\n");
         gXhciDmar = -2;
         gXhciTe = -2;
         {
@@ -246,30 +246,30 @@ int XhciInit(UINT64 BaseAddress) {
             int Dmar;
             int Te;
             if (Rsdp == 0) {
-                ToyBootMarkUsb("boot: xhci RSDP=0\n");
+                ToyBootMarkUsb("Boot: XHCI RSDP=0\n");
             } else {
-                BootMarkV("boot: xhci RSDP ok\n");
+                BootMarkV("Boot: XHCI RSDP ok\n");
                 Dmar = AcpiTablePresent(Rsdp, "DMAR");
                 gXhciDmar = Dmar;
                 if (Dmar > 0) {
-                    BootMarkV("boot: xhci DMAR=yes\n");
-                    BootMarkV("boot: xhci TE off...\n");
+                    BootMarkV("Boot: XHCI DMAR=yes\n");
+                    BootMarkV("Boot: XHCI TE off...\n");
                     Te = AcpiDmarDisableTranslation(Rsdp);
                     gXhciTe = Te;
                     if (Te == 2) {
-                        BootMarkV("boot: xhci TE was ON->off\n");
+                        BootMarkV("Boot: XHCI TE was ON->off\n");
                     } else if (Te == 1) {
-                        BootMarkV("boot: xhci TE already off\n");
+                        BootMarkV("Boot: XHCI TE already off\n");
                     } else if (Te == 0) {
-                        BootMarkV("boot: xhci TE no DRHD\n");
+                        BootMarkV("Boot: XHCI TE no DRHD\n");
                     } else {
-                        ToyBootMarkUsb("boot: xhci TE off fail\n");
+                        ToyBootMarkUsb("Boot: XHCI TE off fail\n");
                     }
                 } else if (Dmar == 0) {
-                    BootMarkV("boot: xhci DMAR=no\n");
+                    BootMarkV("Boot: XHCI DMAR=no\n");
                     gXhciTe = -2;
                 } else {
-                    ToyBootMarkUsb("boot: xhci DMAR=bad\n");
+                    ToyBootMarkUsb("Boot: XHCI DMAR=bad\n");
                 }
             }
         }
@@ -277,10 +277,10 @@ int XhciInit(UINT64 BaseAddress) {
 
     if (BaseAddress == 0) {
         if (RealPc) {
-            ToyBootMarkUsb("boot: xhci null BAR\n");
+            ToyBootMarkUsb("Boot: XHCI null BAR\n");
             HalSerialGopMute(0);
         } else {
-            ToyLogUsb("boot: xhci null BAR\n");
+            ToyLogUsb("Boot: XHCI null BAR\n");
         }
         return 0;
     }
@@ -292,10 +292,10 @@ int XhciInit(UINT64 BaseAddress) {
             "CAP!=F.. len>=20", Cap, 8);
     if (Cap == 0xFFFFFFFFu || CapLength < 0x20 || CapLength == 0xFF) {
         if (RealPc) {
-            ToyBootMarkUsb("boot: xhci bad CAP\n");
+            ToyBootMarkUsb("Boot: XHCI bad CAP\n");
             HalSerialGopMute(0);
         } else {
-            ToyLogUsb("boot: xhci bad CAP=");
+            ToyLogUsb("Boot: XHCI bad CAP=");
             HalSerialFormatHex(B, Cap, 8);
             ToyLogUsb(B);
             ToyLogUsb("\n");
@@ -327,7 +327,7 @@ int XhciInit(UINT64 BaseAddress) {
         gFwErdpSave = ReadMmio64(gRuntimeBase + 0x38);
         if (gFwErstbaSave != 0) {
             if (MapXhciDma(gFwErstbaSave, 0x1000) != 0) {
-                ToyBootMarkUsb("boot: xhci map ERST fail\n");
+                ToyBootMarkUsb("Boot: XHCI map ERST fail\n");
             } else {
                 Erst = (UINT8 *)(UINTN)gFwErstbaSave;
                 gFwEvtSave = *(UINT64 *)(void *)Erst;
@@ -335,9 +335,9 @@ int XhciInit(UINT64 BaseAddress) {
             }
         }
         if (gFwCrcrSave == 0 || gFwErstbaSave == 0) {
-            BootMarkV("boot: xhci snap ring=0\n");
+            BootMarkV("Boot: XHCI snap ring=0\n");
         } else {
-            BootMarkV("boot: xhci snap rings ok\n");
+            BootMarkV("Boot: XHCI snap rings ok\n");
         }
     }
 
@@ -356,7 +356,7 @@ int XhciInit(UINT64 BaseAddress) {
         if (RealPc) {
             char Msg[40];
             int n = 0;
-            const char *P = "boot: xhci ports=";
+            const char *P = "Boot: XHCI ports=";
             while (*P && n < 28) {
                 Msg[n++] = *P++;
             }
@@ -366,7 +366,7 @@ int XhciInit(UINT64 BaseAddress) {
             Msg[n] = 0;
             ToyBootMarkUsb(Msg);
         } else {
-            ToyLogUsb("boot: xhci ports=");
+            ToyLogUsb("Boot: XHCI ports=");
             ToyLogUsb(B);
             ToyLogUsb("\n");
         }
@@ -376,22 +376,22 @@ int XhciInit(UINT64 BaseAddress) {
      * PR-H-hub：真机不再 B14 裸 RS 后 return；HaltOnly（避免 HCRST）→ Start → 枚举。
      * 失败则 unmute，让 PS/2 有机会 Probe。
      */
-    BootLogV("boot: xhci take legacy...\n");
+    BootLogV("Boot: XHCI take legacy...\n");
     TakeLegacy();
-    BootLogV("boot: xhci after legacy\n");
+    BootLogV("Boot: XHCI after legacy\n");
 
     if (RealPc) {
-        BootMarkV("boot: xhci-Hhid halt\n");
+        BootMarkV("Boot: XHCI-HHID Halt\n");
         if (!HaltOnly()) {
-            ToyBootMarkUsb("boot: xhci halt fail\n");
+            ToyBootMarkUsb("Boot: XHCI halt fail\n");
             HalSerialGopMute(0);
-            ToyLogUsb("boot: xhci halt fail, desktop\n");
+            ToyLogUsb("Boot: XHCI halt fail, desktop\n");
             return 0;
         }
         if (!StartController(MaxSlots)) {
-            ToyBootMarkUsb("boot: xhci start fail\n");
+            ToyBootMarkUsb("Boot: XHCI start fail\n");
             HalSerialGopMute(0);
-            ToyLogUsb("boot: xhci start fail, desktop\n");
+            ToyLogUsb("Boot: XHCI start fail, desktop\n");
             HaltControllerQuiet();
             return 0;
         }
@@ -400,7 +400,7 @@ int XhciInit(UINT64 BaseAddress) {
             return 0;
         }
     }
-    BootLogV("boot: xhci controller running\n");
+    BootLogV("Boot: XHCI controller running\n");
     DebugWrite("XHCI: controller running\n");
     PowerConnectedPorts();
 
@@ -418,9 +418,9 @@ int XhciInit(UINT64 BaseAddress) {
             }
         }
         {
-            BootLogHex("boot: xhci CCS ports=", Surveyed, 2);
+            BootLogHex("Boot: XHCI CCS ports=", Surveyed, 2);
             if (Surveyed == 0) {
-                EnumWhy("boot: why=no CCS\n");
+                EnumWhy("Boot: Why=no CCS\n");
             }
         }
     }
@@ -439,7 +439,7 @@ int XhciInit(UINT64 BaseAddress) {
         int PassMax = 3;
         for (int Wait = 0; Wait < PassMax && Port1 == 0; Wait++) {
             if (DiagVerbose()) {
-                ToyLogUsb("boot: xhci enum pass=");
+                ToyLogUsb("Boot: XHCI enum pass=");
                 {
                     char B[12];
                     HalSerialFormatHex(B, (UINT64)(UINT32)(Wait + 1), 2);
@@ -452,7 +452,7 @@ int XhciInit(UINT64 BaseAddress) {
                 if (!(Ps & PORTSC_CCS)) {
                     continue;
                 }
-                BootLogHexV("boot: xhci try port=", p, 2);
+                BootLogHexV("Boot: XHCI try port=", p, 2);
                 if (!ResetPort(p)) {
                     continue;
                 }
@@ -461,35 +461,35 @@ int XhciInit(UINT64 BaseAddress) {
                 gPort1 = p;
                 gSpeed = Speed;
 
-                BootMarkV("boot: xhci address...\n");
+                BootMarkV("Boot: XHCI address...\n");
                 if (!AddressDevice(p, Speed)) {
-                    ToyBootMarkUsb("boot: xhci addr fail\n");
+                    ToyBootMarkUsb("Boot: XHCI addr fail\n");
                     gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
                 }
-                BootMarkV("boot: xhci address ok\n");
+                BootMarkV("Boot: XHCI address ok\n");
 
-                BootMarkV("boot: xhci get desc\n");
+                BootMarkV("Boot: XHCI get desc\n");
                 if (GetDeviceDesc() < 0) {
-                    ToyBootMarkUsb("boot: xhci desc fail\n");
+                    ToyBootMarkUsb("Boot: XHCI desc fail\n");
                     gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
                     continue;
                 }
                 /* PR-H-hub：根口 hub（device class 9）→ 子口找键盘 */
                 if (IsHubDeviceDesc()) {
-                    BootLog("boot: xhci hub root\n");
+                    BootLog("Boot: XHCI hub root\n");
                     if (TryHubOnRootPort(p, Speed)) {
                         Port1 = gPort1;
                         break;
                     }
-                    EnumWhy("boot: why=hub fail\n");
+                    EnumWhy("Boot: Why=hub fail\n");
                     DisableSlot(gHubSlotId);
                     continue;
                 }
                 if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
-                    EnumWhy("boot: why=cfg desc\n");
+                    EnumWhy("Boot: Why=cfg desc\n");
                     DisableSlot(gSlotId);
                     continue;
                 }
@@ -502,7 +502,7 @@ int XhciInit(UINT64 BaseAddress) {
                         Total = (UINT16)sizeof(gCtrlBuf);
                     }
                     if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
-                        EnumWhy("boot: why=cfg desc\n");
+                        EnumWhy("Boot: Why=cfg desc\n");
                         DisableSlot(gSlotId);
                         continue;
                     }
@@ -511,12 +511,12 @@ int XhciInit(UINT64 BaseAddress) {
                      * 家侧 port3「no hid ep」即此类；不进 hub 则真鼠标可能在 hub 后。
                      */
                     if (ConfigHasHubIface(gCtrlBuf, Total)) {
-                        BootLog("boot: xhci hub (iface class 9)\n");
+                        BootLog("Boot: XHCI hub (iface class 9)\n");
                         if (TryHubOnRootPort(p, Speed)) {
                             Port1 = gPort1;
                             break;
                         }
-                        EnumWhy("boot: why=hub iface fail\n");
+                        EnumWhy("Boot: Why=hub iface fail\n");
                         DisableSlot(gHubSlotId);
                         continue;
                     }
@@ -528,7 +528,7 @@ int XhciInit(UINT64 BaseAddress) {
                                            &Interval);
                 }
                 if (!HaveIntr) {
-                    EnumWhy("boot: why=no hid ep\n");
+                    EnumWhy("Boot: Why=no hid ep\n");
                     gPortNoHid |= (1u << p);
                     gPortNeedForcePr |= (1u << p);
                     DisableSlot(gSlotId);
@@ -544,7 +544,7 @@ int XhciInit(UINT64 BaseAddress) {
                     continue;
                 }
                 if (SetConfig(ConfigVal) < 0) {
-                    EnumWhy("boot: why=set cfg\n");
+                    EnumWhy("Boot: Why=set cfg\n");
                     DisableSlot(gSlotId);
                     continue;
                 }
@@ -566,8 +566,8 @@ int XhciInit(UINT64 BaseAddress) {
                         }
                         ZeroMemory(gReportBuf, 8);
                         QueueIntr();
-                        BootLog("boot: xhci kbd-only then bind mouse ports\n");
-                        BootLog("boot: xhci kbd-fix=v8\n");
+                        BootLog("Boot: XHCI kbd-only then bind mouse ports\n");
+                        BootLog("Boot: XHCI kbd-fix=v8\n");
                     } else if (WantMouse) {
                         (void)SetInterface(gKbdIface, 0);
                         (void)SetProtocolBoot(gKbdIface);
@@ -579,7 +579,7 @@ int XhciInit(UINT64 BaseAddress) {
                         ZeroMemory(gReportBuf, 8);
                         QueueIntr();
                         QueueMouseIntr();
-                        BootLog("boot: xhci-hid mouse (composite)\n");
+                        BootLog("Boot: XHCI-HID Mouse (Composite)\n");
                     } else {
                         if (!ConfigureIntr(EpAddr, Mps, Interval, Speed, 0, 0, 0)) {
                             DisableSlot(gSlotId);
@@ -608,15 +608,15 @@ int XhciInit(UINT64 BaseAddress) {
         if (RealPc) {
             HalSerialGopMute(0); /* 放弃 xHCI：允许后续 boot 黄字 */
         }
-        ToyLogUsb("boot: xhci up but no HID keyboard\n");
-        BootLog("boot: xhci up but no HID keyboard\n");
+        ToyLogUsb("Boot: XHCI up but no HID keyboard\n");
+        BootLog("Boot: XHCI up but no HID keyboard\n");
         if (gEnumWhy) {
             BootLog(gEnumWhy);
         }
         DebugWrite("XHCI: no keyboard\n");
         for (UINT32 p = 1; p <= gMaxPorts && p <= 32; p++) {
             if (InitMouseOnPort(p)) {
-                BootLog("boot: xhci mouse only\n");
+                BootLog("Boot: XHCI mouse only\n");
                 break;
             }
         }
@@ -626,7 +626,7 @@ int XhciInit(UINT64 BaseAddress) {
 
     DebugWrite("XHCI: keyboard ready\n");
     /* 与 mouse 同走 BootLog：真机屏上先 keyboard 再 mouse，再由 Probe 打 init returned */
-    BootLog("boot: xhci-hid keyboard\n");
+    BootLog("Boot: XHCI-HID Keyboard\n");
 
     /*
      * 真机有线键鼠：优先其它口独立鼠（两 slot，利于保键盘）。
@@ -641,13 +641,13 @@ int XhciInit(UINT64 BaseAddress) {
                 continue;
             }
             if (InitMouseOnPort(p)) {
-                BootLog("boot: xhci mouse on other port\n");
+                BootLog("Boot: XHCI mouse on other port\n");
                 break;
             }
         }
     }
     if (gMouseSlotId == 0) {
-        BootLog("boot: xhci mouse fallback composite-on-kbd\n");
+        BootLog("Boot: XHCI mouse fallback composite-on-kbd\n");
         (void)InitMouseOnKeyboardSlot();
     }
     if (gMouseSlotId == 0 && gHubSlotId != 0) {
@@ -676,6 +676,6 @@ void XhciAbandonNoHid(void) {
     gMouseIntrDci = 0;
     gPort1 = 0;
     gXhciStarted = 0;
-    BootLog("boot: xhci abandon no HID\n");
+    BootLog("Boot: XHCI abandon no HID\n");
 }
 

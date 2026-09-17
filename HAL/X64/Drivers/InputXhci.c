@@ -132,11 +132,11 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
     /* 真机：Map 前 mute，避免 try BAR= 的 Present 卡死进不了 Init */
     if (RealPc) {
         HalSerialGopMute(1);
-        ToyBootMarkUsb("boot: xhci-B10 map\n");
+        ToyBootMarkUsb("Boot: XHCI-B10 map\n");
     }
     MapXhciBar(Base);
     if (RealPc) {
-        ToyBootMarkUsb("boot: xhci-B10 mapped\n");
+        ToyBootMarkUsb("Boot: XHCI-B10 mapped\n");
     } else {
         DebugWrite("XHCI: try BAR ");
         DebugHex64(Base);
@@ -144,7 +144,7 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
     }
     /* 拒绝明显非 MMIO 的 BAR（运行时误探曾出现 0x193A50） */
     if (Base < 0x100000ULL) {
-        ToyLogUsb("boot: xhci skip low BAR\n");
+        ToyLogUsb("Boot: XHCI skip low BAR\n");
         if (RealPc) {
             HalSerialGopMute(0);
         }
@@ -197,7 +197,7 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     DebugWrite("\n");
     /* 真机 PHOTO 要抄 BAR；QEMU 默认安静 */
     if (RealPc) {
-        ToyLogUsb("boot: xHCI controllers=");
+        ToyLogUsb("Boot: XHCI Controllers=");
         HalSerialFormatHex(B, (UINT64)(UINT32)Count, 2);
         ToyLogUsb(B);
         ToyLogUsb("\n");
@@ -212,7 +212,7 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         if (RealPc) {
             char Msg[72];
             int n = 0;
-            const char *P = "boot: xhci#";
+            const char *P = "Boot: XHCI#";
             while (*P && n < 12) {
                 Msg[n++] = *P++;
             }
@@ -248,7 +248,7 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     if (RealPc) {
         char Msg[28];
         int n = 0;
-        const char *P = "boot: xHCI n=";
+        const char *P = "Boot: XHCI N=";
         while (*P) {
             Msg[n++] = *P++;
         }
@@ -267,7 +267,7 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         if (RealPc) {
             char Msg[24];
             int n = 0;
-            const char *P = "boot: xhci try#";
+            const char *P = "Boot: XHCI try#";
             while (*P) {
                 Msg[n++] = *P++;
             }
@@ -286,12 +286,12 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
         gXhciDev = Controllers[i];
         if (TryXhciAt(Controllers[i].BaseAddress, &gXhciDev)) {
             if (RealPc) {
-                ToyLogUsb("boot: xhci init returned\n");
+                ToyLogUsb("Boot: XHCI init returned\n");
             }
             if (XhciHidKeyboardReady() || XhciMousePresent()) {
                 gXhciReady = 1;
                 if (!XhciHidKeyboardReady() && XhciMousePresent()) {
-                    ToyLogUsb("boot: xhci-hid mouse-only bind\n");
+                    ToyLogUsb("Boot: XHCI-HID Mouse-Only Bind\n");
                 }
                 if (OutPriv) {
                     *OutPriv = 0;
@@ -307,10 +307,10 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
                 XhciIdx++;
                 continue;
             }
-            ToyLogUsb("boot: xhci up (no HID), try PS/2\n");
+            ToyLogUsb("Boot: XHCI up (no HID), try PS/2\n");
             break;
         }
-        ToyLogUsb("boot: xhci init failed at BAR\n");
+        ToyLogUsb("Boot: XHCI init failed at BAR\n");
         if (RealPc && XhciIdx + 1 < XhciN) {
             XhciIdx++;
             continue;
@@ -334,13 +334,13 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
             if (TryXhciAt(Fallback, &gXhciDev) &&
                 (XhciHidKeyboardReady() || XhciMousePresent())) {
                 gXhciReady = 1;
-                ToyLogUsb("boot: xhci-hid keyboard\n");
+                ToyLogUsb("Boot: XHCI-HID Keyboard\n");
                 if (OutPriv) {
                     *OutPriv = 0;
                 }
                 return 0;
             }
-            ToyLogUsb("boot: xhci fallback BAR failed / no HID\n");
+            ToyLogUsb("Boot: XHCI fallback BAR failed / no HID\n");
         }
     }
     /* 不在此处再打 “no boot keyboard”——交给 PS/2 Probe 与 usb 模块汇总 */
@@ -388,6 +388,6 @@ void InputXhciArmIrq(void) {
     }
     (void)XhciEnableIrq(&gXhciDev);
     if (!XhciUsesIrq() && HalCpuIsHypervisor()) {
-        ToyLogUsb("boot: xhci arm fallback poll\n");
+        ToyLogUsb("Boot: XHCI arm fallback poll\n");
     }
 }

@@ -182,7 +182,7 @@ void CaptureDragRestoreData(int DragIdx) {
     if (gScreenSnap == 0) {
         gScreenSnap = (UINT32 *)PhysicalMemoryAllocatePages(Pages);
         if (gScreenSnap == 0) {
-            DebugWrite("gui: drag snap OOM — cancel\n");
+            DebugWrite("Gui: drag snap OOM — cancel\n");
             gScreenSnapValid = 0;
             return;
         }
@@ -245,7 +245,7 @@ void BeginDragBackups(int DragIdx) {
         return;
     }
     if (!EnsureWindowBackupBuf(DragIdx)) {
-        DebugWrite("gui: drag backup alloc failed\n");
+        DebugWrite("Gui: drag backup alloc failed\n");
         return;
     }
     HalVideoClearClip();
@@ -262,7 +262,7 @@ void BeginDragBackups(int DragIdx) {
         BackupWindowAtEx(i, !WindowOccludedByOtherOrShadow(i));
     }
     if (!gWinBackupValid[DragIdx]) {
-        DebugWrite("gui: drag backup invalid\n");
+        DebugWrite("Gui: drag backup invalid\n");
         return;
     }
     gDragHasBackup = 1;
@@ -279,7 +279,7 @@ void StartDragBackups(int DragIdx) {
     GuiFocusSave();
     BeginDragBackups(DragIdx);
     if (!gDragHasBackup || !gWinBackupValid[DragIdx]) {
-        DebugWrite("gui: drag aborted (no backup)\n");
+        DebugWrite("Gui: drag aborted (no backup)\n");
         ResetDragState();
         gDragWin = -1;
         ComposeEnd();

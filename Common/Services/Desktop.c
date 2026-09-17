@@ -560,7 +560,7 @@ void DesktopInit(void) {
     gIconDragMoved = 0;
     LoadWallpaper();
     LoadDesktopIcons();
-    ToyLogGui("boot: desktop ready\n");
+    ToyLogGui("Boot: Desktop Ready\n");
     DebugWrite("desktop: icons+taskbar ready (TOYOS Assets or solid)\n");
     gDesktopBusy = 0;
 }

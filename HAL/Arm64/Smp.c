@@ -66,7 +66,7 @@ void HalApMain(UINT32 Logical) {
     HalExceptionVectorsInstall();
     HalTimerStartAp();
 
-    SmpLog("smp: hello cpu=");
+    SmpLog("Smp: Hello CPU=");
     SmpLogHex32(Logical);
     SmpLog("\n");
     gApHelloCount++;
@@ -140,12 +140,12 @@ int HalSmpStartApplicationProcessors(void) {
         Want = 1;
     }
 
-    SmpLog("smp: DTB cpus=");
+    SmpLog("Smp: DTB CPUs=");
     SmpLogHex32((UINT32)Want);
     SmpLog("\n");
 
     if (Want <= 1) {
-        SmpLog("smp: single CPU\n");
+        SmpLog("Smp: Single CPU\n");
         return 0;
     }
 
@@ -156,7 +156,7 @@ int HalSmpStartApplicationProcessors(void) {
         gApReady[i] = 0;
         Rc = PsciCpuOn((UINT64)i, (UINT64)(UINTN)HalApEntry, (UINT64)i);
         if (Rc != 0) {
-            SmpLog("smp: PSCI CPU_ON fail cpu=");
+            SmpLog("Smp: PSCI CPU_ON Fail CPU=");
             SmpLogHex32((UINT32)i);
             SmpLog(" rc=");
             SmpLogHex64((UINT64)Rc);
@@ -168,7 +168,7 @@ int HalSmpStartApplicationProcessors(void) {
             HalCpuRelax();
         }
         if (gApReady[i] != SMP_READY_MAGIC) {
-            SmpLog("smp: AP timeout cpu=");
+            SmpLog("Smp: AP Timeout CPU=");
             SmpLogHex32((UINT32)i);
             SmpLog("\n");
             continue;
@@ -177,7 +177,7 @@ int HalSmpStartApplicationProcessors(void) {
     }
 
     gCpuCount = 1 + Started;
-    SmpLog("smp: APs started=");
+    SmpLog("Smp: APs Started=");
     SmpLogHex32((UINT32)Started);
     SmpLog(" hellos=");
     SmpLogHex32(gApHelloCount);
@@ -192,7 +192,7 @@ int HalSmpStartApplicationProcessors(void) {
             DelayLoops(20000);
         }
     }
-    SmpLog("smp: ticks");
+    SmpLog("Smp: Ticks");
     for (i = 0; i < gCpuCount && i < HAL_MAX_CPUS; i++) {
         SmpLog(" cpu");
         SmpLogHex32((UINT32)i);
@@ -201,7 +201,7 @@ int HalSmpStartApplicationProcessors(void) {
     }
     SmpLog("\n");
     if (Started == 0 && Want > 1) {
-        SmpLog("smp: continue single-CPU (AP failed)\n");
+        SmpLog("Smp: Continue Single-CPU (AP Failed)\n");
     }
     return 0;
 }

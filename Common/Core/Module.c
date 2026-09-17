@@ -8,7 +8,7 @@
 #include "Debug.h"
 
 static void ModLog(const char *Name, const char *Suffix) {
-    ToyLogBoot("[mod] ");
+    ToyLogBoot("[Mod] ");
     ToyLogBoot(Name);
     ToyLogBoot(Suffix);
 }
@@ -26,7 +26,7 @@ int ModulesRun(const MODULE *List, int Count) {
         /* 真机无 COM1 时也要走 HalSerial→GOP，才能看见卡在哪个模块 */
         ModLog(List[i].Name, "\n");
         if (List[i].Init == 0 || List[i].Init() != 0) {
-            ModLog(List[i].Name, " failed\n");
+            ModLog(List[i].Name, " Failed\n");
             ModProgressMark(7); /* 白条 = 失败停 */
             return -1;
         }

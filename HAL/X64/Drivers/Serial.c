@@ -10,6 +10,7 @@
 #define COM1 0x3F8
 
 static int gSerialOk;
+static int gSerialInited;
 
 static int ProbeCom1(void) {
     UINT8 A;
@@ -26,13 +27,18 @@ static int ProbeCom1(void) {
     return (A == 0x55 && B == 0xAA) ? 1 : 0;
 }
 
-void SerialInit(void) {
+void SerialInitialize(void) {
 #if !TOY_SERIAL
     gSerialOk = 0;
+    gSerialInited = 1;
     return;
 #else
+    if (gSerialInited) {
+        return;
+    }
     gSerialOk = ProbeCom1();
     if (!gSerialOk) {
+        gSerialInited = 1;
         return;
     }
     HalIoWrite8(COM1 + 1, 0x00);
@@ -42,6 +48,7 @@ void SerialInit(void) {
     HalIoWrite8(COM1 + 3, 0x03);
     HalIoWrite8(COM1 + 2, 0xC7);
     HalIoWrite8(COM1 + 4, 0x0B);
+    gSerialInited = 1;
 #endif
 }
 
@@ -59,8 +66,8 @@ static void SerialPutChar(char C) {
     if (!gSerialOk) {
         return;
     }
-    /* 短等即可：真机旁路日志，勿空转拖死 BSP（对端未读/无线时） */
-    Timeout = 2000;
+    /* NUC USB-UART：过短易丢字节；上限仍有限避免无对端时卡死 */
+    Timeout = 1000000;
     while (Timeout-- && !(HalIoRead8(COM1 + 5) & 0x20)) {
         __asm__ volatile ("pause");
     }

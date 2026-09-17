@@ -204,7 +204,7 @@ static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
     int Tries;
 
     if (TrampSize == 0 || TrampSize > 0x1000) {
-        SmpLog("smp: bad trampoline size\n");
+        SmpLog("Smp: Bad Trampoline Size\n");
         return -1;
     }
     if (LogicalCpu >= HAL_MAX_CPUS) {
@@ -242,7 +242,7 @@ static int StartOneAp(UINT8 ApicId, UINT32 LogicalCpu) {
         }
     }
     if (Param->Ready != SMP_READY_MAGIC) {
-        SmpLog("smp: AP timeout apic=");
+        SmpLog("Smp: AP Timeout APIC=");
         SmpLogHex32(ApicId);
         SmpLog("\n");
         ParkAp(ApicId);
@@ -317,14 +317,14 @@ int HalSmpStartApplicationProcessors(void) {
     gApicIds[0] = BspId;
 
     if (Rsdp == 0) {
-        SmpLog("smp: no RSDP (single CPU)\n");
+        SmpLog("Smp: No RSDP (Single CPU)\n");
         return 0;
     }
     /* 电源与 MADT 解耦：MADT 失败仍应能短按关机；BootLog 以便 PHOTO 尾能抄到 */
     if (AcpiPowerInit(Rsdp) == 0) {
-        HalSerialBootMark("boot: ACPI power ready\n");
+        HalSerialBootMark("Boot: ACPI Power Ready\n");
     } else {
-        HalSerialBootMark("boot: ACPI power n/a\n");
+        HalSerialBootMark("Boot: ACPI Power N/A\n");
     }
     if (AcpiMadtParse(Rsdp, gApicIds, HAL_MAX_CPUS, &Count, &BspFromMadt) != 0) {
         return 0;
@@ -333,7 +333,7 @@ int HalSmpStartApplicationProcessors(void) {
     NormalizeBspFirst(BspId, Count);
     Count = gCpuCount;
 
-    SmpLog("smp: MADT cpus=");
+    SmpLog("Smp: MADT CPUs=");
     SmpLogHex32((UINT32)Count);
     SmpLog(" bsp_apic=");
     SmpLogHex32(BspId);
@@ -348,7 +348,7 @@ int HalSmpStartApplicationProcessors(void) {
     /* 只统计实际起来的核，避免调度器以为有幽灵 AP */
     gCpuCount = 1 + Started;
 
-    SmpLog("smp: APs started=");
+    SmpLog("Smp: APs Started=");
     SmpLogHex32((UINT32)Started);
     SmpLog(" hellos=");
     SmpLogHex32(gApHelloCount);
@@ -369,7 +369,7 @@ int HalSmpStartApplicationProcessors(void) {
     }
     /* 逐核 ticks 过长；需要时再开 SERIAL_SMP 细查 */
     if (Started == 0 && Count > 1) {
-        SmpLog("smp: continue single-CPU (AP failed)\n");
+        SmpLog("Smp: Continue Single-CPU (AP Failed)\n");
     }
     return 0;
 }

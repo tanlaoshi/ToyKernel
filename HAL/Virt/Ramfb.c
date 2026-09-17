@@ -184,16 +184,16 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
     FwCfgSelect(FwCfgBase, FW_CFG_SIGNATURE);
     FwCfgReadBytes(FwCfgBase, Sig, 4);
     if (Sig[0] != 'Q' || Sig[1] != 'E' || Sig[2] != 'M' || Sig[3] != 'U') {
-        ToyLogDrv("boot: fw_cfg signature missing\n");
+        ToyLogDrv("Boot: FW_CFG Signature Missing\n");
         return -1;
     }
 
     if (FwCfgFindFile(FwCfgBase, "etc/ramfb", &Sel, &FileSize) != 0) {
-        ToyLogDrv("boot: etc/ramfb missing (need -device ramfb)\n");
+        ToyLogDrv("Boot: etc/RamFB missing (need -device ramfb)\n");
         return -1;
     }
     if (FileSize != (UINT32)sizeof(Cfg)) {
-        ToyLogDrv("boot: etc/ramfb size mismatch\n");
+        ToyLogDrv("Boot: etc/RamFB size mismatch\n");
         return -1;
     }
 
@@ -202,7 +202,7 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
     FbBase = (*FreeStart + 0xFFFULL) & ~0xFFFULL;
     FbEnd = FbBase + ((FbBytes + 0xFFFULL) & ~0xFFFULL);
     if (FbEnd > RamEnd || FbEnd < FbBase) {
-        ToyLogDrv("boot: ramfb OOM\n");
+        ToyLogDrv("Boot: RamFB OOM\n");
         return -1;
     }
 
@@ -220,7 +220,7 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
     StoreBe32(&Cfg.Stride, Stride);
 
     if (FwCfgDmaWrite(FwCfgBase, Sel, &Cfg, (UINT32)sizeof(Cfg)) != 0) {
-        ToyLogDrv("boot: ramfb fw_cfg DMA write failed\n");
+        ToyLogDrv("Boot: RamFB fw_cfg DMA write failed\n");
         return -1;
     }
 
@@ -231,7 +231,7 @@ int RamfbSetup(BOOT_INFO *Info, UINT64 FwCfgBase, UINT64 *FreeStart,
     Info->PixelsPerScanLine = W;
     *FreeStart = FbEnd;
 
-    ToyLogDrv("boot: ramfb ");
+    ToyLogDrv("Boot: RamFB ");
     {
         char Buf[32];
         UINT32 n = W;

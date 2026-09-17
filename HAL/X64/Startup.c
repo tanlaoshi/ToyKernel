@@ -9,6 +9,7 @@
 #include "BootInfo.h"
 #include "Kernel.h"
 #include "Hal.h"
+#include "HalSerial.h"
 
 extern char __kernel_end[];
 extern void HalPlatformSetXhciFallback(UINT64 Address);
@@ -126,6 +127,8 @@ static void KernelEntryContinue(BOOT_CONFIG *BootConfig) {
     CfgCopy = *BootConfig;
     BootInfoFromUefi(&CfgCopy, &Info, &CfgCopy);
     BootInfoSet(&Info);
+    /* PR-K-log-uart：跳转后、KernelMain 日志前先开 COM1（模块表 serial 幂等） */
+    HalSerialInitialize();
     KernelMain();
     for (;;) {
     }

@@ -75,13 +75,13 @@ void StartupMain(UINT64 HartId, UINT64 DtbPhys) {
 
     FromDtb = (DtbMemoryRegion(DtbPhys, &RamBase, &RamSize) == 0);
     if (FromDtb) {
-        HalSerialWrite("boot: DTB memory base=");
+        HalSerialWrite("Boot: DTB Memory Base=");
         HexU64(RamBase);
         HalSerialWrite(" size=");
         HexU64(RamSize);
         HalSerialWrite("\n");
     } else {
-        HalSerialWrite("boot: DTB memory missing, fallback BoardConfig RAM\n");
+        HalSerialWrite("Boot: DTB Memory Missing, Fallback BoardConfig RAM\n");
         RamBase = TOY_BOARD_RAM_BASE;
         RamSize = TOY_BOARD_RAM_SIZE;
     }

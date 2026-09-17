@@ -30,6 +30,7 @@ static int gVideoUp;
 static int gGopBanner;
 static int gGopMute;
 static int gPhotoHold; /* 读秒：禁 Gop 卷屏/禁 BootMark 盖白字 */
+static int gSerialReady; /* HalSerialInitialize 已跑过（幂等；模块表可再调） */
 /*
  * 1 = boot/PHOTO 期间把日志画到 GOP（与有无 COM1 无关）。
  * 0 = 桌面阶段：只 ring；有 COM1 再旁路写串口。
@@ -52,7 +53,7 @@ static UINT32 BootLogBodyY(UINT32 LineH) {
     return BOOT_LOG_TITLE_Y + LineH + 8;
 }
 
-/* 屏上只留 BOOT 通道（[mod]、关键 boot:）；SMP/MEM/USB 细日志留 ring/串口 */
+/* 屏上只留 BOOT 通道（[Mod]、关键 boot:）；SMP/MEM/USB 细日志留 ring/串口 */
 static int ChannelGopOn(int Channel) {
     return Channel == TOY_SLOG_BOOT;
 }
@@ -182,12 +183,21 @@ static void GopWrite(const char *Text) {
 void HalSerialInitialize(void) {
     int KeepGop = gVideoUp;
 
-    SerialInit();
+    /*
+     * PR-K-log-uart：Startup / KernelMain 与模块表 serial 均可调用。
+     * 第二次起只保证驱动已 Initialize，不再清 ring、不再打横幅。
+     */
+    if (gSerialReady) {
+        SerialInitialize();
+        return;
+    }
+
+    SerialInitialize();
     gRingLen = 0;
     gLineLen = 0;
     /*
-     * KernelMain 可能已 HalSerialGopEnable（H0 清屏后要看 [mod]）。
-     * 若此处无条件 gVideoUp=0，真机屏会永远停在第一条 [mod] serial。
+     * KernelMain 可能已 HalSerialGopEnable（H0 清屏后要看 [Mod]）。
+     * 若此处无条件 gVideoUp=0，真机屏会永远停在第一条 [Mod] serial。
      */
     if (!KeepGop) {
         gVideoUp = 0;
@@ -196,17 +206,18 @@ void HalSerialInitialize(void) {
     }
     if (!SerialPresent()) {
 #if TOY_SERIAL
-        RingAppend("boot: no COM1; on-screen log only\n");
+        RingAppend("Boot: No COM1; On-Screen Log Only\n");
 #else
-        RingAppend("boot: serial disabled (TOY_SERIAL=0)\n");
+        RingAppend("Boot: Serial Disabled (TOY_SERIAL=0)\n");
 #endif
     } else {
-        /* 与 ToyBoot 同构：首行名，次行 COM1 状态（PR-K-log-uart） */
+        /* ASCII only — NUC terminals often mangled UTF-8 */
         SerialWrite("ToyKernel\n");
-        SerialWrite("[COM1]:初始化OK\n");
+        SerialWrite("COM1 Serial OK\n");
         RingAppend("ToyKernel\n");
-        RingAppend("[COM1]:初始化OK\n");
+        RingAppend("COM1 Serial OK\n");
     }
+    gSerialReady = 1;
 }
 
 int HalSerialPresent(void) {
@@ -524,7 +535,7 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
             UINT32 Rw = 0;
             UINT32 Rh = 0;
             int n = 0;
-            const char *R = "boot: video ";
+            const char *R = "Boot: Video ";
             HalVideoGetSize(&Rw, &Rh);
             while (*R && n < 16) {
                 Res[n++] = *R++;
@@ -560,7 +571,7 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
         do {
             HalInputPoll();
             if (HalPowerButtonPressed()) {
-                HalSerialBootMark("boot: power button -> shutdown\n");
+                HalSerialBootMark("Boot: Power Button -> Shutdown\n");
                 HalCpuShutdown();
             }
             __asm__ volatile ("pause");
@@ -571,5 +582,5 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     gPhotoHold = 0;
     HalSerialGopMute(0);
     HalSerialGopMirror(0);
-    HalSerialBootMark("boot: PHOTO done\n");
+    HalSerialBootMark("Boot: PHOTO Done\n");
 }

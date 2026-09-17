@@ -460,7 +460,7 @@ int AhciSetup(void) {
     }
 
     gReady = 1;
-    ToyLogFs("boot: ahci drives=");
+    ToyLogFs("Boot: AHCI Drives=");
     {
         static const char Hex[] = "0123456789abcdef";
         char B[2];

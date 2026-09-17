@@ -105,7 +105,7 @@ XHCI_DIAG_VERBOSE ?= 0
 TOY_DEMO_DRIVER ?= 1
 CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -fno-stack-protector -fno-builtin -fno-pie -fno-pic \
-              -DTOY_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
+              -DTOY_KERNEL_DEBUG=$(DEBUG) -DTOY_BRINGUP=$(BRINGUP) \
               -DTOY_SERIAL=$(SERIAL) \
               -DTOY_SERIAL_BOOT=$(SERIAL_BOOT) \
               -DTOY_SERIAL_USB=$(SERIAL_USB) \

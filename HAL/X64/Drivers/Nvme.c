@@ -488,7 +488,7 @@ int NvmeSetup(void) {
     }
 
     gReady = 1;
-    ToyLogFs("boot: nvme drives=");
+    ToyLogFs("Boot: NVMe Drives=");
     {
         static const char Hex[] = "0123456789abcdef";
         char Buf[2];

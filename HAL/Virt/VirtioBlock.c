@@ -184,7 +184,7 @@ static int VirtioBlockDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
     gIoBuf = Meta + 128;
     gBlkReady = 1;
 
-    ToyLogFs("boot: virtio-blk @");
+    ToyLogFs("Boot: VirtIO-Blk @");
     HexU32((UINT32)Ctx.FoundBase);
     ToyLogFs("\n");
 
