@@ -183,13 +183,13 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 
 顶色仍走三态 `ThemeWindowTitleFocus/Idle/Hover`；底色 `ThemeWindowTitleGradientBottom(Top)`（向黑约 40%）。直角标题栏按行 `TitleBarColorAtRow` 填充。`AnalyticWindowPixel` 同步按行取色。不改命中矩形；暂不进 THEME.CFG。
 
-### 5.5 抗锯齿字体（L2 最难，可后置）
+### 5.5 动画（L3）— PR-GUI-l3-fade
+
+`ThemeWindowFadeSteps()`（默认 6；`THEME.CFG` 键 `fade=`，`0`=关）。开/关窗：捕获无本窗桌面层 → 与窗备份逐帧 `HalVideoBlendRgb` → Present。实现：`GuiFade.c` / `GuiAnimateWindowFade`。阴影不参与中间帧（首/末随合成）。目标约 ≥30 FPS 手感；NUC 卡则 `fade=0`。
+
+### 5.6 抗锯齿字体（L2 最难，可后置）
 
 现状：1bpp 点阵（`Font*` / TOYF）。灰度字需要新格式 + 加载 + alpha 绘制。工作量最大，排 P3。
-
-### 5.5 动画（L3）
-
-多次中间帧 + `HalVideoPresent`。用已有定时器；目标 ≥30 FPS。NUC 卡则「低配模式」关动画。
 
 ---
 
@@ -221,8 +221,8 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | ✅ TG `f1772d7` |
 | 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | ⏪ **已回退**（几何/Punch/阴影交汇差，退回直角窗；保留 `0fb4ddf` 史） |
 | 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | ✅ TG `82978dd` |
-| 6 | **PR-GUI-l3-fade** | 窗口淡入淡出 | 2 天 | P2 |
-| 7 | **PR-GUI-l3-button** | 按钮悬停/按下 | 1 天 | P2 |
+| 6 | **PR-GUI-l3-fade** | 窗口淡入淡出 | 2 天 | ✅ TG `a9d4875`（NUC 为准；QEMU 叠放透视已知不挡） |
+| 7 | **PR-GUI-l3-button** | 按钮悬停/按下 | 1 天 | ← **JX** |
 | 8 | **PR-GUI-l2-font** | 抗锯齿字体（可选） | 3–5 天 | P3 |
 
 ### 7.2 推荐顺序
@@ -233,12 +233,13 @@ PR-GUI-doc（本文）✅
   → PR-GUI-alpha
   → PR-GUI-l2-shadow
   → PR-GUI-l2-gradient   ✅（圆角 l2-round 已回退，不挡渐变；烙印热修同 `82978dd`）
-  → PR-GUI-l3-fade / l3-button
+  → PR-GUI-l3-fade       ✅ `a9d4875`（NUC 验收；QEMU 透视已知）
+  → PR-GUI-l3-button     ← 当前
   → PR-GUI-l2-font（可选）
   → （可选再议）PR-GUI-l2-round
 ```
 
-先 L1，再 alpha + 阴影 + 渐变；**窗口圆角几何已回退**，动画与灰度字后置。
+先 L1，再 alpha + 阴影 + 渐变 + 淡入淡出；**窗口圆角几何已回退**；下一刀按钮态，灰度字后置。
 
 **进 JX**：须 R 柱 0～7 空，或明文改路线图文首 ★。表内「P0/P1」是**柱内**性价比，不是全仓优先级。
 
