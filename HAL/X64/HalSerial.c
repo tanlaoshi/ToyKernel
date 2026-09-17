@@ -53,9 +53,10 @@ static UINT32 BootLogBodyY(UINT32 LineH) {
     return BOOT_LOG_TITLE_Y + LineH + 8;
 }
 
-/* 屏上只留 BOOT 通道（[Mod]、关键 boot:）；SMP/MEM/USB 细日志留 ring/串口 */
+/* 屏上 bring-up：BOOT + FS/GUI 进度同文；SMP/MEM/USB 细日志留 ring/串口（USB 里程碑走 BootMark） */
 static int ChannelGopOn(int Channel) {
-    return Channel == TOY_SLOG_BOOT;
+    return Channel == TOY_SLOG_BOOT || Channel == TOY_SLOG_FS ||
+           Channel == TOY_SLOG_GUI;
 }
 
 /*
@@ -196,8 +197,8 @@ void HalSerialInitialize(void) {
     gRingLen = 0;
     gLineLen = 0;
     /*
-     * KernelMain 可能已 HalSerialGopEnable（H0 清屏后要看 [Mod]）。
-     * 若此处无条件 gVideoUp=0，真机屏会永远停在第一条 [Mod] serial。
+     * KernelMain 可能已 HalSerialGopEnable（接 Boot 黑底上滚）。
+     * 若此处无条件 gVideoUp=0，真机屏会永远停在第一条 [Mod] Serial。
      */
     if (!KeepGop) {
         gVideoUp = 0;
@@ -225,13 +226,20 @@ int HalSerialPresent(void) {
 }
 
 void HalSerialGopEnable(void) {
+    /*
+     * PR-K-log-cont：已启用则保持上滚位置与横幅，勿二次 GopBannerOnce 抹字。
+     * KernelMain 与 video 模块均可调用。
+     */
+    if (gVideoUp) {
+        return;
+    }
     gVideoUp = 1;
     gGopBanner = 0;
     gBootLogY = BOOT_LOG_TITLE_Y + 24;
     gLineLen = 0;
     /*
      * 勿把整段 ring（SMP hello / MEM 细节）一次性刷屏——会翻多「页」。
-     * 只起横幅；之后 BOOT 通道与 BootMark 单视口上滚。
+     * 只起横幅；之后 BOOT/FS/GUI 通道与 BootMark 单视口上滚。
      */
     GopBannerOnce();
 }
@@ -316,6 +324,10 @@ void HalSerialWriteChannelHex64(int Channel, UINT64 Value) {
 /* 关镜像后有/无 COM1 行为一致：主路径不再因 Debug→Present 分叉 */
 void HalSerialGopMirror(int Enable) {
     gGopMirror = Enable ? 1 : 0;
+}
+
+int HalSerialGopMirroring(void) {
+    return (gGopMirror && gVideoUp && !gGopMute) ? 1 : 0;
 }
 
 /* 真机 xHCI RS 后枚举：禁 Present，避免清屏/blit 与控制器打架 */
@@ -427,22 +439,17 @@ static void PhotoMarkLeft(UINT32 Left) {
 }
 
 /*
- * 真机读秒：刷 ring 尾部到屏（无串口也能拍），底栏 PHOTO；默认秒数由调用方决定。
+ * 真机读秒：接住已上滚的 boot 日志（只改顶栏标题），底栏 PHOTO 读秒。
+ * 默认秒数由调用方决定。
  */
 void HalSerialGopPhotoHold(UINT32 Seconds) {
     UINT32 W;
     UINT32 H;
     UINT32 LineH;
     UINT32 Left;
-    UINT32 MaxLines;
-    UINT32 LineCount;
-    UINT32 Skip;
-    UINT32 i;
     UINT64 T0;
     UINT64 Now;
     UINT64 OneSec;
-    const char *Log;
-    const char *Start;
 
     if (Seconds == 0) {
         return;
@@ -459,108 +466,20 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     HalSerialGopMute(1);
 
     if (gVideoUp) {
-        UINT32 Y;
-        const char *P;
-        char LineBuf[160];
-        int N;
-
+        /*
+         * PR-K-log-cont：勿全屏清黑再刷 ring——NUC 上会从「ToyOS boot」跳成「PHOTO」闪屏。
+         * 屏上已有连续上滚日志；只改顶栏标题，底栏读秒由 PhotoMarkLeft 更新。
+         */
         HalVideoGetSize(&W, &H);
         LineH = BootLogLineH();
-        if (H == 0) {
-            H = 768;
-        }
         if (W == 0) {
             W = 1024;
         }
-        MaxLines = 20;
-        if (LineH > 0 && H > BootLogBodyY(LineH) + LineH * 3) {
-            MaxLines = (H - BootLogBodyY(LineH) - LineH * 3) / LineH;
-            if (MaxLines < 8) {
-                MaxLines = 8;
-            }
-            if (MaxLines > 40) {
-                MaxLines = 40;
-            }
-        }
-
-        Log = HalSerialLogText();
-        Start = Log ? Log : "";
-        LineCount = 0;
-        for (i = 0; Start[i]; i++) {
-            if (Start[i] == '\n') {
-                LineCount++;
-            }
-        }
-        Skip = 0;
-        if (LineCount > MaxLines) {
-            Skip = LineCount - MaxLines;
-            LineCount = 0;
-            for (i = 0; Start[i]; i++) {
-                if (Start[i] == '\n') {
-                    LineCount++;
-                    if (LineCount == Skip) {
-                        Start = Start + i + 1;
-                        break;
-                    }
-                }
-            }
-        }
-
+        (void)H;
         HalVideoDrawBeginFront();
-        HalVideoFillRect(0, 0, W, H, 0x00000000u);
-        HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y,
-                             "ToyOS PHOTO (press keys / move mouse)", 0x00FFFF00u);
-        Y = BootLogBodyY(LineH);
-        if (Skip > 0) {
-            HalVideoDrawStringAt(BOOT_LOG_X, Y, "(boot log tail)", 0x00AAAAAAu);
-            Y += LineH;
-        }
-        P = Start;
-        while (P && *P && Y + LineH < H - LineH * 3) {
-            N = 0;
-            while (*P && *P != '\n' && N + 1 < (int)sizeof(LineBuf)) {
-                LineBuf[N++] = *P++;
-            }
-            LineBuf[N] = 0;
-            if (N > 0) {
-                HalVideoDrawStringAt(BOOT_LOG_X, Y, LineBuf, 0x00FFFFFFu);
-            }
-            Y += LineH;
-            if (*P == '\n') {
-                P++;
-            }
-        }
-        {
-            char Res[48];
-            UINT32 Rw = 0;
-            UINT32 Rh = 0;
-            int n = 0;
-            const char *R = "Boot: Video ";
-            HalVideoGetSize(&Rw, &Rh);
-            while (*R && n < 16) {
-                Res[n++] = *R++;
-            }
-            Res[n++] = (char)('0' + ((Rw / 1000) % 10));
-            Res[n++] = (char)('0' + ((Rw / 100) % 10));
-            Res[n++] = (char)('0' + ((Rw / 10) % 10));
-            Res[n++] = (char)('0' + (Rw % 10));
-            Res[n++] = 'x';
-            Res[n++] = (char)('0' + ((Rh / 1000) % 10));
-            Res[n++] = (char)('0' + ((Rh / 100) % 10));
-            Res[n++] = (char)('0' + ((Rh / 10) % 10));
-            Res[n++] = (char)('0' + (Rh % 10));
-            Res[n] = 0;
-            HalVideoDrawStringAt(BOOT_LOG_X, Y, Res, 0x00FFFF00u);
-            Y += LineH;
-            /* PR-G-fb-pte：与 video 同行区直绘，不依赖 ring 尾 */
-            {
-                char FbLine[96];
-                if (HalVideoFbPteLine(FbLine, sizeof(FbLine)) > 0 &&
-                    Y + LineH < H - LineH) {
-                    HalVideoDrawStringAt(BOOT_LOG_X, Y, FbLine, 0x00FFFF00u);
-                }
-            }
-        }
+        HalVideoFillRect(0, 0, W, BootLogBodyY(LineH), 0x00000000u);
+        HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y, "ToyOS PHOTO",
+                             0x00FFFF00u);
         HalVideoDrawEndFront();
     }
 

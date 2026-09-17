@@ -10,6 +10,7 @@
 #include "Tasks.h"
 #include "Console.h"
 #include "Font.h"
+#include "Theme.h"
 
 void KernelMain(void) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -20,11 +21,17 @@ void KernelMain(void) {
 
     /* 尽早挂上帧缓冲，避免 mem 等模块 ConsoleWrite 时 Width=0 死循环 */
     HalVideoSet(&V);
-    /* H0：进核即改像素（在开分页 / 驱动 Probe 之前），真机卡死时可区分 Boot vs Kernel */
+    /*
+     * PR-K-log-cont：接 ToyBoot 已清的黑底，禁止再全屏 Clear（否则闪黑/日志断层）。
+     * 有 FB 则开 GOP 镜像：无 COM1 真机也能看见 [Mod]；有串口则 UART+屏同文。
+     */
     if (Info && Info->FrameBufferSize != 0) {
         FontInitialize(); /* GOP 日志/DrawString 依赖字体表；video 模块里会再 Init 一次 */
-        HalVideoClearScreen(0x00000000u); /* 与 on-screen boot log 同底，勿蓝/灰分段 */
-        HalVideoPresent();
+        /*
+         * 与 ThemeInitialize 同默认（font=2 Terminus 10x18）。
+         * 若只用 FontInitialize 的 id=0（16×32），[Mod] Video 换字后面会突然变小。
+         */
+        ThemeInitialize();
         HalSerialGopEnable();
         ToyLogBoot("Boot: KernelMain Live\n");
         {
@@ -58,9 +65,10 @@ void KernelMain(void) {
     }
 
     /*
-     * 进调度/桌面前关掉 boot→GOP 镜像（桌面勿被串口字盖住）。
-     * 无 COM1 时 boot 期已全程镜像，PHOTO 也刷了 ring 尾。
+     * 进调度/桌面前：套用 ThemeLoad 选中的字面，再关掉 boot→GOP 镜像
+     * （桌面勿被串口字盖住；boot 上滚全程保持 ThemeInitialize 默认字）。
      */
+    (void)FontSetById(ThemeFontId());
     HalSerialGopMirror(0);
 
     /* PR-B1：ConsoleOnly → 串口壳；HasFrameBuffer + virt 形状 → 协作桌面 */

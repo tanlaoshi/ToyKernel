@@ -13,6 +13,7 @@
 #include "Fat.h"
 #include "PhysicalMemory.h"
 #include "HalConsole.h"
+#include "ToySerialLog.h"
 
 #define FONT_TOYF_MAGIC   0x46594F54u /* 'TOYF' LE */
 #define FONT_TOYF_VERSION 1u
@@ -244,16 +245,16 @@ static int TryLoadPath(const char *Path, FONT_RUNTIME_SLOT *Slot) {
     Err = ParseToyf(Buf, Size, Slot);
     PhysicalMemoryFreePages(Buf, Pages);
     if (Err != 0) {
-        HalConsoleWriteSerial("Font: bad TOYF ");
-        HalConsoleWriteSerial(Path);
-        HalConsoleWriteSerial("\n");
+        ToyLogGui("Font: Bad TOYF ");
+        ToyLogGui(Path);
+        ToyLogGui("\n");
         return -1;
     }
-    HalConsoleWriteSerial("Font: Loaded ");
-    HalConsoleWriteSerial(Path);
-    HalConsoleWriteSerial(" (");
-    HalConsoleWriteSerial(Slot->Name);
-    HalConsoleWriteSerial(")\n");
+    ToyLogGui("Font: Loaded ");
+    ToyLogGui(Path);
+    ToyLogGui(" (");
+    ToyLogGui(Slot->Name);
+    ToyLogGui(")\n");
     return 0;
 }
 

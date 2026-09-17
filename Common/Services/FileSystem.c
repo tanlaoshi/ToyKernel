@@ -7,6 +7,7 @@
 #include "Gpt.h"
 #include "Vfs.h"
 #include "Debug.h"
+#include "ToySerialLog.h"
 #include "Hal.h"
 #include "CoreOps.h"
 
@@ -501,7 +502,7 @@ static int MountAllVolumes(void) {
             gActiveDrive = V->Drive;
             gActiveLba = 0;
             DebugWrite("Fs: vol RES (resfs)\n");
-            HalConsoleWriteSerial("Fs: RES Volume RES:\n");
+            ToyLogFs("Fs: RES Volume RES:\n");
         }
     }
 
@@ -561,24 +562,24 @@ static int MountAllVolumes(void) {
         if (gDefaultVol >= 0 && gDefaultVol < gVolCount &&
             gVols[gDefaultVol].Name[0] == 'E' && gVols[gDefaultVol].Name[1] == 'S' &&
             gVols[gDefaultVol].Name[2] == 'P') {
-            HalConsoleWriteSerial(
-                "Fs: default=ESP (no TOYOS.ID; put rootfs on a FAT with TOYOS.ID)\n");
+            ToyLogFs(
+                "Fs: Default=ESP (No TOYOS.ID; Put Rootfs On A FAT With TOYOS.ID)\n");
         }
     }
     if (FileSystemActivate(gDefaultVol) != FAT_OK) {
         return 0;
     }
 
-    HalConsoleWriteSerial("Fs: Mounted ");
+    ToyLogFs("Fs: Mounted ");
     {
         char Msg[8];
         Msg[0] = (char)('0' + (gVolCount > 9 ? 9 : gVolCount));
         Msg[1] = 0;
-        HalConsoleWriteSerial(Msg);
+        ToyLogFs(Msg);
     }
-    HalConsoleWriteSerial(" volume(s), default=");
-    HalConsoleWriteSerial(gVols[gDefaultVol].Name);
-    HalConsoleWriteSerial("\n");
+    ToyLogFs(" volume(s), default=");
+    ToyLogFs(gVols[gDefaultVol].Name);
+    ToyLogFs("\n");
     return 1;
 }
 

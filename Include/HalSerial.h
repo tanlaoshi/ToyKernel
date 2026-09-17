@@ -27,6 +27,8 @@ void HalSerialGopMute(int Mute);
  * 无 COM1 只写 ring——主路径不得因串口有无而分叉。
  */
 void HalSerialGopMirror(int Enable);
+/* 1 = boot 期仍在往 GOP 上滚（ThemeLoad 勿中途换字） */
+int HalSerialGopMirroring(void);
 void HalSerialBootMark(const char *Text);
 void HalSerialBootMarkChannel(int Channel, const char *Text);
 void HalSerialGopPhotoHold(UINT32 Seconds);

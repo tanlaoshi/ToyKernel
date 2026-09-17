@@ -65,8 +65,6 @@ static int InitializeVirtualMemory(void) {
 static int InitializeVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
-    UINT32 W;
-    UINT32 H;
 
     FontInitialize();
     ThemeInitialize();
@@ -75,16 +73,9 @@ static int InitializeVideo(void) {
     HalVideoEnableFbWc();
     HalVideoInitBackbuffer();
     /*
-     * 开机日志统一黑底滚动；勿 Theme 深灰清屏造成「蓝→灰→黑」三段。
-     * 桌面底色由 gui 进桌面时再画。
+     * PR-K-log-cont：勿再 ClearScreen / 顶带 Fill——接 Boot+KernelMain 已滚的黑底。
+     * 桌面底色由 gui 进桌面时再画。GopEnable 幂等，不重置上滚位置。
      */
-    HalVideoClearScreen(0x00000000u);
-    /* 再清一遍顶带，去掉固件/进度条残留色块 */
-    HalVideoGetSize(&W, &H);
-    if (W > 0) {
-        HalVideoFillRect(0, 0, W, 64, 0x00000000u);
-    }
-    HalVideoPresent();
     HalSerialGopEnable();
     /* PR-G-fb-pte：映后核验；期望 cache=WC */
     HalVideoLogFbPte();
@@ -124,7 +115,7 @@ static int InitializeUsb(void) {
         HalInputArmIrq();
         /* PHOTO 只刷 ring 尾；fb-pte 原在 video 初期，会被卷掉——进 PHOTO 前再打一行 */
         HalVideoLogFbPte();
-        HalSerialGopPhotoHold(1); /* 真机快过；细看靠串口 */
+        HalSerialGopPhotoHold(5); /* 真机读秒；细看靠串口 */
         /* PHOTO→gui：抽空鼠队列并对齐累加坐标，避免满队列+误绝对解析钉死光标 */
         {
             UINT32 Cx = 512;

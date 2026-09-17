@@ -66,6 +66,10 @@ void HalSerialGopMirror(int Enable) {
     (void)Enable;
 }
 
+int HalSerialGopMirroring(void) {
+    return 0;
+}
+
 const char *HalSerialLogText(void) {
     return "";
 }

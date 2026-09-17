@@ -13,6 +13,7 @@
 #include "Db.h"
 #include "Hal.h"
 #include "Debug.h"
+#include "ToySerialLog.h"
 #include "VirtualMemory.h"
 #include "BootInfo.h"
 
@@ -649,23 +650,35 @@ int ThemeLoad(void) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
         }
-        HalConsoleWriteSerial("Theme: Loaded THEME.CFG\n");
+        ToyLogGui("Theme: Loaded THEME.CFG\n");
     } else {
         ModeFromCfg = (ThemeOverlayModeFromCfg() == 0);
         if (ModeFromCfg) {
-            HalConsoleWriteSerial("Theme: Loaded TOYOS.DB (mode from THEME.CFG)\n");
+            ToyLogGui("Theme: Loaded TOYOS.DB (mode from THEME.CFG)\n");
         } else {
-            HalConsoleWriteSerial("Theme: Loaded TOYOS.DB\n");
+            ToyLogGui("Theme: Loaded TOYOS.DB\n");
         }
     }
-    (void)FontSetById(gFontId);
-    if (gFontId >= FontCount() || FontCurrentId() != gFontId) {
-        ThemeClampFontId();
-    }
-    /* font=0 旧默认是 Terminus 16×32，自动改到紧凑字面 */
-    if (gFontId == 0) {
-        gFontId = ThemeCompactFontId();
+    /*
+     * PR-K-log-cont：boot GOP 仍上滚时勿 FontSetById——Gui 加载 Sun 8x16 会中途换字。
+     * gFontId 仍按 DB/CFG 算好；进桌面前再套用。
+     */
+    if (!HalSerialGopMirroring()) {
         (void)FontSetById(gFontId);
+        if (gFontId >= FontCount() || FontCurrentId() != gFontId) {
+            ThemeClampFontId();
+        }
+        if (gFontId == 0) {
+            gFontId = ThemeCompactFontId();
+            (void)FontSetById(gFontId);
+        }
+    } else {
+        if (gFontId >= FontCount()) {
+            gFontId = ThemeCompactFontId();
+        }
+        if (gFontId == 0) {
+            gFontId = ThemeCompactFontId();
+        }
     }
     gUiScale = NormalizeUiScale(gUiScale);
     DebugWrite("Theme: desktop=");
