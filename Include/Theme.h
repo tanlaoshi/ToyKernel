@@ -45,8 +45,11 @@ UINT8 ThemeMenuPanelAlpha(void);
 UINT32 ThemeWindowShadowSize(void);
 UINT8 ThemeWindowShadowMaxAlpha(void);
 UINT32 ThemeWindowShadowColor(void);
-/* PR-GUI-l2-round：窗体外框圆角半径；0=直角；暂不进 THEME.CFG */
-UINT32 ThemeWindowCornerRadius(void);
+/*
+ * PR-GUI-l2-gradient：标题栏底色（相对顶色加深）；暂不进 THEME.CFG。
+ * 顶色仍走 ThemeWindowTitleFocus/Idle/Hover；绘制侧逐行插值到本色。
+ */
+UINT32 ThemeWindowTitleGradientBottom(UINT32 Top);
 
 void ThemeSetDesktopBackground(UINT32 Color);
 void ThemeSetShellClientBackground(UINT32 Color);

@@ -138,6 +138,7 @@ void ComposeBegin(void);
 void ComposeEnd(void);
 void GfxPresent(void);
 UINT32 TitleBarColor(int Idx);
+UINT32 TitleBarColorAtRow(int Idx, UINT32 Row, UINT32 TitleH);
 UINT32 WindowBorderColor(int Idx);
 int TopWindowAt(UINT32 X, UINT32 Y);
 void GuiHoverUpdate(UINT32 X, UINT32 Y);
@@ -154,15 +155,12 @@ void DrawWindowChromeAt(int Idx);
 void DrawWindowShadowAt(int Idx);
 /* 右/下 drop shadow：扩展 footprint（拖动清残影） */
 void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H);
-/* PR-GUI-l2-round：局部坐标是否在圆角窗形内（命中仍用矩形） */
-int PixelInWindowRound(UINT32 Lx, UINT32 Ly, UINT32 Ww, UINT32 Wh, UINT32 R);
-/* 客户区直角 Fill 后，把 AABB 四角圆外像素打回桌面 */
-void PunchWindowRoundExterior(int Idx);
 void RefreshOtherChrome(int SkipIdx);
 void SyncWindowVisualsEx(int ClearDesktop);
 void SyncWindowVisuals(void);
 void FillDesktopRectClipped(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 int WindowOccludedByOther(int Idx);
+int WindowOccludedByOtherOrShadow(int Idx);
 int AllActiveWindowsHaveValidBackup(void);
 UINT32 BackupPageCount(UINT32 Ww, UINT32 Wh);
 int EnsureWindowBackupBuf(int Idx);

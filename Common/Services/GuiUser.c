@@ -74,7 +74,6 @@ void PaintUserClient(int Idx) {
     } else {
         HalVideoFillRect(ClientX, ClientY, ClientW, ClientH, W->Background);
     }
-    PunchWindowRoundExterior(Idx);
     if (W->ClientText[0] != 0) {
         HalVideoSetClipOrigin(Cx, Cy, Cw, Ch, W->Background);
         HalVideoDrawStringAt(Cx, Cy, W->ClientText, COLOR_BLACK);

@@ -501,6 +501,7 @@ static void PaintMenu(void) {
 
     GuiBackupSyncRect(Cx, Cy, Cw, Ch);
     HalVideoClearClip();
+    /* 客户区直角 Fill 会盖住底角切角 → 打回桌面 */
     GuiFrameBufferEnd();
 }
 

@@ -750,21 +750,26 @@ int XhciMscClaimPorts(void) {
         }
 
         /*
-         * 真机：只 Force/Address 尚无 PED 的口（陈旧 SS PED 曾 Address 超时弄死命令环）。
-         * QEMU usb-storage 常已 PED：hypervisor 上仍试 Force PR + Address（msc-8）。
+         * Live U 盘常已 PED。旧日志 Force PED → ResetPort.PRC 超时 → claim none。
+         * 已 PED+CCS：跳过 ResetPortEx，直接 Address（与鼠标同策略）。
+         * 未 PED：Force PR；Address 失败再 Force 重试。
          */
-        if ((Ps & PORTSC_PED) && !HalCpuIsHypervisor()) {
-            BootLogHex("boot: msc claim skip PED port=", P, 2);
-            continue;
-        }
-        Force = 1;
-        BootLogHex("boot: msc claim reset force port=", P, 2);
-        if (!ResetPortEx(P, Force)) {
-            BootLogHex("boot: msc claim reset fail port=", P, 2);
-            continue;
-        }
-        if (!HalCpuIsHypervisor()) {
-            StallMs(100);
+        Force = 0;
+        if ((Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
+            BootLogHex("boot: msc claim try PED port=", P, 2);
+        } else {
+            Force = 1;
+            BootLogHex("boot: msc claim reset force port=", P, 2);
+            if (!ResetPortEx(P, 1)) {
+                BootLogHex("boot: msc claim reset fail port=", P, 2);
+                Ps = ReadMmio32(gOperationalBase + PortReg(P));
+                if (!((Ps & PORTSC_PED) && (Ps & PORTSC_CCS))) {
+                    continue;
+                }
+                BootLogHex("boot: msc claim Force fail; try Address port=", P, 2);
+            } else if (!HalCpuIsHypervisor()) {
+                StallMs(100);
+            }
         }
         Ps = ReadMmio32(gOperationalBase + PortReg(P));
         if (!(Ps & PORTSC_PED) || !(Ps & PORTSC_CCS)) {
@@ -780,6 +785,29 @@ int XhciMscClaimPorts(void) {
         if (!AddrOk && gMscScanSlot != 0) {
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
+        }
+        /* Address 失败且刚才未 Force：再 Force PR 试一次；cmd sick 则恢复并停 */
+        if (!AddrOk && !Force) {
+            if (gXhciCmdSick) {
+                gDiagQuiet = QuietSave;
+                BootLog("boot: msc claim abort (cmd sick after PED Address)\n");
+                RecoverCommandRing();
+                gXhciCmdSick = 0;
+                break;
+            }
+            BootLogHex("boot: msc claim addr retry Force port=", P, 2);
+            if (ResetPortEx(P, 1)) {
+                if (!HalCpuIsHypervisor()) {
+                    StallMs(100);
+                }
+                Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
+                AddrOk = AddressDeviceOnPort(P, Speed, &gMscScanSlot, gMscScanDevCtx,
+                                             0, 0, 0, 0, 0);
+                if (!AddrOk && gMscScanSlot != 0) {
+                    DisableSlot(gMscScanSlot);
+                    gMscScanSlot = 0;
+                }
+            }
         }
         gDiagQuiet = QuietSave;
         if (!AddrOk) {

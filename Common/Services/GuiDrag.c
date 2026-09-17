@@ -258,7 +258,7 @@ void BeginDragBackups(int DragIdx) {
          * 会把前景烙进 gWinBackup，ClearOld 露底时出现拖动烙印。
          * 遮挡窗走非 ForceFull，重叠像素保留先前干净备份。
          */
-        BackupWindowAtEx(i, !WindowOccludedByOther(i));
+        BackupWindowAtEx(i, !WindowOccludedByOtherOrShadow(i));
     }
     if (!gWinBackupValid[DragIdx]) {
         DebugWrite("gui: drag backup invalid\n");
@@ -443,9 +443,21 @@ void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
 /* 清除整片旧 footprint：先恢复被盖住的其它窗，再填桌面色与图标（避让窗口） */
 void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh,
                                   int DragIdx) {
+    int i;
+
     RestoreWindowsInFootprint(Ox, Oy, Ww, Wh, DragIdx);
     FillDesktopRectClipped(Ox, Oy, Ww, Wh);
     DesktopDrawRect(Ox, Oy, Ww, Wh);
+    /* 相交他窗阴影（被拖窗阴影由调用方在贴窗后画，避免叠两次） */
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWindows[i].Active || i == DragIdx) {
+            continue;
+        }
+        if (RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width,
+                           gWindows[i].Height, Ox, Oy, Ww, Wh)) {
+            DrawWindowShadowAt(i);
+        }
+    }
 }
 
 
@@ -481,6 +493,7 @@ void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
     ClearOldDragFootprint(Fx, Fy, Fw, Fh, DragIdx);
     if (gWinBackupValid[DragIdx] && gWinBackup[DragIdx] != 0) {
         PaintWindowFromBackup(DragIdx);
+        DrawWindowShadowAt(DragIdx);
     } else {
         DrawWindowAt(DragIdx);
     }
@@ -568,6 +581,7 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         ClearOldDragFootprint(Fx, Fy, Fw, Fh, Idx);
         if (gWinBackupValid[Idx]) {
             PaintWindowFromBackup(Idx);
+            DrawWindowShadowAt(Idx);
         } else {
             PaintAllWindowsDraw(Idx);
         }
@@ -658,6 +672,10 @@ void GuiDragEnd(void) {
              */
             SyncWindowVisualsEx(1);
             GuiFocusApply();
+            /*
+             * Sync 会把上层阴影画到下层露出区（正确）。下层备份保持干净：
+             * 被挡像素不吸入上层；移走后下次 Sync/ClearOld 用备份重贴即无烙印。
+             */
         }
         if (gWindows[DragIdx].Kind == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();

@@ -171,15 +171,19 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 
 写后缓冲，再走现有脏区 Present。门面：`HalVideoBlend*` / `UiFillRectangleAlpha` / `UiBlendRgb`。用途：阴影、半透明、灰度字、淡入淡出。
 
-### 5.2 圆角（L2）
+### 5.2 圆角（L2）— **已回退**
 
-`ThemeWindowCornerRadius`（默认 8）接到 `DrawWindowAt` / chrome：中间矩形 + 四角 `R×R` 圆盘（`PaintWindowChromeRound`）。合成不填圆角外像素，避免直角底色露边；客户区直角 Fill 后由 `PunchWindowRoundExterior` 把切角打回桌面。**命中仍矩形**（`PointInWindow` 不变；`AnalyticWindowPixel` 圆角外当桌面）。
+曾用 `ThemeWindowCornerRadius` + `PaintWindowChromeRound` / `PunchWindowRoundExterior`（TG `0fb4ddf`）。真机/QEMU 上切角 Punch、阴影交汇与叠放透视反复不稳，**已回退到直角窗**（代码回到 shadow 柱几何）。控件圆角（`Ui*RoundRectangle`）仍保留。窗口圆角若再开，需另立刀并先过拖动/叠放验收。
 
 ### 5.3 阴影（L2）
 
 窗外 N 像素（`ThemeWindowShadowSize`，默认 6）右/下 drop shadow：alpha 贴边约 `ThemeWindowShadowMaxAlpha`（128）收到 0。`DrawWindowShadowAt` + `HalVideoBlendFillRect`；命中仍矩形（阴影不进 `PointInWindow`）。拖动：`ExpandRectByWindowShadow` 扩 footprint，`RedrawDragFrame` / `MoveWindowTo` 同步清残影。
 
-### 5.4 抗锯齿字体（L2 最难，可后置）
+### 5.4 标题栏渐变（L2）
+
+顶色仍走三态 `ThemeWindowTitleFocus/Idle/Hover`；底色 `ThemeWindowTitleGradientBottom(Top)`（向黑约 40%）。直角标题栏按行 `TitleBarColorAtRow` 填充。`AnalyticWindowPixel` 同步按行取色。不改命中矩形；暂不进 THEME.CFG。
+
+### 5.5 抗锯齿字体（L2 最难，可后置）
 
 现状：1bpp 点阵（`Font*` / TOYF）。灰度字需要新格式 + 加载 + alpha 绘制。工作量最大，排 P3。
 
@@ -215,8 +219,8 @@ UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 | 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `cc7965e` |
 | 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `cc7965e` |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | ✅ TG `f1772d7` |
-| 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | ✅ TG `0fb4ddf` |
-| 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | P1 |
+| 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | ⏪ **已回退**（几何/Punch/阴影交汇差，退回直角窗；保留 `0fb4ddf` 史） |
+| 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | ← JX（直角窗上实现） |
 | 6 | **PR-GUI-l3-fade** | 窗口淡入淡出 | 2 天 | P2 |
 | 7 | **PR-GUI-l3-button** | 按钮悬停/按下 | 1 天 | P2 |
 | 8 | **PR-GUI-l2-font** | 抗锯齿字体（可选） | 3–5 天 | P3 |
@@ -228,13 +232,13 @@ PR-GUI-doc（本文）✅
   → PR-GUI-l1（视觉基础）
   → PR-GUI-alpha
   → PR-GUI-l2-shadow
-  → PR-GUI-l2-round
-  → PR-GUI-l2-gradient
+  → PR-GUI-l2-gradient   ← 当前（圆角 l2-round 已回退，不挡渐变）
   → PR-GUI-l3-fade / l3-button
-  → PR-GUI-l2-font（可选，不进默认排队）
+  → PR-GUI-l2-font（可选）
+  → （可选再议）PR-GUI-l2-round
 ```
 
-先 L1（立竿见影），再 alpha + 阴影/圆角，动画与灰度字后置。
+先 L1，再 alpha + 阴影 + 渐变；**窗口圆角几何已回退**，动画与灰度字后置。
 
 **进 JX**：须 R 柱 0～7 空，或明文改路线图文首 ★。表内「P0/P1」是**柱内**性价比，不是全仓优先级。
 

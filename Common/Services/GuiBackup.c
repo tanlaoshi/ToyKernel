@@ -123,7 +123,14 @@ void BackupWindowAtEx(int Idx, int ForceFull) {
     CursorRestore();
     GfxIrqLeave();
 
-    if (!ForceFull && WindowOccludedByOther(Idx)) {
+    /*
+     * ForceFull：compose 自下而上、上层尚未画时整窗 ReadRect（含将被盖住的区域）。
+     * 非 ForceFull 且被挡（含上层阴影扫过）：只更新可见像素，被挡处保留旧备份。
+     */
+    if (!ForceFull && WindowOccludedByOtherOrShadow(Idx)) {
+        UINT32 OldBw = gWinBackupW[Idx];
+        UINT32 OldBh = gWinBackupH[Idx];
+
         if (!HadValid) {
             gWinBackupValid[Idx] = 0;
             if (WasVisible) {
@@ -134,21 +141,20 @@ void BackupWindowAtEx(int Idx, int ForceFull) {
             ComposeEnd();
             return;
         }
-        Bw = gWinBackupW[Idx];
-        if (Bw == 0) {
-            Bw = Rw;
-        }
+        Bw = Rw;
         for (Row = 0; Row < Rh; Row++) {
             for (Col = 0; Col < Rw; Col++) {
                 UINT32 Px = Win->X + Col;
                 UINT32 Py = Win->Y + Row;
+                UINT32 *Dst = &gWinBackup[Idx][Row * Bw + Col];
 
                 if (PixelCoveredByHigherWindow(Idx, Px, Py)) {
+                    if (OldBuf != gWinBackup[Idx] && Col < OldBw && Row < OldBh) {
+                        *Dst = OldBuf[Row * OldBw + Col];
+                    }
                     continue;
                 }
-                if (Row < gWinBackupH[Idx] && Col < Bw) {
-                    gWinBackup[Idx][Row * Bw + Col] = HalVideoReadPixel(Px, Py);
-                }
+                *Dst = HalVideoReadPixel(Px, Py);
             }
         }
         gWinBackupW[Idx] = Rw;
@@ -186,7 +192,6 @@ UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     const GUI_WINDOW *W = &gWindows[Idx];
     UINT32 Lx;
     UINT32 Ly;
-    UINT32 R;
 
     if (!W->Active) {
         return DesktopBgAt(Px, Py);
@@ -196,19 +201,13 @@ UINT32 AnalyticWindowPixel(int Idx, UINT32 Px, UINT32 Py) {
     }
     Lx = Px - W->X;
     Ly = Py - W->Y;
-    R = ThemeWindowCornerRadius();
-    if (R > W->Width / 2) {
-        R = W->Width / 2;
-    }
-    if (R > W->Height / 2) {
-        R = W->Height / 2;
-    }
-    /* 圆角外（矩形命中内）仍露桌面，避免拖动合成画直角块 */
-    if (!PixelInWindowRound(Lx, Ly, W->Width, W->Height, R)) {
-        return DesktopBgAt(Px, Py);
-    }
     if (Ly < TITLE_HEIGHT) {
-        return TitleBarColor(Idx);
+        UINT32 Th = TITLE_HEIGHT;
+
+        if (Th > W->Height) {
+            Th = W->Height;
+        }
+        return TitleBarColorAtRow(Idx, Ly, Th);
     }
     if (Ly == W->Height - 1 || Lx == 0 || Lx == W->Width - 1) {
         return WindowBorderColor(Idx);
@@ -227,10 +226,8 @@ void PaintWindowFromBackup(int Idx) {
     if (gWinBackupValid[Idx] && gWinBackup[Idx] != 0) {
         HalVideoWriteRect(Win->X, Win->Y, gWinBackupW[Idx], gWinBackupH[Idx],
                        gWinBackup[Idx]);
-        /* 备份里是拖动前的标题栏色，按当前焦点重画 chrome */
         DrawWindowChromeAt(Idx);
-        DrawWindowShadowAt(Idx);
-        PunchWindowRoundExterior(Idx);
+        /* 阴影由 SyncWindowVisualsEx 第二遍统一画，避免先画影再被下层 WriteRect 打乱 */
         return;
     }
     DrawWindowAt(Idx);
@@ -323,11 +320,56 @@ int WindowBackupCoversPixel(int Idx, UINT32 Px, UINT32 Py) {
 }
 
 
+/*
+ * 更高 z 是否盖住该像素。含 drop-shadow 右/下扩边：影落在下层窗体内时
+ * 若只按窗 AABB 判断，Backup ReadPixel 会吸入阴影 → 松手烙印。
+ */
 int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py) {
     int j;
+    UINT32 N = ThemeWindowShadowSize();
 
     for (j = Idx + 1; j < MAX_WINS; j++) {
-        if (gWindows[j].Active && PointInWindow(&gWindows[j], Px, Py)) {
+        const GUI_WINDOW *W = &gWindows[j];
+        UINT32 X1;
+        UINT32 Y1;
+
+        if (!W->Active) {
+            continue;
+        }
+        if (PointInWindow(W, Px, Py)) {
+            return 1;
+        }
+        if (N == 0) {
+            continue;
+        }
+        X1 = W->X + W->Width + N;
+        Y1 = W->Y + W->Height + N;
+        if (Px >= W->X && Px < X1 && Py >= W->Y && Py < Y1) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* 体相交或上层阴影扩边扫过本窗 → 禁止 ForceFull ReadRect */
+int WindowOccludedByOtherOrShadow(int Idx) {
+    int j;
+    UINT32 N = ThemeWindowShadowSize();
+
+    if (WindowOccludedByOther(Idx)) {
+        return 1;
+    }
+    if (N == 0 || Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
+        return 0;
+    }
+    for (j = Idx + 1; j < MAX_WINS; j++) {
+        if (!gWindows[j].Active) {
+            continue;
+        }
+        if (RectIntersects(gWindows[Idx].X, gWindows[Idx].Y,
+                           gWindows[Idx].Width, gWindows[Idx].Height,
+                           gWindows[j].X, gWindows[j].Y,
+                           gWindows[j].Width + N, gWindows[j].Height + N)) {
             return 1;
         }
     }

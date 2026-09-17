@@ -192,24 +192,37 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         if (GuiFocusKind() == GUI_WIN_SETTINGS) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 SettingsUiRepaint();
+                /* 客户区重绘后强制刷新标题，清光标/透视残块 */
+                GuiFrameBufferBegin();
+                DrawWindowChromeAt(gFocusWin);
+                GuiFrameBufferEnd();
             } else {
                 SettingsUiOnClick(X, Y);
             }
         } else if (GuiFocusKind() == GUI_WIN_STORE) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 StoreUiRepaint();
+                GuiFrameBufferBegin();
+                DrawWindowChromeAt(gFocusWin);
+                GuiFrameBufferEnd();
             } else {
                 StoreUiOnClick(X, Y);
             }
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 FilesUiRepaint();
+                GuiFrameBufferBegin();
+                DrawWindowChromeAt(gFocusWin);
+                GuiFrameBufferEnd();
             } else {
                 FilesUiOnClick(X, Y);
             }
         } else if (GuiFocusKind() == GUI_WIN_EDIT) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 EditUiRepaint();
+                GuiFrameBufferBegin();
+                DrawWindowChromeAt(gFocusWin);
+                GuiFrameBufferEnd();
             } else {
                 EditUiOnClick(X, Y);
             }

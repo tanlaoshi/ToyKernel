@@ -182,10 +182,15 @@ void GuiComposeThemeScene(void) {
             gFocusWin = i;
             PaintUserClient(i);
         }
-        /* 客户区直角 Fill 会盖住圆角切角 → 打回桌面后再备份 */
-        PunchWindowRoundExterior(i);
         /* 上层尚未画上：整窗备份，避免重叠区镂空透视 */
         BackupWindowAtEx(i, 1);
+    }
+
+    /* 全部 ForceFull 备份完成后再画影，避免下层备份吸入上层阴影 */
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWindows[i].Active) {
+            DrawWindowShadowAt(i);
+        }
     }
 
     gFocusWin = SavedFocus;

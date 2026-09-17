@@ -104,39 +104,39 @@ void RaiseWindow(int Idx) {
 
 /* 置顶并按备份重合成，避免只改焦点却在下层写穿 */
 void GuiRaiseToFront(int Idx) {
+    int Top;
+
     if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return;
     }
     RaiseWindow(Idx);
+    Top = gFocusWin; /* Raise 后窗已挪槽，勿再用旧 Idx */
     SyncWindowVisuals();
     GuiFocusApply();
     /* 顶层无有效备份时补内容，再抓一份干净备份 */
-    if (gWindows[Idx].Kind == GUI_WIN_SETTINGS) {
+    if (Top < 0 || Top >= MAX_WINS || !gWindows[Top].Active) {
+        return;
+    }
+    if (gWindows[Top].Kind == GUI_WIN_SETTINGS) {
         SettingsUiRepaint();
-        PunchWindowRoundExterior(Idx);
-        BackupWindowAt(Idx);
-    } else if (gWindows[Idx].Kind == GUI_WIN_STORE) {
+        BackupWindowAt(Top);
+    } else if (gWindows[Top].Kind == GUI_WIN_STORE) {
         StoreUiRepaint();
-        PunchWindowRoundExterior(Idx);
-        BackupWindowAt(Idx);
-    } else if (gWindows[Idx].Kind == GUI_WIN_FILES) {
+        BackupWindowAt(Top);
+    } else if (gWindows[Top].Kind == GUI_WIN_FILES) {
         FilesUiRepaint();
-        PunchWindowRoundExterior(Idx);
-        BackupWindowAt(Idx);
-    } else if (gWindows[Idx].Kind == GUI_WIN_EDIT) {
+        BackupWindowAt(Top);
+    } else if (gWindows[Top].Kind == GUI_WIN_EDIT) {
         EditUiRepaint();
-        PunchWindowRoundExterior(Idx);
-        BackupWindowAt(Idx);
-    } else if (gWindows[Idx].Kind == GUI_WIN_USER) {
-        DrawWindowAtEx(Idx, 0);
-        PaintUserClient(Idx);
-        PunchWindowRoundExterior(Idx);
-        BackupWindowAtEx(Idx, 1);
-    } else if (gWindows[Idx].Kind == GUI_WIN_SHELL && !gWinBackupValid[Idx]) {
+        BackupWindowAt(Top);
+    } else if (gWindows[Top].Kind == GUI_WIN_USER) {
+        DrawWindowAtEx(Top, 0);
+        PaintUserClient(Top);
+        BackupWindowAtEx(Top, 1);
+    } else if (gWindows[Top].Kind == GUI_WIN_SHELL && !gWinBackupValid[Top]) {
         /* 欢迎语级恢复；完整历史需备份一直有效 */
         GuiConsoleOpsOnShellOpened();
-        PunchWindowRoundExterior(Idx);
-        BackupWindowAt(Idx);
+        BackupWindowAt(Top);
     }
 }
 

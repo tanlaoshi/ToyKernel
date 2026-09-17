@@ -624,11 +624,23 @@ static int MscPolicySaysOff(void) {
     return 0;
 }
 
+static int AnyVolumeHasToyId(void) {
+    int i;
+
+    for (i = 0; i < gVolCount; i++) {
+        if (gVols[i].HasToyId) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int FileSystemInitialize(void) {
     VFS_SERVICE_OPS Svc;
     int Auto;
     int HaveVols = 0;
     int MuxOk = 0;
+    int HasToy = 0;
 
     if (VfsRegister(FatFsOps()) != 0) {
         DebugWrite("FS: VfsRegister(fat) failed\n");
@@ -641,18 +653,31 @@ int FileSystemInitialize(void) {
 
     /*
      * PR-H-msc-7b：Live 默认 FS 前 auto（claim→Mux），再一次 MountAllVolumes。
-     * 若主盘已有卷且 MSC.OFF / THEME msc=0 → 关 auto（调试）。
+     * 主盘已有 TOYOS 且 MSC.OFF / msc=0 → 可关 auto。
+     * 主盘只有 ESP、尚无 TOYOS.ID 时不得关 auto（NUC Live：否则永远读不到 U 盘 TOYOS）。
      */
     Auto = HalUsbMscAutoEnabled();
     if (HalBlockInit() > 0 && MountAllVolumes()) {
         HaveVols = 1;
+        HasToy = AnyVolumeHasToyId();
         if (Auto && MscPolicySaysOff()) {
-            Auto = 0;
-            HalUsbMscAutoSet(0);
-            HalConsoleWriteSerial("boot: msc auto off (msc=0/MSC.OFF)\n");
+            if (HasToy) {
+                Auto = 0;
+                HalUsbMscAutoSet(0);
+                HalConsoleWriteSerial("boot: msc auto off (msc=0/MSC.OFF)\n");
+            } else {
+                HalConsoleWriteSerial(
+                    "boot: msc auto keep (no TOYOS.ID; ignore msc=0)\n");
+            }
         }
     } else {
         DebugWrite("FS: no primary volumes yet (Live USB path ok)\n");
+    }
+
+    if (!HasToy && !Auto) {
+        Auto = 1;
+        HalUsbMscAutoSet(1);
+        HalConsoleWriteSerial("boot: msc auto force (need TOYOS)\n");
     }
 
     if (Auto) {
@@ -668,6 +693,7 @@ int FileSystemInitialize(void) {
                 }
             } else {
                 HaveVols = 1;
+                HasToy = AnyVolumeHasToyId();
             }
         }
     }
@@ -694,5 +720,8 @@ int FileSystemInitialize(void) {
     VfsServiceOpsRegister(&Svc);
     ShellCommandsRegisterFs();
     DebugWrite("FS ready (ls, cat, write, wrbig, dirstress, rm, mkdir, rmdir, mv, vols, filestat, filesync)\n");
+    if (!AnyVolumeHasToyId()) {
+        HalConsoleWriteSerial("fs: WARN no TOYOS.ID on any volume\n");
+    }
     return 0;
 }

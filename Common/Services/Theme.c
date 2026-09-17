@@ -145,8 +145,10 @@ UINT32 ThemeWindowShadowColor(void) {
     return COLOR_BLACK;
 }
 
-UINT32 ThemeWindowCornerRadius(void) {
-    return 8u;
+
+UINT32 ThemeWindowTitleGradientBottom(UINT32 Top) {
+    /* 向黑插值：保留约 60% 顶色 → 标题栏自上而下略暗 */
+    return UiBlendRgb(COLOR_BLACK, Top, 153u);
 }
 
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
