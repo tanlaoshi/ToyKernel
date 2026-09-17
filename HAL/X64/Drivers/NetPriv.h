@@ -127,7 +127,7 @@ extern volatile UINT8 *gIsr;
 extern UINT16 gIoPort;
 
 extern int gNetOk;
-extern int gNicE1000;
+extern const NIC_L2 *gNicL2;
 extern UINT8 gMac[6];
 extern UINT32 gIp;
 extern UINT32 gTxDone;
@@ -136,6 +136,12 @@ extern int gLwIpRx;
 
 void NetMemSet(void *Dst, UINT8 Val, UINTN Len);
 void NetMemCpy(void *Dst, const void *Src, UINTN Len);
+
+/* Net.c：挂上本文件的 NET_BACKEND */
+int NetProtocolAttach(void);
+int NetNicSendFrame(const UINT8 *Frame, UINTN FrameLen);
+void NetNicPoll(void);
+int NetNicHasL2(void);
 
 static inline UINT64 VirtualToPhysical(void *Ptr) {
     return (UINT64)(UINTN)Ptr;

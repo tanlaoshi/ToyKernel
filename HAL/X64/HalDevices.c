@@ -11,7 +11,6 @@
 #include "InputPs2.h"
 #include "Net.h"
 #include "UsbMsc.h"
-#include "E1000.h"
 
 #ifndef TOY_DEMO_DRIVER
 #define TOY_DEMO_DRIVER 1
@@ -162,12 +161,9 @@ void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
     ToyDriverNetGetStats(TxDone, RxFrames);
 }
 
-/* PR-H4e-2：仅 e1000/e1000e；virtio 返回 0（Shell 可省略链路行） */
+/* PR-N-nic：链路走已挂 NIC_L2（e1000 等）；virtio / 无 L2 → 0 */
 int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
-    if (!E1000Ready()) {
-        return 0;
-    }
-    if (E1000GetLink(Up, Mbps, FullDuplex) != 0) {
+    if (NetNicGetLink(Up, Mbps, FullDuplex) != 0) {
         return 0;
     }
     return 1;

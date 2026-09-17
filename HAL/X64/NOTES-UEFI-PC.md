@@ -136,7 +136,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 ### H4：真机网卡范例（e1000）
 
-- 驱动：`E1000.c` + `NetE1000.c`；复用 Net.c ARP/ICMP（`NetBindE1000` / `NetInputFrame`）
+- 驱动：`E1000.c` + `NetE1000.c`；复用 Net.c ARP/ICMP（`NetAttachNic` / `NetInputFrame`；PR-N-nic）
 - PCI 8086:100E 等；TX/RX ring 轮询；无中断
 - 课堂：`TOY_NET=e1000 ./smoke-boot.sh` → `boot: e1000`；默认 virtio 不回归
 - **无卡不挡桌面**；`lsdev` 见 `e1000`

@@ -5,6 +5,7 @@
 #define NET_H
 
 #include "BootTypes.h"
+#include "DriverNic.h"
 
 #define NET_IP_DEFAULT  0x0A00020FULL  /* 10.0.2.15 (QEMU user netdev) */
 #define NET_IP_PROTO_ICMP 1
@@ -37,8 +38,10 @@ int  NetSendEthernet(const UINT8 *Frame, UINTN Len);
 void NetSetLwIpRx(int Enable);
 int  NetLwIpRx(void);
 
-/* PR-H4：e1000 L2 回调 / Bind 挂栈 */
+/* PR-H4 / PR-N-nic：L2 回调 / Bind 挂栈 */
 void NetInputFrame(const UINT8 *Pkt, UINTN Len);
-int  NetBindE1000(void);
+/* 外置 NIC（e1000 等）挂 L2；成功 0。virtio 仍走 Net.c 内置路径 */
+int  NetAttachNic(const NIC_L2 *Nic);
+int  NetNicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex);
 
 #endif

@@ -16,7 +16,7 @@
 #include "Hal.h"
 #include "Driver.h"
 #include "DriverNet.h"
-#include "E1000.h"
+#include "DriverNic.h"
 
 typedef struct {
     UINT8  Dst[6];
@@ -64,7 +64,6 @@ typedef struct {
 } ARP_ENTRY;
 
 int gNetOk;
-int gNicE1000;
 UINT8 gMac[6];
 UINT32 gIp = NET_IP_DEFAULT;
 static ARP_ENTRY gArpCache[ARP_CACHE_SIZE];
@@ -125,16 +124,14 @@ static int NetSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     int Wait;
     UINTN WireLen;
     UINT64 IrqFlags;
+    int NicResult;
 
     if (!gNetOk) {
         return -1;
     }
-    if (gNicE1000) {
-        int R = E1000SendFrame(Frame, FrameLen);
-        if (R == 0) {
-            gTxDone++;
-        }
-        return R;
+    NicResult = NetNicSendFrame(Frame, FrameLen);
+    if (NicResult != -2) {
+        return NicResult;
     }
     if (FrameLen + VIRTIO_NET_HDR_LEN > RX_BUF_SIZE) {
         return -1;
@@ -510,6 +507,10 @@ void NetDriverRegister(void) {
     (void)ToyDriverRegister(&gVirtioNetPciDriver);
 }
 
+int NetProtocolAttach(void) {
+    return ToyDriverNetAttach(&gNetBackend);
+}
+
 void NetInputFrame(const UINT8 *Pkt, UINTN Len) {
     if (!Pkt || Len < ETH_HDR_LEN) {
         return;
@@ -521,18 +522,6 @@ void NetInputFrame(const UINT8 *Pkt, UINTN Len) {
     }
 #endif
     HandleIpPacket(Pkt, Len);
-}
-
-int NetBindE1000(void) {
-    if (!E1000Ready()) {
-        return -1;
-    }
-    E1000GetMac(gMac);
-    gNicE1000 = 1;
-    gLwIpRx = 0;
-    gNetOk = 1;
-    DebugWrite("Net: e1000 up\n");
-    return ToyDriverNetAttach(&gNetBackend);
 }
 
 int NetReady(void) {
@@ -556,8 +545,8 @@ void NetPoll(void) {
     if (!gNetOk) {
         return;
     }
-    if (gNicE1000) {
-        E1000Poll();
+    if (NetNicHasL2()) {
+        NetNicPoll();
         return;
     }
     IrqFlags = HalIrqSave();

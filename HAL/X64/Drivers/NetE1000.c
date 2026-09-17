@@ -1,11 +1,11 @@
 /*
- * NetE1000.c — e1000 / e1000e 经 Driver Net 类注册（PR-H4 / PR-H4e-2）
+ * NetE1000.c — e1000 / e1000e 经 Driver Net 类注册（PR-H4 / PR-N-nic-e1000）
  *
- * Probe 只认 PCI e1000*；Bind 挂上与 virtio-net 同一套 Net.c 协议栈。
+ * Probe 只认 PCI e1000*；Bind → NetAttachNic(NIC_L2)。
  * 无卡 → Probe 失败，不挡桌面。lsdev 名随芯片：e1000 / e1000e。
  */
 #include "Driver.h"
-#include "DriverNet.h"
+#include "DriverNic.h"
 #include "E1000.h"
 #include "Net.h"
 #include "VirtualMemory.h"
@@ -22,6 +22,29 @@ static void RefreshDriverName(void) {
     }
     gE1000DriverName[i] = 0;
 }
+
+static int E1000NicSendFrame(const UINT8 *Frame, UINTN FrameLen) {
+    return E1000SendFrame(Frame, FrameLen);
+}
+
+static void E1000NicPoll(void) {
+    E1000Poll();
+}
+
+static void E1000NicGetMac(UINT8 Mac[6]) {
+    E1000GetMac(Mac);
+}
+
+static int E1000NicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex) {
+    return E1000GetLink(Up, Mbps, FullDuplex);
+}
+
+static const NIC_L2 gE1000NicL2 = {
+    .SendFrame = E1000NicSendFrame,
+    .Poll = E1000NicPoll,
+    .GetMac = E1000NicGetMac,
+    .GetLink = E1000NicGetLink,
+};
 
 static int E1000DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
     (void)Self;
@@ -49,7 +72,10 @@ static int E1000DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv
 
 static int E1000DriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return NetBindE1000();
+    if (!E1000Ready()) {
+        return -1;
+    }
+    return NetAttachNic(&gE1000NicL2);
 }
 
 static void E1000DriverRemove(TOY_DRIVER_INSTANCE *Inst) {

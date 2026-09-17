@@ -40,7 +40,10 @@
 
 ### Net（网卡）
 
-`Bind` 中：`ToyDriverNetAttach(&gMyBackend)`
+**新网卡**：实现 `NIC_L2`（`SendFrame`/`Poll`/`GetMac`），Bind 里 **`NetAttachNic(&gMyNicL2)`**；RX 调 `NetInputFrame`。  
+**不要**自造整份 `NET_BACKEND`（那是 `Net.c` 协议门面）。范例：`NetE1000.c`。详见 [`驱动开发指南.md`](../../../../Documents/驱动开发指南.md) §5.1；过程笔记：[`驱动开发范例-网卡L2.md`](../../../../Documents/驱动开发范例-网卡L2.md)。
+
+（历史）仅协议门面：`ToyDriverNetAttach(&gNetBackend)` — 一般不由新人网卡驱动调用。
 
 ## 常见错误
 
@@ -48,16 +51,19 @@
 - **Register 了但 lsdev 看不到**：忘了在 `HalDriverRegister()` 调用 `MyDriverRegister()`
 - **`_template/` 里的 .c 不编译**：模板永不编入，必须复制到 `Drivers/*.c`
 - **系统卡死**：Probe 中有死循环；加超时
+- **网卡 lsdev 有但不通**：未 `NetAttachNic`，或 RX 未 `NetInputFrame`
 
 ## 禁止
 
 - 把 `_template/Template.c` 留在 `_template/` 下指望它自动编入
 - 修改 `_template/` 内的文件当作真驱动用
 - 让 Probe 中的硬件访问死循环
+- 新网卡在 `Net.c` 加 `if (gMyNic)` 特例
 
 ## 进阶
 
 - 简单参考：`HAL/X64/Drivers/InputPs2.c`
 - 复杂参考：`HAL/X64/Drivers/InputXhci.c`（含中断）
+- 网卡 L2：`HAL/X64/Drivers/NetE1000.c` + `Include/DriverNic.h`
 - 设计：`Documents/Done/驱动模板设计.md`
 - 完整指南（PR-D-tpl-3）：`Documents/驱动开发指南.md`
