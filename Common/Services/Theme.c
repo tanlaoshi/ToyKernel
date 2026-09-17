@@ -125,6 +125,14 @@ UINT32 ThemeClientPadding(void) {
     return 8u; /* 与 GUI_CLIENT_PAD 对齐 */
 }
 
+UINT8 ThemeTaskbarAlpha(void) {
+    return 200u; /* ~78%：壁纸隐约透出 */
+}
+
+UINT8 ThemeMenuPanelAlpha(void) {
+    return 220u;
+}
+
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
 static UINT32 ThemeCompactFontId(void) {
     UINT32 i;

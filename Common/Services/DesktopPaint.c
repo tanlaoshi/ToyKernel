@@ -33,6 +33,42 @@ void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
     }
 }
 
+/* PR-GUI-alpha：遮挡路径半透明填充（自由像素 Src-over） */
+static void FillRectFreeAlpha(UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
+                              UINT32 Color, UINT8 Alpha) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (W == 0 || H == 0 || Alpha == 0) {
+        return;
+    }
+    if (Alpha == 255) {
+        FillRectFree(X, Y, W, H, Color);
+        return;
+    }
+    for (Row = 0; Row < H; Row++) {
+        InRun = 0;
+        RunStart = 0;
+        for (Col = 0; Col < W; Col++) {
+            int Free = !PointOccupied(X + Col, Y + Row);
+            if (Free && !InRun) {
+                RunStart = Col;
+                InRun = 1;
+            } else if (!Free && InRun) {
+                HalVideoBlendFillRect(X + RunStart, Y + Row, Col - RunStart, 1,
+                                      Color, Alpha);
+                InRun = 0;
+            }
+        }
+        if (InRun) {
+            HalVideoBlendFillRect(X + RunStart, Y + Row, W - RunStart, 1,
+                                  Color, Alpha);
+        }
+    }
+}
+
 void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     UINT32 Cx = X;
 
@@ -124,7 +160,8 @@ void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     }
 }
 
-void DrawTaskbarRaw(void) {
+/* 任务栏控件（边框/开始钮/时钟）；底色由调用方 Fill / BlendFill */
+static void DrawTaskbarControls(void) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
@@ -148,7 +185,6 @@ void DrawTaskbarRaw(void) {
     StartBtnGeom(&Bx, &By, &Bw, &Bh);
     Start = LocStr(MSG_START);
 
-    UiFillRectangle(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground());
     UiDrawRectangle(0, BarY, Sw, TASKBAR_H, ThemeWindowBorderIdle());
     UiFillRectangle(Bx, By, Bw, Bh,
                     gMenuOpen ? ThemeTaskbarButtonActive() : ThemeTaskbarButton());
@@ -192,6 +228,17 @@ void DrawTaskbarRaw(void) {
     HalVideoDrawStringAt(ClockX, Ty, Clock, COLOR_WHITE);
 }
 
+void DrawTaskbarRaw(void) {
+    UINT32 Sw;
+    UINT32 Sh;
+    UINT32 BarY;
+
+    TaskbarGeom(&BarY, &Sw, &Sh);
+    UiFillRectangleAlpha(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground(),
+                         ThemeTaskbarAlpha());
+    DrawTaskbarControls();
+}
+
 void DrawStartMenuRaw(void) {
     UINT32 Mx;
     UINT32 My;
@@ -206,7 +253,7 @@ void DrawStartMenuRaw(void) {
         RebuildStartMenu();
     }
     MenuGeom(&Mx, &My, &Mw, &Mh);
-    UiFillRectangle(Mx, My, Mw, Mh, ThemeControlFace());
+    UiFillRectangleAlpha(Mx, My, Mw, Mh, ThemeControlFace(), ThemeMenuPanelAlpha());
     UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
     for (i = 0; i < gMenuCount; i++) {
         MENU_ROW *R = &gMenuRows[i];
@@ -272,9 +319,10 @@ void DrawTaskbarOccluded(void) {
     UINT32 BarY;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
-    FillRectFree(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground());
-    /* 开始钮与字：用 raw 再画一遍；遮挡复杂时略糙可接受 */
-    DrawTaskbarRaw();
+    FillRectFreeAlpha(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground(),
+                      ThemeTaskbarAlpha());
+    /* 控件：勿再调 DrawTaskbarRaw（会双重 Blend 底色） */
+    DrawTaskbarControls();
     if (gMenuOpen) {
         DrawStartMenuRaw();
     }

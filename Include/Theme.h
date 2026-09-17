@@ -38,6 +38,9 @@ UINT32 ThemeControlFace(void);
 UINT32 ThemeControlBorder(void);
 UINT32 ThemeControlAccent(void);
 UINT32 ThemeClientPadding(void);
+/* PR-GUI-alpha：半透明面板不透明度（0..255）；暂不进 THEME.CFG */
+UINT8 ThemeTaskbarAlpha(void);
+UINT8 ThemeMenuPanelAlpha(void);
 
 void ThemeSetDesktopBackground(UINT32 Color);
 void ThemeSetShellClientBackground(UINT32 Color);

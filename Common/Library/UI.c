@@ -71,6 +71,15 @@ void UiFillRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Col
     HalVideoFillRect(X, Y, Width, Height, Color);
 }
 
+UINT32 UiBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
+    return HalVideoBlendRgb(Dst, Src, Alpha);
+}
+
+void UiFillRectangleAlpha(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                          UINT32 Color, UINT8 Alpha) {
+    HalVideoBlendFillRect(X, Y, Width, Height, Color, Alpha);
+}
+
 /* 绘制圆角空心矩形 */
 void UiDrawRoundRectangle(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Radius, UINT32 Color) {
     if (Radius > Width / 2) Radius = Width / 2;

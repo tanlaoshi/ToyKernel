@@ -50,6 +50,12 @@ void HalVideoCursorOverlayBegin(void);
 void HalVideoCursorOverlayEnd(void);
 UINT32 HalVideoReadPixel(UINT32 X, UINT32 Y);
 void HalVideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color);
+/* PR-GUI-alpha：后缓冲 Src-over-Dst；Alpha=0 空操作，255=不透明 Fill */
+UINT32 HalVideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha);
+void HalVideoBlendPixel(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha);
+void HalVideoBlendPixelRaw(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha);
+void HalVideoBlendFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                           UINT32 Color, UINT8 Alpha);
 void HalVideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
                       UINT32 Width, UINT32 Height);
 void HalVideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out);

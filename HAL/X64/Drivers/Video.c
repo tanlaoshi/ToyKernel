@@ -340,6 +340,61 @@ void VideoDrawPixel(UINT32 X, UINT32 Y, UINT32 Color) {
     VideoDrawPixelRaw(X, Y, Color);
 }
 
+/* PR-GUI-alpha：Src 盖在 Dst 上（0x00RRGGBB）；无浮点 */
+UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
+    UINT32 Inv;
+    UINT32 R;
+    UINT32 G;
+    UINT32 B;
+
+    if (Alpha == 0) {
+        return Dst;
+    }
+    if (Alpha == 255) {
+        return Src & 0x00FFFFFFu;
+    }
+    Inv = 255u - (UINT32)Alpha;
+    R = (((Src >> 16) & 0xFFu) * (UINT32)Alpha + ((Dst >> 16) & 0xFFu) * Inv) / 255u;
+    G = (((Src >> 8) & 0xFFu) * (UINT32)Alpha + ((Dst >> 8) & 0xFFu) * Inv) / 255u;
+    B = ((Src & 0xFFu) * (UINT32)Alpha + (Dst & 0xFFu) * Inv) / 255u;
+    return (R << 16) | (G << 8) | B;
+}
+
+void VideoBlendPixelRaw(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha) {
+    UINT32 *Fb;
+    UINT32 Pitch;
+    UINT32 *Pix;
+
+    if (Alpha == 0) {
+        return;
+    }
+    if (Alpha == 255) {
+        VideoDrawPixelRaw(X, Y, Color);
+        return;
+    }
+    if (X >= gScreen.Width || Y >= gScreen.Height) {
+        return;
+    }
+    Fb = DrawBase();
+    Pitch = DrawPitch();
+    if (!Fb || Pitch == 0) {
+        return;
+    }
+    Pix = &Fb[Y * Pitch + X];
+    *Pix = VideoBlendRgb(*Pix, Color, Alpha);
+    DirtyUnion(X, Y, 1, 1);
+}
+
+void VideoBlendPixel(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha) {
+    if (gClipOn) {
+        if (X < gClipX || Y < gClipY ||
+            X >= gClipX + gClipW || Y >= gClipY + gClipH) {
+            return;
+        }
+    }
+    VideoBlendPixelRaw(X, Y, Color, Alpha);
+}
+
 UINT32 VideoReadPixel(UINT32 X, UINT32 Y) {
     UINT32 *Fb;
     UINT32 Pitch;
@@ -434,6 +489,94 @@ void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color
 
         for (Col = 0; Col < CopyW; Col++) {
             Line[Col] = Color;
+        }
+    }
+    DirtyUnion(X0, Y0, CopyW, CopyH);
+}
+
+void VideoBlendFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                        UINT32 Color, UINT8 Alpha) {
+    UINT32 *Fb;
+    UINT32 Pitch;
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 CopyW;
+    UINT32 CopyH;
+    UINT32 X0;
+    UINT32 Y0;
+
+    if (Alpha == 0 || !Width || !Height) {
+        return;
+    }
+    if (Alpha == 255) {
+        VideoFillRect(X, Y, Width, Height, Color);
+        return;
+    }
+    Fb = DrawBase();
+    Pitch = DrawPitch();
+    if (!Fb || Pitch == 0) {
+        return;
+    }
+    X0 = X;
+    Y0 = Y;
+    CopyW = Width;
+    CopyH = Height;
+
+    if (gClipOn) {
+        UINT32 ClipR = gClipX + gClipW;
+        UINT32 ClipB = gClipY + gClipH;
+        UINT32 R;
+        UINT32 B;
+
+        if (X0 >= ClipR || Y0 >= ClipB) {
+            return;
+        }
+        if (X0 < gClipX) {
+            UINT32 Skip = gClipX - X0;
+            if (Skip >= CopyW) {
+                return;
+            }
+            CopyW -= Skip;
+            X0 = gClipX;
+        }
+        if (Y0 < gClipY) {
+            UINT32 Skip = gClipY - Y0;
+            if (Skip >= CopyH) {
+                return;
+            }
+            CopyH -= Skip;
+            Y0 = gClipY;
+        }
+        if (CopyW == 0 || CopyH == 0) {
+            return;
+        }
+        R = X0 + CopyW;
+        B = Y0 + CopyH;
+        if (R > ClipR) {
+            CopyW = ClipR - X0;
+        }
+        if (B > ClipB) {
+            CopyH = ClipB - Y0;
+        }
+    }
+
+    if (X0 >= gScreen.Width || Y0 >= gScreen.Height) {
+        return;
+    }
+    if (X0 + CopyW > gScreen.Width) {
+        CopyW = gScreen.Width - X0;
+    }
+    if (Y0 + CopyH > gScreen.Height) {
+        CopyH = gScreen.Height - Y0;
+    }
+    if (CopyW == 0 || CopyH == 0) {
+        return;
+    }
+    for (Row = 0; Row < CopyH; Row++) {
+        UINT32 *Line = &Fb[(Y0 + Row) * Pitch + X0];
+
+        for (Col = 0; Col < CopyW; Col++) {
+            Line[Col] = VideoBlendRgb(Line[Col], Color, Alpha);
         }
     }
     DirtyUnion(X0, Y0, CopyW, CopyH);

@@ -161,7 +161,7 @@ GUI 底层已经具备做美化的大部分条件：
 ### 5.1 alpha 混合（L2 底座）
 
 ```c
-UINT32 BlendPixel(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
+UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
     UINT32 R = (((Src >> 16) & 0xFFu) * Alpha + ((Dst >> 16) & 0xFFu) * (255u - Alpha)) / 255u;
     UINT32 G = (((Src >> 8) & 0xFFu) * Alpha + ((Dst >> 8) & 0xFFu) * (255u - Alpha)) / 255u;
     UINT32 B = ((Src & 0xFFu) * Alpha + (Dst & 0xFFu) * (255u - Alpha)) / 255u;
@@ -169,7 +169,7 @@ UINT32 BlendPixel(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 }
 ```
 
-写后缓冲，再走现有脏区 Present。用途：阴影、半透明、灰度字、淡入淡出。
+写后缓冲，再走现有脏区 Present。门面：`HalVideoBlend*` / `UiFillRectangleAlpha` / `UiBlendRgb`。用途：阴影、半透明、灰度字、淡入淡出。
 
 ### 5.2 圆角（L2）
 
@@ -218,7 +218,7 @@ UINT32 BlendPixel(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
 |----|----|--------|--------|--------|
 | 0 | **PR-GUI-doc**（本文） | `Documents/GUI美化规划.md` | 0.5 天 | 已入库 |
 | 1 | **PR-GUI-l1** | L1：Theme 扩展 + 间距 + 三态边框 | 2–3 天 | ✅ TG `{h}` |
-| 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | P0 |
+| 2 | **PR-GUI-alpha** | 后缓冲 alpha 混合 | 1 天 | ✅ TG `{h}` |
 | 3 | **PR-GUI-l2-shadow** | 窗口阴影（含拖动） | 2 天 | P1 |
 | 4 | **PR-GUI-l2-round** | 窗口圆角接到合成 | 2 天 | P1 |
 | 5 | **PR-GUI-l2-gradient** | 标题栏渐变 | 1 天 | P1 |

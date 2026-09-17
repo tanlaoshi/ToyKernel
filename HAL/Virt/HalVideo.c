@@ -160,6 +160,23 @@ void HalVideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Co
     VideoFillRect(X, Y, Width, Height, Color);
 }
 
+UINT32 HalVideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha) {
+    return VideoBlendRgb(Dst, Src, Alpha);
+}
+
+void HalVideoBlendPixel(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha) {
+    VideoBlendPixel(X, Y, Color, Alpha);
+}
+
+void HalVideoBlendPixelRaw(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha) {
+    VideoBlendPixelRaw(X, Y, Color, Alpha);
+}
+
+void HalVideoBlendFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                           UINT32 Color, UINT8 Alpha) {
+    VideoBlendFillRect(X, Y, Width, Height, Color, Alpha);
+}
+
 void HalVideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
                       UINT32 Width, UINT32 Height) {
     VideoCopyRect(SrcX, SrcY, DstX, DstY, Width, Height);

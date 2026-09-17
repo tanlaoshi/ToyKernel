@@ -48,6 +48,12 @@ void VideoCursorOverlayBegin(void);
 void VideoCursorOverlayEnd(void);
 UINT32 VideoReadPixel(UINT32 X, UINT32 Y);
 void VideoFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Color);
+/* PR-GUI-alpha：Src over Dst，Alpha=0..255；写后缓冲 + DirtyUnion */
+UINT32 VideoBlendRgb(UINT32 Dst, UINT32 Src, UINT8 Alpha);
+void VideoBlendPixel(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha);
+void VideoBlendPixelRaw(UINT32 X, UINT32 Y, UINT32 Color, UINT8 Alpha);
+void VideoBlendFillRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
+                        UINT32 Color, UINT8 Alpha);
 void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
                    UINT32 Width, UINT32 Height);
 void VideoReadRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 *Out);
