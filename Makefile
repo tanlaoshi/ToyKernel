@@ -3,7 +3,7 @@ ARCH ?= x86_64
 BOARD ?= virt
 DEBUG ?= 0
 NO_COM1 ?= 0
-# 串口总开关 + 分模块（见 Include/ToySerialConfig.h）；NO_COM1=1 ⇒ SERIAL=0
+# 串口/屏幕总开关 + 分模块（见 Include/ToySerialConfig.h）；NO_COM1=1 ⇒ SERIAL=0
 SERIAL ?= 1
 SERIAL_BOOT ?= 1
 SERIAL_USB ?= 1
@@ -14,8 +14,40 @@ SERIAL_FS ?= 1
 SERIAL_MEM ?= 1
 SERIAL_DRV ?= 1
 SERIAL_MISC ?= 1
+SCREEN_LOG ?= 1
+SCREEN_LOG_BOOT ?= 1
+SCREEN_LOG_USB ?= 1
+SCREEN_LOG_SMP ?= 0
+SCREEN_LOG_GUI ?= 1
+SCREEN_LOG_NET ?= 0
+SCREEN_LOG_FS ?= 1
+SCREEN_LOG_MEM ?= 0
+SCREEN_LOG_DRV ?= 0
+SCREEN_LOG_MISC ?= 0
 ifeq ($(NO_COM1),1)
 SERIAL := 0
+endif
+ifeq ($(SERIAL),0)
+SERIAL_BOOT := 0
+SERIAL_USB := 0
+SERIAL_SMP := 0
+SERIAL_GUI := 0
+SERIAL_NET := 0
+SERIAL_FS := 0
+SERIAL_MEM := 0
+SERIAL_DRV := 0
+SERIAL_MISC := 0
+endif
+ifeq ($(SCREEN_LOG),0)
+SCREEN_LOG_BOOT := 0
+SCREEN_LOG_USB := 0
+SCREEN_LOG_SMP := 0
+SCREEN_LOG_GUI := 0
+SCREEN_LOG_NET := 0
+SCREEN_LOG_FS := 0
+SCREEN_LOG_MEM := 0
+SCREEN_LOG_DRV := 0
+SCREEN_LOG_MISC := 0
 endif
 LWIP ?= 1
 LWIPINCLUDES :=
@@ -116,6 +148,16 @@ CFLAGS_BASE = -ffreestanding -nostdlib -O2 -Wall -Wextra \
               -DTOY_SERIAL_MEM=$(SERIAL_MEM) \
               -DTOY_SERIAL_DRV=$(SERIAL_DRV) \
               -DTOY_SERIAL_MISC=$(SERIAL_MISC) \
+              -DTOY_SCREEN_LOG=$(SCREEN_LOG) \
+              -DTOY_SCREEN_LOG_BOOT=$(SCREEN_LOG_BOOT) \
+              -DTOY_SCREEN_LOG_USB=$(SCREEN_LOG_USB) \
+              -DTOY_SCREEN_LOG_SMP=$(SCREEN_LOG_SMP) \
+              -DTOY_SCREEN_LOG_GUI=$(SCREEN_LOG_GUI) \
+              -DTOY_SCREEN_LOG_NET=$(SCREEN_LOG_NET) \
+              -DTOY_SCREEN_LOG_FS=$(SCREEN_LOG_FS) \
+              -DTOY_SCREEN_LOG_MEM=$(SCREEN_LOG_MEM) \
+              -DTOY_SCREEN_LOG_DRV=$(SCREEN_LOG_DRV) \
+              -DTOY_SCREEN_LOG_MISC=$(SCREEN_LOG_MISC) \
               -DXHCI_DIAG_VERBOSE=$(XHCI_DIAG_VERBOSE) \
               -DTOY_DEMO_DRIVER=$(TOY_DEMO_DRIVER) \
               -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \

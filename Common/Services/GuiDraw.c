@@ -150,45 +150,6 @@ void FillRectOccluded(int Idx, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
     }
 }
 
-/* PR-GUI-l2-shadow：半透明遮挡填充 */
-static void BlendFillRectOccluded(int Idx, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
-                                  UINT32 Color, UINT8 Alpha) {
-    UINT32 Row;
-    UINT32 Col;
-    UINT32 RunStart;
-    int InRun;
-
-    if (!W || !H || Alpha == 0) {
-        return;
-    }
-    if (Alpha == 255) {
-        FillRectOccluded(Idx, X, Y, W, H, Color);
-        return;
-    }
-    for (Row = 0; Row < H; Row++) {
-        UINT32 Py = Y + Row;
-
-        InRun = 0;
-        RunStart = 0;
-        for (Col = 0; Col < W; Col++) {
-            UINT32 Px = X + Col;
-            int Occ = PixelOccludedByAbove(Idx, Px, Py);
-
-            if (!Occ && !InRun) {
-                RunStart = Col;
-                InRun = 1;
-            } else if (Occ && InRun) {
-                HalVideoBlendFillRect(X + RunStart, Py, Col - RunStart, 1,
-                                      Color, Alpha);
-                InRun = 0;
-            }
-        }
-        if (InRun) {
-            HalVideoBlendFillRect(X + RunStart, Py, W - RunStart, 1, Color, Alpha);
-        }
-    }
-}
-
 void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H) {
     UINT32 N = ThemeWindowShadowSize();
 

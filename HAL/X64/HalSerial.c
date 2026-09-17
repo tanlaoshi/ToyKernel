@@ -88,10 +88,34 @@ static UINT32 BootLogBodyY(UINT32 LineH) {
     return BOOT_LOG_TITLE_Y + LineH + 8;
 }
 
-/* 屏上 bring-up：BOOT + FS/GUI 进度同文；SMP/MEM/USB 细日志留 ring/串口（USB 里程碑走 BootMark） */
+/* PR-K-log-switch：屏上通道跟 TOY_SCREEN_LOG_*；运行时仍受 Mirror/Mute */
 static int ChannelGopOn(int Channel) {
-    return Channel == TOY_SLOG_BOOT || Channel == TOY_SLOG_FS ||
-           Channel == TOY_SLOG_GUI;
+#if !TOY_SCREEN_LOG
+    (void)Channel;
+    return 0;
+#else
+    switch (Channel) {
+    case TOY_SLOG_BOOT:
+        return TOY_SCREEN_LOG_BOOT;
+    case TOY_SLOG_USB:
+        return TOY_SCREEN_LOG_USB;
+    case TOY_SLOG_SMP:
+        return TOY_SCREEN_LOG_SMP;
+    case TOY_SLOG_GUI:
+        return TOY_SCREEN_LOG_GUI;
+    case TOY_SLOG_NET:
+        return TOY_SCREEN_LOG_NET;
+    case TOY_SLOG_FS:
+        return TOY_SCREEN_LOG_FS;
+    case TOY_SLOG_MEM:
+        return TOY_SCREEN_LOG_MEM;
+    case TOY_SLOG_DRV:
+        return TOY_SCREEN_LOG_DRV;
+    case TOY_SLOG_MISC:
+    default:
+        return TOY_SCREEN_LOG_MISC;
+    }
+#endif
 }
 
 /*
@@ -136,26 +160,34 @@ static void RingAppend(const char *Text) {
 }
 
 static void GopBannerOnce(void) {
-    UINT32 W;
-    UINT32 H;
-    UINT32 LineH;
-
-    if (gGopBanner) {
-        return;
-    }
-    HalVideoGetSize(&W, &H);
-    if (W == 0) {
-        W = 1024;
-    }
-    LineH = BootLogLineH();
-    HalVideoClearClip();
-    HalVideoFillRect(0, 0, W, BootLogBodyY(LineH), 0x00000000u);
-    HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y, "ToyOS boot", 0x00FFFF00u);
-    gBootLogY = BootLogBodyY(LineH);
-    gLineLen = 0;
+#if !TOY_SCREEN_LOG
+    /* SCREEN_LOG=0：不画黄字横幅，也不 Present */
     gGopBanner = 1;
-    /* 横幅一次性 Present 可接受（早于 xHCI）；其后镜像不再 Present */
-    HalVideoPresent();
+    return;
+#else
+    {
+        UINT32 W;
+        UINT32 H;
+        UINT32 LineH;
+
+        if (gGopBanner) {
+            return;
+        }
+        HalVideoGetSize(&W, &H);
+        if (W == 0) {
+            W = 1024;
+        }
+        LineH = BootLogLineH();
+        HalVideoClearClip();
+        HalVideoFillRect(0, 0, W, BootLogBodyY(LineH), 0x00000000u);
+        HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y, "ToyOS boot", 0x00FFFF00u);
+        gBootLogY = BootLogBodyY(LineH);
+        gLineLen = 0;
+        gGopBanner = 1;
+        /* 横幅一次性 Present 可接受（早于 xHCI）；其后镜像不再 Present */
+        HalVideoPresent();
+    }
+#endif
 }
 
 static int gGopBatch; /* PhotoHold：凑齐再 Present，且禁止卷屏清掉枚举日志 */
@@ -280,11 +312,14 @@ void HalSerialGopEnable(void) {
     gGopBanner = 0;
     gBootLogY = BootLogBodyY(BootLogLineH());
     gLineLen = 0;
+#if TOY_SCREEN_LOG
     /*
-     * 勿把整段 ring（SMP hello / MEM 细节）一次性刷屏——会翻多「页」。
-     * 只起横幅；之后 BOOT/FS/GUI 通道与 BootMark 单视口上滚。
+     * 勿把整段 ring 一次性刷屏。只起横幅；其后受 SCREEN_LOG_* 上滚。
      */
     GopBannerOnce();
+#else
+    gGopBanner = 1; /* 跳过黄字 ToyOS boot */
+#endif
 }
 
 const char *HalSerialLogText(void) {
@@ -340,7 +375,7 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
     if (SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
     }
-    /* 屏：仅 BOOT；有无 COM1 都画（Mute 期除外） */
+    /* 屏：受 TOY_SCREEN_LOG_* + Mirror/Mute（有无 COM1 都可画） */
     if (ChannelGopOn(Channel)) {
         GopMirrorLine(Text);
     }
@@ -379,8 +414,8 @@ void HalSerialGopMute(int Mute) {
 }
 
 /*
- * 真机 boot 进度：ring 始终；UART 受通道；屏上并入同路上滚 boot log。
- * USB BootMark（键鼠里程碑）也上屏；细日志应走 ToyLogUsb 不上屏。
+ * 真机 boot 进度：ring 始终；UART 受 TOY_SERIAL_*；屏受 TOY_SCREEN_LOG_*。
+ * USB BootMark（键鼠里程碑）默认上屏（SCREEN_LOG_USB=1）；细日志走 ToyLogUsb。
  */
 void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (!Text) {
@@ -390,7 +425,7 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
     }
-    if (Channel == TOY_SLOG_BOOT || Channel == TOY_SLOG_USB) {
+    if (ChannelGopOn(Channel)) {
         GopMirrorLine(Text);
     }
 }
@@ -424,6 +459,7 @@ void HalSerialBootLogRewind(void) {
     gLineLen = 0;
 }
 
+#if TOY_SCREEN_LOG
 static UINT64 ReadTsc(void) {
     UINT32 Lo;
     UINT32 Hi;
@@ -480,12 +516,18 @@ static void PhotoMarkLeft(UINT32 Left) {
     HalVideoDrawStringAt(BOOT_LOG_X, Y, Msg, 0x00FFFF00u);
     HalVideoDrawEndFront();
 }
+#endif /* TOY_SCREEN_LOG */
 
 /*
  * 真机读秒：接住已上滚的 boot 日志（只改顶栏标题），底栏 PHOTO 读秒。
+ * SCREEN_LOG=0：整段跳过（无黄字/无读秒/不等待），调用方继续进桌面。
  * 默认秒数由调用方决定。
  */
 void HalSerialGopPhotoHold(UINT32 Seconds) {
+#if !TOY_SCREEN_LOG
+    (void)Seconds;
+    return;
+#else
     UINT32 W;
     UINT32 H;
     UINT32 LineH;
@@ -545,4 +587,5 @@ void HalSerialGopPhotoHold(UINT32 Seconds) {
     HalSerialGopMute(0);
     HalSerialGopMirror(0);
     HalSerialBootMark("Boot: PHOTO Done\n");
+#endif
 }

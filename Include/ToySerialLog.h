@@ -1,11 +1,11 @@
 /*
- * ToySerialLog.h — 分模块串口日志宏
+ * ToySerialLog.h — 分模块串口/屏幕日志宏
  *
- * ToyLog*     ：始终进 ring（PHOTO）；UART 由通道开关；屏上仅 BOOT 通道上滚
- * ToyBootMark*：BootMark（BOOT/USB 里程碑上屏上滚）；UART 同样受通道约束
+ * ToyLog*     ：始终进 ring；UART ← TOY_SERIAL_*；屏 ← TOY_SCREEN_LOG_* + Mirror/Mute
+ * ToyBootMark*：同上（里程碑常用 BOOT/USB；默认 SCREEN_LOG_USB=1 上屏）
  *
- * 总开关 TOY_SERIAL=0：ChannelUartOn 全关 → 无 UART；ring / 屏上 boot 仍可用
- * 分模块 SERIAL_*=0：该通道 quiet（无 UART），其它通道不受影响
+ * TOY_SERIAL=0：无 UART；ring / 屏仍可由 SCREEN_LOG 控制
+ * TOY_SCREEN_LOG=0：boot GOP 不上字；UART 仍可由 SERIAL 控制
  */
 #ifndef TOY_SERIAL_LOG_H
 #define TOY_SERIAL_LOG_H

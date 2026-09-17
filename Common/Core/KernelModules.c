@@ -115,7 +115,7 @@ static int InitializeUsb(void) {
         HalInputArmIrq();
         /* PHOTO 只刷 ring 尾；fb-pte 原在 video 初期，会被卷掉——进 PHOTO 前再打一行 */
         HalVideoLogFbPte();
-        HalSerialGopPhotoHold(5); /* 真机读秒；细看靠串口 */
+        HalSerialGopPhotoHold(5); /* SCREEN_LOG=0 时内部直接返回，无读秒 */
         /* PHOTO→gui：抽空鼠队列并对齐累加坐标，避免满队列+误绝对解析钉死光标 */
         {
             UINT32 Cx = 512;
