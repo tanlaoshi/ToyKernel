@@ -133,7 +133,8 @@ UINT8 ThemeTaskbarAlpha(void) {
 }
 
 UINT8 ThemeMenuPanelAlpha(void) {
-    return 220u;
+    /* 不透明：半透会叠进窗备份 → 关菜单后「烙印」 */
+    return 255u;
 }
 
 UINT32 ThemeWindowShadowSize(void) {

@@ -531,16 +531,34 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
     UINT32 Fy;
     UINT32 Fw;
     UINT32 Fh;
+    UINT32 Bx;
+    UINT32 By;
+    UINT32 Bw;
+    UINT32 Bh;
     int Item;
     int InMain;
     int InFly;
+    int OnStart;
 
     if (OutExecPath && ExecPathMax > 0) {
         OutExecPath[0] = 0;
     }
 
     TaskbarGeom(&BarY, &Sw, &Sh);
+    StartBtnGeom(&Bx, &By, &Bw, &Bh);
+    OnStart = (Y >= By && Y < By + Bh && X >= Bx && X < Bx + Bw) ? 1 : 0;
+
     if (gMenuOpen) {
+        /*
+         * 再点开始钮：只收起，勿先关再 toggle 打开。
+         */
+        if (OnStart) {
+            gMenuOpen = 0;
+            gMenuAppsOpen = 0;
+            RequestRefresh();
+            return 1;
+        }
+
         MenuGeom(&Mx, &My, &Mw, &Mh);
         InMain = (X >= Mx && Y >= My && X < Mx + Mw && Y < My + Mh) ? 1 : 0;
         InFly = 0;
@@ -618,36 +636,25 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
             }
         }
 
-        /* 点在菜单外：关菜单并刷新 */
+        /* 点在菜单外：关菜单；点到窗则由 Gui 继续 Raise */
         gMenuOpen = 0;
         gMenuAppsOpen = 0;
         RequestRefresh();
-        /* 若点在开始钮则下面再处理为打开 */
+        if (Y >= BarY && Y < Sh) {
+            return 1; /* 任务栏其它区域吞掉 */
+        }
+        return 0;
     }
 
     if (Y >= BarY && Y < Sh) {
-        UINT32 Bx;
-        UINT32 By;
-        UINT32 Bw;
-        UINT32 Bh;
-
-        StartBtnGeom(&Bx, &By, &Bw, &Bh);
-        if (X >= Bx && X < Bx + Bw && Y >= By && Y < By + Bh) {
-            gMenuOpen = !gMenuOpen;
+        if (OnStart) {
+            gMenuOpen = 1;
             gMenuAppsOpen = 0;
-            if (gMenuOpen) {
-                RebuildStartMenu();
-            }
+            RebuildStartMenu();
             RequestRefresh();
             return 1;
         }
-        /* 任务栏其它区域：吞掉点击 */
-        if (gMenuOpen) {
-            gMenuOpen = 0;
-            gMenuAppsOpen = 0;
-            RequestRefresh();
-        }
-        return 1;
+        return 1; /* 任务栏其它区域：吞掉 */
     }
     return 0;
 }

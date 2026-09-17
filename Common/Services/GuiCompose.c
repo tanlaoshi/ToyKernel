@@ -102,6 +102,15 @@ void GuiRedraw(void) {
 
 /* PR-G13：菜单开合后清桌面并恢复窗备份（避免全屏 Fill 抹掉刚打开的 Shell） */
 void GuiRefreshDesktop(void) {
+    if (DesktopStartMenuIsOpen()) {
+        /* 弹出开始菜单：其它窗失焦；整屏合成避免半透烙进备份 */
+        if (gFocusWin >= 0) {
+            GuiFocusSave();
+            gFocusWin = -1;
+        }
+        GuiComposeThemeScene();
+        return;
+    }
     SyncWindowVisualsEx(1);
 }
 

@@ -253,7 +253,8 @@ void DrawStartMenuRaw(void) {
         RebuildStartMenu();
     }
     MenuGeom(&Mx, &My, &Mw, &Mh);
-    UiFillRectangleAlpha(Mx, My, Mw, Mh, ThemeControlFace(), ThemeMenuPanelAlpha());
+    /* 实心面板：勿半透叠窗，否则备份/刷新易留烙印 */
+    UiFillRectangle(Mx, My, Mw, Mh, ThemeControlFace());
     UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
     for (i = 0; i < gMenuCount; i++) {
         MENU_ROW *R = &gMenuRows[i];
@@ -326,8 +327,7 @@ void DrawStartMenuRaw(void) {
         int Rows;
 
         AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
-        UiFillRectangleAlpha(Fx, Fy, Fw, Fh, ThemeControlFace(),
-                             ThemeMenuPanelAlpha());
+        UiFillRectangle(Fx, Fy, Fw, Fh, ThemeControlFace());
         UiDrawRectangle(Fx, Fy, Fw, Fh, COLOR_BLACK);
         Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
         for (i = 0; i < Rows; i++) {
