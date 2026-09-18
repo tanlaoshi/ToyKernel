@@ -10,7 +10,7 @@
 #include "BootTypes.h"
 #include "Fat.h"
 
-#define FS_MAX_VOLUMES 4
+#define FS_MAX_VOLUMES 8 /* NUC：NVMe 多 FAT + Live USB ESP/TOYOS；4 易挤掉 TOYOS */
 #define FS_VOL_NAME_MAX 8
 
 int FileSystemInitialize(void);

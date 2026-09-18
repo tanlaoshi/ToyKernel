@@ -442,11 +442,12 @@ static int MountAllVolumes(void) {
         if (N <= 0) {
             continue;
         }
-        for (p = 0; p < N && gVolCount < FS_MAX_VOLUMES; p++) {
+        for (p = 0; p < N; p++) {
             FS_VOLUME *V;
             int Idx;
             int IsEsp = Parts[p].IsEsp;
             UINT32 Start = Parts[p].StartLba;
+            int HasId = 0;
 
             if (VfsSelect(FatFsOps()) != 0) {
                 continue;
@@ -455,7 +456,43 @@ static int MountAllVolumes(void) {
                 continue;
             }
 
-            Idx = gVolCount;
+            if (VfsReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
+                HasId = 1;
+            }
+
+            /*
+             * 卷表满：仍须留下 TOYOS.ID。挤掉最后一个非 TOYOS、非 RES 槽；
+             * 否则 NVMe 上多个 ESP/OEM FAT 会先占满，USB 系统卷永远挂不上。
+             */
+            if (gVolCount >= FS_MAX_VOLUMES) {
+                if (!HasId) {
+                    ToyLogFs("Fs: Skip Fat (Table Full)\n");
+                    continue;
+                }
+                {
+                    int Slot = -1;
+                    int j;
+                    for (j = gVolCount - 1; j >= 0; j--) {
+                        if (gVols[j].HasToyId) {
+                            continue;
+                        }
+                        if (gVols[j].Ops && gVols[j].Ops->Synthetic) {
+                            continue;
+                        }
+                        Slot = j;
+                        break;
+                    }
+                    if (Slot < 0) {
+                        ToyLogFs("Fs: Skip TOYOS (No Slot To Displace)\n");
+                        continue;
+                    }
+                    Idx = Slot;
+                    ToyLogFs("Fs: Displace Vol For TOYOS.ID\n");
+                }
+            } else {
+                Idx = gVolCount;
+            }
+
             V = &gVols[Idx];
             V->Drive = d;
             V->StartLba = Start;
@@ -466,35 +503,39 @@ static int MountAllVolumes(void) {
             V->Name[0] = V->Letter;
             V->Name[1] = 0;
 
-            if (VfsReadFile("TOYOS.ID", Tmp, sizeof(Tmp), &Sz) == FAT_OK) {
+            if (HasId) {
                 V->HasToyId = 1;
                 CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
                 ToyVol = Idx;
             } else if (IsEsp) {
                 /* 多 ESP 时第二块起名 ESP2…，避免 Resolve(ESP:) 撞名 */
-                {
-                    int EspN = 0;
-                    int j;
-                    for (j = 0; j < Idx; j++) {
-                        if (gVols[j].Name[0] == 'E' && gVols[j].Name[1] == 'S' &&
-                            gVols[j].Name[2] == 'P') {
-                            EspN++;
-                        }
+                int EspN = 0;
+                int j;
+
+                for (j = 0; j < gVolCount; j++) {
+                    if (j == Idx) {
+                        continue;
                     }
-                    if (EspN == 0) {
-                        CopyName(V->Name, FS_VOL_NAME_MAX, "ESP");
-                    } else {
-                        V->Name[0] = 'E';
-                        V->Name[1] = 'S';
-                        V->Name[2] = 'P';
-                        V->Name[3] = (char)('0' + (EspN + 1 > 9 ? 9 : EspN + 1));
-                        V->Name[4] = 0;
+                    if (gVols[j].Name[0] == 'E' && gVols[j].Name[1] == 'S' &&
+                        gVols[j].Name[2] == 'P') {
+                        EspN++;
                     }
+                }
+                if (EspN == 0) {
+                    CopyName(V->Name, FS_VOL_NAME_MAX, "ESP");
+                } else {
+                    V->Name[0] = 'E';
+                    V->Name[1] = 'S';
+                    V->Name[2] = 'P';
+                    V->Name[3] = (char)('0' + (EspN + 1 > 9 ? 9 : EspN + 1));
+                    V->Name[4] = 0;
                 }
                 V->ReadOnly = 1;
             }
 
-            gVolCount++;
+            if (Idx == gVolCount) {
+                gVolCount++;
+            }
             gActiveVol = Idx;
             gActiveOps = V->Ops;
             gActiveDrive = d;
@@ -748,6 +789,19 @@ int FileSystemInitialize(void) {
             } else {
                 HaveVols = 1;
                 HasToy = AnyVolumeHasToyId();
+            }
+        } else if (!HasToy) {
+            /*
+             * Live U 盘上电慢：首轮 claim 空 → 只见 NVMe ESP。
+             * 再试一轮（claim 内已有 Force/等待；勿在此拖很久）。
+             */
+            HalConsoleWriteSerial("Boot: MSC Auto Retry (No TOYOS)\n");
+            if (HalUsbMscAutoBeforeFs() == 0) {
+                MuxOk = 1;
+                if (BlockInit() > 0 && MountAllVolumes()) {
+                    HaveVols = 1;
+                    HasToy = AnyVolumeHasToyId();
+                }
             }
         }
     }
