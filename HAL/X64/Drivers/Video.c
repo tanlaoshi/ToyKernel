@@ -8,6 +8,7 @@
 #include "VideoPriv.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
+extern void *memmove(void *Dst, const void *Src, UINTN Len);
 
 /* 全局定义集中在宿主；其它 TU 经 VideoPriv.h extern */
 SCREEN_INFO gScreen = {0};
@@ -587,11 +588,11 @@ void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
     UINT32 *Fb = DrawBase();
     UINT32 Pitch = DrawPitch();
     INT32 Y;
-    INT32 X;
     INT32 W;
     INT32 H;
     UINT32 CopyW = Width;
     UINT32 CopyH = Height;
+    UINTN RowBytes;
 
     if (!Fb || !Width || !Height || Pitch == 0) {
         return;
@@ -618,22 +619,28 @@ void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
         return;
     }
 
-    /* PR-G10 L5：按行拷贝（同向/逆向处理重叠） */
-    if (DstY > SrcY || (DstY == SrcY && DstX > SrcX)) {
-        for (Y = H - 1; Y >= 0; Y--) {
-            UINT32 *Dst = &Fb[(DstY + (UINT32)Y) * Pitch + DstX];
-            UINT32 *Src = &Fb[(SrcY + (UINT32)Y) * Pitch + SrcX];
-            for (X = W - 1; X >= 0; X--) {
-                Dst[X] = Src[X];
-            }
-        }
-    } else if (DstY != SrcY || DstX != SrcX) {
+    RowBytes = (UINTN)W * sizeof(UINT32);
+    /*
+     * 按行 memcpy/memmove。勿对全屏做整块 memmove：4K 单次上滚约数十 MB，
+     * 开机日志会极慢，且 live front 上仍可能被扫成「波浪」。
+     */
+    if (DstY == SrcY) {
         for (Y = 0; Y < H; Y++) {
             UINT32 *Dst = &Fb[(DstY + (UINT32)Y) * Pitch + DstX];
             UINT32 *Src = &Fb[(SrcY + (UINT32)Y) * Pitch + SrcX];
-            for (X = 0; X < W; X++) {
-                Dst[X] = Src[X];
-            }
+            memmove(Dst, Src, RowBytes);
+        }
+    } else if (DstY > SrcY) {
+        for (Y = H - 1; Y >= 0; Y--) {
+            UINT32 *Dst = &Fb[(DstY + (UINT32)Y) * Pitch + DstX];
+            UINT32 *Src = &Fb[(SrcY + (UINT32)Y) * Pitch + SrcX];
+            memcpy(Dst, Src, RowBytes);
+        }
+    } else {
+        for (Y = 0; Y < H; Y++) {
+            UINT32 *Dst = &Fb[(DstY + (UINT32)Y) * Pitch + DstX];
+            UINT32 *Src = &Fb[(SrcY + (UINT32)Y) * Pitch + SrcX];
+            memcpy(Dst, Src, RowBytes);
         }
     }
     DirtyUnion(DstX, DstY, (UINT32)W, (UINT32)H);

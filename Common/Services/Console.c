@@ -250,9 +250,15 @@ void ConsoleFocusLoad(void) {
     if (GuiConsoleHasDisplay()) {
         GuiFocusApplyClip();
         if (GuiConsoleNeedsPrompt()) {
-            ConsoleWrite(LocStr(MSG_CON_WELCOME));
-            ConsoleWrite("\n");
-            Prompt();
+            /*
+             * 改字体/ThemeApply 会清 PromptShown；若 scrollback 仍在，
+             * 勿再打欢迎语（否则接在已有 toyos> 后面）。
+             */
+            if (!ConsoleSbHasContent()) {
+                ConsoleWrite(LocStr(MSG_CON_WELCOME));
+                ConsoleWrite("\n");
+                Prompt();
+            }
             GuiConsoleMarkPrompt();
             GuiFocusSave();
         }
@@ -263,10 +269,12 @@ void ConsoleFocusLoad(void) {
      * 新窗 OpenShell 先 PromptShown=1 抑制此处；OnShellOpened 再画。
      */
     if (GuiConsoleNeedsPrompt()) {
-        GuiFocusHome();
-        ConsoleWrite(LocStr(MSG_CON_WELCOME));
-        ConsoleWrite("\n");
-        Prompt();
+        if (!ConsoleSbHasContent()) {
+            GuiFocusHome();
+            ConsoleWrite(LocStr(MSG_CON_WELCOME));
+            ConsoleWrite("\n");
+            Prompt();
+        }
         GuiConsoleMarkPrompt();
         GuiFocusSave();
     }
@@ -310,6 +318,19 @@ void ConsolePaintShellWindow(int Idx) {
     }
     Saved = GuiFocusIndex();
     GuiSetFocusWindow(Idx);
+    /*
+     * 开开始菜单等会走 GuiComposeThemeScene → 本函数。
+     * 若仍 SbReset+欢迎语，ps/help 输出会被清掉；有行缓冲则重绘恢复。
+     */
+    if (ConsoleSbHasContent()) {
+        ConsoleSbRepaint();
+        /* Theme 清过 PromptShown；重绘后勿让 FocusLoad 再打欢迎语 */
+        GuiConsoleMarkPrompt();
+        if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
+            GuiSetFocusWindow(Saved);
+        }
+        return;
+    }
     gLen = 0;
     gWaitPrompt = 0;
     gAtLineStart = 1;

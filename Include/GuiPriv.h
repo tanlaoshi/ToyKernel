@@ -201,6 +201,7 @@ void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                               UINT32 Ww, UINT32 Wh);
 void RestoreWindowsInFootprint(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh, int SkipIdx);
 void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh, int DragIdx);
+void GuiClearIconDragFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void PaintAllWindowsDraw(int DragIdx);
 void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY);
 void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y);

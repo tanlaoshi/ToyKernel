@@ -114,6 +114,7 @@ extern int     gDesktopBusy;
 
 extern int (*gPointOccupied)(UINT32 X, UINT32 Y);
 extern void (*gRequestRefresh)(void);
+extern void (*gClearIconFootprint)(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 
 /* ===== 共享函数声明 ===== */
 
@@ -128,6 +129,7 @@ void StartBtnGeom(UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH);
 void MenuGeom(UINT32 *Mx, UINT32 *My, UINT32 *Mw, UINT32 *Mh);
 int PointOccupied(UINT32 X, UINT32 Y);
 void RequestRefresh(void);
+void ClearIconFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void ClampIconPos(UINT32 *X, UINT32 *Y);
 void ClampAllIcons(void);
 void RedrawIconIndex(int Idx);

@@ -38,8 +38,37 @@ static int gGopMirror = 1;
 static UINT32 gBootLogY;
 static char gLine[BOOT_LOG_LINE_MAX];
 static UINTN gLineLen;
+/* 可见行缓冲：上滚改软重绘，避免 4K live-front 搬屏波浪/极慢 */
+#define BOOT_VIS_MAX 64u
+static char gBootVis[BOOT_VIS_MAX][BOOT_LOG_LINE_MAX];
+static UINT32 gBootVisN;
 
-/* PR-K-log-geom：行高跟字体，勿硬地板 24（否则 4K 竖向像只用上半屏） */
+/*
+ * PR-K-log-geom：行高跟字体，勿硬地板 24。
+ * PR-K-log-4kfont：高分屏若仍用 Theme 默认 10x18，4K 约百余行，
+ * 开机日志写不满 → 上滚测不到；按 H 选大字，镜像期冻结。
+ * 内建表序（FontInitialize）：0=16x32，1=x2，2=10x18。
+ */
+void HalSerialBootFontApply(void) {
+    UINT32 W;
+    UINT32 H;
+    UINT32 Id;
+
+    HalVideoGetSize(&W, &H);
+    (void)W;
+    if (H >= 2160u) {
+        Id = 1u; /* Terminus x2：LineH≈72 → 4K 约 30 行 */
+    } else if (H >= 1440u) {
+        Id = 0u; /* 16x32：LineH≈36 */
+    } else {
+        Id = 2u; /* 10x18：与 Theme 默认一致 */
+    }
+    if (Id >= FontCount()) {
+        Id = 0u;
+    }
+    (void)FontSetById(Id);
+}
+
 static UINT32 BootLogLineH(void) {
     UINT32 LineH = FontAdvanceY();
     if (LineH == 0) {
@@ -117,30 +146,90 @@ static int ChannelGopOn(int Channel) {
 }
 
 /*
- * Ubuntu 式上滚：body 整体上移一行，底行清空；保留顶栏标题。
- * 真机 boot 直写 front，勿 Present。
+ * Ubuntu 式上滚：可见行在 RAM，满则丢最旧行并整区重绘。
+ * 勿 CopyRect/memmove live front——4K 既波浪又极慢。
  */
-static void BootLogScrollUp(UINT32 W, UINT32 H, UINT32 LineH) {
+static UINT32 BootLogVisCap(UINT32 H, UINT32 LineH) {
     UINT32 BodyY = BootLogBodyY(LineH);
     UINT32 Bottom;
-    UINT32 Height;
+    UINT32 Rows;
+
+    if (H <= BodyY + LineH + BOOT_LOG_MARGIN) {
+        return 1;
+    }
+    Bottom = H - BOOT_LOG_MARGIN;
+    Rows = (Bottom - BodyY) / LineH;
+    if (Rows == 0) {
+        Rows = 1;
+    }
+    if (Rows > BOOT_VIS_MAX) {
+        Rows = BOOT_VIS_MAX;
+    }
+    return Rows;
+}
+
+static void BootLogCopyRow(char *Dst, const char *Src) {
+    UINTN i = 0;
+
+    if (!Dst) {
+        return;
+    }
+    if (!Src) {
+        Dst[0] = 0;
+        return;
+    }
+    while (Src[i] && i + 1 < BOOT_LOG_LINE_MAX) {
+        Dst[i] = Src[i];
+        i++;
+    }
+    Dst[i] = 0;
+}
+
+static void BootLogRepaintBody(UINT32 W, UINT32 H, UINT32 LineH) {
+    UINT32 BodyY = BootLogBodyY(LineH);
+    UINT32 Bottom;
+    UINT32 i;
+    UINT32 Y;
 
     if (W == 0) {
         W = 1024;
     }
-    if (H <= BodyY + LineH + BOOT_LOG_MARGIN) {
-        return;
-    }
-    Bottom = H - BOOT_LOG_MARGIN;
-    if (Bottom <= BodyY + LineH) {
-        return;
-    }
-    Height = Bottom - BodyY - LineH;
+    Bottom = (H > BOOT_LOG_MARGIN) ? (H - BOOT_LOG_MARGIN) : BodyY;
     HalVideoDrawBeginFront();
-    HalVideoCopyRect(0, BodyY + LineH, 0, BodyY, W, Height);
-    HalVideoFillRect(0, Bottom - LineH, W, LineH, 0x00000000u);
+    if (Bottom > BodyY) {
+        HalVideoFillRect(0, BodyY, W, Bottom - BodyY, 0x00000000u);
+    }
+    Y = BodyY;
+    for (i = 0; i < gBootVisN; i++) {
+        HalVideoDrawStringAt(BOOT_LOG_X, Y, gBootVis[i], 0x00FFFFFFu);
+        Y += LineH;
+    }
     HalVideoDrawEndFront();
-    gBootLogY = Bottom - LineH;
+    gBootLogY = Y;
+}
+
+static void BootLogPushVisible(UINT32 W, UINT32 H, UINT32 LineH) {
+    UINT32 Cap = BootLogVisCap(H, LineH);
+    UINT32 i;
+
+    if (gBootVisN >= Cap) {
+        for (i = 1; i < gBootVisN; i++) {
+            BootLogCopyRow(gBootVis[i - 1], gBootVis[i]);
+        }
+        if (gBootVisN > 0) {
+            gBootVisN--;
+        }
+        BootLogCopyRow(gBootVis[gBootVisN], gLine);
+        gBootVisN++;
+        BootLogRepaintBody(W, H, LineH);
+        return;
+    }
+    BootLogCopyRow(gBootVis[gBootVisN], gLine);
+    gBootVisN++;
+    HalVideoDrawBeginFront();
+    HalVideoDrawStringAt(BOOT_LOG_X, gBootLogY, gLine, 0x00FFFFFFu);
+    HalVideoDrawEndFront();
+    gBootLogY += LineH;
 }
 
 static void RingAppend(const char *Text) {
@@ -179,6 +268,7 @@ static void GopBannerOnce(void) {
         HalVideoClearClip();
         HalVideoFillRect(0, 0, W, BootLogBodyY(LineH), 0x00000000u);
         HalVideoDrawStringAt(BOOT_LOG_X, BOOT_LOG_TITLE_Y, "ToyOS boot", 0x00FFFF00u);
+        gBootVisN = 0;
         gBootLogY = BootLogBodyY(LineH);
         gLineLen = 0;
         gGopBanner = 1;
@@ -194,7 +284,7 @@ static void GopFlushLine(void) {
     UINT32 W;
     UINT32 H;
     UINT32 LineH;
-    UINT32 Limit;
+    UINT32 Cap;
 
     gLine[gLineLen] = '\0';
     if (gLineLen == 0) {
@@ -206,24 +296,17 @@ static void GopFlushLine(void) {
     if (H == 0) {
         H = 768;
     }
-    /* 整行字形必须在 Limit 之上；满则上滚一行，勿整页清黑 */
-    Limit = (H > LineH + BOOT_LOG_MARGIN) ? (H - LineH - BOOT_LOG_MARGIN) : BootLogBodyY(LineH);
-    if (gBootLogY > Limit) {
-        if (gGopBatch) {
-            /* 批量 Present：停笔，保留已画白字 */
-            gLineLen = 0;
-            return;
-        }
-        BootLogScrollUp(W, H, LineH);
+    Cap = BootLogVisCap(H, LineH);
+    if (gBootVisN >= Cap && gGopBatch) {
+        /* 批量 Present：停笔，保留已画白字 */
+        gLineLen = 0;
+        return;
     }
     /*
      * boot 镜像：直写 front，禁止 Present。
-     * Present/后缓冲 blit 曾与真机 xHCI poll 互斥 →「拔串口键盘死」。
+     * 满行则软缓冲丢最旧并重绘；未满只追加一行。
      */
-    HalVideoDrawBeginFront();
-    HalVideoDrawStringAt(BOOT_LOG_X, gBootLogY, gLine, 0x00FFFFFFu);
-    HalVideoDrawEndFront();
-    gBootLogY += LineH;
+    BootLogPushVisible(W, H, LineH);
     gLineLen = 0;
 }
 
@@ -276,6 +359,7 @@ void HalSerialInitialize(void) {
     if (!KeepGop) {
         gVideoUp = 0;
         gGopBanner = 0;
+        gBootVisN = 0;
         gBootLogY = BootLogBodyY(BootLogLineH());
     }
     if (!SerialPresent()) {
@@ -302,12 +386,15 @@ void HalSerialGopEnable(void) {
     /*
      * PR-K-log-cont：已启用则保持上滚位置与横幅，勿二次 GopBannerOnce 抹字。
      * KernelMain 与 video 模块均可调用。
+     * PR-K-log-4kfont：每次都套 boot 字号（Video 里 Font/Theme 再 Init 会缩回 10x18）。
      */
+    HalSerialBootFontApply();
     if (gVideoUp) {
         return;
     }
     gVideoUp = 1;
     gGopBanner = 0;
+    gBootVisN = 0;
     gBootLogY = BootLogBodyY(BootLogLineH());
     gLineLen = 0;
 #if TOY_SCREEN_LOG
@@ -456,6 +543,7 @@ void HalSerialBootLogRewind(void) {
     }
     GopBannerOnce();
     LineH = BootLogLineH();
+    gBootVisN = 0;
     gBootLogY = BootLogBodyY(LineH);
     gLineLen = 0;
 }

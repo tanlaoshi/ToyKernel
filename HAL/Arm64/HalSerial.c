@@ -62,6 +62,9 @@ int HalSerialPresent(void) {
 void HalSerialGopEnable(void) {
 }
 
+void HalSerialBootFontApply(void) {
+}
+
 void HalSerialGopMirror(int Enable) {
     (void)Enable;
 }

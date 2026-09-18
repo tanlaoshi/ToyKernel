@@ -28,8 +28,8 @@ void KernelMain(void) {
     if (Info && Info->FrameBufferSize != 0) {
         FontInitialize(); /* GOP 日志/DrawString 依赖字体表；video 模块里会再 Init 一次 */
         /*
-         * 与 ThemeInitialize 同默认（font=2 Terminus 10x18）。
-         * 若只用 FontInitialize 的 id=0（16×32），[Mod] Video 换字后面会突然变小。
+         * ThemeInitialize 记桌面默认 font=2；GopEnable 按分辨率套 boot 大字
+         *（PR-K-log-4kfont）。Video 再 Init 时 Theme/GopEnable 会保持同一套。
          */
         ThemeInitialize();
         HalSerialGopEnable();
@@ -66,7 +66,7 @@ void KernelMain(void) {
 
     /*
      * 进调度/桌面前：套用 ThemeLoad 选中的字面，再关掉 boot→GOP 镜像
-     * （桌面勿被串口字盖住；boot 上滚全程保持 ThemeInitialize 默认字）。
+     * （桌面勿被串口字盖住；boot 上滚用 HalSerialBootFontApply，与桌面字面分离）。
      */
     (void)FontSetById(ThemeFontId());
     HalSerialGopMirror(0);

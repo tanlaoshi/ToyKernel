@@ -29,6 +29,9 @@ void DesktopOnDisplayResize(void);
 /* Gui 注册：点是否被窗占用（图标避让）；菜单开合时请求刷新桌面 */
 void DesktopSetPointOccupied(int (*Fn)(UINT32 X, UINT32 Y));
 void DesktopSetRequestRefresh(void (*Fn)(void));
+/* 擦图标脚印并还原相交窗/阴影（拖动置顶后用） */
+void DesktopSetClearIconFootprint(void (*Fn)(UINT32 X, UINT32 Y, UINT32 W,
+                                             UINT32 H));
 /* 在桌面背景上画图标+任务栏（GuiRedraw / 关窗露底后调用） */
 void DesktopDraw(void);
 /* 开始菜单弹出层（开着时叠画在窗上；点菜单外则收起，再按窗聚焦） */
@@ -45,6 +48,8 @@ int DesktopClickOnTaskbar(UINT32 X, UINT32 Y);
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /* PR-G13：壁纸或 ThemeDesktopBackground 填矩形 */
 void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
+/* 避让窗口：图标拖动擦脚印用，勿盖标题栏/客户区 */
+void DesktopFillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 UINT32 DesktopBgAt(UINT32 X, UINT32 Y);
 /*
  * 采样桌面图标/任务栏像素。

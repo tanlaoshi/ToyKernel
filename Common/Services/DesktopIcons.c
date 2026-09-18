@@ -429,8 +429,8 @@ void MoveIconTo(int Idx, UINT32 NewX, UINT32 NewY) {
     IconBounds(&gIcons[Idx], &Ox, &Oy, &Ow, &Oh);
     gIcons[Idx].X = NewX;
     gIcons[Idx].Y = NewY;
-    DesktopFillRect(Ox, Oy, Ow, Oh);
-    DesktopDrawRect(Ox, Oy, Ow, Oh);
-    DrawOneIconOccluded(&gIcons[Idx], Idx == gDeskSelected);
+    /* 拖动中图标置顶：整块擦脚印并还原窗/影，再 Raw 画在最前 */
+    ClearIconFootprint(Ox, Oy, Ow, Oh);
+    DrawOneIconRaw(&gIcons[Idx], Idx == gDeskSelected);
     HalVideoPresent();
 }

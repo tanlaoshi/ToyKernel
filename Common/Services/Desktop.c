@@ -55,6 +55,7 @@ int     gDesktopBusy; /* 防 DesktopInit / OnDisplayResize 重入 */
 /* PR-R2：由 Gui 注册，Desktop 不 include Gui.h */
 int (*gPointOccupied)(UINT32 X, UINT32 Y);
 void (*gRequestRefresh)(void);
+void (*gClearIconFootprint)(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 
 int PointOccupied(UINT32 X, UINT32 Y) {
     return gPointOccupied ? gPointOccupied(X, Y) : 0;
@@ -66,12 +67,26 @@ void RequestRefresh(void) {
     }
 }
 
+void ClearIconFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    if (gClearIconFootprint) {
+        gClearIconFootprint(X, Y, W, H);
+        return;
+    }
+    DesktopFillRectFree(X, Y, W, H);
+    DesktopDrawRect(X, Y, W, H);
+}
+
 void DesktopSetPointOccupied(int (*Fn)(UINT32 X, UINT32 Y)) {
     gPointOccupied = Fn;
 }
 
 void DesktopSetRequestRefresh(void (*Fn)(void)) {
     gRequestRefresh = Fn;
+}
+
+void DesktopSetClearIconFootprint(void (*Fn)(UINT32 X, UINT32 Y, UINT32 W,
+                                             UINT32 H)) {
+    gClearIconFootprint = Fn;
 }
 
 UINT64 DesktopClock(void) {
@@ -234,9 +249,18 @@ void DesktopIconDragEnd(void) {
         return;
     }
     if (gIconDragMoved) {
+        UINT32 X;
+        UINT32 Y;
+        UINT32 W;
+        UINT32 H;
+
         ClampIconPos(&gIcons[gIconDragIdx].X, &gIcons[gIconDragIdx].Y);
         SaveIconLayout();
-        RedrawIconIndex(gIconDragIdx);
+        /* 置顶残影 → 擦脚印还原窗/影，再按避让重画落位图标 */
+        IconBounds(&gIcons[gIconDragIdx], &X, &Y, &W, &H);
+        ClearIconFootprint(X, Y, W, H);
+        DrawOneIconOccluded(&gIcons[gIconDragIdx],
+                            gIconDragIdx == gDeskSelected);
         HalVideoPresent();
     }
     gIconDragIdx = -1;
@@ -772,6 +796,10 @@ void DesktopTickClock(void) {
      * 屏幕中部出现「更细」假任务栏，鼠标 Present 像橡皮擦掉。
      * 走后缓冲 + Present（含缩放）与桌面其它绘制一致。
      * 先擦光标、铺回任务栏带再画一次，避免 Alpha 叠画 + 开始钮实心方块烙印。
+     *
+     * 须 ClearClip：Shell ConsoleWrite 常留下客户区 clip。
+     * DesktopFillRect / 开始图标走 WriteRect（无视 clip）会先擦掉整条栏，
+     * 而任务栏半透底与控件 FillRect 受 clip → 栏没了、开始图标还在。
      */
     {
         UINT32 BarY;
@@ -779,6 +807,7 @@ void DesktopTickClock(void) {
         UINT32 Sh;
 
         TaskbarGeom(&BarY, &Sw, &Sh);
+        HalVideoClearClip();
         GuiCursorHide();
         DesktopFillRect(0, BarY, Sw, TASKBAR_H);
         DrawTaskbarRaw();

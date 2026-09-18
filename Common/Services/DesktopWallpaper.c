@@ -131,3 +131,34 @@ void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
 }
 
+/* 只填未被窗占用的像素（图标拖动擦旧脚印，勿盖标题栏/客户区） */
+void DesktopFillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    UINT32 Row;
+    UINT32 Col;
+    UINT32 RunStart;
+    int InRun;
+
+    if (W == 0 || H == 0) {
+        return;
+    }
+    for (Row = Y; Row < Y + H; Row++) {
+        InRun = 0;
+        RunStart = 0;
+        for (Col = X; Col < X + W; Col++) {
+            int Free = !PointOccupied(Col, Row);
+            if (Free && !InRun) {
+                RunStart = Col;
+                InRun = 1;
+            } else if (!Free && InRun) {
+                if (Col > RunStart) {
+                    DesktopFillRect(RunStart, Row, Col - RunStart, 1);
+                }
+                InRun = 0;
+            }
+        }
+        if (InRun && X + W > RunStart) {
+            DesktopFillRect(RunStart, Row, X + W - RunStart, 1);
+        }
+    }
+}
+

@@ -162,6 +162,7 @@ void GuiInit(void) {
     PreallocWindowBackups();
     DesktopSetPointOccupied(GuiPointInAnyWindow);
     DesktopSetRequestRefresh(GuiRefreshDesktop);
+    DesktopSetClearIconFootprint(GuiClearIconDragFootprint);
     DesktopInit();
     {
         WINDOW_OPS Ops;

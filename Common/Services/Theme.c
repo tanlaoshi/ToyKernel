@@ -47,7 +47,15 @@ void ThemeInitialize(void) {
     gModeH = 0;
     gUiScale = 100;
     gFadeSteps = 6;
-    (void)FontSetById(gFontId);
+    /*
+     * boot GOP 镜像中：勿套桌面默认 10x18（4K 写不满一屏）。
+     * gFontId 仍记桌面偏好；进调度前 KernelMain 再 FontSetById(ThemeFontId())。
+     */
+    if (HalSerialGopMirroring()) {
+        HalSerialBootFontApply();
+    } else {
+        (void)FontSetById(gFontId);
+    }
 }
 
 UINT32 ThemeDesktopBackground(void) {

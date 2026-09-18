@@ -65,6 +65,9 @@ void ConsoleSbFeed(const char *Text);
 void ConsoleSbFeedChar(char C);
 void ConsoleSbBackspace(void);
 void ConsoleSbPaint(void);
+/* 合成/主题重画：不要求「可输入/未遮挡」，调用方已 GuiSetFocusWindow */
+void ConsoleSbRepaint(void);
+int ConsoleSbHasContent(void);
 void ConsoleSbEnsureLive(void);
 
 #endif

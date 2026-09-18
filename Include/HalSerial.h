@@ -13,6 +13,11 @@ void HalSerialInitialize(void);
 int HalSerialPresent(void);
 /* video 就绪后：允许 boot 期把 ring 刷到 GOP（与 COM1 无关） */
 void HalSerialGopEnable(void);
+/*
+ * boot 上滚字号：按分辨率挑内建 Terminus（4K→x2，使一屏行数少、可测上滚）。
+ * ThemeInitialize / FontInitialize 后若仍在镜像期须再调，避免缩回 10x18。
+ */
+void HalSerialBootFontApply(void);
 /* 未标通道：走 MISC（兼容旧调用） */
 void HalSerialWrite(const char *Text);
 void HalSerialWriteChannel(int Channel, const char *Text);

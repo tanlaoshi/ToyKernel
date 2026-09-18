@@ -466,6 +466,33 @@ void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh,
     }
 }
 
+/*
+ * 图标拖动置顶：脚印内可能盖住窗/影，须整块壁纸擦除再贴备份+阴影。
+ * Desktop 经 DesktopSetClearIconFootprint 回调，不 include Gui。
+ */
+void GuiClearIconDragFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    int i;
+    UINT32 N = ThemeWindowShadowSize();
+
+    if (W == 0 || H == 0) {
+        return;
+    }
+    HalVideoClearClip();
+    DesktopFillRect(X, Y, W, H);
+    RestoreWindowsInFootprint(X, Y, W, H, -1);
+    DesktopDrawRect(X, Y, W, H);
+    for (i = 0; i < MAX_WINS; i++) {
+        if (!gWindows[i].Active) {
+            continue;
+        }
+        if (RectIntersects(gWindows[i].X, gWindows[i].Y,
+                           gWindows[i].Width + N, gWindows[i].Height + N,
+                           X, Y, W, H)) {
+            DrawWindowShadowAt(i);
+        }
+    }
+}
+
 
 /* 按 z 序重画全部窗口（被拖窗最后画；备份不可用时回退） */
 void PaintAllWindowsDraw(int DragIdx) {

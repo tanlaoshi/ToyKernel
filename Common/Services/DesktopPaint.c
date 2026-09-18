@@ -71,16 +71,21 @@ static void FillRectFreeAlpha(UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
 
 void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
     UINT32 Cx = X;
+    UINT32 CellH;
 
     if (!Text) {
         return;
     }
+    CellH = FontCellH();
     while (*Text) {
         UINT32 Cp;
         UINTN N;
         UINT32 Adv;
         char One[5];
         UINTN k;
+        UINT32 Row;
+        UINT32 Col;
+        int Free;
 
         N = Utf8Decode(Text, &Cp);
         if (N == 0) {
@@ -88,11 +93,27 @@ void DrawStringFree(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {
             continue;
         }
         Adv = FontCodepointAdvance(Cp);
+        if (Adv == 0) {
+            Adv = FontCellW();
+        }
         for (k = 0; k < N && k < sizeof(One) - 1; k++) {
             One[k] = Text[k];
         }
         One[k] = 0;
-        if (!PointOccupied(Cx, Y)) {
+        /*
+         * 旧逻辑只测左上角：字形会画进标题栏留下黄/白烙印。
+         * 单元格任一像素被窗占用则整字跳过。
+         */
+        Free = 1;
+        for (Row = 0; Free && Row < CellH; Row++) {
+            for (Col = 0; Col < Adv; Col++) {
+                if (PointOccupied(Cx + Col, Y + Row)) {
+                    Free = 0;
+                    break;
+                }
+            }
+        }
+        if (Free) {
             HalVideoDrawStringAt(Cx, Y, One, Color);
         }
         Cx += Adv;

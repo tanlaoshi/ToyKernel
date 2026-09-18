@@ -128,7 +128,7 @@ void GuiApplyThemeColors(void) {
             gWindows[i].TermY = 0;
             gWindows[i].InputLen = 0;
             gWindows[i].InputLine[0] = 0;
-            gWindows[i].PromptShown = 0;
+            /* 勿清 PromptShown：否则 Compose 后切回 Shell 会在 toyos> 后再打欢迎语 */
             gWindows[i].WaitPrompt = 0;
         } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_SETTINGS) {
             gWindows[i].Background = ThemeSettingsClientBackground();

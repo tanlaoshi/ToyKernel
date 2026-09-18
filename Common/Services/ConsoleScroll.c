@@ -87,7 +87,11 @@ static const char *ConsoleSbLine(int OldestIndex) {
     return gSb[Idx];
 }
 
-void ConsoleSbPaint(void) {
+int ConsoleSbHasContent(void) {
+    return (gSbCount > 0 || gAccLen > 0) ? 1 : 0;
+}
+
+void ConsoleSbRepaint(void) {
     UINT32 Cx;
     UINT32 Cy;
     UINT32 Cw;
@@ -99,9 +103,6 @@ void ConsoleSbPaint(void) {
     int End;
     int i;
 
-    if (!GuiShellAcceptsInput()) {
-        return;
-    }
     if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Ch == 0) {
         return;
     }
@@ -162,6 +163,13 @@ void ConsoleSbPaint(void) {
     GuiFocusSave();
     HalVideoClearClip();
     GuiBackupFocusWindow();
+}
+
+void ConsoleSbPaint(void) {
+    if (!GuiShellAcceptsInput()) {
+        return;
+    }
+    ConsoleSbRepaint();
 }
 
 /* 若正在看历史，先回到底部再继续输出/输入 */
