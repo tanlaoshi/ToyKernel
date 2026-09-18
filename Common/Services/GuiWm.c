@@ -142,6 +142,7 @@ void GuiInit(void) {
     gFocusWin = -1;
     gCursorVisible = 0;
     gDragWin = -1;
+    gResizeWin = -1;
 
     {
         int i;

@@ -164,7 +164,7 @@ void CursorMove(UINT32 X, UINT32 Y) {
         return;
     }
 
-    if (gDragWin >= 0 || DesktopIconDragActive()) {
+    if (gDragWin >= 0 || gResizeWin >= 0 || DesktopIconDragActive()) {
         if (gCursorVisible) {
             GfxIrqEnter();
             CursorRestore();
@@ -187,11 +187,14 @@ void CursorMove(UINT32 X, UINT32 Y) {
 
 void GuiPointerMove(UINT32 X, UINT32 Y) {
     if (!(gDragWin >= 0 && (gCursorBtn & 1)) &&
+        !(gResizeWin >= 0 && (gCursorBtn & 1)) &&
         !(DesktopIconDragActive() && (gCursorBtn & 1))) {
         GuiHoverUpdate(X, Y);
     }
     CursorMove(X, Y);
-    if (gDragWin >= 0 && (gCursorBtn & 1)) {
+    if (gResizeWin >= 0 && (gCursorBtn & 1)) {
+        GuiResizeUpdate(X, Y);
+    } else if (gDragWin >= 0 && (gCursorBtn & 1)) {
         GuiDragUpdate(X, Y);
     } else if (DesktopIconDragActive() && (gCursorBtn & 1)) {
         DesktopIconDragUpdate(X, Y);

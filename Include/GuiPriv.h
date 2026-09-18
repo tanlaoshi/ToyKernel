@@ -78,6 +78,13 @@ extern int    gDragWin;
 extern INT32  gDragOffX;
 extern INT32  gDragOffY;
 extern int    gDragArmed;
+
+extern int    gResizeWin;
+extern int    gResizeArmed;
+extern UINT32 gResizeOrigW;
+extern UINT32 gResizeOrigH;
+extern INT32  gResizeAnchorX;
+extern INT32  gResizeAnchorY;
 extern GUI_WINDOW gWinSwap;
 
 extern int      gDragHasBackup;
@@ -208,6 +215,12 @@ void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y);
 void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY);
 void GuiDragUpdate(UINT32 X, UINT32 Y);
 void GuiDragEnd(void);
+
+/* PR-GUI-win-resize */
+int PointInResizeCorner(const GUI_WINDOW *W, UINT32 X, UINT32 Y);
+void GuiResizeBegin(int Idx, UINT32 X, UINT32 Y);
+void GuiResizeUpdate(UINT32 X, UINT32 Y);
+void GuiResizeEnd(void);
 
 /* Wm helpers */
 void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src);

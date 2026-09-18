@@ -43,6 +43,7 @@ void GuiOnDisplayResize(void) {
     HalInputMouseHandoffDesktop(gCursorX, gCursorY);
     gCursorVisible = 0;
     gDragWin = -1;
+    gResizeWin = -1;
 
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWindows[i].Active) {
@@ -191,6 +192,9 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             continue;
         }
         if (gWindows[i].Kind == GUI_WIN_USER && !PointInTitle(&gWindows[i], X, Y)) {
+            if (PointInResizeCorner(&gWindows[i], X, Y)) {
+                break;
+            }
             Hit = UserButtonHit(i, X, Y);
             if (Hit >= 0) {
                 gWindows[i].UserButtonClick = Hit;
@@ -226,12 +230,22 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         DebugWrite(gWindows[gFocusWin].Title);
         DebugWrite("\n");
 
+        if (PointInResizeCorner(&gWindows[gFocusWin], X, Y) &&
+            !PointOnAnyClose(X, Y)) {
+            GfxIrqEnter();
+            CursorRestore();
+            GfxIrqLeave();
+            RaiseWindow(gFocusWin);
+            GuiResizeBegin(gFocusWin, X, Y);
+            return 1;
+        }
         if (PointInTitle(&gWindows[gFocusWin], X, Y) &&
             !PointOnAnyClose(X, Y)) {
             GfxIrqEnter();
             CursorRestore();
             GfxIrqLeave();
             RaiseWindow(gFocusWin);
+            gResizeWin = -1;
             gDragWin = gFocusWin;
             gDragOffX = (INT32)X - (INT32)gWindows[gFocusWin].X;
             gDragOffY = (INT32)Y - (INT32)gWindows[gFocusWin].Y;
@@ -344,6 +358,8 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
 
     if ((Mouse->Buttons & 1) && !(gMousePrevBtn & 1)) {
         GuiHandleClick(Mouse->X, Mouse->Y);
+    } else if ((Mouse->Buttons & 1) && gResizeWin >= 0) {
+        GuiResizeUpdate(Mouse->X, Mouse->Y);
     } else if ((Mouse->Buttons & 1) && gDragWin >= 0) {
         /* PR-G10 L2：与 GuiPollMouse 统一，按住拖动时持续更新 */
         GuiDragUpdate(Mouse->X, Mouse->Y);
@@ -358,6 +374,7 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     if (!(Mouse->Buttons & 1) && (gMousePrevBtn & 1)) {
         int WasIconDrag = DesktopIconDragActive();
 
+        GuiResizeEnd();
         GuiDragEnd();
         DesktopIconDragEnd();
         if (WasIconDrag) {
@@ -489,6 +506,7 @@ void GuiPollMouse(void) {
         if (!(Raw.Buttons & 1) && (LastBtn & 1)) {
             int WasIconDrag = DesktopIconDragActive();
 
+            GuiResizeEnd();
             GuiDragEnd();
             DesktopIconDragEnd();
             if (WasIconDrag) {
@@ -502,7 +520,7 @@ void GuiPollMouse(void) {
             GuiRightClickPlaceholder(X, Y);
         }
         /* Settings/Store：仅按键边沿逐包；位移悬停合并到队尾 GuiPointerMove */
-        if (gDragWin < 0 && ((Raw.Buttons ^ LastBtn) & 1u)) {
+        if (gDragWin < 0 && gResizeWin < 0 && ((Raw.Buttons ^ LastBtn) & 1u)) {
             if (GuiFocusKind() == GUI_WIN_SETTINGS) {
                 SettingsUiOnPointer(X, Y, Raw.Buttons);
             } else if (GuiFocusKind() == GUI_WIN_STORE) {
@@ -512,7 +530,11 @@ void GuiPollMouse(void) {
         LastBtn = Raw.Buttons;
     }
     if (NeedMove) {
-        if ((LastBtn & 1) && gDragWin >= 0) {
+        if ((LastBtn & 1) && gResizeWin >= 0) {
+            gCursorX = LastX;
+            gCursorY = LastY;
+            GuiResizeUpdate(LastX, LastY);
+        } else if ((LastBtn & 1) && gDragWin >= 0) {
             gCursorX = LastX;
             gCursorY = LastY;
             GuiDragUpdate(LastX, LastY);

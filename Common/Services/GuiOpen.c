@@ -118,6 +118,9 @@ void CloseWindow(int Idx) {
     if (gDragWin == Idx) {
         gDragWin = -1;
     }
+    if (gResizeWin == Idx) {
+        gResizeWin = -1;
+    }
     if (gHoverWin == Idx) {
         gHoverWin = -1;
     }
