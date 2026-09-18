@@ -210,11 +210,12 @@ void PlaceNewWindow(int Idx, UINT32 *OutX, UINT32 *OutY,
 
     W = gScreenWidth > Margin * 2 + 200 ? gScreenWidth - Margin * 2 : gScreenWidth - 32;
     H = gScreenHeight > Margin * 2 + 120 ? gScreenHeight - Margin * 2 : gScreenHeight - 32;
-    if (W > 720) {
-        W = 720;
+    /* 默认桌面 1280×720：960×600 约 ~85 列×~28 行（8×16），ps 等长行不易裁切 */
+    if (W > 960) {
+        W = 960;
     }
-    if (H > 480) {
-        H = 480;
+    if (H > 600) {
+        H = 600;
     }
     *OutX = Margin + Cascade;
     *OutY = Margin + Cascade;
@@ -285,8 +286,8 @@ int GuiOpenSettings(void) {
         return -1;
     }
     /* 三分栏：与 Files 同量级，靠右 */
-    W = 640;
-    H = 480;
+    W = 800;
+    H = 560;
     if (W + Margin * 2 > gScreenWidth) {
         W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
@@ -336,8 +337,8 @@ int GuiOpenStore(void) {
     if (Idx < 0) {
         return -1;
     }
-    W = 760;
-    H = 520;
+    W = 920;
+    H = 600;
     if (W + Margin * 2 > gScreenWidth) {
         W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
@@ -382,8 +383,8 @@ int GuiOpenFiles(void) {
     if (Idx < 0) {
         return -1;
     }
-    W = 640;
-    H = 480;
+    W = 800;
+    H = 560;
     if (W + Margin * 2 > gScreenWidth) {
         W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
@@ -445,8 +446,8 @@ int GuiOpenEdit(const char *Path) {
     if (Idx < 0) {
         return -1;
     }
-    W = 640;
-    H = 440;
+    W = 800;
+    H = 520;
     if (W + Margin * 2 > gScreenWidth) {
         W = gScreenWidth > Margin * 2 ? gScreenWidth - Margin * 2 : gScreenWidth / 2;
     }
