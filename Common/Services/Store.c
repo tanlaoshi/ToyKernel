@@ -66,7 +66,12 @@ static void StoreFlushFontReload(void) {
     ThemeClampFontId();
     /* 字高变了须重合成，否则桌面仍按旧度量画 */
     GuiComposeThemeScene();
+    /* PR-S-compose-sep（序 4）：合成后、写盘前呼吸一次，避免 compose+ThemeSave
+     * 连续长消费段冻住光标；ThemeSave 内 DB 写盘走 FatSetIoBreath 持续呼吸 */
+    StoreIoBreath();
+    FatSetIoBreath(StoreIoBreath);
     (void)ThemeSave();
+    FatSetIoBreath(0);
     StoreIoBreath();
 }
 

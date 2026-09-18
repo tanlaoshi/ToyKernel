@@ -47,13 +47,16 @@ static int SerialIsEnter(char C) {
  */
 static void YieldForPollInput(void) {
     /*
-     * PR-S-input-drain（序 1 等价）/ PR-S-input-pin（序 2）：
-     * - SMP=2（无 InputTask）：此处为稳态 drain 主人（shell/gui 每轮让步前排空 xHCI 事件环）。
-     * - SMP≥3（InputTask 钉 CPU2 持续 drain）：此处降为兜底——InputTask 为主人，本路径冗余但
-     *   无害（gEvtConsumerLock 串行）；保留以复用单/双核路径，勿分支化。
-     * 长 Store IO 不走此路径，由 StoreIoBreath 自带 drain 兜底。
+     * PR-S-compose-sep（序 4）：单一 drain 主人——反例禁止「专核空转却仍在 shell
+     * 同步 HalInputPoll 双路径抢设备」。故按 InputTask 是否存在分域：
+     * - SMP<3（无 InputTask）：此处为稳态 drain 主人（序 1 等价）。
+     * - SMP≥3（InputTask 钉 CPU2 持续 drain）：InputTask 为单一主人，此处不 drain，
+     *   只让步（pause/hlt），避双路径抢 xHCI 设备。
+     * 长 Store IO 不走此路径，由 StoreIoBreath 自带 drain 兜底（IO 呼吸，非稳态）。
      */
-    HalInputPoll();
+    if (HalCpuCount() < 3) {
+        HalInputPoll();
+    }
     if (!HalCpuIsHypervisor()) {
         UINT32 i;
         if (HalPowerButtonPressed()) {
