@@ -140,13 +140,26 @@ IsrCommon:
     add rsp, 16
     iretq
 
-/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16） */
+/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；iretq 按帧恢复 RFLAGS（IF=1）。
+ * PR-S-input 序 2 饿死根因：旧版 jmp rax 不恢复 RFLAGS → 继承中断入口 IF=0，
+ * 真机纯自旋任务（无 sti/hlt）永不被抢占。改 iretq 后所有内核任务带 IF=1 起。
+ * RSP=StackPointer-8 以保 ≡8 mod 16（SysV/SSE）；内核任务不 ret，无返回地址。 */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */
-    mov rsp, [rdi + 160]    /* StackPointer（创建时为 16 字节对齐栈顶） */
-    push rax                /* 占位返回地址 → RSP≡8，满足 SysV / SSE */
-    jmp rax
+    mov rcx, [rdi + 144]    /* Cs */
+    mov rdx, [rdi + 152]    /* Rflags */
+    mov r11, [rdi + 160]    /* StackPointer */
+    mov r10, [rdi + 168]    /* Ss */
+    lea r11, [r11 - 8]      /* RSP≡8 mod 16（SysV/SSE） */
+    mov rsp, r11
+    sub rsp, 40
+    mov [rsp], rax
+    mov [rsp + 8], rcx
+    mov [rsp + 16], rdx
+    mov [rsp + 24], r11
+    mov [rsp + 32], r10
+    iretq
 
 /* 调度器首次进入任务（须在 .text；勿放进下方 .rodata，否则会 #UD） */
 .global SchedulerEnter
