@@ -885,12 +885,23 @@ void SchedulerStart(void) {
     /*
      * PR-S-ap：多核时 shell/gui 同钉 AP（逻辑 CPU1），BSP 留给 idle0 / 中断 / 偷任务；
      * 单核仍钉 0。交互 Priority 偏高；worker Affinity=-1。
+     * PR-S-input-pin 序 2：input 钉独立 CPU2（SMP≥3），与 shell/gui 分核，sti 不外溢。
      */
     {
         UINT32 InteractiveCpu = (Cpus > 1) ? 1u : 0u;
+        UINT32 InputCpu = (Cpus > 2) ? 2u : InteractiveCpu;
 
         for (i = 0; i < MAX_TASKS; i++) {
             if (gTasks[i].State == TASK_UNUSED) {
+                continue;
+            }
+            if (gTasks[i].Name[0] == 'i' && gTasks[i].Name[1] == 'n') {
+                /* input：钉专核，默认优先级（>idle -0x80，独占该核 drain） */
+                RunQueueRemove(&gTasks[i]);
+                gTasks[i].Affinity = (INT32)InputCpu;
+                gTasks[i].HomeCpu = (INT32)InputCpu;
+                gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
+                RunQueueEnqueue(InputCpu, &gTasks[i]);
                 continue;
             }
             if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||

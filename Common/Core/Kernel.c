@@ -88,6 +88,10 @@ void KernelMain(void) {
         SchedulerCreate("shell", ShellTask);
         SchedulerCreate("gui", GuiTask);
         SchedulerCreate("worker", WorkerTask);
+        /* PR-S-input-pin 序 2：SMP≥3 才起 InputTask 钉 CPU2；SMP=2 留序 1 等价 yield-path drain */
+        if (HalCpuCount() > 2) {
+            SchedulerCreate("input", InputTask);
+        }
         SchedulerStart();
         return;
     }
@@ -95,5 +99,8 @@ void KernelMain(void) {
     SchedulerCreate("shell", ShellTask);
     SchedulerCreate("gui", GuiTask);
     SchedulerCreate("worker", WorkerTask);
+    if (HalCpuCount() > 2) {
+        SchedulerCreate("input", InputTask);
+    }
     SchedulerStart();
 }

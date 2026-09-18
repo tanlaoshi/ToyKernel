@@ -9,6 +9,7 @@
 void ShellTask(void);
 void GuiTask(void);
 void WorkerTask(void);
+void InputTask(void);   /* PR-S-input-pin 序 2：输入钉专核（SMP≥3 → CPU2） */
 
 UINT32 WorkerLoopCount(void);
 

@@ -331,6 +331,21 @@ static void ExceptionHalt(HAL_INTERRUPT_FRAME *F) {
     SerialWrite(" ip=");
     SerialHexFormat(Buf, F->InstructionPointer, 16);
     SerialWrite(Buf);
+    SerialWrite(" cs=");
+    SerialHexFormat(Buf, F->Cs, 4);
+    SerialWrite(Buf);
+    SerialWrite(" ss=");
+    SerialHexFormat(Buf, F->Ss, 4);
+    SerialWrite(Buf);
+    SerialWrite(" rsp=");
+    SerialHexFormat(Buf, F->StackPointer, 16);
+    SerialWrite(Buf);
+    SerialWrite(" rfl=");
+    SerialHexFormat(Buf, F->Rflags, 8);
+    SerialWrite(Buf);
+    SerialWrite(" cpu=");
+    SerialHexFormat(Buf, (UINT32)HalGetCpuId(), 2);
+    SerialWrite(Buf);
     if (F->Vector == 14) {
         UINT64 Cr2;
         __asm__ volatile ("mov %%cr2, %0" : "=r"(Cr2));
