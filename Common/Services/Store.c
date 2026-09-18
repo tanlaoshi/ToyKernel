@@ -43,7 +43,16 @@ static int gStoreComboDepth;
 static int gNeedFontReload;
 static int gStorePayloadBypass;
 
+/*
+ * 长 IO 呼吸：每块拷贝/写盘后排空 xHCI 事件环 + 让鼠标动。
+ *
+ * PR-S-input-drain：稳态 drain 在 YieldForPollInput（shell/gui 每轮让步处）；
+ * 但长 Store 拷贝/写盘期间 GuiTask 不走 YieldForPollInput，且真机 poll-USB 下
+ * MSC/FAT 完成事件需 XchiDrainEvents 推进 → 此处自带 HalInputPoll 兜底。
+ * 序 1「或等价」：drain 集中在 yield 路径 + IO 呼吸两处，GuiPollMouse 等只 dequeue。
+ */
 static void StoreIoBreath(void) {
+    HalInputPoll();
     GuiPollMouseMotion();
 }
 
@@ -798,6 +807,9 @@ static int TryCopy(const char *Src, const char *Dst, int Check) {
     Err = FileSystemWriteFile(Dst, Buf, Got);
     FatSetIoBreath(0);
     StoreIoBreath();
+    if (Err != FAT_OK) {
+        HalConsoleWriteSerial("store: write failed\n");
+    }
     PhysicalMemoryFreePages(Buf, Pages);
     return Err;
 }
@@ -891,10 +903,11 @@ int StoreInstall(const char *Id) {
             Check = STORE_CHECK_NONE;
         }
 
-        Err = InstallFromSources(Tab[i].Id, Tab[i].File, Dst, Check);
-        if (Err != FAT_OK) {
-            return Err;
-        }
+    Err = InstallFromSources(Tab[i].Id, Tab[i].File, Dst, Check);
+    if (Err != FAT_OK) {
+        HalConsoleWriteSerial("store: install copy failed\n");
+        return Err;
+    }
         if (Kind == STORE_KIND_FONT) {
             gNeedFontReload = 1;
             if (gStoreComboDepth == 0) {

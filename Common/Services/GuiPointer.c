@@ -397,7 +397,6 @@ void GuiInputLock(int Locked) {
     }
     /* 解锁前排空：热切期间堆积的边沿会在新分辨率下误点其它档 */
     if (HalMousePresent()) {
-        HalInputPoll();
         while (HalMouseDequeue(&Raw)) {
             LastBtn = Raw.Buttons;
         }
@@ -436,8 +435,7 @@ void GuiPollMouse(void) {
         Sh = gScreenHeight ? gScreenHeight : 768;
     }
 
-    HalInputPoll();
-
+    /* PR-S-input-drain：drain 由 YieldForPollInput（稳态）+ StoreIoBreath（长 IO）负责；此处只 dequeue */
     if (gInputLocked) {
         while (HalMouseDequeue(&Raw)) {
             gMousePrevBtn = Raw.Buttons;
@@ -581,7 +579,7 @@ void GuiPollMouseMotion(void) {
         Sh = gScreenHeight ? gScreenHeight : 768;
     }
 
-    HalInputPoll();
+    /* PR-S-input-drain：drain 由 YieldForPollInput（稳态）+ StoreIoBreath（长 IO）负责；此处只 dequeue */
     X = gCursorX;
     Y = gCursorY;
     while (HalMouseDequeue(&Raw)) {

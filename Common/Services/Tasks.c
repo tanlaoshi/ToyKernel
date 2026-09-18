@@ -46,6 +46,12 @@ static int SerialIsEnter(char C) {
  * 多数轮次短自旋；偶发 hlt 仍给定时器/短按电源窗口。
  */
 static void YieldForPollInput(void) {
+    /*
+     * PR-S-input-drain：稳态 drain 主人（序 1「或等价」）。
+     * shell/gui 主循环只 dequeue；每次让步前排空 xHCI 事件环 → gKbdQ/gMouseQ。
+     * 长 Store IO 不走此路径，由 StoreIoBreath 自带 drain 兜底。
+     */
+    HalInputPoll();
     if (!HalCpuIsHypervisor()) {
         UINT32 i;
         if (HalPowerButtonPressed()) {
@@ -215,7 +221,6 @@ static void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) 
 
 void GuiTask(void) {
     for (;;) {
-        HalInputPoll();
         GuiPollMouse();
         YieldForPollInput();
     }
@@ -229,8 +234,9 @@ void ShellTask(void) {
         /*
          * 真机 xHCI 为 poll（无 MSI）：必须先 Drain/取键再 hlt。
          * 旧序先 Halt → 仅靠定时器偶发唤醒，事件环易在 gui 启动后溢满假死。
+         * PR-S-input-drain：drain 已移交 YieldForPollInput（稳态）+ StoreIoBreath（长 IO）；
+         * 此处只 dequeue。
          */
-        HalInputPoll();
         while (HalKeyboardDequeue(&Report)) {
             FeedHid(&Report, &Previous);
             Previous = Report;
