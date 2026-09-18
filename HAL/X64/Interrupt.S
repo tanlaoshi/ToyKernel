@@ -140,26 +140,19 @@ IsrCommon:
     add rsp, 16
     iretq
 
-/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；iretq 按帧恢复 RFLAGS（IF=1）。
- * PR-S-input 序 2 饿死根因：旧版 jmp rax 不恢复 RFLAGS → 继承中断入口 IF=0，
- * 真机纯自旋任务（无 sti/hlt）永不被抢占。改 iretq 后所有内核任务带 IF=1 起。
- * RSP=StackPointer-8 以保 ≡8 mod 16（SysV/SSE）；内核任务不 ret，无返回地址。 */
+/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16）
+ *
+ * PR-S-input 序 2：曾试改 iretq 恢复 RFLAGS（IF=1）以启抢占，NUC 实测 shell/gui
+ * ticks 确转 >0，但暴露 latent bug（shell rip 损坏 0xD400147F8A → ACPI Reset，
+ * 疑 ConsolePaintShellWindow 等重绘路径非抢占安全）。已回退为 jmp rax（IF=0 协作式）。
+ * 序 2 改走 scoped sti：只让钉专核的 InputTask 开中断，不动 shell/gui 协作态。
+ * 全局抢占需单独一轮「内核抢占安全」硬化，不在本柱。 */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */
-    mov rcx, [rdi + 144]    /* Cs */
-    mov rdx, [rdi + 152]    /* Rflags */
-    mov r11, [rdi + 160]    /* StackPointer */
-    mov r10, [rdi + 168]    /* Ss */
-    lea r11, [r11 - 8]      /* RSP≡8 mod 16（SysV/SSE） */
-    mov rsp, r11
-    sub rsp, 40
-    mov [rsp], rax
-    mov [rsp + 8], rcx
-    mov [rsp + 16], rdx
-    mov [rsp + 24], r11
-    mov [rsp + 32], r10
-    iretq
+    mov rsp, [rdi + 160]    /* StackPointer（创建时为 16 字节对齐栈顶） */
+    push rax                /* 占位返回地址 → RSP≡8，满足 SysV / SSE */
+    jmp rax
 
 /* 调度器首次进入任务（须在 .text；勿放进下方 .rodata，否则会 #UD） */
 .global SchedulerEnter
