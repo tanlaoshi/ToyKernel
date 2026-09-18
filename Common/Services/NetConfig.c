@@ -79,3 +79,12 @@ int NetConfigSetDns(UINT32 Dns) {
     gDns = Dns;
     return ApplyStack();
 }
+
+void NetConfigAdopt(UINT32 Ip, UINT32 Mask, UINT32 Gw, UINT32 Dns) {
+    NetConfigEnsure();
+    gIp = Ip;
+    gMask = Mask;
+    gGw = Gw;
+    gDns = Dns;
+    HalNetSetIpAddress(Ip);
+}

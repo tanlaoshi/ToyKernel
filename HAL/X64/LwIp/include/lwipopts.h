@@ -22,7 +22,6 @@
 #define MEMP_NUM_TCP_PCB            8
 #define MEMP_NUM_TCP_PCB_LISTEN     4
 #define MEMP_NUM_TCP_SEG            16
-#define MEMP_NUM_SYS_TIMEOUT        16
 #define MEMP_NUM_NETBUF             0
 #define MEMP_NUM_NETCONN            0
 #define MEMP_NUM_TCPIP_MSG_API      0
@@ -35,12 +34,15 @@
 #define LWIP_UDP                    1
 #define LWIP_ICMP                   1
 #define LWIP_RAW                    1
-#define LWIP_DHCP                   0
+#define LWIP_DHCP                   1
+#define LWIP_DHCP_DOES_ACD_CHECK    0
 #define LWIP_AUTOIP                 0
 #define LWIP_DNS                    1
 #define LWIP_IGMP                   0
 #define LWIP_SNMP                   0
 #define LWIP_STATS                  0
+
+#define MEMP_NUM_SYS_TIMEOUT        20
 
 #define TCP_MSS                     536
 #define TCP_SND_BUF                 2048

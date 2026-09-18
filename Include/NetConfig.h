@@ -20,4 +20,7 @@ int NetConfigSetMask(UINT32 Mask);
 int NetConfigSetGw(UINT32 Gw);
 int NetConfigSetDns(UINT32 Dns);
 
+/* DHCP 成功后写入配置表（不改 netif；仅 Hal IP + 记忆） */
+void NetConfigAdopt(UINT32 Ip, UINT32 Mask, UINT32 Gw, UINT32 Dns);
+
 #endif

@@ -10,6 +10,7 @@
 #include "Tcp.h"
 #include "LwIp.h"
 #include "NetConfig.h"
+#include "HalDevices.h"
 
 static void CommandNet(int Argc, char **Argv) {
     char IpBuf[20];
@@ -504,21 +505,43 @@ static void ShellLwIpPrintStatus(void) {
     ConsoleWriteHex32(LwIpTcpListenPort());
     ConsoleWrite(" udp bind=");
     ConsoleWriteHex32(LwIpUdpBoundPort());
+    ConsoleWrite(LwIpDhcpRunning() ? " dhcp=on\n" : " dhcp=off\n");
+}
+
+static void CommandLwIpDhcp(int Argc, char **Argv) {
+    char IpBuf[16];
+
+    (void)Argc;
+    (void)Argv;
+    if (!HalNetReady()) {
+        ConsoleWrite("lwip dhcp: net not available\n");
+        return;
+    }
+    ConsoleWrite("lwip dhcp: requesting...\n");
+    if (LwIpDhcpStart(8000) != 0) {
+        ConsoleWrite("lwip dhcp: no offer (kept static)\n");
+        return;
+    }
+    HalNetFormatIp(NetConfigGetIp(), IpBuf, (int)sizeof(IpBuf));
+    ConsoleWrite("lwip dhcp: ok ip=");
+    ConsoleWrite(IpBuf);
     ConsoleWrite("\n");
 }
 
 static void CommandLwIp(int Argc, char **Argv) {
     const char *Word;
 
-    /* 正统：lwip on|status → Argv[0]=二级；旧：lwip on → Argv[1] */
+    /* 正统：lwip on|status|dhcp → Argv[0]=二级；旧：lwip on → Argv[1] */
     if (Argc >= 1 && Argv[0][0] == 'o' && Argv[0][1] == 'n' && Argv[0][2] == 0) {
         Word = Argv[0];
     } else if (Argc >= 1 && Argv[0][0] == 's') {
         Word = Argv[0];
+    } else if (Argc >= 1 && Argv[0][0] == 'd') {
+        Word = Argv[0];
     } else if (Argc >= 2) {
         Word = Argv[1];
     } else {
-        ConsoleWrite("usage: lwip on|status\n");
+        ConsoleWrite("usage: lwip on|status|dhcp\n");
         return;
     }
     if (Word[0] == 'o' && Word[1] == 'n' && Word[2] == 0) {
@@ -533,6 +556,10 @@ static void CommandLwIp(int Argc, char **Argv) {
         ShellLwIpPrintStatus();
         return;
     }
+    if (Word[0] == 'd') {
+        CommandLwIpDhcp(Argc, Argv);
+        return;
+    }
     if (Word[0] == 's') {
         if (!LwIpActive()) {
             ConsoleWrite("lwip: off (builtin stack; run lwip on)\n");
@@ -541,7 +568,7 @@ static void CommandLwIp(int Argc, char **Argv) {
         ShellLwIpPrintStatus();
         return;
     }
-    ConsoleWrite("usage: lwip on|status\n");
+    ConsoleWrite("usage: lwip on|status|dhcp\n");
 }
 #endif
 
@@ -567,5 +594,7 @@ void ShellCmdNetRegister(void) {
 #ifdef TOY_LWIP
     ConsoleRegister2("lwip", "on", "enable lwIP stack", CommandLwIp);
     ConsoleRegister2("lwip", "status", "lwIP status", CommandLwIp);
+    ConsoleRegister2("lwip", "dhcp", "DHCP request (8s)", CommandLwIpDhcp);
+    ConsoleRegister2("net", "dhcp", "DHCP request (alias)", CommandLwIpDhcp);
 #endif
 }

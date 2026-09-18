@@ -10,6 +10,10 @@
 int  LwIpInit(void);
 /* PR-N-nic-addr：lwIP 已开时按 NetConfig 刷新地址/DNS；未开则 0 */
 int  LwIpApplyConfig(void);
+/* PR-N-nic-dhcp：阻塞至多 TimeoutMs；成功 0；超时软失败 -1（保留静态） */
+int  LwIpDhcpStart(int TimeoutMs);
+void LwIpDhcpStop(void);
+int  LwIpDhcpRunning(void);
 void LwIpPoll(void);
 /* 关中断下 HalNetPoll + lwIP timers（NO_SYS 防重入） */
 void LwIpService(void);

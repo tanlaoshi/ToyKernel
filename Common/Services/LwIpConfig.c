@@ -38,6 +38,8 @@ int LwIpApplyConfig(void) {
     if (!LwIpActive()) {
         return 0;
     }
+    /* 静态后设覆盖 DHCP */
+    LwIpDhcpStop();
     IrqFlags = HalIrqSave();
     if (ToyNetifSetAddr(NetConfigGetIp(), NetConfigGetMask(),
                         NetConfigGetGw()) != 0) {

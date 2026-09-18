@@ -191,6 +191,7 @@ LWIPCORE = \
 	$(LWIPDIR)/core/ipv4/icmp.c \
 	$(LWIPDIR)/core/ipv4/ip4.c \
 	$(LWIPDIR)/core/ipv4/ip4_addr.c \
+	$(LWIPDIR)/core/ipv4/dhcp.c \
 	$(LWIPDIR)/netif/ethernet.c
 LWIPOBJS = $(patsubst $(LWIPDIR)/%.c,$(BUILDDIR)/lwip/%.o,$(LWIPCORE))
 LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
