@@ -391,7 +391,7 @@ static int TryEnableMsiRx(void) {
     MmioW32(E1000_REG_IMC, 0xFFFFFFFFu);
     (void)MmioR32(E1000_REG_ICR);
 
-    if (!PciEnableMsi(&Dev, VEC_E1000)) {
+    if (!PciEnableMsi(&Dev, VEC_E1000, 0)) {
         DebugWrite("e1000: MSI failed; stay poll\n");
         return 0;
     }

@@ -4,6 +4,13 @@
  */
 #include "XHCI/XhciInternal.h"
 
+/* PR-S-input-irq：xHCI IRQ dest 逻辑核。SMP≥3→CPU2（与 InputTask 同核）；
+ * SMP<3→CPU0（无 InputTask，保持原行为）。序 2 cli 守 drain 期 IF=0，
+ * MSI 不会在持 gEvtConsumerLock 时投递 → 无 ISR/任务死锁。 */
+static UINT8 XhciInputIrqCpu(void) {
+    return (HalCpuCount() > 2) ? 2u : 0u;
+}
+
 /* 清除中断管理器挂起位 */
 void ImClearPending(void) {
     UINT32 Im = ReadMmio32(gRuntimeBase + 0x20);
@@ -185,7 +192,7 @@ int XhciTryEnterDual(USB_CONTROLLER *Device) {
     if (!Device) {
         return 0;
     }
-    if (!PciEnableMsi(Device, VEC_XHCI)) {
+    if (!PciEnableMsi(Device, VEC_XHCI, XhciInputIrqCpu())) {
         return 0;
     }
     EnableHostInterrupts();
@@ -267,7 +274,7 @@ int XhciEnableIrq(USB_CONTROLLER *Device) {
 
     /* QEMU：再试 INTx→IOAPIC；真机 dual 失败则纯 poll backup */
     if (HalCpuIsHypervisor()) {
-        Dest = HalCpuApicId(0);
+        Dest = HalCpuApicId(XhciInputIrqCpu());
         if (PciEnableIoApicIntx(Device, VEC_XHCI, Dest)) {
             EnableHostInterrupts();
             gUseIrq = 0;

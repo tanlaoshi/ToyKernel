@@ -198,8 +198,9 @@ static int PciFindCap(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Id) {
     return 0;
 }
 
-/* 为 USB 设备配置 MSI-X（优先）或 MSI，绑定到 LAPIC 向量 Vector */
-int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector) {
+/* 为 USB 设备配置 MSI-X（优先）或 MSI，绑定到 LAPIC 向量 Vector。
+ * DestLogicalCpu：投递目标逻辑核（PR-S-input-irq：xHCI 传输入核；其它可传 0=BSP） */
+int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector, UINT8 DestLogicalCpu) {
     UINT32 Cmd;
     UINT8 DestApic;
     int Cap;
@@ -213,7 +214,7 @@ int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector) {
     Cmd |= (1u << 10);
     PciWriteConfig(Device->Bus, Device->Device, Device->Function, 0x04, Cmd);
 
-    DestApic = HalCpuApicId(0);
+    DestApic = HalCpuApicId(DestLogicalCpu);
 
     Cap = PciFindCap(Device->Bus, Device->Device, Device->Function, 0x11);
     if (Cap) {
