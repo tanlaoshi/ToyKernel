@@ -152,6 +152,10 @@ UINT32 HalNetGetIpAddress(void) {
     return ToyDriverNetGetIp();
 }
 
+void HalNetSetIpAddress(UINT32 Ip) {
+    ToyDriverNetSetIp(Ip);
+}
+
 void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
     ToyDriverNetFormatIp(Ip, Buf, BufLen);
 }

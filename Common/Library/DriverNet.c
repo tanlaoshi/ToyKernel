@@ -8,9 +8,9 @@ static const NET_BACKEND *gNetBackend;
 
 int ToyDriverNetAttach(const NET_BACKEND *Backend) {
     if (!Backend || !Backend->Ready || !Backend->Poll || !Backend->GetMac ||
-        !Backend->GetIp || !Backend->FormatIp || !Backend->ParseIp ||
-        !Backend->Ping || !Backend->GetStats || !Backend->SendIp ||
-        !Backend->Checksum || !Backend->SetLwIpRx) {
+        !Backend->GetIp || !Backend->SetIp || !Backend->FormatIp ||
+        !Backend->ParseIp || !Backend->Ping || !Backend->GetStats ||
+        !Backend->SendIp || !Backend->Checksum || !Backend->SetLwIpRx) {
         DebugWrite("drv-net: bad backend\n");
         return -1;
     }
@@ -44,6 +44,12 @@ UINT32 ToyDriverNetGetIp(void) {
         return 0;
     }
     return gNetBackend->GetIp();
+}
+
+void ToyDriverNetSetIp(UINT32 Ip) {
+    if (gNetBackend && gNetBackend->SetIp) {
+        gNetBackend->SetIp(Ip);
+    }
 }
 
 void ToyDriverNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {

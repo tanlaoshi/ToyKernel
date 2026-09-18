@@ -13,6 +13,7 @@ typedef struct {
     void (*Poll)(void);
     void (*GetMac)(UINT8 Mac[6]);
     UINT32 (*GetIp)(void);
+    void (*SetIp)(UINT32 Ip);
     void (*FormatIp)(UINT32 Ip, char *Buf, int BufLen);
     int (*ParseIp)(const char *Text, UINT32 *Ip);
     int (*Ping)(const char *Host, int TimeoutMs);
@@ -28,6 +29,7 @@ int ToyDriverNetReady(void);
 void ToyDriverNetPoll(void);
 void ToyDriverNetGetMac(UINT8 Mac[6]);
 UINT32 ToyDriverNetGetIp(void);
+void ToyDriverNetSetIp(UINT32 Ip);
 void ToyDriverNetFormatIp(UINT32 Ip, char *Buf, int BufLen);
 int ToyDriverNetParseIp(const char *Text, UINT32 *Ip);
 int ToyDriverNetPing(const char *Host, int TimeoutMs);

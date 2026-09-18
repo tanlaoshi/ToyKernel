@@ -10,13 +10,28 @@
 #include "netif/ethernet.h"
 #include "toy_ip.h"
 #include "Net.h"
+#include "Hal.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
 static struct netif gToyNetif;
+static int gToyNetifUp;
 
-/* QEMU user-net 网关 10.0.2.2 的固定 MAC，免首包 ARP 竞态 */
+/* QEMU user-net 网关 10.0.2.2 的固定 MAC；仅 hypervisor 注入 */
 static const UINT8 gQemuGwMac[6] = { 0x52, 0x55, 0x0a, 0x00, 0x02, 0x02 };
+#define TOY_QEMU_GW_IP  0x0A000202U
+
+static void MaybeSeedQemuGwArp(UINT32 Gw) {
+    ip4_addr_t GwIp;
+    struct eth_addr GwMac;
+
+    if (!HalCpuIsHypervisor() || Gw != TOY_QEMU_GW_IP) {
+        return;
+    }
+    ToyHostIpToLwIp(Gw, &GwIp);
+    memcpy(GwMac.addr, gQemuGwMac, 6);
+    (void)etharp_add_static_entry(&GwIp, &GwMac);
+}
 
 static err_t ToyNetifOutput(struct netif *Netif, struct pbuf *P) {
     struct pbuf *Q;
@@ -70,14 +85,24 @@ int ToyNetifAdd(UINT32 Ip, UINT32 Mask, UINT32 Gw) {
     }
     netif_set_default(&gToyNetif);
     netif_set_up(&gToyNetif);
-    {
-        ip4_addr_t GwIp;
-        struct eth_addr GwMac;
+    gToyNetifUp = 1;
+    MaybeSeedQemuGwArp(Gw);
+    return 0;
+}
 
-        ToyHostIpToLwIp(Gw, &GwIp);
-        memcpy(GwMac.addr, gQemuGwMac, 6);
-        (void)etharp_add_static_entry(&GwIp, &GwMac);
+int ToyNetifSetAddr(UINT32 Ip, UINT32 Mask, UINT32 Gw) {
+    ip4_addr_t IpAddr;
+    ip4_addr_t NetMask;
+    ip4_addr_t GwAddr;
+
+    if (!gToyNetifUp) {
+        return -1;
     }
+    ToyHostIpToLwIp(Ip, &IpAddr);
+    ToyHostIpToLwIp(Mask, &NetMask);
+    ToyHostIpToLwIp(Gw, &GwAddr);
+    netif_set_addr(&gToyNetif, &IpAddr, &NetMask, &GwAddr);
+    MaybeSeedQemuGwArp(Gw);
     return 0;
 }
 

@@ -475,6 +475,7 @@ static const NET_BACKEND gNetBackend = {
     .Poll = NetPoll,
     .GetMac = NetGetMac,
     .GetIp = NetGetIp,
+    .SetIp = NetSetIp,
     .FormatIp = NetFormatIp,
     .ParseIp = NetParseIp,
     .Ping = NetPing,

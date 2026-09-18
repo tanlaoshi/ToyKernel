@@ -410,6 +410,7 @@ static int VirtioNetReady(void);
 static void VirtioNetPoll(void);
 static void VirtioNetGetMac(UINT8 Mac[6]);
 static UINT32 VirtioNetGetIp(void);
+static void VirtioNetSetIp(UINT32 Ip);
 static void VirtioNetFormatIp(UINT32 Ip, char *Buf, int BufLen);
 static int VirtioNetParseIp(const char *Text, UINT32 *Ip);
 static int VirtioNetPing(const char *Host, int TimeoutMs);
@@ -509,6 +510,7 @@ static const NET_BACKEND gNetBackend = {
     .Poll = VirtioNetPoll,
     .GetMac = VirtioNetGetMac,
     .GetIp = VirtioNetGetIp,
+    .SetIp = VirtioNetSetIp,
     .FormatIp = VirtioNetFormatIp,
     .ParseIp = VirtioNetParseIp,
     .Ping = VirtioNetPing,
@@ -566,6 +568,10 @@ static void VirtioNetGetMac(UINT8 Mac[6]) {
 
 static UINT32 VirtioNetGetIp(void) {
     return gIp;
+}
+
+static void VirtioNetSetIp(UINT32 Ip) {
+    gIp = Ip;
 }
 
 static void VirtioNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {

@@ -9,6 +9,7 @@
 #include "Udp.h"
 #include "Tcp.h"
 #include "LwIp.h"
+#include "NetConfig.h"
 
 static void CommandNet(int Argc, char **Argv) {
     char IpBuf[20];
@@ -23,6 +24,7 @@ static void CommandNet(int Argc, char **Argv) {
         ConsoleWrite("Net: not available (no virtio-net)\n");
         return;
     }
+    NetConfigEnsure();
     HalNetGetMacAddress(Mac);
     HalNetFormatIp(HalNetGetIpAddress(), IpBuf, sizeof(IpBuf));
     ConsoleWrite("mac ");
@@ -37,7 +39,24 @@ static void CommandNet(int Argc, char **Argv) {
     }
     ConsoleWrite("\nip  ");
     ConsoleWrite(IpBuf);
-    ConsoleWrite("/24 gw 10.0.2.2 (QEMU user)\n");
+    ConsoleWrite(" mask ");
+    HalNetFormatIp(NetConfigGetMask(), IpBuf, sizeof(IpBuf));
+    ConsoleWrite(IpBuf);
+    ConsoleWrite("\ngw  ");
+    if (NetConfigGetGw() == 0) {
+        ConsoleWrite("unset");
+    } else {
+        HalNetFormatIp(NetConfigGetGw(), IpBuf, sizeof(IpBuf));
+        ConsoleWrite(IpBuf);
+    }
+    ConsoleWrite(" dns ");
+    if (NetConfigGetDns() == 0) {
+        ConsoleWrite("unset");
+    } else {
+        HalNetFormatIp(NetConfigGetDns(), IpBuf, sizeof(IpBuf));
+        ConsoleWrite(IpBuf);
+    }
+    ConsoleWrite("\n");
     {
         int Up = 0;
         UINT32 Mbps = 0;
@@ -528,8 +547,9 @@ static void CommandLwIp(int Argc, char **Argv) {
 
 void ShellCmdNetRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
-    ConsoleRegisterAliasLine("net", "show", "network");
+    ConsoleRegister("net", "network info; net config …", CommandNet);
     ConsoleRegisterAliasLine("network", "show", "network");
+    ShellCmdNetAddrRegister();
     ConsoleRegister("ping", "ICMP echo", CommandPing);
 #ifdef TOY_LWIP
     ConsoleRegister("dns", "DNS A / IPv4 literal (PR-N-dns)", CommandDns);

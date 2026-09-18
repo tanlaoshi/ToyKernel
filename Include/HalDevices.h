@@ -77,6 +77,7 @@ int HalNetReady(void);
 void HalNetPoll(void);
 void HalNetGetMacAddress(UINT8 Mac[6]);
 UINT32 HalNetGetIpAddress(void);
+void HalNetSetIpAddress(UINT32 Ip);
 void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen);
 int HalNetParseIp(const char *Text, UINT32 *Ip);
 int HalNetPing(const char *Host, int TimeoutMs);

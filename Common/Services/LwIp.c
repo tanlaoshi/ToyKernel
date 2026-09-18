@@ -6,6 +6,8 @@
 #include "Debug.h"
 #include "Tcp.h"
 #include "Udp.h"
+#include "NetConfig.h"
+#include "LwIpPriv.h"
 
 #ifdef TOY_LWIP
 
@@ -14,16 +16,11 @@
 #include "lwip/sys.h"
 #include "lwip/dns.h"
 #include "lwip/ip_addr.h"
-#include "toy_netif.h"
 #include "toy_ping.h"
 #include "toy_socket.h"
 #include "toy_ip.h"
 #include "Errno.h"
 #include "HalDevices.h"
-
-#define TOY_LWIP_MASK  0xFFFFFF00U  /* 255.255.255.0 */
-#define TOY_LWIP_GW    0x0A000202U  /* 10.0.2.2 */
-#define TOY_LWIP_DNS   0x0A000203U  /* 10.0.2.3 QEMU SLIRP */
 
 static int gLwIpReady;
 static u32_t gLwIpMs;
@@ -50,27 +47,25 @@ static void LwIpDnsFound(const char *Name, const ip_addr_t *Addr, void *Arg) {
 
 int LwIpInit(void) {
     UINT64 IrqFlags;
-    ip_addr_t DnsServer;
-    ip4_addr_t Dns4;
 
     if (!HalNetReady()) {
         return -1;
     }
+    NetConfigEnsure();
+    HalNetSetIpAddress(NetConfigGetIp());
     IrqFlags = HalIrqSave();
     TcpInit();
     UdpInit();
     lwip_init();
-    if (ToyNetifAdd(HalNetGetIpAddress(), TOY_LWIP_MASK, TOY_LWIP_GW) != 0) {
+    if (LwIpConfigBindNetif() != 0) {
         HalIrqRestore(IrqFlags);
         return -1;
     }
-    ToyHostIpToLwIp(TOY_LWIP_DNS, &Dns4);
-    ip_addr_copy_from_ip4(DnsServer, Dns4);
-    dns_setserver(0, &DnsServer);
+    LwIpConfigPushDns();
     HalNetSetLwipReceive(1);
     gLwIpReady = 1;
     HalIrqRestore(IrqFlags);
-    DebugWrite("lwip: up (dns 10.0.2.3)\n");
+    LwIpConfigLogDns();
     return 0;
 }
 
