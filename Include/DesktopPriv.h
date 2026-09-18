@@ -145,6 +145,14 @@ void DrawTaskbarRaw(void);
 void DrawStartMenuRaw(void);
 void DrawTaskbarOccluded(void);
 
+/* PR-N-nic-tray */
+void DesktopNetTrayDraw(UINT32 ClockX, UINT32 TextY);
+void DesktopNetTrayDrawPopup(void);
+int DesktopNetTrayHandleClick(UINT32 X, UINT32 Y);
+void DesktopNetTrayClose(void);
+int DesktopNetTrayIsOpen(void);
+int DesktopNetTrayLabelChanged(void);
+
 int PathHasVolPrefix(const char *Path);
 int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax, const char *Tag);
 void LoadDesktopIcons(void);

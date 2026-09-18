@@ -33,7 +33,11 @@ void DesktopSetRequestRefresh(void (*Fn)(void));
 void DesktopDraw(void);
 /* 开始菜单弹出层（开着时叠画在窗上；点菜单外则收起，再按窗聚焦） */
 void DesktopDrawStartMenu(void);
+/* PR-N-nic-tray：网络简况弹层（叠在窗上） */
+void DesktopDrawNetTrayPopup(void);
 int DesktopStartMenuIsOpen(void);
+/* PR-N-nic-tray */
+int DesktopNetTrayIsOpen(void);
 void DesktopDismissStartMenu(void);
 /* 点在任务栏条带上时优先于窗（开始钮）；菜单开时由 Gui 先走 DesktopHandleClick */
 int DesktopClickOnTaskbar(UINT32 X, UINT32 Y);

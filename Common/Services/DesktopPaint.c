@@ -225,6 +225,7 @@ static void DrawTaskbarControls(void) {
     }
     ClockW = FontStringWidth(Clock);
     ClockX = (Sw > ClockW + 12u) ? (Sw - ClockW - 12u) : Bx + Bw + 8u;
+    DesktopNetTrayDraw(ClockX, Ty);
     HalVideoDrawStringAt(ClockX, Ty, Clock, COLOR_WHITE);
 }
 

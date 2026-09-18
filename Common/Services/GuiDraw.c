@@ -407,6 +407,7 @@ void SyncWindowVisualsEx(int ClearDesktop) {
         }
     }
     DesktopDrawStartMenu();
+    DesktopDrawNetTrayPopup();
     GfxIrqEnter();
     CursorPaint();
     GfxPresent(); /* 尊重 gDeferPresent：开窗填内容前勿把空框刷到 GOP */

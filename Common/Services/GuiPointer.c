@@ -135,19 +135,19 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
 
     ExecPath[0] = 0;
     /*
-     * 开始菜单聚焦优先级：
-     * 1) 点在菜单/flyout/开始钮 → DesktopHandleClick（可点菜单项）
-     * 2) 点在菜单外且落在窗上 → HandleTaskbarClick 已收起菜单，再 fall through 聚焦置顶
+     * 开始菜单 / 网络托盘聚焦优先级：
+     * 1) 点在菜单/flyout/开始钮/托盘 → DesktopHandleClick
+     * 2) 点在菜单外且落在窗上 → HandleTaskbarClick 已收起，再 fall through 聚焦置顶
      * 3) 菜单未开时任务栏仍优先于窗（开始钮）
      */
     {
         int DoDesktop = 0;
 
-        if (DesktopStartMenuIsOpen()) {
+        if (DesktopStartMenuIsOpen() || DesktopNetTrayIsOpen()) {
             if (DesktopHandleClick(X, Y, &Act, ExecPath, sizeof(ExecPath))) {
                 DoDesktop = 1;
             }
-            /* 未命中菜单：已在 HandleTaskbarClick 收起；继续下面 Raise 窗 */
+            /* 未命中：已收起；继续下面 Raise 窗 */
         } else if (DesktopClickOnTaskbar(X, Y) &&
                    DesktopHandleClick(X, Y, &Act, ExecPath, sizeof(ExecPath))) {
             DoDesktop = 1;

@@ -92,6 +92,7 @@ void GuiRedraw(void) {
         DrawWindowAt(i);
     }
     DesktopDrawStartMenu();
+    DesktopDrawNetTrayPopup();
     GfxIrqEnter();
     CursorPaint();
     HalVideoPresent();
@@ -202,8 +203,9 @@ void GuiComposeThemeScene(void) {
         }
     }
 
-    /* 开始菜单盖住所有窗 */
+    /* 开始菜单 / 网络托盘盖住所有窗 */
     DesktopDrawStartMenu();
+    DesktopDrawNetTrayPopup();
 
     gFocusWin = SavedFocus;
     if (SavedFocus >= 0 && SavedFocus < MAX_WINS && gWindows[SavedFocus].Active) {

@@ -263,6 +263,10 @@ void DesktopDrawStartMenu(void) {
     }
 }
 
+void DesktopDrawNetTrayPopup(void) {
+    DesktopNetTrayDrawPopup();
+}
+
 int DesktopStartMenuIsOpen(void) {
     return gMenuOpen ? 1 : 0;
 }
@@ -273,6 +277,7 @@ void DesktopDismissStartMenu(void) {
     }
     gMenuOpen = 0;
     gMenuAppsOpen = 0;
+    DesktopNetTrayClose();
     RequestRefresh();
 }
 
@@ -549,6 +554,14 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
     StartBtnGeom(&Bx, &By, &Bw, &Bh);
     OnStart = (Y >= By && Y < By + Bh && X >= Bx && X < Bx + Bw) ? 1 : 0;
 
+    /* 网络托盘弹层 / 短文案优先 */
+    if (DesktopNetTrayHandleClick(X, Y)) {
+        if (OutAction) {
+            *OutAction = DESKTOP_ACTION_NONE;
+        }
+        return 1;
+    }
+
     if (gMenuOpen) {
         /*
          * 再点开始钮：只收起，勿先关再 toggle 打开。
@@ -651,6 +664,7 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
         if (OnStart) {
             gMenuOpen = 1;
             gMenuAppsOpen = 0;
+            DesktopNetTrayClose();
             RebuildStartMenu();
             RequestRefresh();
             return 1;
@@ -688,6 +702,7 @@ void DesktopInit(void) {
     gMenuAppsOpen = 0;
     gMenuCount = 0;
     gMenuAppCount = 0;
+    DesktopNetTrayClose();
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     LoadWallpaper();
@@ -729,6 +744,7 @@ void DesktopTickClock(void) {
     UINT8 Hour = 0;
     UINT8 Minute = 0;
     int Ok;
+    int NeedPaint;
 
     /* 勿每帧读 CMOS；约几十次 Poll 再查一次 */
     if (++Skip < 45u) {
@@ -736,12 +752,19 @@ void DesktopTickClock(void) {
     }
     Skip = 0;
 
+    NeedPaint = 0;
     Ok = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
     if (Ok) {
-        if (gClockValid && Hour == gClockHour && Minute == gClockMinute) {
-            return;
+        if (!(gClockValid && Hour == gClockHour && Minute == gClockMinute)) {
+            NeedPaint = 1;
         }
-    } else if (!gClockValid) {
+    } else if (gClockValid) {
+        NeedPaint = 1;
+    }
+    if (DesktopNetTrayLabelChanged()) {
+        NeedPaint = 1;
+    }
+    if (!NeedPaint) {
         return;
     }
     /*
@@ -761,6 +784,9 @@ void DesktopTickClock(void) {
         DrawTaskbarRaw();
         if (gMenuOpen) {
             DrawStartMenuRaw();
+        }
+        if (DesktopNetTrayIsOpen()) {
+            DesktopNetTrayDrawPopup();
         }
         GuiCursorShow();
         HalVideoPresent();
