@@ -41,7 +41,11 @@
 ### Net（网卡）
 
 **新网卡**：实现 `NIC_L2`（`SendFrame`/`Poll`/`GetMac`），Bind 里 **`NetAttachNic(&gMyNicL2)`**；RX 调 `NetInputFrame`。  
-**不要**自造整份 `NET_BACKEND`（那是 `Net.c` 协议门面）。范例：`NetE1000.c`。详见 [`驱动开发指南.md`](../../../../Documents/驱动开发指南.md) §5.1；过程笔记：[`驱动开发范例-网卡L2.md`](../../../../Documents/驱动开发范例-网卡L2.md)。
+**不要**自造整份 `NET_BACKEND`（那是 `Net.c` 协议门面）。  
+范例：`NetE1000.c`。注释骨架：同目录 `TemplateNetL2.c`（**勿**在 `_template/` 内当真驱动改）。  
+详见 [`驱动开发指南.md`](../../../../Documents/驱动开发指南.md) §5.1；过程笔记：[`驱动开发范例-网卡L2.md`](../../../../Documents/驱动开发范例-网卡L2.md)。
+
+地址/DHCP（协议栈，非 L2 驱动必写）：`net config` / `lwip dhcp` — 见路线图 PR-N-nic 序 4～5。
 
 （历史）仅协议门面：`ToyDriverNetAttach(&gNetBackend)` — 一般不由新人网卡驱动调用。
 
@@ -65,5 +69,7 @@
 - 简单参考：`HAL/X64/Drivers/InputPs2.c`
 - 复杂参考：`HAL/X64/Drivers/InputXhci.c`（含中断）
 - 网卡 L2：`HAL/X64/Drivers/NetE1000.c` + `Include/DriverNic.h`
+- 网卡骨架：同目录 `TemplateNetL2.c`（注释草稿，不链入）
 - 设计：`Documents/Done/驱动模板设计.md`
 - 完整指南（PR-D-tpl-3）：`Documents/驱动开发指南.md`
+- 过程范例：`Documents/驱动开发范例-网卡L2.md`
