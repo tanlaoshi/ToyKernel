@@ -191,52 +191,6 @@ static void MenuBuildAppsPath(char *Path, int PathMax, const char *File) {
     MenuCopyStr(Path + P, PathMax - P, File);
 }
 
-void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
-    UINT32 Mx;
-    UINT32 My;
-    UINT32 Mw;
-    UINT32 Mh;
-    UINT32 Sw;
-    UINT32 Sh;
-    UINT32 BarY;
-    int AppsIdx = -1;
-    int i;
-    int Rows;
-
-    if (!Fx || !Fy || !Fw || !Fh) {
-        return;
-    }
-    TaskbarGeom(&BarY, &Sw, &Sh);
-    MenuGeom(&Mx, &My, &Mw, &Mh);
-    for (i = 0; i < gMenuCount; i++) {
-        if (gMenuRows[i].Action == DESKTOP_ACTION_APPS) {
-            AppsIdx = i;
-            break;
-        }
-    }
-    if (AppsIdx < 0) {
-        AppsIdx = MENU_FIXED_TOP - 1;
-    }
-    Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
-    *Fw = MENU_W;
-    if (*Fw + 8u > Sw) {
-        *Fw = Sw > 8u ? Sw - 8u : Sw;
-    }
-    *Fh = MENU_ITEM_H * (UINT32)Rows;
-    *Fx = Mx + Mw;
-    if (*Fx + *Fw > Sw && Mw + 4u < Sw) {
-        /* 右侧放不下则叠在主菜单右侧内缩 */
-        *Fx = (Sw > *Fw + 4u) ? (Sw - *Fw - 4u) : 0;
-    }
-    *Fy = My + (UINT32)AppsIdx * MENU_ITEM_H;
-    if (*Fy + *Fh > BarY && *Fh <= BarY) {
-        *Fy = BarY - *Fh;
-    }
-    if (*Fy + *Fh > BarY) {
-        *Fh = (BarY > *Fy) ? (BarY - *Fy) : MENU_ITEM_H;
-    }
-}
-
 /* 打开开始菜单时重建：系统项含 Apps 一级；ELF/INST → 二级 */
 void RebuildStartMenu(void) {
     int AppCap;

@@ -3,6 +3,7 @@
  *
  * 禁止 User 程序、HAL、Common/Core 包含本文件。
  * PR-S-desktop-split-1：与 DesktopWallpaper.c 一并引入。
+ * 源文件在 Common/Services/Desktop/（核心 Desktop.c）。
  */
 #ifndef DESKTOP_PRIV_H
 #define DESKTOP_PRIV_H
