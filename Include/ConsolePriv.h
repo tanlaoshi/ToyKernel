@@ -3,6 +3,7 @@
  * （仅 Common/Services；User 勿 include）
  *
  * PR-S-console-split-1：Scroll；PR-S-console-split-2：Cmd（Register/别名/help）。
+ * 命令表现在 Common/Services/Console/（核心 ConsoleCmd.c）。
  */
 #ifndef CONSOLE_PRIV_H
 #define CONSOLE_PRIV_H
@@ -48,6 +49,20 @@ typedef struct {
     char Level1[USER_ALIAS_WORD];
     char Level2[USER_ALIAS_WORD]; /* [0]==0 表示无二级 */
 } USER_ALIAS;
+
+/* 命令表。定义在 Console/ConsoleCmd.c；别名与内置拆开后同模块可见 */
+extern COMMAND gCommands[CMD_MAX];
+extern int gCommandCount;
+extern COMMAND_ALIAS gAliases[ALIAS_MAX];
+extern int gAliasCount;
+extern USER_ALIAS gUserAliases[USER_ALIAS_MAX];
+extern int gUserAliasCount;
+
+int StrEq(const char *A, const char *B);
+int FindCommandIndex(const char *Name);
+int FindUserAliasIndex(const char *Name);
+void CommandAlias(int Argc, char **Argv);
+void CommandUnalias(int Argc, char **Argv);
 
 /* 输入行态（Console.c）；Cmd 清屏/分发可读改 */
 extern char gLine[LINE_MAX];
