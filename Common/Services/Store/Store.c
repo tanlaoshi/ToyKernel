@@ -11,7 +11,7 @@
  * 卷根还有 HELLO.ELF 等教学镜像，Install 仍可能成功。
  * sha256=- 时跳过校验（教学默认）。
  * 清单键：si.<id>=type|file ；依赖 sd.<id>=逗号 id 或 -
- * catalog 解析在 StoreCatalog.c。
+ * catalog 解析在 StoreCatalog.c。单包安装在 StoreInstall.c。
  */
 #include "Store.h"
 #include "StorePriv.h"
@@ -25,23 +25,13 @@
 #include "Theme.h"
 #include "Db.h"
 
-#define STORE_COPY_MAX     FAT_WRITE_MAX
-/* 装卸拷贝：每块后 StoreIoBreath，避免整 ELF 写盘时鼠标冻住 */
-#define STORE_IO_BREATH_BYTES  4096u
 #define STORE_PKG_MAX      1024u
-#define STORE_KIND_APP     0
-#define STORE_KIND_FONT    1
-#define STORE_KIND_ASSET   2
-#define STORE_KIND_LIB     3 /* 公共库：uncombo 不随 app 卸 */
-#define STORE_CHECK_NONE   0
-#define STORE_CHECK_ELF    1
-#define STORE_CHECK_TOYF   2
 
 /* 内核任务栈仅 8KiB；catalog 表放 BSS，避免 store sync/HTTP 栈溢出闪退 */
-static STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
+STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
 /* combo 嵌套卸装时合并 FontReload，避免连删字体卡死/重入 */
-static int gStoreComboDepth;
-static int gNeedFontReload;
+int gStoreComboDepth;
+int gNeedFontReload;
 static int gStorePayloadBypass;
 
 /*
@@ -52,12 +42,12 @@ static int gStorePayloadBypass;
  * MSC/FAT 完成事件需 XchiDrainEvents 推进 → 此处自带 HalInputPoll 兜底。
  * 序 1「或等价」：drain 集中在 yield 路径 + IO 呼吸两处，GuiPollMouse 等只 dequeue。
  */
-static void StoreIoBreath(void) {
+void StoreIoBreath(void) {
     HalInputPoll();
     GuiPollMouseMotion();
 }
 
-static void StoreFlushFontReload(void) {
+void StoreFlushFontReload(void) {
     if (!gNeedFontReload) {
         return;
     }
@@ -182,23 +172,6 @@ static int DirResolveFileCI(const char *Dir, const char *File, char *Out, int Ou
 }
 
 
-static void CopyStr(char *Dst, int DstMax, const char *Src) {
-    int i = 0;
-
-    if (!Dst || DstMax <= 0) {
-        return;
-    }
-    if (!Src) {
-        Dst[0] = 0;
-        return;
-    }
-    while (Src[i] && i + 1 < DstMax) {
-        Dst[i] = Src[i];
-        i++;
-    }
-    Dst[i] = 0;
-}
-
 /* 规范化：空 / "-" → 空串（表示无依赖） */
 void NormalizeDepends(char *Dep) {
     if (!Dep) {
@@ -209,7 +182,7 @@ void NormalizeDepends(char *Dep) {
     }
 }
 
-static int ArchOk(const char *Arch) {
+int ArchOk(const char *Arch) {
     const char *Host;
 
     if (!Arch || Arch[0] == 0 || StrEq(Arch, "any")) {
@@ -217,26 +190,6 @@ static int ArchOk(const char *Arch) {
     }
     Host = StoreHostArch();
     return StrEq(Arch, Host);
-}
-
-static void JoinPath(char *Dst, int DstMax, const char *A, const char *B) {
-    int i = 0;
-    int j = 0;
-
-    if (!Dst || DstMax <= 0) {
-        return;
-    }
-    while (A && A[i] && i + 1 < DstMax) {
-        Dst[i] = A[i];
-        i++;
-    }
-    if (i > 0 && Dst[i - 1] != '/' && i + 1 < DstMax) {
-        Dst[i++] = '/';
-    }
-    while (B && B[j] && i + 1 < DstMax) {
-        Dst[i++] = B[j++];
-    }
-    Dst[i] = 0;
 }
 
 static int EnsureDir(const char *Path) {
@@ -247,11 +200,11 @@ static int EnsureDir(const char *Path) {
     return Err;
 }
 
-static int EnsureAppsDir(void) {
+int EnsureAppsDir(void) {
     return EnsureDir(STORE_APPS_DIR);
 }
 
-static int EnsureFontsDir(void) {
+int EnsureFontsDir(void) {
     int Err = EnsureDir("Assets");
     if (Err != FAT_OK) {
         return Err;
@@ -259,7 +212,7 @@ static int EnsureFontsDir(void) {
     return EnsureDir(STORE_FONTS_DIR);
 }
 
-static int EnsurePacksDir(void) {
+int EnsurePacksDir(void) {
     int Err = EnsureDir("Assets");
     if (Err != FAT_OK) {
         return Err;
@@ -267,7 +220,7 @@ static int EnsurePacksDir(void) {
     return EnsureDir(STORE_PACKS_DIR);
 }
 
-static int EntryKind(const char *Type) {
+int EntryKind(const char *Type) {
     if (StrEq(Type, "font")) {
         return STORE_KIND_FONT;
     }
@@ -295,7 +248,7 @@ static int PackageIsSharedDep(int Kind) {
  * PR-M1：读 packages/<id>/PKG.TXT 的 depends=；有则覆盖 catalog 段。
  * 成功写入 Out 返回 1；无文件/无键返回 0。
  */
-static int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
+int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
     char Path[96];
     char Pkg[80];
     UINT8 Buf[STORE_PKG_MAX];
@@ -343,7 +296,7 @@ static int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
 }
 
 /* 缺依赖 → 串口提示并返回 FAT_ERR_INVAL（不静默强装；M1 / 单包 install） */
-static int CheckDependsInstalled(const char *Depends) {
+int CheckDependsInstalled(const char *Depends) {
     char Tok[STORE_ID_MAX];
     const char *P;
     int Missing = 0;
@@ -479,8 +432,6 @@ static int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Ma
 }
 
 static int ComboInstallRec(const char *Id, int Depth);
-static int StoreHasSi(const char *Id);
-static int StoreAdoptInstalled(const char *Id);
 
 int StoreComboInstall(const char *Id) {
     int Err;
@@ -560,182 +511,10 @@ static int ComboInstallRec(const char *Id, int Depth) {
     return StoreInstall(Id);
 }
 
-/*
- * Check: ELF / TOYF / 任意 blob（≥4 字节）。
- * QEMU vvfat：同名覆盖写易坏，先删再建。
- */
-static int TryCopy(const char *Src, const char *Dst, int Check) {
-    FAT_FILE_STAT St;
-    UINT8 *Buf;
-    UINT32 Pages;
-    UINTN Size;
-    UINTN Got;
-    int Err;
 
-    if (FileSystemFileStat(Src, &St) != FAT_OK || (St.Attr & FAT_ATTR_DIR)) {
-        return FAT_ERR_NOENT;
-    }
-    Size = St.Size;
-    if (Size < 4 || Size > STORE_COPY_MAX) {
-        return FAT_ERR_FILE_TOO_BIG;
-    }
-    Pages = (UINT32)((Size + 4095u) / 4096u);
-    if (Pages == 0) {
-        Pages = 1;
-    }
-    Buf = (UINT8 *)PhysicalMemoryAllocatePages(Pages);
-    if (!Buf) {
-        return FAT_ERR_NOSPC;
-    }
-    Got = 0;
-    while (Got < Size) {
-        UINTN Chunk = Size - Got;
-        UINTN N = 0;
 
-        if (Chunk > STORE_IO_BREATH_BYTES) {
-            Chunk = STORE_IO_BREATH_BYTES;
-        }
-        StoreIoBreath();
-        Err = FileSystemReadFileAt(Src, Got, Buf + Got, Chunk, &N);
-        if (Err != FAT_OK || N != Chunk) {
-            PhysicalMemoryFreePages(Buf, Pages);
-            return Err != FAT_OK ? Err : FAT_ERR_IO;
-        }
-        Got += N;
-    }
-    StoreIoBreath();
-    if (Check == STORE_CHECK_ELF) {
-        if (!(Buf[0] == 0x7F && Buf[1] == 'E' && Buf[2] == 'L' && Buf[3] == 'F')) {
-            PhysicalMemoryFreePages(Buf, Pages);
-            return FAT_ERR_INVAL;
-        }
-    } else if (Check == STORE_CHECK_TOYF) {
-        if (!(Buf[0] == 'T' && Buf[1] == 'O' && Buf[2] == 'Y' && Buf[3] == 'F')) {
-            PhysicalMemoryFreePages(Buf, Pages);
-            return FAT_ERR_INVAL;
-        }
-    }
-    (void)StoreDeleteManagedFile(Dst);
-    StoreIoBreath();
-    /* 一次 WriteFile：避免分块 WriteFileAt 在 USB 上重复建同名目录项 */
-    FatSetIoBreath(StoreIoBreath);
-    Err = FileSystemWriteFile(Dst, Buf, Got);
-    FatSetIoBreath(0);
-    StoreIoBreath();
-    if (Err != FAT_OK) {
-        HalConsoleWriteSerial("store: write failed\n");
-    }
-    PhysicalMemoryFreePages(Buf, Pages);
-    return Err;
-}
 
-static int InstallFromSources(const char *Id, const char *File, const char *Dst,
-                              int Check) {
-    char Src[128];
-    char Pkg[160];
-    int Err;
-
-    /* 1) Store/<file> 仓库包；2) Assets/Store/packages/<id>/；3) 卷根教学镜像 */
-    JoinPath(Src, (int)sizeof(Src), "Store", File);
-    Err = TryCopy(Src, Dst, Check);
-    if (Err == FAT_OK) {
-        return FAT_OK;
-    }
-    JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
-    JoinPath(Src, (int)sizeof(Src), Pkg, File);
-    Err = TryCopy(Src, Dst, Check);
-    if (Err == FAT_OK) {
-        return FAT_OK;
-    }
-    return TryCopy(File, Dst, Check);
-}
-
-static int StoreMarkInstalled(const char *Id, const char *Type, const char *File,
-                              const char *Depends);
-
-int StoreInstall(const char *Id) {
-    STORE_ENTRY *Tab = gStoreTab;
-    int Count = 0;
-    int i;
-    int Err;
-    int Kind;
-    int Check;
-    char Dst[96];
-    char DepBuf[STORE_DEPENDS_MAX];
-
-    if (!Id || Id[0] == 0) {
-        return FAT_ERR_INVAL;
-    }
-    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
-    if (Err < 0) {
-        return Err;
-    }
-    for (i = 0; i < Count; i++) {
-        if (!StrEq(Tab[i].Id, Id)) {
-            continue;
-        }
-        Kind = EntryKind(Tab[i].Type);
-        if (Kind < 0) {
-            HalConsoleWriteSerial("store: bad type (app|font|asset|lib)\n");
-            return FAT_ERR_INVAL;
-        }
-        if (!ArchOk(Tab[i].Arch)) {
-            HalConsoleWriteSerial("store: arch mismatch\n");
-            return FAT_ERR_INVAL;
-        }
-
-        /* PR-M1：PKG.TXT depends= 覆盖 catalog 第 8 段 */
-        CopyStr(DepBuf, (int)sizeof(DepBuf), Tab[i].Depends);
-        if (LoadPkgDepends(Tab[i].Id, DepBuf, (int)sizeof(DepBuf))) {
-            /* 已写入 DepBuf */
-        }
-        NormalizeDepends(DepBuf);
-        Err = CheckDependsInstalled(DepBuf);
-        if (Err != FAT_OK) {
-            return Err;
-        }
-
-        if (Kind == STORE_KIND_APP) {
-            Err = EnsureAppsDir();
-            if (Err != FAT_OK) {
-                return Err;
-            }
-            JoinPath(Dst, (int)sizeof(Dst), STORE_APPS_DIR, Tab[i].File);
-            Check = STORE_CHECK_ELF;
-        } else if (Kind == STORE_KIND_FONT) {
-            Err = EnsureFontsDir();
-            if (Err != FAT_OK) {
-                return Err;
-            }
-            JoinPath(Dst, (int)sizeof(Dst), STORE_FONTS_DIR, Tab[i].File);
-            Check = STORE_CHECK_TOYF;
-        } else {
-            Err = EnsurePacksDir();
-            if (Err != FAT_OK) {
-                return Err;
-            }
-            JoinPath(Dst, (int)sizeof(Dst), STORE_PACKS_DIR, Tab[i].File);
-            Check = STORE_CHECK_NONE;
-        }
-
-    Err = InstallFromSources(Tab[i].Id, Tab[i].File, Dst, Check);
-    if (Err != FAT_OK) {
-        HalConsoleWriteSerial("store: install copy failed\n");
-        return Err;
-    }
-        if (Kind == STORE_KIND_FONT) {
-            gNeedFontReload = 1;
-            if (gStoreComboDepth == 0) {
-                StoreFlushFontReload();
-            }
-        }
-        (void)StoreMarkInstalled(Tab[i].Id, Tab[i].Type, Tab[i].File, DepBuf);
-        return FAT_OK;
-    }
-    return FAT_ERR_NOENT;
-}
-
-static int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {
+int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {
     int i = 0;
     int j;
 
@@ -788,7 +567,7 @@ static int LookupPackageKind(const char *Id) {
     return -1;
 }
 
-static int StoreHasSi(const char *Id) {
+int StoreHasSi(const char *Id) {
     char Key[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
 
@@ -801,74 +580,7 @@ static int StoreHasSi(const char *Id) {
     return DbGet(Key, Val, sizeof(Val)) == DB_OK ? 1 : 0;
 }
 
-/*
- * 镜像预置仅有文件、无 si.*：补登记，否则「Install 成功 → Remove 必 fail」。
- */
-static int StoreAdoptInstalled(const char *Id);
 
-static int StoreMarkInstalled(const char *Id, const char *Type, const char *File,
-                              const char *Depends) {
-    char Key[DB_KEY_MAX];
-    char DepKey[DB_KEY_MAX];
-    char Val[DB_VAL_MAX];
-    int i = 0;
-    int j;
-
-    if (!MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
-        return FAT_ERR_INVAL;
-    }
-    /* type|file */
-    for (j = 0; Type && Type[j] && i < (int)sizeof(Val) - 1; j++) {
-        Val[i++] = Type[j];
-    }
-    if (i < (int)sizeof(Val) - 1) {
-        Val[i++] = '|';
-    }
-    for (j = 0; File && File[j] && i < (int)sizeof(Val) - 1; j++) {
-        Val[i++] = File[j];
-    }
-    Val[i] = 0;
-    if (DbSet(Key, Val) != DB_OK) {
-        return FAT_ERR_IO;
-    }
-    /* PR-M1：真实 depends；无则 "-" */
-    if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
-        if (Depends && Depends[0]) {
-            (void)DbSet(DepKey, Depends);
-        } else {
-            (void)DbSet(DepKey, "-");
-        }
-    }
-    return FAT_OK;
-}
-
-static int StoreAdoptInstalled(const char *Id) {
-    STORE_ENTRY *Tab = gStoreTab;
-    int Count = 0;
-    int i;
-    int Err;
-    char DepBuf[STORE_DEPENDS_MAX];
-
-    if (StoreHasSi(Id)) {
-        return FAT_OK;
-    }
-    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
-    if (Err < 0) {
-        return Err;
-    }
-    for (i = 0; i < Count; i++) {
-        if (!StrEq(Tab[i].Id, Id)) {
-            continue;
-        }
-        CopyStr(DepBuf, (int)sizeof(DepBuf), Tab[i].Depends);
-        if (LoadPkgDepends(Tab[i].Id, DepBuf, (int)sizeof(DepBuf))) {
-            /* PKG 覆盖 */
-        }
-        NormalizeDepends(DepBuf);
-        return StoreMarkInstalled(Tab[i].Id, Tab[i].Type, Tab[i].File, DepBuf);
-    }
-    return FAT_ERR_NOENT;
-}
 
 typedef struct {
     STORE_INSTALLED *Out;
