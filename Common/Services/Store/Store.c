@@ -11,7 +11,7 @@
  * 卷根还有 HELLO.ELF 等教学镜像，Install 仍可能成功。
  * sha256=- 时跳过校验（教学默认）。
  * 清单键：si.<id>=type|file ；依赖 sd.<id>=逗号 id 或 -
- * catalog 解析在 StoreCatalog.c。单包安装在 StoreInstall.c。
+ * catalog 解析在 StoreCatalog.c。单包安装在 StoreInstall.c。组合包在 StoreCombo.c。
  */
 #include "Store.h"
 #include "StorePriv.h"
@@ -236,13 +236,6 @@ int EntryKind(const char *Type) {
     return -1;
 }
 
-/* 字体/资源包/库：可被多 app 引用，uncombo 只卸叶子 app，不级联卸这些 */
-static int PackageIsSharedDep(int Kind) {
-    return Kind == STORE_KIND_FONT ||
-           Kind == STORE_KIND_ASSET ||
-           Kind == STORE_KIND_LIB ||
-           Kind < 0; /* 未知类型宁可保留 */
-}
 
 /*
  * PR-M1：读 packages/<id>/PKG.TXT 的 depends=；有则覆盖 catalog 段。
@@ -375,7 +368,7 @@ static int DependsHasId(const char *Depends, const char *Id) {
 }
 
 /* catalog + PKG 覆盖 → OutDepends（已 Normalize） */
-static int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax) {
+int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax) {
     STORE_ENTRY *Tab = gStoreTab;
     int Count = 0;
     int i;
@@ -404,7 +397,7 @@ static int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax) {
 }
 
 /* 已装包中谁依赖 Id → OutIds；返回数量 */
-static int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max) {
+int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max) {
     STORE_INSTALLED Inst[STORE_INSTALLED_MAX];
     int N = 0;
     int i;
@@ -431,85 +424,6 @@ static int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Ma
     return OutN;
 }
 
-static int ComboInstallRec(const char *Id, int Depth);
-
-int StoreComboInstall(const char *Id) {
-    int Err;
-
-    if (!Id || Id[0] == 0) {
-        return FAT_ERR_INVAL;
-    }
-    gStoreComboDepth++;
-    Err = ComboInstallRec(Id, 0);
-    gStoreComboDepth--;
-    if (gStoreComboDepth == 0) {
-        StoreFlushFontReload();
-    }
-    return Err;
-}
-
-static int ComboInstallRec(const char *Id, int Depth) {
-    char DepBuf[STORE_DEPENDS_MAX];
-    char Tok[STORE_ID_MAX];
-    const char *P;
-    int n;
-    int Err;
-
-    if (!Id || Id[0] == 0) {
-        return FAT_ERR_INVAL;
-    }
-    if (Depth > STORE_ENTRIES_MAX) {
-        HalConsoleWriteSerial("store combo: depends cycle or too deep\n");
-        return FAT_ERR_INVAL;
-    }
-    if (StoreIsInstalled(Id)) {
-        /* 盘上已有但无 si.*（镜像预置）：补登记，便于随后 Remove */
-        if (!StoreHasSi(Id)) {
-            Err = StoreAdoptInstalled(Id);
-            if (Err != FAT_OK) {
-                return Err;
-            }
-        }
-        return FAT_OK;
-    }
-
-    Err = ResolveEntryDepends(Id, DepBuf, (int)sizeof(DepBuf));
-    if (Err != FAT_OK) {
-        return Err;
-    }
-
-    P = DepBuf;
-    while (*P) {
-        while (*P == ',' || *P == ' ' || *P == '\t') {
-            P++;
-        }
-        if (*P == 0) {
-            break;
-        }
-        n = 0;
-        while (*P && *P != ',' && n + 1 < STORE_ID_MAX) {
-            if (*P != ' ' && *P != '\t') {
-                Tok[n++] = *P;
-            }
-            P++;
-        }
-        Tok[n] = 0;
-        if (Tok[0] == 0) {
-            continue;
-        }
-        StoreIoBreath();
-        Err = ComboInstallRec(Tok, Depth + 1);
-        if (Err != FAT_OK) {
-            return Err;
-        }
-    }
-
-    HalConsoleWriteSerial("store combo: +");
-    HalConsoleWriteSerial(Id);
-    HalConsoleWriteSerial("\n");
-    StoreIoBreath();
-    return StoreInstall(Id);
-}
 
 
 
@@ -532,7 +446,7 @@ int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {
 }
 
 /* si.* 或 catalog 的 type → STORE_KIND_*；未知 -1 */
-static int LookupPackageKind(const char *Id) {
+int LookupPackageKind(const char *Id) {
     char Key[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
     char Type[12];
@@ -840,110 +754,6 @@ int StoreRemove(const char *Id) {
     return FAT_OK;
 }
 
-int StoreComboRemove(const char *Id) {
-    char DepBuf[STORE_DEPENDS_MAX];
-    char Tok[STORE_ID_MAX];
-    char Deps[STORE_ENTRIES_MAX][STORE_ID_MAX];
-    const char *P;
-    int DepN = 0;
-    int n;
-    int i;
-    int Err;
-    int Users;
-
-    if (!Id || Id[0] == 0) {
-        return FAT_ERR_INVAL;
-    }
-    if (!StoreIsInstalled(Id)) {
-        return FAT_ERR_NOENT;
-    }
-
-    DepBuf[0] = 0;
-    (void)StoreGetDepends(Id, DepBuf, (int)sizeof(DepBuf));
-    NormalizeDepends(DepBuf);
-    if (DepBuf[0] == 0) {
-        /* 无 sd.*（仅盘上 / 刚 Adopt 失败）：用 catalog 依赖做 uncombo */
-        (void)ResolveEntryDepends(Id, DepBuf, (int)sizeof(DepBuf));
-        NormalizeDepends(DepBuf);
-    }
-
-    P = DepBuf;
-    while (*P && DepN < STORE_ENTRIES_MAX) {
-        while (*P == ',' || *P == ' ' || *P == '\t') {
-            P++;
-        }
-        if (*P == 0) {
-            break;
-        }
-        n = 0;
-        while (*P && *P != ',' && n + 1 < STORE_ID_MAX) {
-            if (*P != ' ' && *P != '\t') {
-                Tok[n++] = *P;
-            }
-            P++;
-        }
-        Tok[n] = 0;
-        if (Tok[0]) {
-            CopyStr(Deps[DepN], STORE_ID_MAX, Tok);
-            DepN++;
-        }
-    }
-
-    HalConsoleWriteSerial("store uncombo: -");
-    HalConsoleWriteSerial(Id);
-    HalConsoleWriteSerial("\n");
-    gStoreComboDepth++;
-    Err = StoreRemove(Id);
-    if (Err != FAT_OK) {
-        gStoreComboDepth--;
-        if (gStoreComboDepth == 0) {
-            StoreFlushFontReload();
-        }
-        return Err;
-    }
-
-    /*
-     * 逆序卸依赖：
-     * - font / asset / lib（公共依赖）一律保留，哪怕暂时无人引用
-     * - 仅级联卸 type=app 且已无其它包引用的依赖
-     */
-    for (i = DepN - 1; i >= 0; i--) {
-        char UsersArr[STORE_INSTALLED_MAX][STORE_ID_MAX];
-        int Kind;
-
-        StoreIoBreath();
-        if (!StoreIsInstalled(Deps[i])) {
-            continue;
-        }
-        Kind = LookupPackageKind(Deps[i]);
-        if (PackageIsSharedDep(Kind)) {
-            HalConsoleWriteSerial("store uncombo: keep shared ");
-            HalConsoleWriteSerial(Deps[i]);
-            HalConsoleWriteSerial("\n");
-            continue;
-        }
-        Users = CollectDependents(Deps[i], UsersArr, STORE_INSTALLED_MAX);
-        if (Users > 0) {
-            continue;
-        }
-        HalConsoleWriteSerial("store uncombo: -");
-        HalConsoleWriteSerial(Deps[i]);
-        HalConsoleWriteSerial("\n");
-        Err = StoreRemove(Deps[i]);
-        if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
-            gStoreComboDepth--;
-            if (gStoreComboDepth == 0) {
-                StoreFlushFontReload();
-            }
-            return Err;
-        }
-    }
-    gStoreComboDepth--;
-    if (gStoreComboDepth == 0) {
-        StoreFlushFontReload();
-    }
-    return FAT_OK;
-}
 
 int StoreIsInstalled(const char *Id) {
     char Key[DB_KEY_MAX];
