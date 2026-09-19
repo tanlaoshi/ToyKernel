@@ -94,9 +94,9 @@ cd ToyKernel
 ```
 ToyKernel/
 ├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
-├── Common/{Core,Services,Library}
+├── Common/{Core,Services,Library,Fonts}
 ├── HAL/{X86_64,Arm64,RiscV,Board}/
-├── Fonts/  Assets/  Store/  User/
+├── Assets/  StoreCache/  User/
 ├── Documents/        # 路线图 + 技术手册（仅此两份正文）
 ├── build.sh  Makefile
 └── README.md         # 本文件

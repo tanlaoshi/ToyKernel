@@ -167,7 +167,7 @@ int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
     int Li;
     int Count;
 
-    /* PR-S2：已 sync 的 Store/catalog.txt 优先覆盖镜像内 Assets */
+    /* PR-S2：已 sync 的 StoreCache/catalog.txt 优先覆盖镜像内 Assets */
     Err = LoadCatalogPath(STORE_CATALOG_ALT, Out, Max, OutCount);
     if (Err == FAT_OK && *OutCount > 0) {
         return *OutCount;

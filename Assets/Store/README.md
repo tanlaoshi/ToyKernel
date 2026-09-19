@@ -6,7 +6,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 |----------------|------|
 | `Assets/Store/catalog.txt` | 离线可安装项列表 |
 | `Assets/Store/packages/<id>/` | 可选：包描述 `PKG.TXT` + 载荷 |
-| `Store/`（卷根） | **本地缓存**（`store sync`/`fetch` 或优盘拷入） |
+| `StoreCache/`（卷根） | **本地缓存**（`store sync`/`fetch` 或优盘拷入） |
 | `Apps/`（卷根） | **已安装**用户 ELF（`type=app`） |
 | `Assets/Fonts/` | **已安装**字库（`type=font`，TOYF `*.FNT`） |
 | `Assets/Packs/` | **已安装**资源 blob（`type=asset`） |
@@ -57,9 +57,9 @@ store uncombo guidemo    # -guidemo → -sun8 → -demopack（无引用才卸）
 
 ## 安装源顺序
 
-`Store/<file>` → 卷根 `<file>` → `Assets/Store/packages/<id>/<file>`（**目录名须等于 catalog `id`**，如 `demopack/`）。无网时课堂预置 packages 即可 `store install sun8`。
+`StoreCache/<file>` → 卷根 `<file>` → `Assets/Store/packages/<id>/<file>`（**目录名须等于 catalog `id`**，如 `demopack/`）。无网时课堂预置 packages 即可 `store install sun8`。
 
-若卷上已有 `Store/catalog.txt`（`store sync` 缓存），它会**优先于** `Assets/Store/catalog.txt`；课堂更新 catalog 时请一并刷新 `Store/catalog.txt`，或删掉该缓存文件。
+若卷上已有 `StoreCache/catalog.txt`（`store sync` 缓存），它会**优先于** `Assets/Store/catalog.txt`；课堂更新 catalog 时请一并刷新 `StoreCache/catalog.txt`，或删掉该缓存文件。
 
 ## S2 联网
 

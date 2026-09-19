@@ -1,7 +1,7 @@
 /*
  * FontData.h — 兼容转发（PR-D1）
  *
- * 原点阵数据已迁至 Fonts/terminus16x32.c；请改用 Include/Font.h。
+ * 原点阵数据已迁至 Common/Fonts/terminus16x32.c；请改用 Include/Font.h。
  * 本头仅保留旧宏名，映射到当前字体度量，便于过渡。
  */
 #ifndef FONT_DATA_H

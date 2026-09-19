@@ -243,6 +243,7 @@ $(DEMO_STAMP): FORCE
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 CORE_SRCS     += $(wildcard Common/Core/Scheduler/*.c)
 CORE_SRCS     += $(wildcard Common/Core/Process/*.c)
+CORE_SRCS     += $(wildcard Common/Core/TaskFd/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
 SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
@@ -266,7 +267,7 @@ SERVICES_SRCS += $(wildcard Common/Services/FileSystem/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Fat/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Gpt/*.c)
-FONT_SRCS     := $(wildcard Fonts/*.c)
+FONT_SRCS     := $(wildcard Common/Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
 # PR-H-xhci-split-8：Drivers/XHCI/*.c（Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c
 XHCI_SPLIT_SRCS := $(wildcard HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
@@ -278,7 +279,7 @@ ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/St
 CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
-FONT_OBJS     := $(patsubst Fonts/%.c,$(BUILDDIR)/Fonts/%.o,$(FONT_SRCS))
+FONT_OBJS     := $(patsubst Common/Fonts/%.c,$(BUILDDIR)/Common/Fonts/%.o,$(FONT_SRCS))
 DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
 ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(HALDIR)/%.o,$(ARCH_SRCS))
 ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(HALDIR)/%.o,$(ARCH_ASM))
@@ -471,7 +472,7 @@ $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/Fonts/%.o: Fonts/%.c | $(BUILDDIR)
+$(BUILDDIR)/Common/Fonts/%.o: Common/Fonts/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 

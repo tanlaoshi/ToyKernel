@@ -1,5 +1,5 @@
 /*
- * Fonts/FontRegistry.c — 字体注册表与当前字体（PR-D1）+ Assets/Fonts TOYF（PR-T3）
+ * Common/Fonts/FontRegistry.c — 字体注册表与当前字体（PR-D1）+ Assets/Fonts TOYF（PR-T3）
  *
  * TOYF v1（小端）：
  *   0  magic "TOYF"

@@ -201,7 +201,7 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("\n");
             return;
         }
-        ConsoleWrite("store: synced Store/catalog.txt\n");
+        ConsoleWrite("store: synced " STORE_CATALOG_ALT "\n");
         return;
     }
 
@@ -233,7 +233,7 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("\n");
             return;
         }
-        ConsoleWrite("store: fetched to Store/\n");
+        ConsoleWrite("store: fetched to " STORE_CACHE_DIR "/\n");
         ConsoleWrite("hint: store install <id>\n");
         return;
     }

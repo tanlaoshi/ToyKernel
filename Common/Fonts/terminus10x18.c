@@ -1,5 +1,5 @@
 /*
- * Fonts/terminus10x18.c — Terminus 10×18 点阵（摘自 Linux font_ter10x18.c）
+ * Common/Fonts/terminus10x18.c — Terminus 10×18 点阵（摘自 Linux font_ter10x18.c）
  * ASCII 32–126；每字形 36 字节（18 行 × 2）。许可：GPL-2.0。
  * PR-T2：独立尺寸（非 Scale×2）。
  */

@@ -8,7 +8,7 @@ static UINT32 gRepoIp = STORE_REPO_DEFAULT_IP;
 static UINT16 gRepoPort = (UINT16)STORE_REPO_DEFAULT_PORT;
 
 static int EnsureStoreDir(void) {
-    int Err = FileSystemMakeDirectory("Store");
+    int Err = FileSystemMakeDirectory(STORE_CACHE_DIR);
     if (Err == FAT_OK || Err == FAT_ERR_EXIST) {
         return FAT_OK;
     }
@@ -124,7 +124,7 @@ int StoreFetchPath(const char *UrlPath, const char *DestRel,
 }
 
 int StoreSyncCatalog(void) {
-    return StoreFetchPath("/catalog.txt", "Store/catalog.txt", "-");
+    return StoreFetchPath("/catalog.txt", STORE_CATALOG_ALT, "-");
 }
 
 static int IdEq(const char *A, const char *B) {
@@ -168,7 +168,7 @@ int StoreFetchId(const char *Id) {
         Url[n] = 0;
         n = 0;
         {
-            const char *P = "Store/";
+            const char *P = STORE_CACHE_DIR "/";
             while (*P && n + 1 < (int)sizeof(Dest)) {
                 Dest[n++] = *P++;
             }

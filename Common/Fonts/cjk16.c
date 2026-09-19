@@ -1,5 +1,5 @@
 /*
- * Fonts/cjk16.c — 16×16 汉字子集（PR-I18N1/I18N2）
+ * Common/Fonts/cjk16.c — 16×16 汉字子集（PR-I18N1/I18N2）
  * 由 Noto Sans CJK 点阵化生成，仅嵌入教学/UI 码点。
  */
 #include "Font.h"

@@ -1,8 +1,8 @@
 /*
  * Font.h — 点阵字体抽象（PR-D1）
  *
- * 字形数据在 Fonts/；绘制层（Video/Console）只经本 API，不直接 include 某份点阵表。
- * 加字体：Fonts/ 新增数据 + FontRegistry 注册一行。
+ * 字形数据在 Common/Fonts/；绘制层（Video/Console）只经本 API，不直接 include 某份点阵表。
+ * 加字体：Common/Fonts/ 新增数据 + FontRegistry 注册一行。
  */
 #ifndef FONT_H
 #define FONT_H
@@ -23,11 +23,11 @@ typedef struct FONT_FACE {
     UINT32      FirstChar;      /* 通常 32 */
 } FONT_FACE;
 
-/* Terminus 16×32（Fonts/terminus16x32.c） */
+/* Terminus 16×32（Common/Fonts/terminus16x32.c） */
 extern const FONT_FACE gFontFaceTerminus16x32;
 /* 同字形 Scale=2（PR-D5） */
 extern const FONT_FACE gFontFaceTerminusX2;
-/* Terminus 10×18 独立点阵（PR-T2；Fonts/terminus10x18.c） */
+/* Terminus 10×18 独立点阵（PR-T2；Common/Fonts/terminus10x18.c） */
 extern const FONT_FACE gFontFaceTerminus10x18;
 
 void FontInitialize(void);

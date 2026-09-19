@@ -1,5 +1,5 @@
 /*
- * Fonts/terminus16x32.c — Terminus 16×32 点阵（摘自 Linux font_ter16x32.c）
+ * Common/Fonts/terminus16x32.c — Terminus 16×32 点阵（摘自 Linux font_ter16x32.c）
  * ASCII 32–126；每字形 64 字节。许可：GPL-2.0。
  */
 #include "Font.h"

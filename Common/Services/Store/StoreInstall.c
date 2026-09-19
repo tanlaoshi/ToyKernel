@@ -93,8 +93,8 @@ static int InstallFromSources(const char *Id, const char *File, const char *Dst,
     char Pkg[160];
     int Err;
 
-    /* 1) Store/<file> 仓库包；2) Assets/Store/packages/<id>/；3) 卷根教学镜像 */
-    JoinPath(Src, (int)sizeof(Src), "Store", File);
+    /* 1) StoreCache/<file> 仓库包；2) Assets/Store/packages/<id>/；3) 卷根教学镜像 */
+    JoinPath(Src, (int)sizeof(Src), STORE_CACHE_DIR, File);
     Err = TryCopy(Src, Dst, Check);
     if (Err == FAT_OK) {
         return FAT_OK;

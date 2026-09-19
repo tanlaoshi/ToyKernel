@@ -7,7 +7,8 @@
 #include "BootTypes.h"
 
 #define STORE_CATALOG_PATH   "Assets/Store/catalog.txt"
-#define STORE_CATALOG_ALT    "Store/catalog.txt"
+#define STORE_CACHE_DIR      "StoreCache"
+#define STORE_CATALOG_ALT    STORE_CACHE_DIR "/catalog.txt"
 #define STORE_APPS_DIR       "Apps"
 #define STORE_FONTS_DIR      "Assets/Fonts"
 #define STORE_PACKS_DIR      "Assets/Packs"
@@ -37,7 +38,7 @@ typedef struct STORE_INSTALLED {
     char File[STORE_FILE_MAX];
 } STORE_INSTALLED;
 
-/* 加载 catalog；优先 Store/（S2 同步后），再 Assets/；成功返回条目数 */
+/* 加载 catalog；优先 StoreCache/（S2 同步后），再 Assets/；成功返回条目数 */
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 
 /* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/；并记清单 */

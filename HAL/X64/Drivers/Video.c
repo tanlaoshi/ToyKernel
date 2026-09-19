@@ -3,7 +3,7 @@
  *
  * 绘制写入后缓冲（若已启用）；VideoPresent 将脏区一次 blit 到 scanout。
  * PR-G-present：脏区按行 memcpy（非整段逐像素）。
- * 字形经 Font_*（Fonts/），不直接绑定某一份点阵表。
+ * 字形经 Font_*（Common/Fonts/），不直接绑定某一份点阵表。
  */
 #include "VideoPrivate.h"
 
