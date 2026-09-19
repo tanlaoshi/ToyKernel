@@ -263,6 +263,7 @@ SERVICES_SRCS += $(wildcard Common/Services/Db/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/FileSystem/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Fat/*.c)
+LIB_SRCS      += $(wildcard Common/Library/Gpt/*.c)
 FONT_SRCS     := $(wildcard Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
 # PR-H-xhci-split-8：Drivers/XHCI/*.c（Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c
