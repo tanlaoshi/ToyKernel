@@ -3,7 +3,7 @@
  * 核心：Console.c
  */
 #include "Console.h"
-#include "ConsolePriv.h"
+#include "ConsolePrivate.h"
 #include "UI.h"
 #include "Hal.h"
 #include "Gui.h"

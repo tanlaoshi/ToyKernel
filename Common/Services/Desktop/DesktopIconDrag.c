@@ -2,7 +2,7 @@
  * DesktopIconDrag.c — 桌面图标拖放
  * 核心：Desktop.c
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 int DesktopIconDragActive(void) {
     return gIconDragIdx >= 0;

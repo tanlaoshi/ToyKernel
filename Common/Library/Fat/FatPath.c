@@ -3,7 +3,7 @@
  * 名称匹配：FatPathName.c
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 
 int CopyPathComponent(const char **Path, char *Out, int OutMax) {
     const char *S = *Path;

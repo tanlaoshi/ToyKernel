@@ -2,7 +2,7 @@
  * DesktopGeom.c — 图标 / 任务栏 / 菜单几何
  * 核心：Desktop.c
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 UINT64 DesktopClock(void) {
     return HalCpuTicks(0);

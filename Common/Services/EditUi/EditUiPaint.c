@@ -2,7 +2,7 @@
  * EditUiPaint.c — 客户区、光标、Save 按钮
  * 核心：EditUi.c
  */
-#include "EditUiPriv.h"
+#include "EditUiPrivate.h"
 
 static void DrawLine(UINT32 X, UINT32 Y, const char *S, UINT32 Fg) {
     if (!S) {

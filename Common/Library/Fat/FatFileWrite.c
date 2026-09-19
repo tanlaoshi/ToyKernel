@@ -2,7 +2,7 @@
  * FatFileWrite.c — 整文件写（PR-S-fatfile-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 
 int FatWriteFile(const char *Path, const void *Buffer, UINTN Size) {

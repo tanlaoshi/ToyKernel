@@ -48,7 +48,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
 
     for (i = 0; i < gDriverCount; i++) {
         const TOY_DRIVER *D = gDrivers[i];
-        void *Priv = 0;
+        void *Private = 0;
         TOY_DRIVER_INSTANCE *Inst;
 
         if (Class != TOY_DRIVER_CLASS_NONE && D->Class != Class) {
@@ -57,7 +57,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
         if (DriverAlreadyBound(D)) {
             continue;
         }
-        if (D->Probe(D, 0, &Priv) != 0) {
+        if (D->Probe(D, 0, &Private) != 0) {
             continue;
         }
         if (gInstanceCount >= TOY_DRIVER_MAX_INSTANCES) {
@@ -65,7 +65,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
             if (D->Remove) {
                 TOY_DRIVER_INSTANCE Tmp;
                 Tmp.Driver = D;
-                Tmp.Priv = Priv;
+                Tmp.Private = Private;
                 Tmp.Bound = 0;
                 D->Remove(&Tmp);
             }
@@ -73,7 +73,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
         }
         Inst = &gInstances[gInstanceCount];
         Inst->Driver = D;
-        Inst->Priv = Priv;
+        Inst->Private = Private;
         Inst->Bound = 0;
         if (D->Bind) {
             if (D->Bind(Inst) != 0) {
@@ -81,7 +81,7 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
                     D->Remove(Inst);
                 }
                 Inst->Driver = 0;
-                Inst->Priv = 0;
+                Inst->Private = 0;
                 continue;
             }
         }
@@ -112,7 +112,7 @@ void ToyDriverRemoveAll(void) {
             Inst->Driver->Remove(Inst);
         }
         Inst->Driver = 0;
-        Inst->Priv = 0;
+        Inst->Private = 0;
         Inst->Bound = 0;
     }
     gInstanceCount = 0;

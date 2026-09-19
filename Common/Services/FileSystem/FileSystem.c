@@ -2,7 +2,7 @@
  * FileSystem.c — 卷激活与路径解析（PR-S-filesystem-1）
  * 路径操作：FileSystemOps.c；挂卷：FileSystemMount.c；初始化：FileSystemInit.c
  */
-#include "FileSystemPriv.h"
+#include "FileSystemPrivate.h"
 #include "Store.h"
 #include "ShellCommands.h"
 #include "Block.h"

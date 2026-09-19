@@ -2,7 +2,7 @@
  * FatIo.c — FAT 扇区/簇 I/O、FAT 链、卷几何初始化
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 #include "Debug.h"
 

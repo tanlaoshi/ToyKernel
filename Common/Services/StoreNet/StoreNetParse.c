@@ -2,7 +2,7 @@
  * StoreNetParse.c — 响应正文与 FNV-1a-32
  * 核心：StoreNet.c
  */
-#include "StoreNetPriv.h"
+#include "StoreNetPrivate.h"
 
 static UINT32 Fnv1a32(const UINT8 *Data, UINTN Len) {
     UINT32 H = 2166136261u;

@@ -1,10 +1,10 @@
 /*
- * FatPriv.h — FAT 实现内部共享（PR-R3 拆分 Fat.c）
+ * FatPrivate.h — FAT 实现内部共享（PR-R3 拆分 Fat.c）
  *
  * 仅 Common/Library/Fat*.c 使用；公开 API 仍见 Fat.h。
  */
-#ifndef FAT_PRIV_H
-#define FAT_PRIV_H
+#ifndef FAT_PRIVATE_H
+#define FAT_PRIVATE_H
 
 #include "Fat.h"
 

@@ -2,7 +2,7 @@
  * StoreUiModel.c — 分类过滤、已装缓存、选中项
  * 核心：StoreUi.c
  */
-#include "StoreUiPriv.h"
+#include "StoreUiPrivate.h"
 
 const char *StoreCatLabel(int C) {
     switch (C) {

@@ -9,7 +9,7 @@
 
 | 状态 | PR | 内容 | 说明 |
 | --- | --- | --- | --- |
-| ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPriv.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` |
+| ✅ TG `b3825db` | **PR-S-filesui-split-1** | `Include/FilesUiPrivate.h` + `FilesUiPaint.c` | Paint* 迁出；`FilesUiStrEqIgnoreCase` |
 | ✅ TG `a2bb774` | **PR-S-filesui-split-2** | `FilesUiNav.c` | Bookmark*/Goto/Reload/Preview |
 | ✅ TG `1907c97` | **PR-S-filesui-split-3** | `FilesUiActions.c` | Open/Delete/Prompt |
 
@@ -29,17 +29,17 @@
 1. **只搬家，不改逻辑**；禁止顺手修 bug。  
 2. **不改对外 API**：`FilesUi.h` 完全不动。  
 3. **不改宏值 / 结构体布局**：`FILES_MODE` / `FILES_PROMPT_KIND` / `FILES_BOOKMARK` / `PREV_KIND` 等。  
-4. **全局定义全部留在 `FilesUi.c`（宿主）**；其它 `.c` 经 `FilesUiPriv.h` `extern`。  
+4. **全局定义全部留在 `FilesUi.c`（宿主）**；其它 `.c` 经 `FilesUiPrivate.h` `extern`。  
    - 现为文件内 `static`；跨 TU 后改为**去掉 static** 的文件作用域定义（语义仍仅 FilesUi 族使用）。  
 5. 每 PR 可编译 + smoke；`Makefile` 已 `wildcard Common/Services/*.c`，**不必改**。  
-6. 原 `static` 跨文件后去掉 static，在 Priv.h 声明；**命名保持原样**（不加前缀）。
+6. 原 `static` 跨文件后去掉 static，在 Private.h 声明；**命名保持原样**（不加前缀）。
 
-### 2.1 Priv.h 修正点（相对初稿）
+### 2.1 Private.h 修正点（相对初稿）
 
 | 项 | 初稿 | 修订 |
 | --- | --- | --- |
 | `FILES_BOOKMARK_COUNT` | `#define … sizeof(gBookmarks)` | **`#define FILES_BOOKMARK_COUNT 4`** |
-| `StrEqIgnoreCase` | 保持原名 | **改为 `FilesUiStrEqIgnoreCase`**（与 `FatPath.c` / `FatPriv.h` 全局符号冲突） |
+| `StrEqIgnoreCase` | 保持原名 | **改为 `FilesUiStrEqIgnoreCase`**（与 `FatPath.c` / `FatPrivate.h` 全局符号冲突） |
 | 宿主全局 | `extern` 清单 | 与现 `static` 清单一致；**无清单外全局** |
 | include | 所列头文件 | 与现 `FilesUi.c` 一致即可（`Fat` 类型经 `FileSystem.h`/`FilesUi.h` 链入） |
 
@@ -54,7 +54,7 @@ Common/Services/
 ├── FilesUiNav.c           # 路径/书签/Reload/预览（第 2 刀）
 ├── FilesUiActions.c       # Open/Delete/Prompt（第 3 刀）
 Include/
-└── FilesUiPriv.h          # 内部共享（第 1 刀一并创建）
+└── FilesUiPrivate.h          # 内部共享（第 1 刀一并创建）
 ```
 
 ---
@@ -126,11 +126,11 @@ static void UpdatePreview(void);
 
 | 刀 | 处理 |
 | --- | --- |
-| **split-1**（Paint 迁出） | 删 `static void Paint(void);`；`Paint` 由 Priv.h 声明；宿主事件仍调 `Paint()` |
-| **split-2**（Nav 迁出） | 删 `ReloadList` / `UpdatePreview` 前向声明；改由 Priv.h |
+| **split-1**（Paint 迁出） | 删 `static void Paint(void);`；`Paint` 由 Private.h 声明；宿主事件仍调 `Paint()` |
+| **split-2**（Nav 迁出） | 删 `ReloadList` / `UpdatePreview` 前向声明；改由 Private.h |
 | 三刀前 | Nav 仍在同文件时，前向声明可暂时保留到 split-2 |
 
-### 4.6 跨文件调用（须 Priv.h）
+### 4.6 跨文件调用（须 Private.h）
 
 | 调用方 | 被调 |
 | --- | --- |
@@ -143,9 +143,9 @@ static void UpdatePreview(void);
 
 ---
 
-## 五、FilesUiPriv.h（第 1 刀创建）
+## 五、FilesUiPrivate.h（第 1 刀创建）
 
-路径：`Include/FilesUiPriv.h`。内容以用户规格为准，并应用 **§2.1**（`FILES_BOOKMARK_COUNT` 改为字面 **4**）。
+路径：`Include/FilesUiPrivate.h`。内容以用户规格为准，并应用 **§2.1**（`FILES_BOOKMARK_COUNT` 改为字面 **4**）。
 
 禁止 User / HAL / Core 包含。
 
@@ -157,10 +157,10 @@ static void UpdatePreview(void);
 
 ### 第 1 刀 — **PR-S-filesui-split-1** ✅ TG `b3825db`
 
-1. 创建 `Include/FilesUiPriv.h`（宏/类型/全部全局 extern/全部内部函数声明）。  
+1. 创建 `Include/FilesUiPrivate.h`（宏/类型/全部全局 extern/全部内部函数声明）。  
 2. 创建 `Common/Services/FilesUiPaint.c`：搬 `PaintOverlay` / `PaintList` / `PaintView` / `PaintConfirm` / `PaintPrompt` / `Paint`，去 `static`。  
 3. `FilesUi.c`：删已搬 Paint*；宏/类型可先留在 `.c` **或** 已迁 Priv 则删重复；全局仍 `static`→改为非 static 定义以便其它 TU `extern`（**第 1 刀就必须去掉这些全局的 static**，否则 Paint.c 链不上）。  
-4. 宿主顶部改为 `#include "FilesUiPriv.h"`。  
+4. 宿主顶部改为 `#include "FilesUiPrivate.h"`。  
 5. `./build.sh` + `ToyImage/smoke-boot.sh`；QEMU 开 Files：列表/预览/侧栏**显示**正常。
 
 **第 1 刀故意不做**：不建 Nav/Actions；不改写操作逻辑。

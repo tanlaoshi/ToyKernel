@@ -1,7 +1,7 @@
 /*
  * FileSystemMount.c — 扫描并挂上各卷（PR-S-filesystem-1）
  */
-#include "FileSystemPriv.h"
+#include "FileSystemPrivate.h"
 #include "Store.h"
 #include "ShellCommands.h"
 #include "Block.h"

@@ -5,7 +5,7 @@
  * 从 Console.c 单体迁出；只搬家、不改逻辑。
  */
 #include "Console.h"
-#include "ConsolePriv.h"
+#include "ConsolePrivate.h"
 #include "UI.h"
 #include "Hal.h"
 #include "Gui.h"

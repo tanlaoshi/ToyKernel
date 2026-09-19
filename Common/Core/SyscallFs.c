@@ -1,7 +1,7 @@
 /*
  * SyscallFs.c — PR-S-syscall-split-1：FD / FS / 网络 socket 系统调用
  */
-#include "SyscallPriv.h"
+#include "SyscallPrivate.h"
 #include "Scheduler.h"
 #include "Console.h"
 #include "VirtualMemory.h"

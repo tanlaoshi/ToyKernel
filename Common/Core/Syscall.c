@@ -9,7 +9,7 @@
  * 实现：SyscallFs.c / SyscallProc.c（PR-S-syscall-split-1）。
  */
 #include "Syscall.h"
-#include "SyscallPriv.h"
+#include "SyscallPrivate.h"
 #include "Hal.h"
 #include "Console.h"
 #include "Scheduler.h"

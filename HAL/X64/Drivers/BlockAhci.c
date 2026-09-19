@@ -18,13 +18,13 @@ static const BLOCK_BACKEND gAhciBackend = {
     .Flush = 0,
 };
 
-static int AhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int AhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
 
     if (AhciReady()) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -35,8 +35,8 @@ static int AhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     if (!AhciSetup()) {
         return -1;
     }
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

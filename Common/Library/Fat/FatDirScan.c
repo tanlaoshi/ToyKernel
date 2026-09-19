@@ -2,7 +2,7 @@
  * FatDirScan.c — 目录缓冲扫描与项读写（PR-S-fatdir-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 #include "LibWrite.h"
 

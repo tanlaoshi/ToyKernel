@@ -8,11 +8,11 @@
 #include "Hal.h"
 #include "Debug.h"
 
-static int DemoProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int DemoProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     DebugWrite("demo: probe called\n");
     return 0; /* 恒匹配，课堂证明路径 */

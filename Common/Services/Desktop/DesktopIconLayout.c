@@ -2,7 +2,7 @@
  * DesktopIconLayout.c — 图标坐标读写与摆放
  * 核心：Desktop.c
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 static int ParseIconXy(const char *S, UINT32 *OutX, UINT32 *OutY) {
     UINT32 X = 0;

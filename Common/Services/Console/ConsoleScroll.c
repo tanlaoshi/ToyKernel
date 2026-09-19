@@ -4,7 +4,7 @@
  * 从 Console.c 原样搬家；不改语义。绘制经 ConsoleDraw*（Console.c）。
  */
 #include "Console.h"
-#include "ConsolePriv.h"
+#include "ConsolePrivate.h"
 #include "Hal.h"
 #include "Gui.h"
 #include "Font.h"

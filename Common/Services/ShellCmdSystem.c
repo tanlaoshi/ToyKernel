@@ -3,7 +3,7 @@
  *
  * 从 ShellCommands.c 原样搬家；不改语义。
  */
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 #include "BootInfo.h"
 #include "Console.h"
 #include "Driver.h"

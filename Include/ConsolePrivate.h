@@ -1,12 +1,12 @@
 /*
- * ConsolePriv.h — Console / ConsoleScroll / ConsoleCmd 内部
+ * ConsolePrivate.h — Console / ConsoleScroll / ConsoleCmd 内部
  * （仅 Common/Services；User 勿 include）
  *
  * PR-S-console-split-1：Scroll；PR-S-console-split-2：Cmd（Register/别名/help）。
  * 命令表现在 Common/Services/Console/（核心 ConsoleCmd.c）。
  */
-#ifndef CONSOLE_PRIV_H
-#define CONSOLE_PRIV_H
+#ifndef CONSOLE_PRIVATE_H
+#define CONSOLE_PRIVATE_H
 
 #include "BootTypes.h"
 

@@ -1,7 +1,7 @@
 /*
  * FileSystemInit.c — 重挂与启动（PR-S-filesystem-1）
  */
-#include "FileSystemPriv.h"
+#include "FileSystemPrivate.h"
 #include "Store.h"
 #include "ShellCommands.h"
 #include "Block.h"

@@ -1,11 +1,11 @@
 /*
- * NetPriv.h — Net / NetVirtio 内部共享（仅 HAL/X64/Drivers/Net*.c）
+ * NetPrivate.h — Net / NetVirtio 内部共享（仅 HAL/X64/Drivers/Net*.c）
  *
  * 禁止 Common / User 包含；对外用 Net.h / HalDevices。
  * PR-H-net-split-1：与 NetVirtio.c 一并引入。
  */
-#ifndef NET_PRIV_H
-#define NET_PRIV_H
+#ifndef NET_PRIVATE_H
+#define NET_PRIVATE_H
 
 #include "Net.h"
 #include "BootTypes.h"

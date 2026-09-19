@@ -3,7 +3,7 @@
  * 核心：Store.c。单包安装在 StoreInstall.c。
  */
 #include "Store.h"
-#include "StorePriv.h"
+#include "StorePrivate.h"
 #include "Fat.h"
 #include "HalConsole.h"
 #include "Hal.h"

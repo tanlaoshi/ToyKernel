@@ -3,7 +3,7 @@
  *
  * 从 FilesUi.c 迁出 Actions；只搬家、不改逻辑。
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 #include "Store.h"
 #include "Fat.h"
 

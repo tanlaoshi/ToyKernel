@@ -1,8 +1,8 @@
 /*
- * GuiPriv.h — PR-R2：Gui 子模块共享状态与内部 API（非对外）
+ * GuiPrivate.h — PR-R2：Gui 子模块共享状态与内部 API（非对外）
  */
-#ifndef GUI_PRIV_H
-#define GUI_PRIV_H
+#ifndef GUI_PRIVATE_H
+#define GUI_PRIVATE_H
 
 #include "Gui.h"
 #include "BootTypes.h"

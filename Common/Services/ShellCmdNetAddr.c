@@ -1,7 +1,7 @@
 /*
  * ShellCmdNetAddr.c — net config / set ip|gw|dns（PR-N-nic-addr）
  */
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 #include "Console.h"
 #include "HalDevices.h"
 #include "NetConfig.h"

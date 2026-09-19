@@ -1,7 +1,7 @@
 /*
  * GuiResize.c — PR-GUI-win-resize：右下角拖拽改大小（线框松手提交）
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Theme.h"

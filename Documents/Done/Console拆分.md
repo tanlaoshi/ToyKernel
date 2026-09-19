@@ -8,7 +8,7 @@
 
 | 状态 | PR | 内容 |
 | --- | --- | --- |
-| ✅ `c28b903` | **PR-S-console-split-1** | `ConsoleScroll.c` + `ConsolePriv.h` |
+| ✅ `c28b903` | **PR-S-console-split-1** | `ConsoleScroll.c` + `ConsolePrivate.h` |
 | ✅ `0dc7c72` | **PR-S-console-split-2** | `ConsoleCmd.c`：Register / 别名 / help / RunLine |
 
 **行数**：`Console.c` ~569（绘制/提示符/输入）；`ConsoleCmd.c` ~695；`ConsoleScroll.c` ~222。

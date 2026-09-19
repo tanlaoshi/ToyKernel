@@ -3,7 +3,7 @@
  * 核心：ConsoleCmd.c
  */
 #include "Console.h"
-#include "ConsolePriv.h"
+#include "ConsolePrivate.h"
 #include "Gui.h"
 #include "Hal.h"
 #include "Db.h"

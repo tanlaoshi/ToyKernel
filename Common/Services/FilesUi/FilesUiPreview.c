@@ -2,7 +2,7 @@
  * FilesUiPreview.c — 跳转、重载列表与预览
  * 核心：FilesUi.c
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 #include "Fat.h"
 
 void GotoPath(const char *Path) {

@@ -3,7 +3,7 @@
  * 扫描：FatDirScan.c；名字：FatDirName.c；建项：FatDirSlot.c；压测：FatDirStress.c
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 #include "LibWrite.h"
 

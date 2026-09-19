@@ -3,7 +3,7 @@
  * 核心：Theme.c
  */
 #include "Theme.h"
-#include "ThemePriv.h"
+#include "ThemePrivate.h"
 
 int ThemeLoadFromCfg(void) {
     static char Buf[256];

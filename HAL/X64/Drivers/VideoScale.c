@@ -4,7 +4,7 @@
  * 从 Video.c 迁出；只搬家、不改逻辑。
  * VideoSet 与 ApplyLogicalFromPhys 同文件（初始化即算逻辑分辨率）。
  */
-#include "VideoPriv.h"
+#include "VideoPrivate.h"
 
 UINT32 NormalizeUiScale(UINT32 Percent) {
     if (Percent <= 75) {

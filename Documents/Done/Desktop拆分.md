@@ -9,7 +9,7 @@
 
 | 状态 | PR | 内容 | 说明 |
 | --- | --- | --- | --- |
-| ✅ TG `80fcf40` | **PR-S-desktop-split-1** | `Include/DesktopPriv.h` + `DesktopWallpaper.c` | 壁纸缓存 / BgAt / FillRect；`gDeskSelected` |
+| ✅ TG `80fcf40` | **PR-S-desktop-split-1** | `Include/DesktopPrivate.h` + `DesktopWallpaper.c` | 壁纸缓存 / BgAt / FillRect；`gDeskSelected` |
 | ✅ TG `f5f6ab8` | **PR-S-desktop-split-2** | `DesktopPaint.c` | FillRectFree / Draw* |
 | ✅ TG `bb749ca` | **PR-S-desktop-split-3** | `DesktopMenu.c` + `DesktopIcons.c` | 菜单 + 图标/布局；`MenuCopyStr` 导出 |
 

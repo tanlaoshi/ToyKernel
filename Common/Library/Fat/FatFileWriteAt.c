@@ -2,7 +2,7 @@
  * FatFileWriteAt.c — 偏移写（PR-S-fatfile-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 
 /* 保证从 First 起至少有 NeedClusters 个簇；可扩展。成功更新 *InOutFirst */

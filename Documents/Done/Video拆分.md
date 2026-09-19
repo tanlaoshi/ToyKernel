@@ -9,7 +9,7 @@
 
 | 状态 | PR | 内容 | 说明 |
 | --- | --- | --- | --- |
-| ✅ TG `545ff66` | **PR-H-video-split-1** | `VideoPriv.h` + `VideoBochs.c` + `VideoScale.c` | DISPI；UiScale；**含 `VideoSet`** |
+| ✅ TG `545ff66` | **PR-H-video-split-1** | `VideoPrivate.h` + `VideoBochs.c` + `VideoScale.c` | DISPI；UiScale；**含 `VideoSet`** |
 | ✅ TG `545ff66` | **PR-H-video-split-2** | `VideoPresent.c` | Dirty/Cursor/Present |
 
 **行数（约）**：`Video.c` ~800；Present ~292；Bochs ~89；Scale ~103。  
@@ -25,7 +25,7 @@
 ```
 HAL/X64/Drivers/
 ├── Video.c           # 宿主全局 + Draw/Present（刀 2 再瘦）
-├── VideoPriv.h       # 内部共享
+├── VideoPrivate.h       # 内部共享
 ├── VideoBochs.c      # DISPI
 ├── VideoScale.c      # UiScale / 逻辑分辨率
 └── VideoPresent.c    # Dirty / Present

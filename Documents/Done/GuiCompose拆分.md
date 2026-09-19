@@ -1,6 +1,6 @@
 # 任务：拆分 GuiCompose.c（PR-S-compose-split-1）
 
-> **规格**：只搬家；`Gui.h` / `GuiPriv.h` 不动语义；每刀 build + smoke。  
+> **规格**：只搬家；`Gui.h` / `GuiPrivate.h` 不动语义；每刀 build + smoke。  
 > **★ 下一刀**：见路线图文首（**console-split-2**）。  
 > **统计**：2026-09-16；split-1 TG `053fa73`。
 

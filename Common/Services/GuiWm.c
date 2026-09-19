@@ -3,7 +3,7 @@
  *
  * 开窗见 GuiOpen.c；点击与鼠标见 GuiPointer.c；命中见 GuiHit.c。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "HalSerial.h"

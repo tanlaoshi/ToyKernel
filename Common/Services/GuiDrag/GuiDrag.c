@@ -2,7 +2,7 @@
  * GuiDrag.c — 标题栏拖动生命周期（核心）
  * 辅助：GuiDragBackup.c / GuiDragComposite.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

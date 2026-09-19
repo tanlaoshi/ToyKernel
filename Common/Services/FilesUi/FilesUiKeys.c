@@ -2,7 +2,7 @@
  * FilesUiKeys.c — 键盘与滚轮
  * 核心：FilesUi.c
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 
 void FilesUiOnEscape(void) {
     if (!FilesUiIsFocused()) {

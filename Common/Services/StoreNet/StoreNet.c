@@ -2,7 +2,7 @@
  * StoreNet.c — 仓库地址与 fetch/sync
  * HTTP：StoreNetHttp.c；解析与哈希：StoreNetParse.c。
  */
-#include "StoreNetPriv.h"
+#include "StoreNetPrivate.h"
 
 static UINT32 gRepoIp = STORE_REPO_DEFAULT_IP;
 static UINT16 gRepoPort = (UINT16)STORE_REPO_DEFAULT_PORT;

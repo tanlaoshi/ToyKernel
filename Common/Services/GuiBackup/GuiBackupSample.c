@@ -2,7 +2,7 @@
  * GuiBackupSample.c — 备份像素采样与上层覆盖判断
  * 核心：GuiBackup.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

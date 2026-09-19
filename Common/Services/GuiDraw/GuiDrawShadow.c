@@ -2,7 +2,7 @@
  * GuiDrawShadow.c — 窗口右下阴影
  * 核心：GuiDraw.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

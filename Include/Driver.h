@@ -26,17 +26,17 @@ typedef struct TOY_DRIVER {
     /* 匹配表占位（PCI/virtio/DTB）；D2+ 使用，D1 可为 NULL */
     const void *Match;
     /*
-     * Probe：有设备则返回 0 并可选写入 *OutPriv；无设备返回非 0。
+     * Probe：有设备则返回 0 并可选写入 *OutPrivate；无设备返回非 0。
      * BusCtx 预留总线上下文（D2+）。
      */
-    int (*Probe)(const struct TOY_DRIVER *Self, void *BusCtx, void **OutPriv);
+    int (*Probe)(const struct TOY_DRIVER *Self, void *BusCtx, void **OutPrivate);
     int (*Bind)(TOY_DRIVER_INSTANCE *Inst);
     void (*Remove)(TOY_DRIVER_INSTANCE *Inst);
 } TOY_DRIVER;
 
 struct TOY_DRIVER_INSTANCE {
     const TOY_DRIVER *Driver;
-    void *Priv;
+    void *Private;
     int Bound;
 };
 

@@ -1,7 +1,7 @@
 /*
  * SyscallProc.c — PR-S-syscall-split-1：execve / 用户窗 GUI 系统调用
  */
-#include "SyscallPriv.h"
+#include "SyscallPrivate.h"
 #include "Scheduler.h"
 #include "VirtualMemory.h"
 #include "Process.h"

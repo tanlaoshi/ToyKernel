@@ -1,7 +1,7 @@
 /*
  * DesktopNetTray.c — 任务栏时钟左侧网络短状态（PR-N-nic-tray）
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 #include "HalDevices.h"
 #include "NetConfig.h"
 

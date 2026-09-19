@@ -1,10 +1,10 @@
 /*
- * DbPriv.h — Db 内部（仅 Common/Services/Db）
+ * DbPrivate.h — Db 内部（仅 Common/Services/Db）
  *
  * 对外 API 仍在 Db.h。User 勿 include。
  */
-#ifndef DB_PRIV_H
-#define DB_PRIV_H
+#ifndef DB_PRIVATE_H
+#define DB_PRIVATE_H
 
 #include "Db.h"
 

@@ -2,7 +2,7 @@
  * FatFormat.c — PR-FS-inst-1：简易 FAT32 格式化
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 #include "Debug.h"
 

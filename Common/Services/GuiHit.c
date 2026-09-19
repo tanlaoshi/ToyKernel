@@ -3,7 +3,7 @@
  *
  * 从 GuiWm.c 迁出；只搬家、不改逻辑。CloseWindow / 开窗见 GuiOpen.c。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "Debug.h"

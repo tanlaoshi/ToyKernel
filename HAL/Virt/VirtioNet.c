@@ -436,7 +436,7 @@ static int NetResolve(UINT32 TargetIp, UINT8 Mac[6], int TimeoutMs) {
     return -1;
 }
 
-static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     UINT64 Base = 0;
     UINT32 Ver;
     volatile VIRTIO_NET_CFG *Cfg;
@@ -446,8 +446,8 @@ static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **Out
     (void)Self;
     (void)BusCtx;
     if (gNetOk) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -497,8 +497,8 @@ static int VirtioNetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **Out
 
     gNetOk = 1;
     ToyLogNet("Boot: VirtIO-Net\n");
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

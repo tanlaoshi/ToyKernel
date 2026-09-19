@@ -1,10 +1,10 @@
 /*
- * SchedWait.c — PR-S-sched-split-2：wait / zombie / reap / exit 收尸
+ * SchedulerWait.c — PR-S-sched-split-2：wait / zombie / reap / exit 收尸
  *
  * 从 Scheduler.c 原样搬家；不改语义。Kill/timer 经 TerminateUserLocked /
- * SchedDestroyDetached（见 SchedulerPriv.h）。
+ * SchedulerDestroyDetached（见 SchedulerPrivate.h）。
  */
-#include "SchedulerPriv.h"
+#include "SchedulerPrivate.h"
 #include "TaskFd.h"
 #include "Syscall.h"
 #include "Hal.h"
@@ -139,7 +139,7 @@ int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
     return Exiting == CurrentTask() ? 1 : 0;
 }
 
-void SchedDestroyDetached(VIRTUAL_ADDRESS_SPACE *Space) {
+void SchedulerDestroyDetached(VIRTUAL_ADDRESS_SPACE *Space) {
     if (Space) {
         VirtualMemorySpaceDestroy(Space);
     }
@@ -174,7 +174,7 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
 
     if (gCoopDrain) {
         SpinLockRelease(&gSchedulerLock);
-        SchedDestroyDetached(Detached);
+        SchedulerDestroyDetached(Detached);
         if (ShowPrompt) {
             ConsoleShowPrompt();
         }
@@ -187,16 +187,16 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     Next = PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
-        SchedDestroyDetached(Detached);
+        SchedulerDestroyDetached(Detached);
         ConsoleWrite("sched: no runnable task after exit\n");
         for (;;) {
             HalCpuPark();
         }
     }
     ActivateTask(Next);
-    Ret = SchedResumeFrame(Next);
+    Ret = SchedulerResumeFrame(Next);
     SpinLockRelease(&gSchedulerLock);
-    SchedDestroyDetached(Detached);
+    SchedulerDestroyDetached(Detached);
     if (ShowPrompt) {
         ConsoleShowPrompt();
     }
@@ -269,7 +269,7 @@ UINT64 SchedulerWait(HAL_INTERRUPT_FRAME *Frame) {
         }
     }
     ActivateTask(Next);
-    Ret = SchedResumeFrame(Next);
+    Ret = SchedulerResumeFrame(Next);
     SpinLockRelease(&gSchedulerLock);
     return Ret;
 }

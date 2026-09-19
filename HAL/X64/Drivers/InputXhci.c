@@ -169,7 +169,7 @@ static int TryXhciAt(UINT64 Base, USB_CONTROLLER *Dev) {
     return 1;
 }
 
-static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     USB_CONTROLLER Controllers[8];
     int Count;
     int i;
@@ -181,8 +181,8 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     (void)Self;
     (void)BusCtx;
     if (gXhciReady) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -293,8 +293,8 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
                 if (!XhciHidKeyboardReady() && XhciMousePresent()) {
                     ToyLogUsb("Boot: XHCI-HID Mouse-Only Bind\n");
                 }
-                if (OutPriv) {
-                    *OutPriv = 0;
+                if (OutPrivate) {
+                    *OutPrivate = 0;
                 }
                 return 0; /* Bind USB HID */
             }
@@ -335,8 +335,8 @@ static int XhciDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
                 (XhciHidKeyboardReady() || XhciMousePresent())) {
                 gXhciReady = 1;
                 ToyLogUsb("Boot: XHCI-HID Keyboard\n");
-                if (OutPriv) {
-                    *OutPriv = 0;
+                if (OutPrivate) {
+                    *OutPrivate = 0;
                 }
                 return 0;
             }

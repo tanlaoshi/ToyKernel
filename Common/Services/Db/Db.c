@@ -2,7 +2,7 @@
  * Db.c — TOYOS.DB 文本 KV（PR-DB1）
  * 读盘 / 写盘：DbFile.c
  */
-#include "DbPriv.h"
+#include "DbPrivate.h"
 #include "Console.h"
 #include "Debug.h"
 

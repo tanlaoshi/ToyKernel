@@ -2,7 +2,7 @@
  * GuiDragComposite.c — 拖动脏区合成与脚印
  * 核心：GuiDrag.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

@@ -1,7 +1,7 @@
 /*
  * GptWrite.c — 写出课堂 GPT 布局（PR-S-gpt-1）
  */
-#include "GptPriv.h"
+#include "GptPrivate.h"
 #include "Block.h"
 #include "Debug.h"
 

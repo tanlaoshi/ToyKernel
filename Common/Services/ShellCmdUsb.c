@@ -3,7 +3,7 @@
  *
  * 从 ShellCommands.c 原样搬家；msc mount = PR-H-msc-6。
  */
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 #include "Console.h"
 #include "Hal.h"
 #include "FileSystem.h"

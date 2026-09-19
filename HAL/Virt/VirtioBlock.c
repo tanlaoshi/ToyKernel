@@ -151,15 +151,15 @@ static void BlkScanCb(UINT64 Base, UINT32 DeviceId, void *Ctx) {
     }
 }
 
-static int VirtioBlockDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int VirtioBlockDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     BLK_SCAN_CTX Ctx;
     UINT8 *Meta;
 
     (void)Self;
     (void)BusCtx;
     if (gBlkReady) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -188,8 +188,8 @@ static int VirtioBlockDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
     HexU32((UINT32)Ctx.FoundBase);
     ToyLogFs("\n");
 
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

@@ -3,7 +3,7 @@
  *
  * 侧栏按 FileSystem 已挂载卷动态生成；TOYOS 置顶；有 TOYOS 时附 Apps/Assets。
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 #include "Fat.h"
 
 static void AppendDriveTag(char *Label, int Max, UINT32 Drive) {

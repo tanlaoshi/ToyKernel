@@ -3,7 +3,7 @@
  * 核心：Store.c
  */
 #include "Store.h"
-#include "StorePriv.h"
+#include "StorePrivate.h"
 #include "FileSystem.h"
 #include "Fat.h"
 #include "HalConsole.h"

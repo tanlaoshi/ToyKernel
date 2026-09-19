@@ -2,7 +2,7 @@
  * FatDirName.c — 目录名匹配与 8.3 别名（PR-S-fatdir-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 #include "LibWrite.h"
 

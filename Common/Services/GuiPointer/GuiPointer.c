@@ -4,7 +4,7 @@
  *
  * 从 GuiPointer.c 单体迁出；只搬家、不改逻辑。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "Debug.h"

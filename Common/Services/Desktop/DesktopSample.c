@@ -2,7 +2,7 @@
  * DesktopSample.c — 桌面矩形重画与像素采样
  * 核心：Desktop.c
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     int i;

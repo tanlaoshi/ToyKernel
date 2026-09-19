@@ -2,7 +2,7 @@
  * FatFileRead.c — 偏移读（PR-S-fatfile-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 
 /* 从 First 簇跳过 Offset 字节，得到簇与簇内偏移 */

@@ -2,7 +2,7 @@
  * StoreUiInput.c — 点击、悬停、装卸队列
  * 核心：StoreUi.c
  */
-#include "StoreUiPriv.h"
+#include "StoreUiPrivate.h"
 
 static void DoBtn(int Btn) {
     STORE_ENTRY *E;

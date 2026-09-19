@@ -46,14 +46,14 @@ void BlockMscInstall(void) {
     BlockMuxInstallMsc(&gMscBackend);
 }
 
-static int MscDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int MscDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
     if (!VirtualMemoryEnabled()) {
         return -1;
     }
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

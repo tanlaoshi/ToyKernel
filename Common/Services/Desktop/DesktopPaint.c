@@ -3,7 +3,7 @@
  *
  * 从 Desktop.c 迁出；只搬家、不改逻辑。
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 void FillRectFree(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 Color) {
     UINT32 Row;

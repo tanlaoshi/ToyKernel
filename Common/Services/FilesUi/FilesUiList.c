@@ -2,7 +2,7 @@
  * FilesUiList.c — 文件列表绘制
  * 核心：FilesUi.c
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 
 void PaintList(void) {
     UINT32 X;

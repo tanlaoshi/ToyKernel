@@ -2,7 +2,7 @@
  * StoreUiPaint.c — 左栏 / 列表 / 详情 / 底栏按钮
  * 核心：StoreUi.c
  */
-#include "StoreUiPriv.h"
+#include "StoreUiPrivate.h"
 
 static void DrawButtons(void) {
     int i;

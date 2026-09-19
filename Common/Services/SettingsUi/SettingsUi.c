@@ -3,7 +3,7 @@
  * 模型：SettingsUiModel.c；应用：SettingsUiApply.c；
  * 绘制：SettingsUiPaint.c；输入：SettingsUiInput.c。
  */
-#include "SettingsUiPriv.h"
+#include "SettingsUiPrivate.h"
 
 SETTINGS_CAT gCat = SETTINGS_CAT_DESKTOP;
 int gItemSel;

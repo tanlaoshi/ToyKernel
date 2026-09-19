@@ -9,7 +9,7 @@
  * U3：右栏再分 列表 | 预览；空态/焦点行与 G12 一致
  * PR-S-filesui-split-1：Paint* → FilesUiPaint.c；本文件为全局宿主。
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 
 char gCwd[FILES_PATH_MAX];
 FAT_DIRECTORY_ENTRY gEnts[FAT_LIST_MAX];

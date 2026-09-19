@@ -3,7 +3,7 @@
  *
  * 从 ShellCommands.c 原样搬家；不改语义。含 ShellOnInterrupt（Ctrl-C 停 echo）。
  */
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 #include "Console.h"
 #include "Hal.h"
 #include "Udp.h"

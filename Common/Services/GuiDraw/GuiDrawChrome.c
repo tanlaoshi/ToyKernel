@@ -2,7 +2,7 @@
  * GuiDrawChrome.c — 标题栏、边框、关闭钮与遮挡画线
  * 核心：GuiDraw.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

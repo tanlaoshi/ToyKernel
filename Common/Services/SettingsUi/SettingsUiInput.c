@@ -2,7 +2,7 @@
  * SettingsUiInput.c — 键鼠与 Esc
  * 核心：SettingsUi.c
  */
-#include "SettingsUiPriv.h"
+#include "SettingsUiPrivate.h"
 
 void SettingsUiOnEscape(void) {
     if (!SettingsUiIsFocused()) {

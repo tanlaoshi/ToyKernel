@@ -6,10 +6,10 @@
  * PR-G-desk-2：开始菜单动态列出 Apps/ 下 .ELF + 缺文件 INST(app) 灰显；点选 ProcessExec。
  * 壁纸/图标：优先 TOYOS:Assets/…（BI_RGB BMP）；读不到则纯色块（不内嵌像素、不走 RES:）。
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 #include "Gui.h" /* GuiCursorHide/Show：时钟重绘任务栏勿穿光标 */
 
-/* 全局定义集中在宿主；其它 TU 经 DesktopPriv.h extern */
+/* 全局定义集中在宿主；其它 TU 经 DesktopPrivate.h extern */
 MENU_ROW gMenuRows[MENU_ROWS_MAX];
 int gMenuCount;
 MENU_ROW gMenuAppRows[MENU_APP_MAX];

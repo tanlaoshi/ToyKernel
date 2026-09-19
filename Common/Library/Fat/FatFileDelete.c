@@ -2,7 +2,7 @@
  * FatFileDelete.c — 删除与改名（PR-S-fatfile-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 
 static int FatDeleteFileOnce(const char *Path);

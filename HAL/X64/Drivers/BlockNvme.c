@@ -17,13 +17,13 @@ static const BLOCK_BACKEND gNvmeBackend = {
     .Flush = 0,
 };
 
-static int NvmeDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int NvmeDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
 
     if (NvmeReady()) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -33,8 +33,8 @@ static int NvmeDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv)
     if (!NvmeSetup()) {
         return -1;
     }
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

@@ -1,7 +1,7 @@
 /*
  * FileSystemOps.c — 路径上的读写与目录操作（PR-S-filesystem-1）
  */
-#include "FileSystemPriv.h"
+#include "FileSystemPrivate.h"
 #include "Store.h"
 #include "ShellCommands.h"
 #include "Block.h"

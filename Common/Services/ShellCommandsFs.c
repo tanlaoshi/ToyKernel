@@ -2,7 +2,7 @@
  * ShellCommandsFs.c — 文件系统 Shell 命令（PR-R3；install 见 ShellCmdInstall.c）
  */
 #include "ShellCommands.h"
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 #include "FileSystem.h"
 #include "Fat.h"
 #include "Console.h"

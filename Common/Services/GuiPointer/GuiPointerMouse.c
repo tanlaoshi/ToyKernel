@@ -2,7 +2,7 @@
  * GuiPointerMouse.c — 分辨率钳窗、方向键、右键与按键边沿
  * 核心：GuiPointer.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "Debug.h"

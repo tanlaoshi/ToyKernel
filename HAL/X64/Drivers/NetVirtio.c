@@ -3,7 +3,7 @@
  *
  * 从 Net.c 迁出；只搬家、不改逻辑。ARP/ICMP/对外 API 仍在 Net.c。
  */
-#include "NetPriv.h"
+#include "NetPrivate.h"
 #include "PCIe.h"
 #include "VirtualMemory.h"
 #include "Debug.h"

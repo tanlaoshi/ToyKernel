@@ -2,7 +2,7 @@
  * DesktopTaskbar.c — 任务栏与开始菜单绘制
  * 核心：Desktop.c
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 /* PR-GUI-alpha：遮挡路径半透明填充（自由像素 Src-over） */
 static void FillRectFreeAlpha(UINT32 X, UINT32 Y, UINT32 W, UINT32 H,

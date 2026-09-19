@@ -3,7 +3,7 @@
  * 成功 0；正文在堆页内，调用方 FreePages。
  * 核心：StoreNet.c
  */
-#include "StoreNetPriv.h"
+#include "StoreNetPrivate.h"
 
 static char gHttpReq[256]; /* 避免 HttpGet 再占任务栈 */
 

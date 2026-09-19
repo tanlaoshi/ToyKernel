@@ -3,7 +3,7 @@
  * 热切：ThemeLive.c；解析：ThemeParse.c；CFG/Load：ThemeCfg.c；Save：ThemeSave.c。
  */
 #include "Theme.h"
-#include "ThemePriv.h"
+#include "ThemePrivate.h"
 
 UINT32 gDesktopBg = COLOR_DARK_GRAY;
 UINT32 gShellClientBg = COLOR_LIGHT_GRAY;

@@ -241,6 +241,7 @@ $(DEMO_STAMP): FORCE
 	@if [ ! -f $@ ] || ! cmp -s $@.new $@; then mv $@.new $@; else rm -f $@.new; fi
 
 CORE_SRCS     := $(wildcard Common/Core/*.c)
+CORE_SRCS     += $(wildcard Common/Core/Scheduler/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
 SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)

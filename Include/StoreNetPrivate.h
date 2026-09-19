@@ -1,12 +1,12 @@
 /*
- * StoreNetPriv.h — StoreNet 内部共享头（仅 Common/Services/StoreNet 使用）
+ * StoreNetPrivate.h — StoreNet 内部共享头（仅 Common/Services/StoreNet 使用）
  *
  * 禁止 User 程序、HAL、Common/Core 包含本文件。
  * 源文件在 Common/Services/StoreNet/（核心 StoreNet.c）。
  * 对外 API 仍在 Store.h。
  */
-#ifndef STORE_NET_PRIV_H
-#define STORE_NET_PRIV_H
+#ifndef STORE_NET_PRIVATE_H
+#define STORE_NET_PRIVATE_H
 
 #include "Store.h"
 #include "Tcp.h"

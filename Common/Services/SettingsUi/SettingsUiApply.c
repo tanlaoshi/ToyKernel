@@ -2,7 +2,7 @@
  * SettingsUiApply.c — 点选条目后写 Theme
  * 核心：SettingsUi.c
  */
-#include "SettingsUiPriv.h"
+#include "SettingsUiPrivate.h"
 
 void ApplyDesktopColor(int Index) {
     if (Index < 0 || Index >= DESKTOP_COLOR_COUNT) {

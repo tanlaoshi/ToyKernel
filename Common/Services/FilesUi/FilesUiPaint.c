@@ -3,7 +3,7 @@
  *
  * 从 FilesUi.c 迁出 Paint*；只搬家、不改逻辑。
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 
 void PaintOverlay(const char *Line1, const char *Line2, const char *Line3) {
     UINT32 X;

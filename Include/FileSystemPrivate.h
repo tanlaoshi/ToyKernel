@@ -1,10 +1,10 @@
 /*
- * FileSystemPriv.h — FileSystem 内部（仅 Common/Services/FileSystem）
+ * FileSystemPrivate.h — FileSystem 内部（仅 Common/Services/FileSystem）
  *
  * 对外 API 仍在 FileSystem.h。User 勿 include。
  */
-#ifndef FILE_SYSTEM_PRIV_H
-#define FILE_SYSTEM_PRIV_H
+#ifndef FILE_SYSTEM_PRIVATE_H
+#define FILE_SYSTEM_PRIVATE_H
 
 #include "FileSystem.h"
 #include "Vfs.h"

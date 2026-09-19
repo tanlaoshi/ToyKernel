@@ -15,7 +15,7 @@
  * 依赖帮手：StoreDepends.c；清单键：StoreDb.c。
  */
 #include "Store.h"
-#include "StorePriv.h"
+#include "StorePrivate.h"
 #include "FileSystem.h"
 #include "Fat.h"
 #include "Hal.h"

@@ -2,7 +2,7 @@
  * Gpt.c — 查找 FAT 分区（PR-S-gpt-1）
  * 写盘布局：GptWrite.c
  */
-#include "GptPriv.h"
+#include "GptPrivate.h"
 #include "Block.h"
 #include "Debug.h"
 

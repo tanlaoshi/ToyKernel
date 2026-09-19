@@ -3,7 +3,7 @@
  *
  * 窗绘制见 GuiDraw.c；备份见 GuiBackup.c。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

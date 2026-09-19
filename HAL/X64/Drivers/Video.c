@@ -5,12 +5,12 @@
  * PR-G-present：脏区按行 memcpy（非整段逐像素）。
  * 字形经 Font_*（Fonts/），不直接绑定某一份点阵表。
  */
-#include "VideoPriv.h"
+#include "VideoPrivate.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 extern void *memmove(void *Dst, const void *Src, UINTN Len);
 
-/* 全局定义集中在宿主；其它 TU 经 VideoPriv.h extern */
+/* 全局定义集中在宿主；其它 TU 经 VideoPrivate.h extern */
 SCREEN_INFO gScreen = {0};
 UINT32 gBackground = 0x00000000;
 int gClipOn;

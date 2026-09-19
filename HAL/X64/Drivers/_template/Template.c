@@ -40,12 +40,12 @@ static const INPUT_BACKEND gTemplateBackend = {
     .MouseDequeue = TemplateMouseDequeue,
 };
 
-static int TemplateProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int TemplateProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
-    /* TODO: 扫 PCI / 口 / MMIO；有设备则 gTemplateReady=1; *OutPriv=…; return 0; */
-    if (OutPriv) {
-        *OutPriv = 0;
+    /* TODO: 扫 PCI / 口 / MMIO；有设备则 gTemplateReady=1; *OutPrivate=…; return 0; */
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return -1; /* 模板默认不上线 */
 }

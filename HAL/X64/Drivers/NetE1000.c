@@ -46,14 +46,14 @@ static const NIC_L2 gE1000NicL2 = {
     .GetLink = E1000NicGetLink,
 };
 
-static int E1000DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int E1000DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
 
     if (E1000Ready()) {
         RefreshDriverName();
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -64,8 +64,8 @@ static int E1000DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv
         return -1;
     }
     RefreshDriverName();
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

@@ -4,7 +4,7 @@
  *
  * 从 GuiBackup.c 单体迁出；只搬家、不改逻辑。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

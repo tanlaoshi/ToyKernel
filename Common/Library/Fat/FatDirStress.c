@@ -2,7 +2,7 @@
  * FatDirStress.c — 大目录回归（PR-S-fatdir-1）
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 #include "LibWrite.h"
 

@@ -1,18 +1,18 @@
 /*
- * StoreUiPriv.h — StoreUi 内部共享头（仅 Common/Services/StoreUi 使用）
+ * StoreUiPrivate.h — StoreUi 内部共享头（仅 Common/Services/StoreUi 使用）
  *
  * 禁止 User 程序、HAL、Common/Core 包含本文件。
  * 源文件在 Common/Services/StoreUi/（核心 StoreUi.c）。
  * 对外 API 仍在 StoreUi.h。
  */
-#ifndef STORE_UI_PRIV_H
-#define STORE_UI_PRIV_H
+#ifndef STORE_UI_PRIVATE_H
+#define STORE_UI_PRIVATE_H
 
 #include "StoreUi.h"
 #include "Store.h"
 #include "Desktop.h"
 #include "Gui.h"
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Font.h"
 #include "Locale.h"

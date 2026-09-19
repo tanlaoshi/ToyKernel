@@ -2,7 +2,7 @@
  * GuiFocusConsole.c — Shell 输入行与是否接受输入
  * 核心：GuiFocus.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "Font.h"

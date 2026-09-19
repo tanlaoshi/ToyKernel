@@ -6,7 +6,7 @@
  * 改为读下底层 → 画黑边白芯 → 擦除写回；脏区走 CursorOverlay，
  * 不与 Shell 内容并 AABB（保 4K Present 热修）。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "UI.h"

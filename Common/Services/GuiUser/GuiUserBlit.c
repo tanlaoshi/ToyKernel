@@ -2,7 +2,7 @@
  * GuiUserBlit.c — 客户区文字、按钮绘制与像素 blit
  * 核心：GuiUser.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

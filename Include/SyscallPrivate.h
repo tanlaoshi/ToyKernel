@@ -1,8 +1,8 @@
 /*
- * SyscallPriv.h — PR-S-syscall-split-1：syscall 内部（仅 Common/Core；User 勿 include）
+ * SyscallPrivate.h — PR-S-syscall-split-1：syscall 内部（仅 Common/Core；User 勿 include）
  */
-#ifndef SYSCALL_PRIV_H
-#define SYSCALL_PRIV_H
+#ifndef SYSCALL_PRIVATE_H
+#define SYSCALL_PRIVATE_H
 
 #include "Syscall.h"
 #include "Hal.h"

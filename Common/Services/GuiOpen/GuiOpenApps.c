@@ -2,7 +2,7 @@
  * GuiOpenApps.c — Shell / Settings / Store / Files / Edit 开窗
  * 核心：GuiOpen.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

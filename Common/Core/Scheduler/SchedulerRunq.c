@@ -1,9 +1,9 @@
 /*
- * SchedRunq.c — PR-S-sched-split-1：每核 READY 队列 / steal / PickHome / PickNext
+ * SchedulerRunq.c — PR-S-sched-split-1：每核 READY 队列 / steal / PickHome / PickNext
  *
  * 从 Scheduler.c 原样搬家；不改语义。
  */
-#include "SchedulerPriv.h"
+#include "SchedulerPrivate.h"
 #include "Hal.h"
 #include "SpinLock.h"
 

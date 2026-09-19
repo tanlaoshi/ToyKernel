@@ -2,7 +2,7 @@
  * EditUi.c — 简易编辑器核心（缓冲、开关、保存）
  * 绘制：EditUiPaint.c；按键：EditUiInput.c。
  */
-#include "EditUiPriv.h"
+#include "EditUiPrivate.h"
 
 char gPath[EDIT_PATH_MAX];
 char gBuf[EDIT_BUF_MAX];

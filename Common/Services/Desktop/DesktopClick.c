@@ -2,7 +2,7 @@
  * DesktopClick.c — 图标点选与任务栏点击
  * 核心：Desktop.c
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 void RedrawIconIndex(int Idx) {
     if (Idx < 0 || Idx >= DESKTOP_ICON_COUNT) {

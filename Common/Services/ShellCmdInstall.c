@@ -3,7 +3,7 @@
  *
  * 从 ShellCommandsFs.c 迁出；只搬家、不改逻辑。
  */
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 #include "Console.h"
 #include "FileSystem.h"
 #include "Install.h"

@@ -1,11 +1,11 @@
 /*
- * VideoPriv.h — Video 驱动内部共享头（仅 HAL/X64/Drivers/Video*.c）
+ * VideoPrivate.h — Video 驱动内部共享头（仅 HAL/X64/Drivers/Video*.c）
  *
  * 禁止 Common / User 包含；对外用 Video.h / HalVideo.h。
  * PR-H-video-split-1：与 VideoBochs.c / VideoScale.c 一并引入。
  */
-#ifndef VIDEO_PRIV_H
-#define VIDEO_PRIV_H
+#ifndef VIDEO_PRIVATE_H
+#define VIDEO_PRIVATE_H
 
 #include "Video.h"
 #include "Font.h"

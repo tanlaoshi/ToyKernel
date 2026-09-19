@@ -3,7 +3,7 @@
  * 核心：Store.c
  */
 #include "Store.h"
-#include "StorePriv.h"
+#include "StorePrivate.h"
 #include "Db.h"
 
 int MakeDbKey(char *Out, int Max, const char *Prefix, const char *Id) {

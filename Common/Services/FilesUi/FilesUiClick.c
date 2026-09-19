@@ -2,7 +2,7 @@
  * FilesUiClick.c — 列表点击与悬停
  * 核心：FilesUi.c
  */
-#include "FilesUiPriv.h"
+#include "FilesUiPrivate.h"
 
 void FilesUiOnClick(UINT32 X, UINT32 Y) {
     UINT32 Cx;

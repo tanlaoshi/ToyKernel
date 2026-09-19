@@ -3,7 +3,7 @@
  *
  * virtio 队列/PCI 见 NetVirtio.c；e1000 L2 见 E1000.c / NetE1000.c。
  */
-#include "NetPriv.h"
+#include "NetPrivate.h"
 #include "Udp.h"
 #include "Tcp.h"
 #ifdef TOY_LWIP
@@ -419,7 +419,7 @@ int NetInit(void) {
     return 0;
 }
 
-static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     UINT8 Bus;
     UINT8 Dev;
     UINT8 Fn;
@@ -428,8 +428,8 @@ static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
     (void)Self;
     (void)BusCtx;
     if (gNetOk) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -448,8 +448,8 @@ static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) 
     }
     gNetOk = 1;
     DebugWrite("Net: virtio-net up\n");
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

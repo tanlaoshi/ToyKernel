@@ -3,7 +3,7 @@
  * 偏移读：FatFileRead.c；写：FatFileWrite.c；删改名：FatFileDelete.c
  */
 #include "Fat.h"
-#include "FatPriv.h"
+#include "FatPrivate.h"
 #include "Block.h"
 
 static void (*gFatIoBreath)(void);

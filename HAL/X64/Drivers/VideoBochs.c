@@ -3,7 +3,7 @@
  *
  * 从 Video.c 迁出；只搬家、不改逻辑。
  */
-#include "VideoPriv.h"
+#include "VideoPrivate.h"
 
 static void BochsWrite(UINT16 Index, UINT16 Value) {
     HalIoWrite16(VBE_DISPI_IOPORT_INDEX, Index);

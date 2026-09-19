@@ -1,10 +1,10 @@
 /*
- * GptPriv.h — Gpt 内部（仅 Common/Library/Gpt）
+ * GptPrivate.h — Gpt 内部（仅 Common/Library/Gpt）
  *
  * 对外 API 仍在 Gpt.h。User 勿 include。
  */
-#ifndef GPT_PRIV_H
-#define GPT_PRIV_H
+#ifndef GPT_PRIVATE_H
+#define GPT_PRIVATE_H
 
 #include "Gpt.h"
 

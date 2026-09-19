@@ -2,7 +2,7 @@
  * GuiClick.c — 按下命中：关窗、菜单、焦点与拖放武装
  * 核心：GuiPointer.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "Debug.h"

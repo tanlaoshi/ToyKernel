@@ -4,7 +4,7 @@
  * 用窗备份与「无本窗」桌面合成层做 Src-over 插值；fade=0 跳过。
  * 不扩阴影（影在首/末帧随 Sync/Draw 出现），避免拖动路径复杂度。
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "HalVideo.h"
 #include "Hal.h"
 #include "PhysicalMemory.h"

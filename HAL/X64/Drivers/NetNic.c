@@ -3,7 +3,7 @@
  *
  * 胖 NET_BACKEND 仍由 Net.c 提供；外置 NIC 只挂 NIC_L2。
  */
-#include "NetPriv.h"
+#include "NetPrivate.h"
 #include "Net.h"
 #include "DriverNic.h"
 #include "Debug.h"

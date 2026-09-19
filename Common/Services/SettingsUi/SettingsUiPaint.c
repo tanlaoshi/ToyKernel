@@ -2,7 +2,7 @@
  * SettingsUiPaint.c — 三分栏绘制
  * 核心：SettingsUi.c
  */
-#include "SettingsUiPriv.h"
+#include "SettingsUiPrivate.h"
 
 void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 LineH;

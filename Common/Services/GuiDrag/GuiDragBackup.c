@@ -2,7 +2,7 @@
  * GuiDragBackup.c — 拖动备份缓冲与起始抓屏
  * 核心：GuiDrag.c
  */
-#include "GuiPriv.h"
+#include "GuiPrivate.h"
 #include "UI.h"
 #include "HalVideo.h"
 #include "Hal.h"

@@ -1,8 +1,8 @@
 /*
- * LwIpPriv.h — LwIp*.c 内部（PR-N-nic-addr）
+ * LwIpPrivate.h — LwIp*.c 内部（PR-N-nic-addr）
  */
-#ifndef LWIP_PRIV_H
-#define LWIP_PRIV_H
+#ifndef LWIP_PRIVATE_H
+#define LWIP_PRIVATE_H
 
 #ifdef TOY_LWIP
 void LwIpConfigPushDns(void);

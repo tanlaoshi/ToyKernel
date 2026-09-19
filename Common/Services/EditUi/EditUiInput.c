@@ -2,7 +2,7 @@
  * EditUiInput.c — 点击与按键
  * 核心：EditUi.c
  */
-#include "EditUiPriv.h"
+#include "EditUiPrivate.h"
 
 void EditUiOnClick(UINT32 X, UINT32 Y) {
     if (!EditUiIsFocused()) {

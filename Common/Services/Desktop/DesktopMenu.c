@@ -3,7 +3,7 @@
  *
  * 系统项 + Apps 一级；已装 ELF / INST 灰显进二级 flyout。
  */
-#include "DesktopPriv.h"
+#include "DesktopPrivate.h"
 
 /* 亦被 DesktopHandleClick 调用，不可 static */
 void MenuCopyStr(char *Dst, int Max, const char *Src) {

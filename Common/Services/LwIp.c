@@ -7,7 +7,7 @@
 #include "Tcp.h"
 #include "Udp.h"
 #include "NetConfig.h"
-#include "LwIpPriv.h"
+#include "LwIpPrivate.h"
 
 #ifdef TOY_LWIP
 

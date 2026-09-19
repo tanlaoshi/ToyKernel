@@ -3,7 +3,7 @@
  *
  * 从 Video.c 迁出；只搬家、不改逻辑。
  */
-#include "VideoPriv.h"
+#include "VideoPrivate.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 

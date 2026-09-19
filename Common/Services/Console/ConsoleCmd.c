@@ -3,7 +3,7 @@
  * 核心文件。别名：ConsoleAlias.c；内置：ConsoleBuiltin.c。
  */
 #include "Console.h"
-#include "ConsolePriv.h"
+#include "ConsolePrivate.h"
 #include "Gui.h"
 #include "Hal.h"
 #include "Db.h"

@@ -2,7 +2,7 @@
  * ShellCommands.c — PR-S-shell-split-3：注册汇总（命令体见 ShellCmd*.c）
  */
 #include "ShellCommands.h"
-#include "ShellPriv.h"
+#include "ShellPrivate.h"
 
 void ShellCommandsRegisterVirtMin(void) {
     ShellCmdSystemRegisterVirtMin();

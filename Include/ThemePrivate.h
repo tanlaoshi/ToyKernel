@@ -1,12 +1,12 @@
 /*
- * ThemePriv.h — Theme 内部共享头（仅 Common/Services/Theme 使用）
+ * ThemePrivate.h — Theme 内部共享头（仅 Common/Services/Theme 使用）
  *
  * 禁止 User 程序、HAL、Common/Core 包含本文件。
  * 源文件在 Common/Services/Theme/（核心 Theme.c）。
  * 对外 API 仍在 Theme.h。
  */
-#ifndef THEME_PRIV_H
-#define THEME_PRIV_H
+#ifndef THEME_PRIVATE_H
+#define THEME_PRIVATE_H
 
 #include "Theme.h"
 #include "UI.h"

@@ -1,7 +1,7 @@
 /*
  * DbFile.c — TOYOS.DB 读盘 / 写盘（PR-S-db-1）
  */
-#include "DbPriv.h"
+#include "DbPrivate.h"
 #include "FileSystem.h"
 #include "Hal.h"
 #include "HalConsole.h"

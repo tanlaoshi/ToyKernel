@@ -14,15 +14,15 @@ static const BLOCK_BACKEND gAtaBackend = {
     .Flush = 0,
 };
 
-static int AtaDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int AtaDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
     /* 至少能 Probe 到 drive 0 才算有 ATA */
     if (!AtaProbe(0) && !AtaProbe(1)) {
         return -1;
     }
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

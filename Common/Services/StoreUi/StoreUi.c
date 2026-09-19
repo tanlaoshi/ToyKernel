@@ -2,7 +2,7 @@
  * StoreUi.c — 商店三分栏核心（全局、开窗）
  * 过滤：StoreUiModel.c；绘制：StoreUiPaint.c；输入：StoreUiInput.c。
  */
-#include "StoreUiPriv.h"
+#include "StoreUiPrivate.h"
 
 int gStoreUiCat;
 int gSel;

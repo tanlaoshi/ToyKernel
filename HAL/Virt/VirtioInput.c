@@ -415,15 +415,15 @@ static const INPUT_BACKEND gInputBackend = {
     .MouseDequeue = VirtioInputMouseDequeue,
 };
 
-static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv) {
+static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     IN_SCAN S;
     UINT8 *Page;
 
     (void)Self;
     (void)BusCtx;
     if (gKbdOn || gTabOn) {
-        if (OutPriv) {
-            *OutPriv = 0;
+        if (OutPrivate) {
+            *OutPrivate = 0;
         }
         return 0;
     }
@@ -458,8 +458,8 @@ static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
     if (!(gKbdOn || gTabOn)) {
         return -1;
     }
-    if (OutPriv) {
-        *OutPriv = 0;
+    if (OutPrivate) {
+        *OutPrivate = 0;
     }
     return 0;
 }

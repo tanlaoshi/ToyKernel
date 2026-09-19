@@ -2,7 +2,7 @@
  * SettingsUiModel.c — 分类/条目文案与显示模式表
  * 核心：SettingsUi.c
  */
-#include "SettingsUiPriv.h"
+#include "SettingsUiPrivate.h"
 
 const char *CatLabel(SETTINGS_CAT C) {
     /* 三分栏左侧短名（locale 已去掉「N.」与括号说明） */
