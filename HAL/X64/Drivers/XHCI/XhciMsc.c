@@ -464,10 +464,8 @@ static void LogMscCfgIfaces(UINT8 *Cfg, UINT16 Total) {
             break;
         }
         if (Type == 4 && Len >= 9) {
+            /* 一行汇总，避免 iface/iclass/isub/iproto 四连刷屏夹空行感 */
             BootLogHex("Boot: MSC claim iface=", Cfg[Off + 2], 2);
-            BootLogHex("Boot: MSC claim iclass=", Cfg[Off + 5], 2);
-            BootLogHex("Boot: MSC claim isub=", Cfg[Off + 6], 2);
-            BootLogHex("Boot: MSC claim iproto=", Cfg[Off + 7], 2);
             N++;
         }
         Off = (UINT16)(Off + Len);

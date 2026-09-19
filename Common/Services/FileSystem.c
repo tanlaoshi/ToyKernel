@@ -759,9 +759,9 @@ int FileSystemInitialize(void) {
             if (HasToy) {
                 Auto = 0;
                 HalUsbMscAutoSet(0);
-                HalConsoleWriteSerial("Boot: MSC Auto Off (MSC=0/MSC.OFF)\n");
+                ToyLogBoot("Boot: MSC Auto Off (MSC=0/MSC.OFF)\n");
             } else {
-                HalConsoleWriteSerial(
+                ToyLogBoot(
                     "Boot: MSC Auto Keep (No TOYOS.ID; Ignore MSC=0)\n");
             }
         }
@@ -772,7 +772,7 @@ int FileSystemInitialize(void) {
     if (!HasToy && !Auto) {
         Auto = 1;
         HalUsbMscAutoSet(1);
-        HalConsoleWriteSerial("Boot: MSC Auto Force (Need TOYOS)\n");
+        ToyLogBoot("Boot: MSC Auto Force (Need TOYOS)\n");
     }
 
     if (Auto) {
@@ -795,7 +795,7 @@ int FileSystemInitialize(void) {
              * Live U 盘上电慢：首轮 claim 空 → 只见 NVMe ESP。
              * 再试一轮（claim 内已有 Force/等待；勿在此拖很久）。
              */
-            HalConsoleWriteSerial("Boot: MSC Auto Retry (No TOYOS)\n");
+            ToyLogBoot("Boot: MSC Auto Retry (No TOYOS)\n");
             if (HalUsbMscAutoBeforeFs() == 0) {
                 MuxOk = 1;
                 if (BlockInit() > 0 && MountAllVolumes()) {
