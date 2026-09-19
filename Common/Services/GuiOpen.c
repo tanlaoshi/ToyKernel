@@ -50,6 +50,8 @@ static int FocusExistingKind(GUI_WIN_KIND Kind, void (*Repaint)(void),
                              const char *LogTag) {
     int i;
 
+    (void)LogTag;
+
     for (i = 0; i < MAX_WINS; i++) {
         if (gWindows[i].Active && gWindows[i].Kind == Kind) {
             gFocusWin = i;

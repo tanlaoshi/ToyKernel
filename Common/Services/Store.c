@@ -7,7 +7,7 @@
  * 载荷查找顺序：Store/<file> → Assets/Store/packages/<id>/<file> → 卷根 <file>
  *
  * 卸装删的是 Apps/（或 Fonts/Packs）里的已装副本，不是 Store/ 仓库。
- * 只删 U 盘 Store/*.ELF：商店目录仍在（catalog）；已装的仍在 Apps/；
+ * 只删 U 盘 Store 目录下的 ELF：商店目录仍在（catalog）；已装的仍在 Apps/；
  * 卷根还有 HELLO.ELF 等教学镜像，Install 仍可能成功。
  * sha256=- 时跳过校验（教学默认）。
  * 清单键：si.<id>=type|file ；依赖 sd.<id>=逗号 id 或 -

@@ -15,6 +15,7 @@ cd "$(dirname "$0")"
 #   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
 #   ./build.sh arm64 BOARD=virt
 #   ./build.sh riscv BOARD=milk-v-duo-s
+#   ./build.sh V=1          # 打印每条 gcc/ld；默认只留警告、错误和结果
 ARCH=x86_64
 BOARD=virt
 DEBUG=0
@@ -42,6 +43,7 @@ SCREEN_LOG_DRV=0
 SCREEN_LOG_MISC=0
 TOY_DEMO_DRIVER=1
 BRINGUP=
+QUIET=1
 for Arg in "$@"; do
     case "$Arg" in
         DEBUG=1|debug=1) DEBUG=1 ;;
@@ -73,6 +75,8 @@ for Arg in "$@"; do
         SCREEN_LOG_DRV=*) SCREEN_LOG_DRV="${Arg#SCREEN_LOG_DRV=}" ;;
         SCREEN_LOG_MISC=*) SCREEN_LOG_MISC="${Arg#SCREEN_LOG_MISC=}" ;;
         TOY_DEMO_DRIVER=*) TOY_DEMO_DRIVER="${Arg#TOY_DEMO_DRIVER=}" ;;
+        V=1|v=1|VERBOSE=1|verbose=1) QUIET=0 ;;
+        V=0|v=0|VERBOSE=0|verbose=0) QUIET=1 ;;
         BRINGUP=1|bringup=1) BRINGUP=1 ;;
         BRINGUP=0|bringup=0) BRINGUP=0 ;;
         BOARD=*) BOARD="${Arg#BOARD=}" ;;
@@ -98,8 +102,12 @@ esac
 ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
 USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
 
-make clean ARCH="$ARCH" BOARD="$BOARD"
-make ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" \
+MAKE=(make)
+if [ "$QUIET" = 1 ]; then
+    MAKE=(make -s)
+fi
+"${MAKE[@]}" clean ARCH="$ARCH" BOARD="$BOARD"
+"${MAKE[@]}" ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" \
     NO_COM1="$NO_COM1" SERIAL="$SERIAL" \
     SERIAL_BOOT="$SERIAL_BOOT" SERIAL_USB="$SERIAL_USB" SERIAL_SMP="$SERIAL_SMP" \
     SERIAL_GUI="$SERIAL_GUI" SERIAL_NET="$SERIAL_NET" SERIAL_FS="$SERIAL_FS" \

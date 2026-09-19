@@ -242,6 +242,8 @@ $(DEMO_STAMP): FORCE
 
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
+# PR-S-guidrag-1：Services/*.c 不进子目录
+SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
 FONT_SRCS     := $(wildcard Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
