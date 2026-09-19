@@ -193,7 +193,7 @@ LWIPCORE = \
 	$(LWIPDIR)/core/ipv4/ip4_addr.c \
 	$(LWIPDIR)/core/ipv4/dhcp.c \
 	$(LWIPDIR)/netif/ethernet.c
-LWIPOBJS = $(patsubst $(LWIPDIR)/%.c,$(BUILDDIR)/lwip/%.o,$(LWIPCORE))
+LWIPOBJS = $(patsubst %.c,$(BUILDDIR)/%.o,$(LWIPCORE))
 LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_ping.c \
                  HAL/$(HAL_ARCH)/LwIp/toy_tcpecho.c \
@@ -242,6 +242,7 @@ $(DEMO_STAMP): FORCE
 
 CORE_SRCS     := $(wildcard Common/Core/*.c)
 CORE_SRCS     += $(wildcard Common/Core/Scheduler/*.c)
+CORE_SRCS     += $(wildcard Common/Core/Process/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
 SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
@@ -507,7 +508,7 @@ $(HALDIR)/LwIp/%.o: HAL/$(HAL_ARCH)/LwIp/%.c | $(HALDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(LWIP),1)
-$(BUILDDIR)/lwip/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
+$(BUILDDIR)/ThirdParty/lwip/src/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
@@ -792,7 +793,7 @@ endif
 clean:
 	# 只清当前 Arch 的 HAL 产物；共享 Common/Fonts/.o 必须清（随 ARCH 重编）
 	rm -rf $(HALDIR)
-	rm -rf $(BUILDDIR)/Common $(BUILDDIR)/Fonts $(BUILDDIR)/lwip
+	rm -rf $(BUILDDIR)/Common $(BUILDDIR)/Fonts $(BUILDDIR)/ThirdParty/lwip $(BUILDDIR)/lwip
 	# 旧布局残留
 	rm -rf Build/arm64 Build/riscv
 	rm -f Build/Kernel.elf Build/SmpTramp.bin Build/SmpTramp_blob.o \
