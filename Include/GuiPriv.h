@@ -192,6 +192,9 @@ void DrawCursorAt(UINT32 X, UINT32 Y);
 void CursorRestore(void);
 void CursorPaint(void);
 void CursorMove(UINT32 X, UINT32 Y);
+/* 指针边沿基准。定义在 GuiPointer.c；拆出鼠标边沿后同模块可见 */
+extern int gInputLocked;
+extern UINT8 gMousePrevBtn;
 
 /* Drag */
 void ResetDragState(void);

@@ -245,6 +245,7 @@ SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
 SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/GuiDraw/*.c)
+SERVICES_SRCS += $(wildcard Common/Services/GuiPointer/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
 FONT_SRCS     := $(wildcard Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
