@@ -1,5 +1,5 @@
 /*
- * ShellCmdSystem.c — PR-S-shell-split-3：info/mem/ps/kill/reboot/exec/halt/lsdev…
+ * ShellCommandsSystem.c — PR-S-shell-split-3：info/mem/ps/kill/reboot/exec/halt/lsdev…
  *
  * 从 ShellCommands.c 原样搬家；不改语义。
  */
@@ -335,7 +335,7 @@ static void CommandLsdev(int Argc, char **Argv) {
 }
 
 
-void ShellCmdSystemRegisterVirtMin(void) {
+void ShellCommandsSystemRegisterVirtMin(void) {
     ConsoleRegister2("list", "tasks", "list tasks", CommandPs);
     ConsoleRegisterAliasLine("ps", "list", "tasks");
     ConsoleRegister2("show", "memory", "physical memory stats", CommandMemory);
@@ -350,7 +350,7 @@ void ShellCmdSystemRegisterVirtMin(void) {
     ConsoleRegisterAlias("halt", "quit");
 }
 
-void ShellCmdSystemRegister(void) {
+void ShellCommandsSystemRegister(void) {
     ConsoleRegister2("list", "tasks", "list tasks", CommandPs);
     ConsoleRegister2("list", "devices", "list bound drivers", CommandLsdev);
     ConsoleRegisterAliasLine("ps", "list", "tasks");

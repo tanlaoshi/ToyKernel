@@ -1,5 +1,5 @@
 /*
- * ShellCmdNetAddr.c — net config / set ip|gw|dns（PR-N-nic-addr）
+ * ShellCommandsNetAddr.c — net config / set ip|gw|dns（PR-N-nic-addr）
  */
 #include "ShellPrivate.h"
 #include "Console.h"
@@ -102,7 +102,7 @@ static void CommandSetAddr(int Argc, char **Argv) {
     PrintConfig();
 }
 
-void ShellCmdNetAddrRegister(void) {
+void ShellCommandsNetAddrRegister(void) {
     ConsoleRegister2("net", "config", "show/set ip gw dns mask", CommandNetConfig);
     ConsoleRegister2("set", "ip", "set IPv4 address", CommandSetAddr);
     ConsoleRegister2("set", "gw", "set default gateway", CommandSetAddr);

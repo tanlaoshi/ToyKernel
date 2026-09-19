@@ -1,5 +1,5 @@
 /*
- * ShellCmdUsb.c — PR-S-shell-split-1：xhci / msc Shell 命令
+ * ShellCommandsUsb.c — PR-S-shell-split-1：xhci / msc Shell 命令
  *
  * 从 ShellCommands.c 原样搬家；msc mount = PR-H-msc-6。
  */
@@ -127,7 +127,7 @@ static void CommandMsc(int Argc, char **Argv) {
     ConsoleWrite(" (scan|claim|capacity|mount; auto=THEME msc=0|MSC.OFF)\n");
 }
 
-void ShellCmdUsbRegister(void) {
+void ShellCommandsUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + counters", CommandXhci);
     ConsoleRegister("msc",
                     "USB MSC: scan|claim|capacity|mount; boot auto (msc-7b)",

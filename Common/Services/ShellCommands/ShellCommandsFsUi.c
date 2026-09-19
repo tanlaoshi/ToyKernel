@@ -1,5 +1,5 @@
 /*
- * ShellCmdFsUi.c — PR-S-shell-split-3：shell/settings/files/edit/font/store/lang…
+ * ShellCommandsFsUi.c — PR-S-shell-split-3：shell/settings/files/edit/font/store/lang…
  *
  * 从 ShellCommands.c 原样搬家；不改语义。
  */
@@ -454,7 +454,7 @@ static void CommandLang(int Argc, char **Argv) {
 }
 
 
-void ShellCmdFsUiRegister(void) {
+void ShellCommandsFsUiRegister(void) {
     ConsoleRegister2("test", "glyph", "UTF-8 Chinese glyph test", CommandZh);
     ConsoleRegisterAliasLine("zh", "test", "glyph");
 

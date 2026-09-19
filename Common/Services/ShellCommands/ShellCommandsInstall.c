@@ -1,5 +1,5 @@
 /*
- * ShellCmdInstall.c — install 命令（PR-S-shellfs-split-1）
+ * ShellCommandsInstall.c — install 命令（PR-S-shellfs-split-1）
  *
  * 从 ShellCommandsFs.c 迁出；只搬家、不改逻辑。
  */
@@ -159,6 +159,6 @@ static void CommandInstall(int Argc, char **Argv) {
     }
 }
 
-void ShellCmdInstallRegister(void) {
+void ShellCommandsInstallRegister(void) {
     ConsoleRegister("install", "install GPT+ESP+TOYOS to Block (PR-FS-inst-1)", CommandInstall);
 }

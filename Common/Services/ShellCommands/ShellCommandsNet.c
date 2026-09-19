@@ -1,5 +1,5 @@
 /*
- * ShellCmdNet.c — PR-S-shell-split-2：net / ping / dns / udp / tcp / lwip
+ * ShellCommandsNet.c — PR-S-shell-split-2：net / ping / dns / udp / tcp / lwip
  *
  * 从 ShellCommands.c 原样搬家；不改语义。含 ShellOnInterrupt（Ctrl-C 停 echo）。
  */
@@ -572,11 +572,11 @@ static void CommandLwIp(int Argc, char **Argv) {
 }
 #endif
 
-void ShellCmdNetRegister(void) {
+void ShellCommandsNetRegister(void) {
     ConsoleRegister2("show", "network", "network info", CommandNet);
     ConsoleRegister("net", "network info; net config …", CommandNet);
     ConsoleRegisterAliasLine("network", "show", "network");
-    ShellCmdNetAddrRegister();
+    ShellCommandsNetAddrRegister();
     ConsoleRegister("ping", "ICMP echo", CommandPing);
 #ifdef TOY_LWIP
     ConsoleRegister("dns", "DNS A / IPv4 literal (PR-N-dns)", CommandDns);

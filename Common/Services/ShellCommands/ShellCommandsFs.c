@@ -1,5 +1,5 @@
 /*
- * ShellCommandsFs.c — 文件系统 Shell 命令（PR-R3；install 见 ShellCmdInstall.c）
+ * ShellCommandsFs.c — 文件系统 Shell 命令（PR-R3；install 见 ShellCommandsInstall.c）
  */
 #include "ShellCommands.h"
 #include "ShellPrivate.h"
@@ -439,5 +439,5 @@ void ShellCommandsRegisterFs(void) {
     ConsoleRegisterAliasLine("dirstress", "stress", "directory");
 
 
-    ShellCmdInstallRegister();
+    ShellCommandsInstallRegister();
 }
