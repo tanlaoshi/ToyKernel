@@ -33,6 +33,29 @@ int StoreAdoptInstalled(const char *Id);
 int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax);
 int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max);
 int LookupPackageKind(const char *Id);
+
+/* FatPath.c 已有全局 StrEqIgnoreCase，这里不能再导出。 */
+static inline int StrEqIgnoreCase(const char *A, const char *B) {
+    if (!A || !B) {
+        return 0;
+    }
+    while (*A && *B) {
+        char Ca = *A;
+        char Cb = *B;
+        if (Ca >= 'a' && Ca <= 'z') {
+            Ca = (char)(Ca - 'a' + 'A');
+        }
+        if (Cb >= 'a' && Cb <= 'z') {
+            Cb = (char)(Cb - 'a' + 'A');
+        }
+        if (Ca != Cb) {
+            return 0;
+        }
+        A++;
+        B++;
+    }
+    return *A == 0 && *B == 0;
+}
 int DirHasFileCI(const char *Dir, const char *File);
 int DirResolveFileCI(const char *Dir, const char *File, char *Out, int OutMax);
 
