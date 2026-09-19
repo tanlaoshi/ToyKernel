@@ -236,6 +236,10 @@ int PointOnAnyClose(UINT32 X, UINT32 Y);
 void RaiseWindow(int Idx);
 int AllocWindowSlot(void);
 void PlaceNewWindow(int Idx, UINT32 *OutX, UINT32 *OutY, UINT32 *OutW, UINT32 *OutH);
+/* 开窗辅助。定义在 GuiOpen.c；拆出应用开窗后同模块可见 */
+void OpenChromeDefer(int Idx);
+void OpenFadeIn(int Idx);
+int FocusExistingKind(GUI_WIN_KIND Kind, void (*Repaint)(void), const char *LogTag);
 
 /* User helpers */
 void CopyTitleBuf(char *Dst, UINTN Cap, const char *Src);
