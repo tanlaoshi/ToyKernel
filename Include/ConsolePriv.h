@@ -59,6 +59,8 @@ extern int gAtLineStart;
 void ConsoleDrawString(const char *Text, UINT32 Color);
 void ConsoleDrawChar(char C, UINT32 Color);
 void ConsoleRunLine(void);
+/* 提示符。定义在 Console.c；写屏与输入拆开后同模块可见 */
+void Prompt(void);
 
 void ConsoleSbReset(void);
 void ConsoleSbFeed(const char *Text);
