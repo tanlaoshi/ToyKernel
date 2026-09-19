@@ -59,6 +59,18 @@ static inline int StrEqIgnoreCase(const char *A, const char *B) {
 int DirHasFileCI(const char *Dir, const char *File);
 int DirResolveFileCI(const char *Dir, const char *File, char *Out, int OutMax);
 
+/* Console 里已有同名全局，这里不能再导出。 */
+static inline int StrEq(const char *A, const char *B) {
+    if (!A || !B) {
+        return 0;
+    }
+    while (*A && *A == *B) {
+        A++;
+        B++;
+    }
+    return *A == 0 && *B == 0;
+}
+
 /* 与 FilesUi 的同名函数签名不同，不能做成全局符号。 */
 static inline void CopyStr(char *Dst, int DstMax, const char *Src) {
     int i = 0;

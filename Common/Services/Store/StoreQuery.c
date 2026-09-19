@@ -8,18 +8,6 @@
 #include "Fat.h"
 #include "Db.h"
 
-/* 与 Store.c 的 StrEq 同实现。不能改成全局：Console 里已有同名函数。 */
-static int StrEq(const char *A, const char *B) {
-    if (!A || !B) {
-        return 0;
-    }
-    while (*A && *A == *B) {
-        A++;
-        B++;
-    }
-    return *A == 0 && *B == 0;
-}
-
 typedef struct {
     STORE_INSTALLED *Out;
     int Max;

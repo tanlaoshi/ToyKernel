@@ -18,18 +18,6 @@
 #define STORE_CHECK_ELF    1
 #define STORE_CHECK_TOYF   2
 
-/* 与 Store.c 的 StrEq 同实现。不能改成全局：Console 里已有同名函数。 */
-static int StrEq(const char *A, const char *B) {
-    if (!A || !B) {
-        return 0;
-    }
-    while (*A && *A == *B) {
-        A++;
-        B++;
-    }
-    return *A == 0 && *B == 0;
-}
-
 /*
  * Check: ELF / TOYF / 任意 blob（≥4 字节）。
  * QEMU vvfat：同名覆盖写易坏，先删再建。

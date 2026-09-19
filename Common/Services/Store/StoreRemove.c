@@ -10,18 +10,6 @@
 #include "Hal.h"
 #include "Db.h"
 
-/* 与 Store.c 的 StrEq 同实现。不能改成全局：Console 里已有同名函数。 */
-static int StrEq(const char *A, const char *B) {
-    if (!A || !B) {
-        return 0;
-    }
-    while (*A && *A == *B) {
-        A++;
-        B++;
-    }
-    return *A == 0 && *B == 0;
-}
-
 /* 删托管载荷并刷盘；已 Resolve 存在时，勿把 NOENT 当成功。
  * 同名多目录项时循环摘除，直到 Dir 扫不到。 */
 static int StoreUnlinkPayload(const char *Dir, const char *Want) {
