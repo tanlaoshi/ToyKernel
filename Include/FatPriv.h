@@ -130,6 +130,8 @@ int DirCreateEntry(FAT_DIR_CTX Parent, const char *Leaf, UINT8 Attr,
                    UINT32 Cluster, UINT32 Size);
 
 /* —— FatFile.c —— */
+void FatIoBreath(void);
+int SeekFileOffset(UINT32 First, UINTN Offset, UINT32 *OutCl, UINT32 *OutOff);
 int ReadFileClusters(UINT32 Cluster, UINT32 Size, void *Buffer, UINTN MaxSize,
                      UINTN *OutSize);
 int DirUnlinkKeepClusters(FAT_DIR_CTX Parent, const char *Leaf);
