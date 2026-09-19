@@ -244,7 +244,7 @@ CORE_SRCS     := $(wildcard Common/Core/*.c)
 CORE_SRCS     += $(wildcard Common/Core/Scheduler/*.c)
 CORE_SRCS     += $(wildcard Common/Core/Process/*.c)
 CORE_SRCS     += $(wildcard Common/Core/TaskFd/*.c)
-CORE_SRCS     += $(wildcard Common/Core/SyscallFs/*.c)
+CORE_SRCS     += $(wildcard Common/Core/Syscall/*.c)
 CORE_SRCS     += $(wildcard Common/Core/VirtualMemory/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
