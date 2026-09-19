@@ -33,6 +33,8 @@ int StoreAdoptInstalled(const char *Id);
 int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax);
 int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max);
 int LookupPackageKind(const char *Id);
+int DirHasFileCI(const char *Dir, const char *File);
+int DirResolveFileCI(const char *Dir, const char *File, char *Out, int OutMax);
 
 /* 与 FilesUi 的同名函数签名不同，不能做成全局符号。 */
 static inline void CopyStr(char *Dst, int DstMax, const char *Src) {
