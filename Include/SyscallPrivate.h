@@ -14,7 +14,7 @@
 
 int CopyUserCString(char *Dst, UINT64 UserSrc, UINTN MaxLen);
 
-/* SyscallFs.c */
+/* SyscallFs.c / SyscallFsSocket.c */
 int SysWrite(int Fd, UINT64 UserBuf, UINTN Len);
 int SysOpen(UINT64 UserPath);
 int SysRead(int Fd, UINT64 UserBuf, UINTN Len);
