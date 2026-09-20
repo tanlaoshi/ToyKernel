@@ -1,0 +1,178 @@
+/*
+ * Device.c — 平台无关设备表（PR-DEV-1）
+ *
+ * 不 include Hal.h；HalDeviceEnumerate 仅前向声明，定义在各 Arch DeviceEnum.c。
+ */
+#include "Device.h"
+
+#define DEVICE_MAX 128
+
+static DEVICE_NODE gDevices[DEVICE_MAX];
+static int gDeviceCount;
+
+/* 前向：各 Arch DeviceEnum.c；本文件禁止再出现其它 Hal* */
+void HalDeviceEnumerate(void);
+
+static void ZeroNode(DEVICE_NODE *N) {
+    UINT8 *P;
+    UINTN i;
+    UINTN Bytes;
+
+    if (!N) {
+        return;
+    }
+    P = (UINT8 *)N;
+    Bytes = (UINTN)sizeof(DEVICE_NODE);
+    for (i = 0; i < Bytes; i++) {
+        P[i] = 0;
+    }
+}
+
+static void CopyStr(char *Dst, UINTN Max, const char *Src) {
+    UINTN i;
+
+    if (!Dst || Max == 0) {
+        return;
+    }
+    if (!Src) {
+        Dst[0] = 0;
+        return;
+    }
+    for (i = 0; i + 1 < Max && Src[i]; i++) {
+        Dst[i] = Src[i];
+    }
+    Dst[i] = 0;
+}
+
+static int StrEq(const char *A, const char *B) {
+    if (!A || !B) {
+        return 0;
+    }
+    while (*A && *A == *B) {
+        A++;
+        B++;
+    }
+    return *A == *B;
+}
+
+void DeviceInitialize(void) {
+    int i;
+
+    for (i = 0; i < DEVICE_MAX; i++) {
+        ZeroNode(&gDevices[i]);
+    }
+    gDeviceCount = 0;
+}
+
+int DeviceAdd(const DEVICE_NODE *Dev) {
+    DEVICE_NODE *Slot;
+    int b;
+
+    if (!Dev) {
+        return -1;
+    }
+    if (gDeviceCount >= DEVICE_MAX) {
+        return -1;
+    }
+    Slot = &gDevices[gDeviceCount];
+    ZeroNode(Slot);
+    CopyStr(Slot->Name, sizeof(Slot->Name), Dev->Name);
+    Slot->Bus = Dev->Bus;
+    Slot->Vendor = Dev->Vendor;
+    Slot->Device = Dev->Device;
+    CopyStr(Slot->Compatible, sizeof(Slot->Compatible), Dev->Compatible);
+    Slot->PciBus = Dev->PciBus;
+    Slot->PciDev = Dev->PciDev;
+    Slot->PciFn = Dev->PciFn;
+    for (b = 0; b < 6; b++) {
+        Slot->Bar[b] = Dev->Bar[b];
+    }
+    Slot->Irq = Dev->Irq;
+    Slot->Parent = Dev->Parent;
+    Slot->Driver = Dev->Driver;
+    Slot->Instance = Dev->Instance;
+    Slot->Bound = Dev->Bound ? 1 : 0;
+    gDeviceCount++;
+    return gDeviceCount - 1;
+}
+
+int DeviceCount(void) {
+    return gDeviceCount;
+}
+
+DEVICE_NODE *DeviceGet(int Idx) {
+    if (Idx < 0 || Idx >= gDeviceCount) {
+        return 0;
+    }
+    return &gDevices[Idx];
+}
+
+DEVICE_NODE *DeviceFindByName(const char *Name) {
+    int i;
+
+    if (!Name) {
+        return 0;
+    }
+    for (i = 0; i < gDeviceCount; i++) {
+        if (StrEq(gDevices[i].Name, Name)) {
+            return &gDevices[i];
+        }
+    }
+    return 0;
+}
+
+DEVICE_NODE *DeviceFindByPci(UINT16 Vendor, UINT16 Device) {
+    int i;
+
+    for (i = 0; i < gDeviceCount; i++) {
+        if (gDevices[i].Vendor == Vendor && gDevices[i].Device == Device) {
+            return &gDevices[i];
+        }
+    }
+    return 0;
+}
+
+DEVICE_NODE *DeviceFindByCompatible(const char *Compatible) {
+    int i;
+
+    if (!Compatible) {
+        return 0;
+    }
+    for (i = 0; i < gDeviceCount; i++) {
+        if (StrEq(gDevices[i].Compatible, Compatible)) {
+            return &gDevices[i];
+        }
+    }
+    return 0;
+}
+
+void DeviceBindDriver(DEVICE_NODE *Dev, const struct TOY_DRIVER *Drv,
+                      struct TOY_DRIVER_INSTANCE *Inst) {
+    if (!Dev) {
+        return;
+    }
+    Dev->Driver = Drv;
+    Dev->Instance = Inst;
+    Dev->Bound = 1;
+}
+
+void DeviceUnbind(DEVICE_NODE *Dev) {
+    if (!Dev) {
+        return;
+    }
+    Dev->Driver = 0;
+    Dev->Instance = 0;
+    Dev->Bound = 0;
+}
+
+void DeviceListDump(void) {
+    /*
+     * PR-DEV-1：占位（避免 include Debug.h 间接拉 Hal.h）。
+     * PR-DEV-3：ConsoleWrite / lsdev 对齐格式。
+     */
+    (void)gDeviceCount;
+}
+
+void DeviceEnumerateAll(void) {
+    HalDeviceEnumerate();
+}
