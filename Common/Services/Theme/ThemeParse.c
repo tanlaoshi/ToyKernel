@@ -184,6 +184,17 @@ void ApplyLine(const char *Line) {
     if (Val) {
         if (ParseDecU32(Val, &V, 0) == 0) {
             gThemeUiScale = NormalizeUiScale(V);
+            gScalePrefSet = 1;
+        }
+        return;
+    }
+    Val = ValueAfterKey(Line, "scalesrc");
+    if (Val) {
+        while (*Val && IsSpace(*Val)) {
+            Val++;
+        }
+        if (Val[0] == 'u' && Val[1] == 's' && Val[2] == 'e' && Val[3] == 'r') {
+            gScaleUserSet = 1;
         }
         return;
     }
@@ -198,6 +209,7 @@ void ApplyLine(const char *Line) {
     if (Val) {
         if (ParseDecU32(Val, &V, 0) == 0) {
             gWallpaper = (V != 0) ? 1 : 0;
+            gWallpaperPrefSet = 1;
         }
         return;
     }

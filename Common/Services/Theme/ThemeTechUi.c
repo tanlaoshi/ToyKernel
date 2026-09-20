@@ -31,7 +31,20 @@
 #define TECH_DIALOG_FACE    0x001C2838u
 #define TECH_DIALOG_BORDER  0x0000A0C0u
 
+/* 背景偏亮时用深色字，避免 White/Cyan/Yellow 客户区上提示符「消失」 */
+static int ShellBgIsLight(void) {
+    UINT32 C = gShellClientBg & 0x00FFFFFFu;
+    UINT32 R = (C >> 16) & 0xFFu;
+    UINT32 G = (C >> 8) & 0xFFu;
+    UINT32 B = C & 0xFFu;
+
+    return ((R * 299u + G * 587u + B * 114u) / 1000u) >= 140u;
+}
+
 UINT32 ThemeShellText(void) {
+    if (ShellBgIsLight()) {
+        return COLOR_BLACK;
+    }
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SHELL_TEXT;
     }
@@ -39,6 +52,9 @@ UINT32 ThemeShellText(void) {
 }
 
 UINT32 ThemeShellPrompt(void) {
+    if (ShellBgIsLight()) {
+        return COLOR_BLUE; /* 与黑字区分 */
+    }
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SHELL_PROMPT;
     }

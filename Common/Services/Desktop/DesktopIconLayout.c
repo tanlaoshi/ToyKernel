@@ -121,7 +121,7 @@ void LoadIconLayout(void) {
         if (!ParseIconXy(Val, &X, &Y)) {
             continue;
         }
-        ClampIconPos(&X, &Y);
+        SnapIconToGrid(&X, &Y);
         gIcons[i].X = X;
         gIcons[i].Y = Y;
         Any = 1;

@@ -32,9 +32,13 @@ extern UINT32 gFadeSteps;    /* PR-GUI-l3-fade；0=关 */
 extern int gWallpaper;       /* 1=BMP 壁纸；0=纯色桌面 */
 extern int gThemeId;         /* THEME_PALETTE_DEFAULT | THEME_PALETTE_TECH */
 extern int gDesktopGrad;     /* 1=tech 对角渐变；仅 theme=tech 有意义 */
+extern int gScalePrefSet;    /* 1=DB/CFG 已有 scale= */
+extern int gScaleUserSet;    /* 1=用户在 Settings 选过缩放（scalesrc=user） */
+extern int gWallpaperPrefSet; /* 1=DB/CFG 已有 wallpaper= */
 
 /* ThemeTech.c */
 void ThemeTechApplyDefaults(void);
+void ThemeTechApplyColors(void);
 int ThemeTechParseName(const char *Val, int *OutId);
 const char *ThemeTechName(int Id);
 

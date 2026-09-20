@@ -148,6 +148,12 @@ int ThemeSave(void) {
         Buf[N++] = ScaleVal[i];
     }
     Buf[N++] = '\n';
+    if (gScaleUserSet) {
+        const char *Src = "scalesrc=user\n";
+        for (i = 0; Src[i]; i++) {
+            Buf[N++] = Src[i];
+        }
+    }
     Buf[N++] = 'f';
     Buf[N++] = 'a';
     Buf[N++] = 'd';
@@ -255,6 +261,13 @@ int ThemeSave(void) {
     }
     if (DbSet("scale", ScaleVal) != DB_OK) {
         DbOk = 0;
+    }
+    if (gScaleUserSet) {
+        if (DbSet("scalesrc", "user") != DB_OK) {
+            DbOk = 0;
+        }
+    } else {
+        (void)DbDelete("scalesrc");
     }
     if (DbSet("fade", FadeVal) != DB_OK) {
         DbOk = 0;

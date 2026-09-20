@@ -132,6 +132,7 @@ int PointOccupied(UINT32 X, UINT32 Y);
 void RequestRefresh(void);
 void ClearIconFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void ClampIconPos(UINT32 *X, UINT32 *Y);
+void SnapIconToGrid(UINT32 *X, UINT32 *Y);
 void ClampAllIcons(void);
 void RedrawIconIndex(int Idx);
 void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now);

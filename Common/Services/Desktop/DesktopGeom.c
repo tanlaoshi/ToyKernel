@@ -19,19 +19,24 @@ int RectsOverlap(UINT32 Ax, UINT32 Ay, UINT32 Aw, UINT32 Ah,
 void IconBounds(const DESKTOP_ICON *Icon, UINT32 *X, UINT32 *Y,
                        UINT32 *W, UINT32 *H) {
     UINT32 LabelW;
-    UINT32 TotalW;
-    UINT32 TotalH;
+    UINT32 LabelX;
+    UINT32 Right;
+    UINT32 Bottom;
 
     LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
-    TotalW = DESKTOP_ICON_SIZE;
-    if (LabelW + 4 > TotalW) {
-        TotalW = LabelW + 4;
+    LabelX = Icon->X;
+    if (LabelW > 0 && LabelW < DESKTOP_ICON_SIZE) {
+        LabelX = Icon->X + (DESKTOP_ICON_SIZE - LabelW) / 2;
     }
-    TotalH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH();
-    *X = Icon->X;
+    Right = Icon->X + DESKTOP_ICON_SIZE;
+    if (LabelW > 0 && LabelX + LabelW > Right) {
+        Right = LabelX + LabelW;
+    }
+    Bottom = Icon->Y + DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH();
+    *X = (LabelW > 0 && LabelX < Icon->X) ? LabelX : Icon->X;
     *Y = Icon->Y;
-    *W = TotalW;
-    *H = TotalH;
+    *W = Right - *X;
+    *H = Bottom - Icon->Y;
 }
 
 int PointInIcon(const DESKTOP_ICON *Icon, UINT32 X, UINT32 Y) {
@@ -113,11 +118,37 @@ void ClampIconPos(UINT32 *X, UINT32 *Y) {
     }
 }
 
+/* 相对 DESKTOP_ORIGIN 按图标格吸附（拖放松手 / 读盘后） */
+void SnapIconToGrid(UINT32 *X, UINT32 *Y) {
+    UINT32 CellW;
+    UINT32 CellH;
+    UINT32 RelX;
+    UINT32 RelY;
+    UINT32 Col;
+    UINT32 Row;
+
+    if (!X || !Y) {
+        return;
+    }
+    CellW = DESKTOP_ICON_SIZE + DESKTOP_ICON_GAP;
+    CellH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() + DESKTOP_ICON_GAP;
+    if (CellW == 0 || CellH == 0) {
+        return;
+    }
+    RelX = (*X > DESKTOP_ORIGIN_X) ? (*X - DESKTOP_ORIGIN_X) : 0;
+    RelY = (*Y > DESKTOP_ORIGIN_Y) ? (*Y - DESKTOP_ORIGIN_Y) : 0;
+    Col = (RelX + CellW / 2u) / CellW;
+    Row = (RelY + CellH / 2u) / CellH;
+    *X = DESKTOP_ORIGIN_X + Col * CellW;
+    *Y = DESKTOP_ORIGIN_Y + Row * CellH;
+    ClampIconPos(X, Y);
+}
+
 void ClampAllIcons(void) {
     int i;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        ClampIconPos(&gIcons[i].X, &gIcons[i].Y);
+        SnapIconToGrid(&gIcons[i].X, &gIcons[i].Y);
     }
 }
 

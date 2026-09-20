@@ -10,6 +10,7 @@ int ThemeApplyUiScaleLive(UINT32 Percent) {
     UINT32 Next = NormalizeUiScale(Percent);
 
     gThemeUiScale = Next;
+    gScaleUserSet = 1; /* Settings 显式缩放；勿再被 4K 默认 200% 覆盖 */
     if (HalVideoSetUiScale(Next) != 0) {
         gThemeUiScale = Prev;
         (void)HalVideoSetUiScale(Prev);

@@ -47,14 +47,23 @@ void DesktopIconDragEnd(void) {
         return;
     }
     if (gIconDragMoved) {
+        UINT32 Ox;
+        UINT32 Oy;
+        UINT32 Ow;
+        UINT32 Oh;
         UINT32 X;
         UINT32 Y;
         UINT32 W;
         UINT32 H;
 
-        ClampIconPos(&gIcons[gIconDragIdx].X, &gIcons[gIconDragIdx].Y);
+        /*
+         * 必须先 Snap 再擦落点：ClearIconFootprint → DesktopDrawRect 会按
+         * gIcons 重画；若坐标仍在松手处，刚擦掉的残影会被立刻画回。
+         */
+        IconBounds(&gIcons[gIconDragIdx], &Ox, &Oy, &Ow, &Oh);
+        SnapIconToGrid(&gIcons[gIconDragIdx].X, &gIcons[gIconDragIdx].Y);
         SaveIconLayout();
-        /* 置顶残影 → 擦脚印还原窗/影，再按避让重画落位图标 */
+        ClearIconFootprint(Ox, Oy, Ow, Oh);
         IconBounds(&gIcons[gIconDragIdx], &X, &Y, &W, &H);
         ClearIconFootprint(X, Y, W, H);
         DrawOneIconOccluded(&gIcons[gIconDragIdx],

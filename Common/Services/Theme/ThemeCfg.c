@@ -82,8 +82,8 @@ int ThemeLoad(void) {
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
              ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale") +
-             ApplyDbKey("fade") + ApplyDbKey("wallpaper") + ApplyDbKey("theme") +
-             ApplyDbKey("deskgrad");
+             ApplyDbKey("scalesrc") + ApplyDbKey("fade") + ApplyDbKey("wallpaper") +
+             ApplyDbKey("theme") + ApplyDbKey("deskgrad");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
@@ -119,8 +119,38 @@ int ThemeLoad(void) {
         }
     }
     gThemeUiScale = NormalizeUiScale(gThemeUiScale);
+    /*
+     * tech：只套色板底色。wallpaper 若 DB/CFG 已有则保留（Settings 可再开 WALL.BMP）；
+     * 无 wallpaper 键时默认关壁纸。切到 tech 仍走 ThemeTechApplyDefaults（含 wallpaper=0）。
+     */
     if (gThemeId == THEME_PALETTE_TECH) {
-        ThemeTechApplyDefaults();
+        ThemeTechApplyColors();
+        if (!gWallpaperPrefSet) {
+            gWallpaper = 0;
+        }
+    }
+    /*
+     * 真机当前帧缓冲为 4K：若用户未在 Settings 显式选过缩放，默认 200%。
+     * 旧盘常有 ThemeSave 写下的 scale=100，不能单靠 gScalePrefSet 判断；
+     * 仅 scalesrc=user（或本次 Settings 改缩放）才算用户锁定。
+     */
+    if (!HalCpuIsHypervisor() && !gScaleUserSet) {
+        UINT32 PhysW = 0;
+        UINT32 PhysH = 0;
+        const BOOT_INFO *Info;
+
+        HalVideoGetPhysicalSize(&PhysW, &PhysH);
+        if (PhysW < 640u || PhysH < 480u) {
+            Info = BootInfoGet();
+            if (Info) {
+                PhysW = Info->HorizontalResolution;
+                PhysH = Info->VerticalResolution;
+            }
+        }
+        if (PhysW >= 3840u && PhysH >= 2160u) {
+            gThemeUiScale = 200;
+            DebugWrite("Theme: 4K default scale=200\n");
+        }
     }
     DebugWrite("Theme: desktop=");
     DebugHex32(gDesktopBg);

@@ -26,9 +26,13 @@
 #define TECH_SHADOW         0x00000810u
 
 void ThemeTechApplyDefaults(void) {
+    ThemeTechApplyColors();
+    gWallpaper = 0;
+}
+
+void ThemeTechApplyColors(void) {
     gDesktopBg = TECH_DESKTOP;
     gShellClientBg = TECH_SHELL;
-    gWallpaper = 0;
 }
 
 int ThemeTechParseName(const char *Val, int *OutId) {
