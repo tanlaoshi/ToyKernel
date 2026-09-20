@@ -29,6 +29,7 @@ extern UINT32 gModeW;
 extern UINT32 gModeH;
 extern UINT32 gThemeUiScale; /* 50 / 100 / 150 / 200；与 Video gUiScale 区分 */
 extern UINT32 gFadeSteps;    /* PR-GUI-l3-fade；0=关 */
+extern int gWallpaper;       /* 1=BMP 壁纸；0=纯色桌面 */
 
 /* ===== 共享帮手（原 static） ===== */
 

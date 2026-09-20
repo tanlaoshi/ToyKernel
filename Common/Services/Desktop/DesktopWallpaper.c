@@ -83,15 +83,17 @@ UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
     UINT32 Sw;
     UINT32 Sh;
 
-    BuildWallScreen();
-    if (gWallScreen && gWallScreenW && gWallScreenH) {
-        if (X >= gWallScreenW) {
-            X = gWallScreenW - 1;
+    if (ThemeWallpaperEnabled()) {
+        BuildWallScreen();
+        if (gWallScreen && gWallScreenW && gWallScreenH) {
+            if (X >= gWallScreenW) {
+                X = gWallScreenW - 1;
+            }
+            if (Y >= gWallScreenH) {
+                Y = gWallScreenH - 1;
+            }
+            return gWallScreen[Y * gWallScreenW + X];
         }
-        if (Y >= gWallScreenH) {
-            Y = gWallScreenH - 1;
-        }
-        return gWallScreen[Y * gWallScreenW + X];
     }
     HalVideoGetSize(&Sw, &Sh);
     (void)Sw;
@@ -108,27 +110,29 @@ void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     if (W == 0 || H == 0) {
         return;
     }
-    BuildWallScreen();
-    if (!gWallScreen) {
-        UiFillRectangle(X, Y, W, H, ThemeDesktopBackground());
-        return;
+    if (ThemeWallpaperEnabled()) {
+        BuildWallScreen();
+        if (gWallScreen) {
+            Sw = gWallScreenW;
+            Sh = gWallScreenH;
+            if (X >= Sw || Y >= Sh) {
+                return;
+            }
+            if (X + W > Sw) {
+                W = Sw - X;
+            }
+            if (Y + H > Sh) {
+                H = Sh - Y;
+            }
+            CopyW = W;
+            for (Row = 0; Row < H; Row++) {
+                HalVideoWriteRect(X, Y + Row, CopyW, 1,
+                                  &gWallScreen[(Y + Row) * Sw + X]);
+            }
+            return;
+        }
     }
-    Sw = gWallScreenW;
-    Sh = gWallScreenH;
-    if (X >= Sw || Y >= Sh) {
-        return;
-    }
-    if (X + W > Sw) {
-        W = Sw - X;
-    }
-    if (Y + H > Sh) {
-        H = Sh - Y;
-    }
-    CopyW = W;
-    for (Row = 0; Row < H; Row++) {
-        HalVideoWriteRect(X, Y + Row, CopyW, 1,
-                          &gWallScreen[(Y + Row) * Sw + X]);
-    }
+    UiFillRectangle(X, Y, W, H, ThemeDesktopBackground());
 }
 
 /* 只填未被窗占用的像素（图标拖动擦旧脚印，勿盖标题栏/客户区） */

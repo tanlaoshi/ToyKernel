@@ -56,7 +56,9 @@ typedef struct {
 #define SETTINGS_PREV_BG  0x00D8D8E0u
 #define SETTINGS_SB_W     12u
 
-#define DESKTOP_COLOR_COUNT 5
+#define DESKTOP_COLOR_COUNT 6
+/* 首项 Wallpaper：Color 哨兵，Apply 时开壁纸而非铺纯色 */
+#define DESKTOP_COLOR_WALLPAPER 0xFFFFFFFFu
 #define SHELL_COLOR_COUNT   5
 #define SCALE_COUNT         4
 #define MODES_FALLBACK_COUNT 5

@@ -1,7 +1,7 @@
 /*
  * Theme.h — 桌面/Shell 主题（PR-D2）+ FAT 持久化（PR-D6）+ 分辨率偏好（PR-D7）
  *
- * 偏好键 desktop/shell/font/mode：优先 TOYOS.DB（PR-DB1）；仍写 THEME.CFG
+ * 偏好键 desktop/shell/font/mode/wallpaper：优先 TOYOS.DB（PR-DB1）；仍写 THEME.CFG
  * 供 ToyBoot GOP SetMode（冷启动）。ThemeLoad 在 GuiInit 前；ThemeApply 末尾 ThemeSave。
  * PR-G-hotres：QEMU 上 ThemeApplyDisplayLive 可运行时切分辨率（Bochs DISPI）。
  */
@@ -18,6 +18,9 @@ UINT32 ThemeDesktopBackground(void);
 UINT32 ThemeShellClientBackground(void);
 UINT32 ThemeSettingsClientBackground(void);
 UINT32 ThemeFontId(void);
+/* 1=铺 WALL.BMP；0=纯色 ThemeDesktopBackground（Settings 选色后关壁纸） */
+int ThemeWallpaperEnabled(void);
+void ThemeSetWallpaper(int Enabled);
 
 /*
  * PR-GUI-l1：窗框/任务栏/控件配色与客户区内边距（只扩展 getter；暂不进 THEME.CFG）。

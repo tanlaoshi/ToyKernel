@@ -82,7 +82,7 @@ int ThemeLoad(void) {
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
              ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale") +
-             ApplyDbKey("fade");
+             ApplyDbKey("fade") + ApplyDbKey("wallpaper");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
@@ -126,6 +126,8 @@ int ThemeLoad(void) {
     DebugHex32(gFontId);
     DebugWrite(" scale=");
     DebugHex32(gThemeUiScale);
+    DebugWrite(" wallpaper=");
+    DebugHex32((UINT32)gWallpaper);
     if (ThemeHasDisplayPref()) {
         DebugWrite(" mode=");
         DebugHex32(gModeW);

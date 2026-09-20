@@ -12,6 +12,7 @@ UINT32 gModeW;
 UINT32 gModeH;
 UINT32 gThemeUiScale = 100; /* 50 / 100 / 150 / 200 */
 UINT32 gFadeSteps = 6;      /* PR-GUI-l3-fade；0=关 */
+int gWallpaper = 1;         /* 默认 WALL.BMP；Settings 选色后关 */
 
 void ThemeInitialize(void) {
     gDesktopBg = COLOR_DARK_GRAY;
@@ -22,6 +23,7 @@ void ThemeInitialize(void) {
     gModeH = 0;
     gThemeUiScale = 100;
     gFadeSteps = 6;
+    gWallpaper = 1;
     /*
      * boot GOP 镜像中：勿套桌面默认 10x18（4K 写不满一屏）。
      * gFontId 仍记桌面偏好；进调度前 KernelMain 再 FontSetById(ThemeFontId())。
@@ -35,6 +37,14 @@ void ThemeInitialize(void) {
 
 UINT32 ThemeDesktopBackground(void) {
     return gDesktopBg;
+}
+
+int ThemeWallpaperEnabled(void) {
+    return gWallpaper != 0;
+}
+
+void ThemeSetWallpaper(int Enabled) {
+    gWallpaper = Enabled ? 1 : 0;
 }
 
 UINT32 ThemeShellClientBackground(void) {

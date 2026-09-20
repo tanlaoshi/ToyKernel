@@ -8,7 +8,12 @@ void ApplyDesktopColor(int Index) {
     if (Index < 0 || Index >= DESKTOP_COLOR_COUNT) {
         return;
     }
-    ThemeSetDesktopBackground(gDesktopColors[Index].Color);
+    if (gDesktopColors[Index].Color == DESKTOP_COLOR_WALLPAPER) {
+        ThemeSetWallpaper(1);
+    } else {
+        ThemeSetWallpaper(0);
+        ThemeSetDesktopBackground(gDesktopColors[Index].Color);
+    }
     ThemeApply();
 }
 

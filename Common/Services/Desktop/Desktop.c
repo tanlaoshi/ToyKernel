@@ -187,7 +187,7 @@ void DesktopOnDisplayResize(void) {
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     FreeWallScreen();
-    if (gWallReady) {
+    if (ThemeWallpaperEnabled() && gWallReady) {
         BuildWallScreen();
     }
     gDesktopBusy = 0;

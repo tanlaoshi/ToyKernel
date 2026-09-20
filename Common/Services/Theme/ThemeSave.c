@@ -36,19 +36,20 @@ void PutDec(char *Dst, UINT32 V, UINTN *Len) {
 }
 
 int ThemeSave(void) {
-    char Buf[224];
+    char Buf[256];
     UINTN N = 0;
     char Hex[7];
     char FontVal[8];
     char ModeVal[24];
     char ScaleVal[8];
     char FadeVal[8];
+    char WallVal[2];
     UINTN ModeLen = 0;
     UINTN ScaleLen = 0;
     UINTN FadeLen = 0;
     int i;
     int DbOk = 1;
-    static char sLastCfg[224];
+    static char sLastCfg[256];
     static UINTN sLastCfgN;
     static int sBusy;
 
@@ -78,6 +79,8 @@ int ThemeSave(void) {
     FadeLen = 0;
     PutDec(FadeVal, ThemeWindowFadeSteps(), &FadeLen);
     FadeVal[FadeLen] = 0;
+    WallVal[0] = gWallpaper ? '1' : '0';
+    WallVal[1] = 0;
 
     /*
      * 先写 THEME.CFG：QEMU edid / ToyBoot 认 CFG；若先写 DB 再 CFG 失败，
@@ -151,6 +154,18 @@ int ThemeSave(void) {
         Buf[N++] = FadeVal[i];
     }
     Buf[N++] = '\n';
+    Buf[N++] = 'w';
+    Buf[N++] = 'a';
+    Buf[N++] = 'l';
+    Buf[N++] = 'l';
+    Buf[N++] = 'p';
+    Buf[N++] = 'a';
+    Buf[N++] = 'p';
+    Buf[N++] = 'e';
+    Buf[N++] = 'r';
+    Buf[N++] = '=';
+    Buf[N++] = WallVal[0];
+    Buf[N++] = '\n';
     Buf[N] = 0;
 
     /*
@@ -216,6 +231,9 @@ int ThemeSave(void) {
         DbOk = 0;
     }
     if (DbSet("fade", FadeVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("wallpaper", WallVal) != DB_OK) {
         DbOk = 0;
     }
     if (DbEndBatch() != DB_OK) {

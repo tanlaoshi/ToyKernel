@@ -25,6 +25,7 @@ int gSetSbVisible;
 UINT32 gSetPrevX, gSetPrevW;
 
 const SETTINGS_COLOR gDesktopColors[DESKTOP_COLOR_COUNT] = {
+    { "Wallpaper", DESKTOP_COLOR_WALLPAPER },
     { "Dark Gray", COLOR_DARK_GRAY },
     { "Blue",      COLOR_BLUE },
     { "Green",     COLOR_GREEN },

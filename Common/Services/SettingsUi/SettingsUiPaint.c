@@ -39,7 +39,8 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 
     if (gCat == SETTINGS_CAT_DESKTOP || gCat == SETTINGS_CAT_SHELL) {
         Swatch = (gCat == SETTINGS_CAT_DESKTOP)
-                     ? ((gItemSel >= 0 && gItemSel < DESKTOP_COLOR_COUNT)
+                     ? ((gItemSel >= 0 && gItemSel < DESKTOP_COLOR_COUNT &&
+                         gDesktopColors[gItemSel].Color != DESKTOP_COLOR_WALLPAPER)
                             ? gDesktopColors[gItemSel].Color
                             : ThemeDesktopBackground())
                      : ((gItemSel >= 0 && gItemSel < SHELL_COLOR_COUNT)

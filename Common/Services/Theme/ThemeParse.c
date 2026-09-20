@@ -191,6 +191,13 @@ void ApplyLine(const char *Line) {
         if (ParseDecU32(Val, &V, 0) == 0) {
             ThemeSetWindowFadeSteps(V);
         }
+        return;
+    }
+    Val = ValueAfterKey(Line, "wallpaper");
+    if (Val) {
+        if (ParseDecU32(Val, &V, 0) == 0) {
+            gWallpaper = (V != 0) ? 1 : 0;
+        }
     }
 }
 

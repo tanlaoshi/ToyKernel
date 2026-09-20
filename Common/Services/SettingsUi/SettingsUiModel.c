@@ -149,13 +149,16 @@ int CurrentItemIndex(void) {
 
     switch (gCat) {
     case SETTINGS_CAT_DESKTOP:
+        if (ThemeWallpaperEnabled()) {
+            return 0;
+        }
         Cur = ThemeDesktopBackground();
-        for (i = 0; i < DESKTOP_COLOR_COUNT; i++) {
+        for (i = 1; i < DESKTOP_COLOR_COUNT; i++) {
             if (gDesktopColors[i].Color == Cur) {
                 return i;
             }
         }
-        return 0;
+        return 1;
     case SETTINGS_CAT_SHELL:
         Cur = ThemeShellClientBackground();
         for (i = 0; i < SHELL_COLOR_COUNT; i++) {
