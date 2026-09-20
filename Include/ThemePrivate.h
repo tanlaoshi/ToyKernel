@@ -30,6 +30,12 @@ extern UINT32 gModeH;
 extern UINT32 gThemeUiScale; /* 50 / 100 / 150 / 200；与 Video gUiScale 区分 */
 extern UINT32 gFadeSteps;    /* PR-GUI-l3-fade；0=关 */
 extern int gWallpaper;       /* 1=BMP 壁纸；0=纯色桌面 */
+extern int gThemeId;         /* THEME_PALETTE_DEFAULT | THEME_PALETTE_TECH */
+
+/* ThemeTech.c */
+void ThemeTechApplyDefaults(void);
+int ThemeTechParseName(const char *Val, int *OutId);
+const char *ThemeTechName(int Id);
 
 /* ===== 共享帮手（原 static） ===== */
 

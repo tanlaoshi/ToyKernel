@@ -13,6 +13,7 @@ UINT32 gModeH;
 UINT32 gThemeUiScale = 100; /* 50 / 100 / 150 / 200 */
 UINT32 gFadeSteps = 6;      /* PR-GUI-l3-fade；0=关 */
 int gWallpaper = 1;         /* 默认 WALL.BMP；Settings 选色后关 */
+int gThemeId = THEME_PALETTE_DEFAULT;
 
 void ThemeInitialize(void) {
     gDesktopBg = COLOR_DARK_GRAY;
@@ -24,6 +25,7 @@ void ThemeInitialize(void) {
     gThemeUiScale = 100;
     gFadeSteps = 6;
     gWallpaper = 1;
+    gThemeId = THEME_PALETTE_DEFAULT;
     /*
      * boot GOP 镜像中：勿套桌面默认 10x18（4K 写不满一屏）。
      * gFontId 仍记桌面偏好；进调度前 KernelMain 再 FontSetById(ThemeFontId())。
@@ -40,6 +42,9 @@ UINT32 ThemeDesktopBackground(void) {
 }
 
 int ThemeWallpaperEnabled(void) {
+    if (gThemeId == THEME_PALETTE_TECH) {
+        return 0;
+    }
     return gWallpaper != 0;
 }
 
@@ -47,74 +52,30 @@ void ThemeSetWallpaper(int Enabled) {
     gWallpaper = Enabled ? 1 : 0;
 }
 
+int ThemeThemeId(void) {
+    return gThemeId;
+}
+
+void ThemeSetThemeId(int Id) {
+    if (Id != THEME_PALETTE_TECH) {
+        Id = THEME_PALETTE_DEFAULT;
+    }
+    gThemeId = Id;
+    if (Id == THEME_PALETTE_TECH) {
+        ThemeTechApplyDefaults();
+    } else {
+        gDesktopBg = COLOR_DARK_GRAY;
+        gShellClientBg = COLOR_LIGHT_GRAY;
+        gWallpaper = 1;
+    }
+}
+
 UINT32 ThemeShellClientBackground(void) {
     return gShellClientBg;
 }
 
-/* Settings 客户区底色（M10）；暂与默认浅灰一致，不单独持久化 */
-UINT32 ThemeSettingsClientBackground(void) {
-    return COLOR_LIGHT_GRAY;
-}
-
 UINT32 ThemeFontId(void) {
     return gFontId;
-}
-
-/* PR-GUI-l1 默认色板（与历史 COLOR_* 观感接近，悬停可辨） */
-UINT32 ThemeWindowTitleFocus(void) {
-    return COLOR_BLUE;
-}
-
-UINT32 ThemeWindowTitleIdle(void) {
-    return COLOR_GRAY;
-}
-
-UINT32 ThemeWindowTitleHover(void) {
-    return 0x004060A0u; /* 偏蓝灰，介于焦点蓝与空闲灰之间 */
-}
-
-UINT32 ThemeWindowBorderFocus(void) {
-    return COLOR_WHITE;
-}
-
-UINT32 ThemeWindowBorderIdle(void) {
-    return 0x00A0A0A0u;
-}
-
-UINT32 ThemeWindowBorderHover(void) {
-    return 0x00C0D0F0u;
-}
-
-UINT32 ThemeWindowTitleText(void) {
-    return COLOR_WHITE;
-}
-
-UINT32 ThemeCloseButton(void) {
-    return COLOR_RED;
-}
-
-UINT32 ThemeTaskbarBackground(void) {
-    return COLOR_DARK_GRAY;
-}
-
-UINT32 ThemeTaskbarButton(void) {
-    return COLOR_LIGHT_GRAY;
-}
-
-UINT32 ThemeTaskbarButtonActive(void) {
-    return COLOR_BLUE;
-}
-
-UINT32 ThemeControlFace(void) {
-    return COLOR_LIGHT_GRAY;
-}
-
-UINT32 ThemeControlBorder(void) {
-    return COLOR_DARK_GRAY;
-}
-
-UINT32 ThemeControlAccent(void) {
-    return COLOR_BLUE;
 }
 
 UINT32 ThemeClientPadding(void) {
@@ -137,11 +98,6 @@ UINT32 ThemeWindowShadowSize(void) {
 UINT8 ThemeWindowShadowMaxAlpha(void) {
     return 128u; /* 贴边约 50%，外缘收到 0 */
 }
-
-UINT32 ThemeWindowShadowColor(void) {
-    return COLOR_BLACK;
-}
-
 
 UINT32 ThemeWindowTitleGradientBottom(UINT32 Top) {
     /* 向黑插值：保留约 60% 顶色 → 标题栏自上而下略暗 */

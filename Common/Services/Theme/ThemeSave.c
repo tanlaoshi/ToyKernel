@@ -166,8 +166,20 @@ int ThemeSave(void) {
     Buf[N++] = '=';
     Buf[N++] = WallVal[0];
     Buf[N++] = '\n';
+    {
+        const char *Tn = ThemeTechName(gThemeId);
+        Buf[N++] = 't';
+        Buf[N++] = 'h';
+        Buf[N++] = 'e';
+        Buf[N++] = 'm';
+        Buf[N++] = 'e';
+        Buf[N++] = '=';
+        for (i = 0; Tn[i]; i++) {
+            Buf[N++] = Tn[i];
+        }
+        Buf[N++] = '\n';
+    }
     Buf[N] = 0;
-
     /*
      * 勿先 Delete 再 Write：QEMU fat:rw/vvfat 上 unlink+create 常丢宿主文件
      * 或整机异常退出（Settings 改分辨率「saved」但盘上仍是旧 mode）。
@@ -234,6 +246,9 @@ int ThemeSave(void) {
         DbOk = 0;
     }
     if (DbSet("wallpaper", WallVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("theme", ThemeTechName(gThemeId)) != DB_OK) {
         DbOk = 0;
     }
     if (DbEndBatch() != DB_OK) {

@@ -142,6 +142,7 @@ void ApplyLine(const char *Line) {
     UINT32 V;
     UINT32 W;
     UINT32 H;
+    int I;
     const char *Val;
 
     while (*Line && IsSpace(*Line)) {
@@ -198,6 +199,14 @@ void ApplyLine(const char *Line) {
         if (ParseDecU32(Val, &V, 0) == 0) {
             gWallpaper = (V != 0) ? 1 : 0;
         }
+        return;
+    }
+    Val = ValueAfterKey(Line, "theme");
+    if (Val) {
+        if (ThemeTechParseName(Val, &I) == 0) {
+            gThemeId = I;
+        }
+        return;
     }
 }
 

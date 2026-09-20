@@ -82,7 +82,7 @@ int ThemeLoad(void) {
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
              ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale") +
-             ApplyDbKey("fade") + ApplyDbKey("wallpaper");
+             ApplyDbKey("fade") + ApplyDbKey("wallpaper") + ApplyDbKey("theme");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
@@ -118,6 +118,9 @@ int ThemeLoad(void) {
         }
     }
     gThemeUiScale = NormalizeUiScale(gThemeUiScale);
+    if (gThemeId == THEME_PALETTE_TECH) {
+        ThemeTechApplyDefaults();
+    }
     DebugWrite("Theme: desktop=");
     DebugHex32(gDesktopBg);
     DebugWrite(" shell=");
@@ -128,6 +131,8 @@ int ThemeLoad(void) {
     DebugHex32(gThemeUiScale);
     DebugWrite(" wallpaper=");
     DebugHex32((UINT32)gWallpaper);
+    DebugWrite(" theme=");
+    DebugWrite(ThemeTechName(gThemeId));
     if (ThemeHasDisplayPref()) {
         DebugWrite(" mode=");
         DebugHex32(gModeW);
