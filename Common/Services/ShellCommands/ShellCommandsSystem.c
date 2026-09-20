@@ -6,6 +6,7 @@
 #include "ShellPrivate.h"
 #include "BootInfo.h"
 #include "Console.h"
+#include "Device.h"
 #include "Driver.h"
 #include "PhysicalMemory.h"
 #include "Process.h"
@@ -286,6 +287,8 @@ static void CommandLsdev(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
 
+    DeviceListDump();
+
     for (i = 0; i < ToyDriverInstanceCount(); i++) {
         const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(i);
         if (!Inst || !Inst->Bound || !Inst->Driver || !Inst->Driver->Name) {
@@ -293,13 +296,13 @@ static void CommandLsdev(int Argc, char **Argv) {
         }
         Bound++;
     }
+    ConsoleWrite("\n=== Bound Drivers (");
+    ConsoleWriteHex32((UINT32)Bound);
+    ConsoleWrite(") ===\n");
     if (Bound == 0) {
-        ConsoleWrite("lsdev: none\n");
+        ConsoleWrite("  (none)\n");
         return;
     }
-    ConsoleWrite("lsdev: bound=");
-    ConsoleWriteHex32((UINT32)Bound);
-    ConsoleWrite("\n");
     for (i = 0; i < ToyDriverInstanceCount(); i++) {
         const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(i);
         if (!Inst || !Inst->Bound || !Inst->Driver || !Inst->Driver->Name) {
@@ -343,7 +346,7 @@ void ShellCommandsSystemRegisterVirtMin(void) {
     ConsoleRegister("execute", "load ELF (TOYOS:FILE)", CommandExec);
     ConsoleRegisterAlias("execute", "exec");
     ConsoleRegister("kill", "signal user task (PR-P4)", CommandKill);
-    ConsoleRegister2("list", "devices", "list bound drivers", CommandLsdev);
+    ConsoleRegister2("list", "devices", "list devices + bound drivers", CommandLsdev);
     ConsoleRegisterAliasLine("lsdev", "list", "devices");
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegisterAlias("halt", "exit");
@@ -352,7 +355,7 @@ void ShellCommandsSystemRegisterVirtMin(void) {
 
 void ShellCommandsSystemRegister(void) {
     ConsoleRegister2("list", "tasks", "list tasks", CommandPs);
-    ConsoleRegister2("list", "devices", "list bound drivers", CommandLsdev);
+    ConsoleRegister2("list", "devices", "list devices + bound drivers", CommandLsdev);
     ConsoleRegisterAliasLine("ps", "list", "tasks");
     ConsoleRegisterAliasLine("tasks", "list", "tasks");
     ConsoleRegisterAliasLine("lsdev", "list", "devices");

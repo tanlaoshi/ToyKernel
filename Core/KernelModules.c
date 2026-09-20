@@ -23,6 +23,7 @@
 #include "Driver.h"
 #include "DriverInput.h"
 #include "HalDevices.h"
+#include "Device.h"
 #include "ToySerialLog.h"
 
 static int gVirtDesktop; /* PR-V5/B1：已选桌面模块表（有 FB 且非 ConsoleOnly） */
@@ -191,6 +192,9 @@ static int InitializeDriver(void) {
      * 真机无经典 8042 时 STATUS 常浮空 0xFF（OBF 永真）→ 排空 while 死循环，屏停 [Mod] driver。
      * Input / Net 仍由后续 usb / network 模块 Probe。
      */
+    DeviceInitialize();
+    DeviceEnumerateAll();
+    ToyLogBoot("Boot: Device Enumerate Done\n");
     HalDriverRegister();
     ToyLogBoot("Boot: Driver Register OK\n");
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_BLOCK);

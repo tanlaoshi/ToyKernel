@@ -165,14 +165,6 @@ void DeviceUnbind(DEVICE_NODE *Dev) {
     Dev->Bound = 0;
 }
 
-void DeviceListDump(void) {
-    /*
-     * PR-DEV-1：占位（避免 include Debug.h 间接拉 Hal.h）。
-     * PR-DEV-3：ConsoleWrite / lsdev 对齐格式。
-     */
-    (void)gDeviceCount;
-}
-
 void DeviceEnumerateAll(void) {
     HalDeviceEnumerate();
 }
