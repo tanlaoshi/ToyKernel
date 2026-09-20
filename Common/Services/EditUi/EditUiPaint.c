@@ -50,17 +50,17 @@ static void Paint(void) {
 
     Head[0] = 0;
     CopyStr(Head, sizeof(Head), gPath[0] ? gPath : "(no path)");
-    DrawLine(X + 8, Y + 6, Head, COLOR_BLACK);
+    DrawLine(X + 8, Y + 6, Head, ThemeText());
     DrawLine(X + 8, Y + 6 + LineH,
              gEditDirty ? "* dirty   Esc=hint  Ctrl+S=save" : "  clean   Esc=hint  Ctrl+S=save",
-             COLOR_DARK_GRAY);
+             ThemeTextMuted());
 
     gSaveButtonWidth = 72;
     gSaveButtonHeight = LineH + 8;
     gEditSaveX = X + W - gSaveButtonWidth - 12;
     gEditSaveY = Y + 4;
     if (gEditSaveX > X + 8) {
-        UiDrawButton(gEditSaveX, gEditSaveY, gSaveButtonWidth, gSaveButtonHeight, "Save", COLOR_BLACK, COLOR_WHITE);
+        UiDrawButton(gEditSaveX, gEditSaveY, gSaveButtonWidth, gSaveButtonHeight, "Save", ThemeText(), COLOR_WHITE);
         gSaveButtonHit = 1;
     } else {
         gSaveButtonHit = 0;
@@ -108,7 +108,7 @@ static void Paint(void) {
         }
 
         if (AtCursor && Col < MaxCols) {
-            HalVideoFillRect(X + 8 + (UINT32)Col * Ax, CurY, Ax, LineH, COLOR_DARK_GRAY);
+            HalVideoFillRect(X + 8 + (UINT32)Col * Ax, CurY, Ax, LineH, ThemeTextMuted());
         }
 
         if (i >= gEditLen) {
@@ -116,7 +116,7 @@ static void Paint(void) {
         }
         if (C == '\n' || Col >= MaxCols) {
             Row[Col] = 0;
-            DrawLine(X + 8, CurY, Row, COLOR_BLACK);
+            DrawLine(X + 8, CurY, Row, ThemeText());
             CurY += LineH;
             Line++;
             Col = 0;
@@ -138,11 +138,11 @@ static void Paint(void) {
     }
     if (Fw && Col > 0 && CurY + LineH <= TextBot) {
         Row[Col] = 0;
-        DrawLine(X + 8, CurY, Row, COLOR_BLACK);
+        DrawLine(X + 8, CurY, Row, ThemeText());
     }
 
     DrawLine(X + 8, Y + H - LineH - 4,
-             gEditStatus[0] ? gEditStatus : " ", COLOR_DARK_GRAY);
+             gEditStatus[0] ? gEditStatus : " ", ThemeTextMuted());
 
     HalVideoClearClip();
     GuiBackupFocusWindow();

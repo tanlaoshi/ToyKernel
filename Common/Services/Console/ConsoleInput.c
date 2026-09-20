@@ -60,7 +60,7 @@ void ConsoleOnChar(char C) {
     ConsoleSbFeedChar(C);
     HalConsolePutChar(C);
     if (HalConsoleVideoReady()) {
-        ConsoleDrawChar(C, COLOR_WHITE);
+        ConsoleDrawChar(C, ThemeShellText());
     }
 }
 

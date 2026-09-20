@@ -110,7 +110,7 @@ void ConsoleWrite(const char *Text) {
     }
     ConsoleSbEnsureLive();
     ConsoleSbFeed(Text);
-    ConsoleDrawString(Text, COLOR_WHITE);
+    ConsoleDrawString(Text, ThemeShellText());
 }
 
 /* 按长度输出（SYS_WRITE 用；UTF-8 按码点画，不因中间的 NUL 截断） */

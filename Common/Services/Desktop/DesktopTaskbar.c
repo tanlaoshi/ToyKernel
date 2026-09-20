@@ -80,7 +80,7 @@ static void DrawTaskbarControls(void) {
     Tx = Ix + START_ICON_SZ + 6u;
     Ty = BarY + (TASKBAR_H > FontCellH() ? (TASKBAR_H - FontCellH()) / 2 : 0);
     HalVideoDrawStringAt(Tx, Ty, Start ? Start : "Start",
-                         gMenuOpen ? ThemeWindowTitleText() : COLOR_BLACK);
+                         gMenuOpen ? ThemeWindowTitleText() : ThemeStartButtonText());
 
     /* 右下角 HH:MM（CMOS+CST）；失败则 --:-- */
     HaveTime = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
@@ -106,7 +106,7 @@ static void DrawTaskbarControls(void) {
     ClockW = FontStringWidth(Clock);
     ClockX = (Sw > ClockW + 12u) ? (Sw - ClockW - 12u) : Bx + Bw + 8u;
     DesktopNetTrayDraw(ClockX, Ty);
-    HalVideoDrawStringAt(ClockX, Ty, Clock, COLOR_WHITE);
+    HalVideoDrawStringAt(ClockX, Ty, Clock, ThemeClockText());
 }
 
 void DrawTaskbarRaw(void) {
@@ -136,7 +136,7 @@ void DrawStartMenuRaw(void) {
     MenuGeom(&Mx, &My, &Mw, &Mh);
     /* 实心面板：勿半透叠窗，否则备份/刷新易留烙印 */
     UiFillRectangle(Mx, My, Mw, Mh, ThemeControlFace());
-    UiDrawRectangle(Mx, My, Mw, Mh, COLOR_BLACK);
+    UiDrawRectangle(Mx, My, Mw, Mh, ThemeMenuBorder());
     for (i = 0; i < gMenuCount; i++) {
         MENU_ROW *R = &gMenuRows[i];
         UINT32 Iy = My + (UINT32)i * MENU_ITEM_H;
@@ -146,11 +146,11 @@ void DrawStartMenuRaw(void) {
         UINT32 Fg;
         int HasIcon = 0;
 
-        UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, ThemeWindowBorderIdle());
+        UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, ThemeMenuSep());
         IconX = Mx + 6;
         IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
         TextX = Mx + 10;
-        Fg = R->Enabled ? COLOR_BLACK : ThemeControlBorder();
+        Fg = R->Enabled ? ThemeMenuText() : ThemeControlBorder();
         if (R->IconSrc >= 0 && R->IconSrc < DESKTOP_ICON_COUNT &&
             gIcons[R->IconSrc].BmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
@@ -165,14 +165,14 @@ void DrawStartMenuRaw(void) {
                              &gPowerBmp);
             HasIcon = 1;
         } else if (R->IconSrc == 4) {
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00C04040);
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, ThemeIconFallbackPower());
             HasIcon = 1;
         } else if (R->IconSrc == 5 && gRebootBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gRebootBmp);
             HasIcon = 1;
         } else if (R->IconSrc == 5) {
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, 0x00C08020);
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, ThemeIconFallbackReboot());
             HasIcon = 1;
         } else if (R->Action == DESKTOP_ACTION_EXEC && gIcons[0].BmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
@@ -209,7 +209,7 @@ void DrawStartMenuRaw(void) {
 
         AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
         UiFillRectangle(Fx, Fy, Fw, Fh, ThemeControlFace());
-        UiDrawRectangle(Fx, Fy, Fw, Fh, COLOR_BLACK);
+        UiDrawRectangle(Fx, Fy, Fw, Fh, ThemeMenuBorder());
         Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
         for (i = 0; i < Rows; i++) {
             MENU_ROW *R;
@@ -220,7 +220,7 @@ void DrawStartMenuRaw(void) {
             UINT32 Fg;
             const char *Lab;
 
-            UiDrawRectangle(Fx, Iy, Fw, MENU_ITEM_H, ThemeWindowBorderIdle());
+            UiDrawRectangle(Fx, Iy, Fw, MENU_ITEM_H, ThemeMenuSep());
             if (gMenuAppCount <= 0) {
                 HalVideoDrawStringAt(Fx + 10u,
                                      Iy + (MENU_ITEM_H > FontCellH()
@@ -231,7 +231,7 @@ void DrawStartMenuRaw(void) {
             }
             R = &gMenuAppRows[i];
             Lab = R->Label[0] ? R->Label : "?";
-            Fg = R->Enabled ? COLOR_BLACK : ThemeControlBorder();
+            Fg = R->Enabled ? ThemeMenuText() : ThemeControlBorder();
             IconX = Fx + 6;
             IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ
                               ? (MENU_ITEM_H - MENU_ICON_SZ) / 2

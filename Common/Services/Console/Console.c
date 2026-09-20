@@ -32,7 +32,7 @@ void Prompt(void) {
     if (HalConsoleVideoReady() && GuiFocusKind() == GUI_WIN_SHELL) {
         ConsoleSbEnsureLive();
         ConsoleSbFeed("toyos> ");
-        ConsoleDrawString("toyos> ", COLOR_CYAN);
+        ConsoleDrawString("toyos> ", ThemeShellPrompt());
     } else {
         ConsoleSbFeed("toyos> ");
     }

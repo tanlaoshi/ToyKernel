@@ -33,20 +33,20 @@ void PaintOverlay(const char *Line1, const char *Line2, const char *Line3) {
     BoxY = Y + (H - BoxH) / 2;
 
     GuiFrameBufferBegin();
-    HalVideoFillRect(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
+    HalVideoFillRect(BoxX, BoxY, BoxW, BoxH, ThemeDialogFace());
     /* PR-G11：确认/输入框边框走 UiDrawRectangle */
-    UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_BLACK);
+    UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, ThemeDialogBorder());
     if (BoxW > 4 && BoxH > 4) {
-        UiDrawRectangle(BoxX + 1, BoxY + 1, BoxW - 2, BoxH - 2, COLOR_DARK_GRAY);
+        UiDrawRectangle(BoxX + 1, BoxY + 1, BoxW - 2, BoxH - 2, ThemePanelSeparator());
     }
     HalVideoSetClipRegion(BoxX + 4, BoxY + 4, BoxW > 8 ? BoxW - 8 : BoxW, BoxH > 8 ? BoxH - 8 : BoxH,
-                          COLOR_LIGHT_GRAY);
-    DrawLine(BoxX + 12, BoxY + 12, Line1 ? Line1 : "", COLOR_BLACK);
+                          ThemeDialogFace());
+    DrawLine(BoxX + 12, BoxY + 12, Line1 ? Line1 : "", ThemeText());
     if (Line2) {
-        DrawLine(BoxX + 12, BoxY + 12 + LineH, Line2, COLOR_BLACK);
+        DrawLine(BoxX + 12, BoxY + 12 + LineH, Line2, ThemeText());
     }
     if (Line3) {
-        DrawLine(BoxX + 12, BoxY + 12 + LineH * 2, Line3, COLOR_DARK_GRAY);
+        DrawLine(BoxX + 12, BoxY + 12 + LineH * 2, Line3, ThemeTextMuted());
     }
     HalVideoClearClip();
     GuiBackupFocusWindow();
@@ -91,8 +91,8 @@ void PaintView(void) {
         ti++;
     }
     CopyStr(Title + ti, (int)sizeof(Title) - ti, gViewTitle);
-    DrawLine(X + 8, Y + 8, Title, COLOR_BLACK);
-    DrawLine(X + 8, Y + 8 + LineH, "Esc = back to list", COLOR_DARK_GRAY);
+    DrawLine(X + 8, Y + 8, Title, ThemeText());
+    DrawLine(X + 8, Y + 8 + LineH, "Esc = back to list", ThemeTextMuted());
 
     CurY = Y + 8 + LineH * 2 + 4;
     {
@@ -110,7 +110,7 @@ void PaintView(void) {
             char C = gView[i];
             if (C == '\n' || Col >= (int)MaxCols) {
                 Row[Col] = 0;
-                DrawLine(X + 8, CurY, Row, COLOR_BLACK);
+                DrawLine(X + 8, CurY, Row, ThemeText());
                 CurY += LineH;
                 Col = 0;
                 if (C == '\n') {
@@ -128,7 +128,7 @@ void PaintView(void) {
         }
         if (Col > 0 && CurY + LineH <= Y + H) {
             Row[Col] = 0;
-            DrawLine(X + 8, CurY, Row, COLOR_BLACK);
+            DrawLine(X + 8, CurY, Row, ThemeText());
         }
     }
 

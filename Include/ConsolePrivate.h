@@ -9,6 +9,7 @@
 #define CONSOLE_PRIVATE_H
 
 #include "BootTypes.h"
+#include "Theme.h"
 
 #define SB_LINES 64
 #define SB_COLS  120

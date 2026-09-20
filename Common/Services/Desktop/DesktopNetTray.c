@@ -145,7 +145,7 @@ void DesktopNetTrayDraw(UINT32 ClockX, UINT32 TextY) {
     BuildShortLabel(Label, (int)sizeof(Label));
     StrCopy(gNetLabelCache, (int)sizeof(gNetLabelCache), Label);
     DesktopNetTrayGeom(ClockX, &X, &W);
-    HalVideoDrawStringAt(X, TextY, Label, COLOR_WHITE);
+    HalVideoDrawStringAt(X, TextY, Label, ThemeClockText());
 }
 
 static void PopupGeom(UINT32 *Px, UINT32 *Py, UINT32 *Pw, UINT32 *Ph) {
@@ -175,32 +175,32 @@ void DesktopNetTrayDrawPopup(void) {
     }
     PopupGeom(&Px, &Py, &Pw, &Ph);
     UiFillRectangle(Px, Py, Pw, Ph, ThemeControlFace());
-    UiDrawRectangle(Px, Py, Pw, Ph, COLOR_BLACK);
+    UiDrawRectangle(Px, Py, Pw, Ph, ThemeMenuBorder());
 
     Ty = Py + NET_POP_PAD;
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "Network", COLOR_BLACK);
+    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "Network", ThemeText());
     Ty += FontCellH();
 
     Ip = HalNetReady() ? HalNetGetIpAddress() : 0;
     MakePrefixed(Line, (int)sizeof(Line), "ip  ", Ip);
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, COLOR_DARK_GRAY);
+    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
     Ty += FontCellH();
 
     MakePrefixed(Line, (int)sizeof(Line), "gw  ", NetConfigGetGw());
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, COLOR_DARK_GRAY);
+    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
     Ty += FontCellH();
 
     MakePrefixed(Line, (int)sizeof(Line), "dns ", NetConfigGetDns());
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, COLOR_DARK_GRAY);
+    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
     Ty += FontCellH();
 
     if (!HalNetReady()) {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", ThemeTextMuted());
     } else if (HalNetGetLinkInfo(&Up, &Mbps, &Fd)) {
         HalVideoDrawStringAt(Px + NET_POP_PAD, Ty,
-                             Up ? "link up" : "link down", COLOR_DARK_GRAY);
+                             Up ? "link up" : "link down", ThemeTextMuted());
     } else {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", ThemeTextMuted());
     }
 }
 

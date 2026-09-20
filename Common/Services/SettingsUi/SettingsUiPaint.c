@@ -20,20 +20,20 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     if (LineH < 14) {
         LineH = 14;
     }
-    HalVideoFillRect(X, Y, W, H, SETTINGS_PREV_BG);
+    HalVideoFillRect(X, Y, W, H, ThemePanelDetailBackground());
     if (W > 3) {
-        HalVideoFillRect(X, Y, 3, H, COLOR_DARK_GRAY);
+        HalVideoFillRect(X, Y, 3, H, ThemePanelSeparator());
     }
     Ty = Y + 8;
     MaxY = Y + H - 4;
-    HalVideoDrawStringAt(X + 10, Ty, "Detail", COLOR_BLACK);
+    HalVideoDrawStringAt(X + 10, Ty, "Detail", ThemeText());
     Ty += LineH + 4;
-    HalVideoDrawStringAt(X + 10, Ty, CatLabel(gCat), COLOR_DARK_GRAY);
+    HalVideoDrawStringAt(X + 10, Ty, CatLabel(gCat), ThemeTextMuted());
     Ty += LineH + 2;
 
     ItemLabel(gItemSel, Item, (int)sizeof(Item));
     if (Item[0] && Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, Item, COLOR_BLACK);
+        HalVideoDrawStringAt(X + 10, Ty, Item, ThemeText());
         Ty += LineH + 4;
     }
 
@@ -48,11 +48,11 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
                             : ThemeShellClientBackground());
         if (Ty + 36 < MaxY && W > 24) {
             UiFillRectangle(X + 10, Ty, W > 40 ? 48 : W - 20, 28, Swatch);
-            UiDrawRectangle(X + 10, Ty, W > 40 ? 48 : W - 20, 28, COLOR_DARK_GRAY);
+            UiDrawRectangle(X + 10, Ty, W > 40 ? 48 : W - 20, 28, ThemePanelSeparator());
             Ty += 36;
         }
     } else if (gCat == SETTINGS_CAT_FONT && Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "The quick brown fox", COLOR_BLACK);
+        HalVideoDrawStringAt(X + 10, Ty, "The quick brown fox", ThemeText());
         Ty += LineH + 4;
     } else if (gCat == SETTINGS_CAT_DISPLAY) {
         if (Ty + LineH < MaxY) {
@@ -60,12 +60,12 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
                                  HalCpuIsHypervisor()
                                      ? "Change may need quit QEMU + rerun"
                                      : "Change may need reboot to apply",
-                                 COLOR_DARK_GRAY);
+                                 ThemeTextMuted());
             Ty += LineH + 2;
         }
         FormatNowDisplay(Line, sizeof(Line));
         if (Ty + LineH < MaxY) {
-            HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+            HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
             Ty += LineH + 2;
         }
         if (ThemeHasDisplayPref()) {
@@ -79,33 +79,33 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
                 HalVideoDrawStringAt(
                     X + 10, Ty,
                     LocStr(HalCpuIsHypervisor() ? MSG_SET_PREF_DIFF : MSG_SET_PREF_DIFF_PC),
-                    COLOR_BLUE);
+                    ThemeTextAccent());
                 Ty += LineH + 2;
             }
         }
     } else if (gCat == SETTINGS_CAT_SCALE && Ty + LineH * 2 < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "50=small 100=normal", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, "50=small 100=normal", ThemeTextMuted());
         Ty += LineH;
-        HalVideoDrawStringAt(X + 10, Ty, "150/200=large", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, "150/200=large", ThemeTextMuted());
         Ty += LineH + 2;
         FormatNowDisplay(Line, sizeof(Line));
         if (Ty + LineH < MaxY) {
-            HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+            HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
             Ty += LineH + 2;
         }
     }
 
     if (gDisplayHint == 2 && Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "Applied (live)", COLOR_BLUE);
+        HalVideoDrawStringAt(X + 10, Ty, "Applied (live)", ThemeTextAccent());
         Ty += LineH;
     } else if (gDisplayHint == 1 && Ty + LineH < MaxY) {
         HalVideoDrawStringAt(
             X + 10, Ty,
-            LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC), COLOR_BLUE);
+            LocStr(HalCpuIsHypervisor() ? MSG_SET_SAVED : MSG_SET_SAVED_PC), ThemeTextAccent());
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "Click item to apply", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, "Click item to apply", ThemeTextMuted());
     }
 }
 
@@ -157,11 +157,11 @@ void PaintMenu(void) {
         gSetSideLineH = LineH;
         gSetSideRow0 = Cy + 8 + LineH + 4;
         RowW = SideW > 10 ? SideW - 10 : SideW;
-        HalVideoFillRect(Cx, Cy, SideW, Ch, SETTINGS_SIDE_BG);
+        HalVideoFillRect(Cx, Cy, SideW, Ch, ThemePanelSideBackground());
         if (SideW > 3) {
-            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, COLOR_DARK_GRAY);
+            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, ThemePanelSeparator());
         }
-        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_SET_TITLE), COLOR_BLACK);
+        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_SET_TITLE), ThemeText());
         for (i = 0; i < SETTINGS_CAT_COUNT; i++) {
             UiDrawListRow(Cx + 4, gSetSideRow0 + (UINT32)i * LineH, RowW, LineH,
                           CatLabel((SETTINGS_CAT)i),
@@ -214,7 +214,7 @@ void PaintMenu(void) {
         gSetListRowW -= (SETTINGS_SB_W + 4);
     }
 
-    HalVideoDrawStringAt(ContentX + 8, Cy + 8, CatLabel(gCat), COLOR_BLACK);
+    HalVideoDrawStringAt(ContentX + 8, Cy + 8, CatLabel(gCat), ThemeText());
 
     Applied = CurrentItemIndex();
     RowY = gSetListTop;

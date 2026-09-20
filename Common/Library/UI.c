@@ -325,7 +325,7 @@ void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *T
 /* 绘制水平进度条 */
 void UiDrawProgressBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Progress, UINT32 MaxProgress, UINT32 Color, UINT32 BgColor) {
     UiFillRoundRectangle(X, Y, Width, Height, 3, BgColor);
-    UiDrawRoundRectangle(X, Y, Width, Height, 3, COLOR_GRAY);
+    UiDrawRoundRectangle(X, Y, Width, Height, 3, ThemeScrollBorder());
 
     if (MaxProgress == 0) {
         return;
@@ -344,7 +344,7 @@ int UiHitRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Px, UINT32
 
 void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text,
                    int Selected, int Hovered) {
-    UINT32 Fg = COLOR_BLACK;
+    UINT32 Fg = ThemeText();
     UINT32 Pad = 4;
 
     if (!Text) {
@@ -353,11 +353,11 @@ void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *
     if (Selected) {
         UiFillRectangle(X, Y, Width, Height, ThemeControlAccent());
         UiDrawRectangle(X, Y, Width, Height, ThemeControlBorder());
-        Fg = COLOR_WHITE;
+        Fg = ThemeTextOnAccent();
     } else if (Hovered) {
         UiFillRectangle(X, Y, Width, Height, ThemeControlFace());
         UiDrawRectangle(X, Y, Width, Height, ThemeWindowTitleIdle());
-        Fg = COLOR_BLACK;
+        Fg = ThemeText();
     }
     if (Width > Pad * 2 && Height > 2) {
         HalVideoDrawStringAt(X + Pad, Y + (Height > FontCellH() ? (Height - FontCellH()) / 2 : 0),
@@ -423,14 +423,14 @@ void UiDrawScrollBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height,
     if (Width == 0 || Height == 0) {
         return;
     }
-    UiFillRectangle(X, Y, Width, Height, COLOR_LIGHT_GRAY);
-    UiDrawRectangle(X, Y, Width, Height, COLOR_GRAY);
+    UiFillRectangle(X, Y, Width, Height, ThemeScrollTrack());
+    UiDrawRectangle(X, Y, Width, Height, ThemeScrollBorder());
     if (Total <= Visible || Total <= 0) {
         return;
     }
     UiScrollThumb(X, Y, Width, Height, First, Visible, Total, &ThumbY, &ThumbH);
     if (Width > 4 && ThumbH > 2) {
-        UiFillRectangle(X + 2, ThumbY, Width > 4 ? Width - 4 : Width, ThumbH, COLOR_DARK_GRAY);
+        UiFillRectangle(X + 2, ThumbY, Width > 4 ? Width - 4 : Width, ThumbH, ThemeScrollThumb());
     }
 }
 

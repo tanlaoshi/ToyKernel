@@ -66,6 +66,32 @@ UINT32 ThemeWindowTitleGradientBottom(UINT32 Top);
 UINT32 ThemeWindowFadeSteps(void);
 void ThemeSetWindowFadeSteps(UINT32 Steps);
 
+/* PR-GUI-tech-2：文字 / 桌面图标 / 菜单 / 面板 / 滚动条（只追加；classic 返回值不变） */
+UINT32 ThemeShellText(void);
+UINT32 ThemeShellPrompt(void);
+UINT32 ThemeIconText(void);
+UINT32 ThemeIconBorder(void);
+UINT32 ThemeIconSelect(void);
+UINT32 ThemeClockText(void);
+UINT32 ThemeStartButtonText(void);
+UINT32 ThemeMenuBorder(void);
+UINT32 ThemeMenuText(void);
+UINT32 ThemeMenuSep(void);
+UINT32 ThemeIconFallbackPower(void);
+UINT32 ThemeIconFallbackReboot(void);
+UINT32 ThemeText(void);
+UINT32 ThemeTextMuted(void);
+UINT32 ThemeTextAccent(void);
+UINT32 ThemeTextOnAccent(void);
+UINT32 ThemePanelSideBackground(void);
+UINT32 ThemePanelDetailBackground(void);
+UINT32 ThemePanelSeparator(void);
+UINT32 ThemeScrollTrack(void);
+UINT32 ThemeScrollBorder(void);
+UINT32 ThemeScrollThumb(void);
+UINT32 ThemeDialogFace(void);
+UINT32 ThemeDialogBorder(void);
+
 void ThemeSetDesktopBackground(UINT32 Color);
 void ThemeSetShellClientBackground(UINT32 Color);
 /* 同步 FontSetById；越界返回 -1 且保持先前字体 */

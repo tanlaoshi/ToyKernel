@@ -12,7 +12,7 @@ static void DrawButtons(void) {
         Bx = gBtnX0 + (UINT32)i * (gBtnW + STORE_BTN_GAP);
         {
             UINT32 Face = (gHoverBtn == i) ? ThemeControlAccent() : ThemeControlFace();
-            UINT32 Fg = (gHoverBtn == i) ? COLOR_WHITE : COLOR_BLACK;
+            UINT32 Fg = (gHoverBtn == i) ? ThemeTextOnAccent() : ThemeText();
             UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], Fg, Face,
                            gHoverBtn == i, gPressBtn == i);
         }
@@ -32,24 +32,24 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     if (LineH < 14) {
         LineH = 14;
     }
-    HalVideoFillRect(X, Y, W, H, STORE_PREV_BG);
+    HalVideoFillRect(X, Y, W, H, ThemePanelDetailBackground());
     if (W > 3) {
-        HalVideoFillRect(X, Y, 3, H, COLOR_DARK_GRAY);
+        HalVideoFillRect(X, Y, 3, H, ThemePanelSeparator());
     }
     Ty = Y + 8;
     MaxY = Y + H - 4;
-    HalVideoDrawStringAt(X + 10, Ty, "Detail", COLOR_BLACK);
+    HalVideoDrawStringAt(X + 10, Ty, "Detail", ThemeText());
     Ty += LineH + 4;
 
     E = SelectedEntry();
     MapIdx = (gSel >= 0 && gSel < gFiltCount) ? gMap[gSel] : -1;
     if (!E) {
-        HalVideoDrawStringAt(X + 10, Ty, "(no selection)", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, "(no selection)", ThemeTextMuted());
         return;
     }
     Inst = CachedInstalled(MapIdx);
     if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, E->Title[0] ? E->Title : E->Id, COLOR_BLACK);
+        HalVideoDrawStringAt(X + 10, Ty, E->Title[0] ? E->Title : E->Id, ThemeText());
         Ty += LineH + 2;
     }
     if (Ty + LineH < MaxY) {
@@ -62,7 +62,7 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
             Line[k] = 0;
         }
-        HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
@@ -76,7 +76,7 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
             Line[k] = 0;
         }
-        HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->Arch[0] && Ty + LineH < MaxY) {
@@ -90,7 +90,7 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
             Line[k] = 0;
         }
-        HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->File[0] && Ty + LineH < MaxY) {
@@ -104,7 +104,7 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
             Line[k] = 0;
         }
-        HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->Depends[0] && Ty + LineH < MaxY) {
@@ -118,12 +118,12 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
             Line[k] = 0;
         }
-        HalVideoDrawStringAt(X + 10, Ty, Line, COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
         HalVideoDrawStringAt(X + 10, Ty, Inst ? "status: installed" : "status: not installed",
-                             Inst ? COLOR_BLUE : COLOR_DARK_GRAY);
+                             Inst ? ThemeTextAccent() : ThemeTextMuted());
     }
 }
 
@@ -167,11 +167,11 @@ void StorePaintList(void) {
         gStoreUiSideLineH = LineH;
         gStoreUiSideRow0 = Cy + 8 + LineH + 4;
         RowW = SideW > 10 ? SideW - 10 : SideW;
-        HalVideoFillRect(Cx, Cy, SideW, Ch, STORE_SIDE_BG);
+        HalVideoFillRect(Cx, Cy, SideW, Ch, ThemePanelSideBackground());
         if (SideW > 3) {
-            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, COLOR_DARK_GRAY);
+            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, ThemePanelSeparator());
         }
-        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_APP_STORE), COLOR_BLACK);
+        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_APP_STORE), ThemeText());
         for (i = 0; i < STORE_CAT_COUNT; i++) {
             UiDrawListRow(Cx + 4, gStoreUiSideRow0 + (UINT32)i * LineH, RowW, LineH,
                           StoreCatLabel(i), i == gStoreUiCat, i == gHoverSide);
@@ -221,7 +221,7 @@ void StorePaintList(void) {
         gStoreUiListRowW -= (STORE_SB_W + 4);
     }
 
-    HalVideoDrawStringAt(ContentX + 8, Cy + 8, StoreCatLabel(gStoreUiCat), COLOR_BLACK);
+    HalVideoDrawStringAt(ContentX + 8, Cy + 8, StoreCatLabel(gStoreUiCat), ThemeText());
 
     RowY = gStoreUiListTop;
     for (i = 0; i < gStoreUiListVisible && gStoreUiScroll + i < gFiltCount; i++) {
@@ -251,7 +251,7 @@ void StorePaintList(void) {
         UiDrawScrollBar(gStoreUiSbX, gStoreUiSbY, gStoreUiSbW, gStoreUiSbH, gStoreUiScroll, gStoreUiListVisible, gFiltCount);
     }
     if (gFiltCount == 0) {
-        HalVideoDrawStringAt(ContentX + 12, gStoreUiListTop + 4, "(empty)", COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(ContentX + 12, gStoreUiListTop + 4, "(empty)", ThemeTextMuted());
     }
 
     /* 第 2 分栏下方：三钮均分中栏宽度 */
@@ -259,7 +259,7 @@ void StorePaintList(void) {
     StoreBtnGeom(ContentX, ListW);
     DrawButtons();
     if (gStoreUiStatus[0]) {
-        HalVideoDrawStringAt(ContentX + 8, Cy + Ch - LineH - 2, gStoreUiStatus, COLOR_DARK_GRAY);
+        HalVideoDrawStringAt(ContentX + 8, Cy + Ch - LineH - 2, gStoreUiStatus, ThemeTextMuted());
     }
 
     if (gStoreUiPrevW > 0) {

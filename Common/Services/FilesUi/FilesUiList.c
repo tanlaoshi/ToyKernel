@@ -53,11 +53,11 @@ void PaintList(void) {
         gSideRow0 = Y + 8 + LineH + 4;
         RowW = SideW > 10 ? SideW - 10 : SideW;
 
-        HalVideoFillRect(X, Y, SideW, H, FILES_SIDE_BG);
+        HalVideoFillRect(X, Y, SideW, H, ThemePanelSideBackground());
         if (SideW > 3) {
-            HalVideoFillRect(X + SideW - 3, Y, 3, H, COLOR_DARK_GRAY);
+            HalVideoFillRect(X + SideW - 3, Y, 3, H, ThemePanelSeparator());
         }
-        DrawLine(X + 8, Y + 8, "Volumes", COLOR_BLACK);
+        DrawLine(X + 8, Y + 8, "Volumes", ThemeText());
         for (i = 0; i < gPlaceCount; i++) {
             UiDrawListRow(X + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
                           gPlaces[i].Label,
@@ -98,11 +98,11 @@ void PaintList(void) {
         }
         HintMax = ListW > 16 ? ListW - 16 : ListW;
         (void)HintMax;
-        DrawLine(Cx + 8, Y + 8, PathShow, COLOR_BLACK);
-        DrawLine(Cx + 8, Y + 8 + LineH, Hint1, COLOR_DARK_GRAY);
-        DrawLine(Cx + 8, Y + 8 + LineH * 2, Hint2, COLOR_DARK_GRAY);
+        DrawLine(Cx + 8, Y + 8, PathShow, ThemeText());
+        DrawLine(Cx + 8, Y + 8 + LineH, Hint1, ThemeTextMuted());
+        DrawLine(Cx + 8, Y + 8 + LineH * 2, Hint2, ThemeTextMuted());
         if (gStatus[0]) {
-            DrawLine(Cx + 8, Y + 8 + LineH * 3, gStatus, COLOR_BLUE);
+            DrawLine(Cx + 8, Y + 8 + LineH * 3, gStatus, ThemeTextAccent());
         }
     }
 
@@ -191,12 +191,12 @@ void PaintList(void) {
                 }
             }
             if (BoxW > 8 && BoxH > LineH + 8) {
-                UiFillRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_LIGHT_GRAY);
-                UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, COLOR_DARK_GRAY);
-                DrawLine(BoxX + 12, BoxY + LineH, LocStr(MSG_FILES_EMPTY), COLOR_DARK_GRAY);
+                UiFillRectangle(BoxX, BoxY, BoxW, BoxH, ThemeDialogFace());
+                UiDrawRectangle(BoxX, BoxY, BoxW, BoxH, ThemeDialogBorder());
+                DrawLine(BoxX + 12, BoxY + LineH, LocStr(MSG_FILES_EMPTY), ThemeTextMuted());
                 if (BoxH >= LineH * 3) {
                     DrawLine(BoxX + 12, BoxY + LineH * 2 + 4,
-                             LocStr(MSG_FILES_EMPTY_HINT), COLOR_GRAY);
+                             LocStr(MSG_FILES_EMPTY_HINT), ThemeTextMuted());
                 }
             }
         }
@@ -213,11 +213,11 @@ void PaintList(void) {
             UINTN ti;
 
             gPrevX = Px;
-            HalVideoFillRect(Px, Y, 2, H, COLOR_DARK_GRAY);
-            HalVideoFillRect(Px + 2, Y, Pw > 2 ? Pw - 2 : Pw, H, 0x00D8D8E0u);
-            DrawLine(Px + 10, Py, "Preview", COLOR_BLACK);
+            HalVideoFillRect(Px, Y, 2, H, ThemePanelSeparator());
+            HalVideoFillRect(Px + 2, Y, Pw > 2 ? Pw - 2 : Pw, H, ThemePanelDetailBackground());
+            DrawLine(Px + 10, Py, "Preview", ThemeText());
             DrawLine(Px + 10, Py + LineH, gViewTitle[0] ? gViewTitle : "(none)",
-                     COLOR_DARK_GRAY);
+                     ThemeTextMuted());
 
             InnerX = Px + 8;
             InnerY = Py + LineH * 2 + 8;
@@ -227,24 +227,24 @@ void PaintList(void) {
             if (gPrevKind == PREV_EMPTY || gPrevKind == PREV_NONE) {
                 if (InnerW > 8 && InnerH > LineH + 8) {
                     UiFillRectangle(InnerX, InnerY, InnerW, InnerH > LineH * 4 ? LineH * 4 : InnerH,
-                                    COLOR_LIGHT_GRAY);
+                                    ThemeDialogFace());
                     UiDrawRectangle(InnerX, InnerY,
                                     InnerW, InnerH > LineH * 4 ? LineH * 4 : InnerH,
-                                    COLOR_DARK_GRAY);
+                                    ThemePanelSeparator());
                     DrawLine(InnerX + 10, InnerY + LineH,
-                             LocStr(MSG_FILES_EMPTY), COLOR_DARK_GRAY);
+                             LocStr(MSG_FILES_EMPTY), ThemeTextMuted());
                 }
             } else if (gPrevKind == PREV_DIR) {
-                DrawLine(InnerX, InnerY, "[Directory]", COLOR_BLUE);
-                DrawLine(InnerX, InnerY + LineH, "Enter to open", COLOR_DARK_GRAY);
+                DrawLine(InnerX, InnerY, "[Directory]", ThemeTextAccent());
+                DrawLine(InnerX, InnerY + LineH, "Enter to open", ThemeTextMuted());
             } else if (gPrevKind == PREV_ELF) {
-                DrawLine(InnerX, InnerY, "ELF executable", COLOR_BLUE);
-                DrawLine(InnerX, InnerY + LineH, "Enter to run", COLOR_DARK_GRAY);
+                DrawLine(InnerX, InnerY, "ELF executable", ThemeTextAccent());
+                DrawLine(InnerX, InnerY + LineH, "Enter to run", ThemeTextMuted());
             } else if (gPrevKind == PREV_ERR) {
-                DrawLine(InnerX, InnerY, "Cannot read file", COLOR_BLUE);
+                DrawLine(InnerX, InnerY, "Cannot read file", ThemeTextAccent());
             } else if (gPrevKind == PREV_BIN) {
-                DrawLine(InnerX, InnerY, "Binary file", COLOR_BLUE);
-                DrawLine(InnerX, InnerY + LineH, "Enter = hex-ish view", COLOR_DARK_GRAY);
+                DrawLine(InnerX, InnerY, "Binary file", ThemeTextAccent());
+                DrawLine(InnerX, InnerY + LineH, "Enter = hex-ish view", ThemeTextMuted());
             } else if (gPrevKind == PREV_TEXT && InnerH > LineH) {
                 char Row[72];
                 int Col = 0;
@@ -261,7 +261,7 @@ void PaintList(void) {
                     char C = gView[ti];
                     if (C == '\n' || Col >= (int)MaxCols) {
                         Row[Col] = 0;
-                        DrawLine(InnerX, CurY, Row, COLOR_BLACK);
+                        DrawLine(InnerX, CurY, Row, ThemeText());
                         CurY += LineH;
                         Col = 0;
                         if (C == '\n') {
@@ -279,7 +279,7 @@ void PaintList(void) {
                 }
                 if (Col > 0 && CurY + LineH <= InnerY + InnerH) {
                     Row[Col] = 0;
-                    DrawLine(InnerX, CurY, Row, COLOR_BLACK);
+                    DrawLine(InnerX, CurY, Row, ThemeText());
                 }
             }
         }

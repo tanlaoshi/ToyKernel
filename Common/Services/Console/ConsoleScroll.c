@@ -139,24 +139,24 @@ void ConsoleSbRepaint(void) {
         /* 历史行里的提示符也保持青色 */
         if (L[0] == 't' && L[1] == 'o' && L[2] == 'y' && L[3] == 'o' &&
             L[4] == 's' && L[5] == '>' && L[6] == ' ') {
-            ConsoleDrawString("toyos> ", COLOR_CYAN);
+            ConsoleDrawString("toyos> ", ThemeShellPrompt());
             if (L[7]) {
-                ConsoleDrawString(L + 7, COLOR_WHITE);
+                ConsoleDrawString(L + 7, ThemeShellText());
             }
         } else {
-            ConsoleDrawString(L, COLOR_WHITE);
+            ConsoleDrawString(L, ThemeShellText());
         }
-        ConsoleDrawString("\n", COLOR_WHITE);
+        ConsoleDrawString("\n", ThemeShellText());
     }
     if (gViewOff == 0 && gAccLen > 0) {
         if (gAcc[0] == 't' && gAcc[1] == 'o' && gAcc[2] == 'y' && gAcc[3] == 'o' &&
             gAcc[4] == 's' && gAcc[5] == '>' && gAcc[6] == ' ') {
-            ConsoleDrawString("toyos> ", COLOR_CYAN);
+            ConsoleDrawString("toyos> ", ThemeShellPrompt());
             if (gAcc[7]) {
-                ConsoleDrawString(gAcc + 7, COLOR_WHITE);
+                ConsoleDrawString(gAcc + 7, ThemeShellText());
             }
         } else {
-            ConsoleDrawString(gAcc, COLOR_WHITE);
+            ConsoleDrawString(gAcc, ThemeShellText());
         }
     }
 

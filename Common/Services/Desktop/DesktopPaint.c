@@ -92,13 +92,13 @@ void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 Border;
 
     BlitIconFaceRaw(Icon->X, Icon->Y, Icon);
-    Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
+    Border = Selected ? ThemeIconSelect() : ThemeIconBorder();
     UiDrawRectangle(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, DESKTOP_ICON_SIZE,
                     Border);
     if (Selected) {
         UiDrawRectangle(Icon->X + 1, Icon->Y + 1,
                         DESKTOP_ICON_SIZE - 2, DESKTOP_ICON_SIZE - 2,
-                        COLOR_YELLOW);
+                        ThemeIconSelect());
     }
 
     LabelW = Icon->Label ? FontStringWidth(Icon->Label) : 0;
@@ -109,7 +109,7 @@ void DrawOneIconRaw(const DESKTOP_ICON *Icon, int Selected) {
     LabelY = Icon->Y + DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD;
     if (Icon->Label) {
         HalVideoDrawStringAt(LabelX, LabelY, Icon->Label,
-                             Selected ? COLOR_YELLOW : COLOR_WHITE);
+                             Selected ? ThemeIconSelect() : ThemeIconText());
     }
 }
 
@@ -120,7 +120,7 @@ void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     UINT32 Border;
 
     BlitIconFaceFree(Icon->X, Icon->Y, Icon);
-    Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
+    Border = Selected ? ThemeIconSelect() : ThemeIconBorder();
     FillRectFree(Icon->X, Icon->Y, DESKTOP_ICON_SIZE, 1, Border);
     FillRectFree(Icon->X, Icon->Y + DESKTOP_ICON_SIZE - 1, DESKTOP_ICON_SIZE, 1,
                  Border);
@@ -141,6 +141,6 @@ void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected) {
     LabelY = Icon->Y + DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD;
     if (Icon->Label) {
         DrawStringFree(LabelX, LabelY, Icon->Label,
-                       Selected ? COLOR_YELLOW : COLOR_WHITE);
+                       Selected ? ThemeIconSelect() : ThemeIconText());
     }
 }

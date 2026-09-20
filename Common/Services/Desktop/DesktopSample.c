@@ -121,7 +121,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
         if (X >= Icon->X && Y >= Icon->Y &&
             X < Icon->X + DESKTOP_ICON_SIZE &&
             Y < Icon->Y + DESKTOP_ICON_SIZE) {
-            Border = Selected ? COLOR_YELLOW : COLOR_WHITE;
+            Border = Selected ? ThemeIconSelect() : ThemeIconBorder();
             if (X == Icon->X || Y == Icon->Y ||
                 X == Icon->X + DESKTOP_ICON_SIZE - 1 ||
                 Y == Icon->Y + DESKTOP_ICON_SIZE - 1) {
@@ -132,7 +132,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
                 (X == Icon->X + 1 || Y == Icon->Y + 1 ||
                  X == Icon->X + DESKTOP_ICON_SIZE - 2 ||
                  Y == Icon->Y + DESKTOP_ICON_SIZE - 2)) {
-                *Out = COLOR_YELLOW;
+                *Out = ThemeIconSelect();
                 return 1;
             }
             if (Icon->BmpReady && Icon->Bmp.Pixels) {
@@ -202,7 +202,7 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
                             int Bit = 7 - (int)(Gx % 8);
 
                             if (Byte & (1 << Bit)) {
-                                *Out = Selected ? COLOR_YELLOW : COLOR_WHITE;
+                                *Out = Selected ? ThemeIconSelect() : ThemeIconText();
                                 return 1;
                             }
                         }
