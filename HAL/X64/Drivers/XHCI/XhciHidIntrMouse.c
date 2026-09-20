@@ -1,6 +1,6 @@
 /*
  * XhciHidIntrMouse.c — PR-S-xhcihid-1：鼠标中断端点配置 / 入队
- * 从 XhciHid.c 原样搬家；不改语义。HID 全局仍在 XhciCore.c。
+ * 从 XhciHid.c 原样搬家；不改语义。HID 全局仍在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 

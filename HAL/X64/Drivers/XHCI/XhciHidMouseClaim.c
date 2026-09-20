@@ -1,6 +1,6 @@
 /*
  * XhciHidMouseClaim.c — PR-S-xhcihid-1：复合设备鼠标认领
- * 从 XhciHid.c 原样搬家；不改语义。HID 全局仍在 XhciCore.c。
+ * 从 XhciHid.c 原样搬家；不改语义。HID 全局仍在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 

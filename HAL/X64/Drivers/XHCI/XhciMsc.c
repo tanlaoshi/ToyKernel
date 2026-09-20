@@ -2,8 +2,8 @@
  * XhciMsc.c — PR-S-xhcimsc-1：MSC 核心（BringUp / Ready / Scan / 容量查询入口）
  *
  * Bulk→XhciMscBulk；BOT/扇区→XhciMscBot；配置认领→XhciMscClaim；
- * 根口编排→XhciMscClaimPorts。事件环 Bulk 完成仍在 XhciCore.c。
- * MSC 全局仍定义在 XhciCore.c（BSS 顺序影响 HID DMA 环地址；勿迁出）。
+ * 根口编排→XhciMscClaimPorts。事件环 Bulk 完成仍在 Xhci.c。
+ * MSC 全局仍定义在 Xhci.c（BSS 顺序影响 HID DMA 环地址；勿迁出）。
  */
 #include "XHCI/XhciInternal.h"
 

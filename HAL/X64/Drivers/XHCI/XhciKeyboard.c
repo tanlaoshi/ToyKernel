@@ -1,7 +1,7 @@
 /*
  * XhciKeyboard.c — PR-H-xhci-core-split-6：KbdPush / SetLeds / DequeueKeyboard
  *
- * 从 XhciCore.c 原样搬家；不改语义。kbd 队列全局仍在 XhciCore.c。
+ * 从 Xhci.c 原样搬家；不改语义。kbd 队列全局仍在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 

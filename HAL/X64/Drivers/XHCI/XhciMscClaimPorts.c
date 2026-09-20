@@ -1,7 +1,7 @@
 /*
  * XhciMscClaimPorts.c — PR-S-xhcimsc-1：根口/hub claim 编排。
  * Force/Address/Hub 帮手在 XhciMscClaimPort.c。
- * MSC 全局仍定义在 XhciCore.c（BSS 顺序影响 HID DMA 环；勿迁出）。
+ * MSC 全局仍定义在 Xhci.c（BSS 顺序影响 HID DMA 环；勿迁出）。
  */
 #include "XHCI/XhciInternal.h"
 

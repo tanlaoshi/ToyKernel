@@ -2,7 +2,7 @@
  * XhciInternal.h — PR-H-xhci-split-1：xHCI 内部共享（宏/类型/extern/共享声明）
  *
  * 对外仍用 Drivers/XHCI.h。本头供 Drivers/XHCI/ 下各 .c 共用。
- * split-8：单体 Drivers/XHCI.c 已删；全局定义主要在 XhciCore.c（MSC→XhciMsc、事件→XhciEvent；勿迁 BSS）。
+ * split-8：单体 Drivers/XHCI.c 已删；全局定义主要在 Xhci.c（MSC→XhciMsc、事件→XhciEvent；勿迁 BSS）。
  * 共享函数声明供跨文件调用。
  */
 #ifndef XHCI_INTERNAL_H
@@ -117,7 +117,7 @@ typedef struct {
     UINT32 Size; /* TRB 个数（含末尾 LINK） */
 } RING_STATE;
 
-/* ---- 全局（定义主要在 XhciCore.c；按 XHCI拆分.md §五 可再分置） ---- */
+/* ---- 全局（定义主要在 Xhci.c；按 XHCI拆分.md §五 可再分置） ---- */
 extern UINT64 gCapabilityBase;
 extern UINT64 gOperationalBase;
 extern UINT64 gDoorbellBase;
@@ -333,6 +333,8 @@ int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
 
 UINT8 *InSlot(void);
 UINT8 *InEp(UINT32 Dci);
+int XhciInitHw(UINT64 BaseAddress);
+int XhciEnumAndBind(void);
 
 void TakeLegacy(void);
 void HaltControllerQuiet(void);

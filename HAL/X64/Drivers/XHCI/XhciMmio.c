@@ -1,7 +1,7 @@
 /*
  * XhciMmio.c — PR-H-xhci-core-split-1：MMIO / 内存 / Stall / Wait / MapDma
  *
- * 从 XhciCore.c 原样搬家；不改语义。全局仍定义在 XhciCore.c。
+ * 从 Xhci.c 原样搬家；不改语义。全局仍定义在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 

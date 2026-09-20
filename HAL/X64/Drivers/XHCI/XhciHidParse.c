@@ -1,6 +1,6 @@
 /*
  * XhciHidParse.c — PR-S-xhcihid-1：配置描述符解析（键/鼠）
- * 从 XhciHid.c 原样搬家；不改语义。HID 全局仍在 XhciCore.c。
+ * 从 XhciHid.c 原样搬家；不改语义。HID 全局仍在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 

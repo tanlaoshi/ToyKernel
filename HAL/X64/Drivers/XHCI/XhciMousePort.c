@@ -1,7 +1,7 @@
 /*
  * XhciMousePort.c — PR-S-xhcimouse-1：其它根口绑鼠标
  *
- * 从 XhciMouse.c 原样搬家；不改语义。无 static 提升；鼠标全局仍在 XhciCore.c。
+ * 从 XhciMouse.c 原样搬家；不改语义。无 static 提升；鼠标全局仍在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 

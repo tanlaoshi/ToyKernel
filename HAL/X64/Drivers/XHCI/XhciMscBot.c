@@ -1,6 +1,6 @@
 /*
  * XhciMscBot.c — PR-S-xhcimsc-1：从 XhciMsc.c 原样搬家；不改语义。
- * MSC 全局仍定义在 XhciCore.c（BSS 顺序影响 HID DMA 环；勿迁出）。
+ * MSC 全局仍定义在 Xhci.c（BSS 顺序影响 HID DMA 环；勿迁出）。
  */
 #include "XHCI/XhciInternal.h"
 

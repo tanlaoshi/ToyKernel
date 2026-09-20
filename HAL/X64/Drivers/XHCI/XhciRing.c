@@ -1,7 +1,7 @@
 /*
  * XhciRing.c — PR-H-xhci-core-split-2：TRB 环 / DCBAA / ResolveFwCmdRing
  *
- * 从 XhciCore.c 原样搬家；不改语义。环缓冲全局仍在 XhciCore.c（勿迁 BSS）。
+ * 从 Xhci.c 原样搬家；不改语义。环缓冲全局仍在 Xhci.c（勿迁 BSS）。
  * ProcessEvents* 已在 XhciEvent.c，本文件不搬。
  */
 #include "XHCI/XhciInternal.h"

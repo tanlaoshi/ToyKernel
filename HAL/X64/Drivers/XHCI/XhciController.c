@@ -1,7 +1,7 @@
 /*
  * XhciController.c — PR-H-xhci-core-split-5：TakeLegacy / Halt* / Reset / Start / BootMarkRs
  *
- * 从 XhciCore.c 原样搬家；不改语义。不抽 XhciInit。控制器相关全局仍在 XhciCore.c。
+ * 从 Xhci.c 原样搬家；不改语义。不抽 XhciInit。控制器相关全局仍在 Xhci.c。
  */
 #include "XHCI/XhciInternal.h"
 
