@@ -189,6 +189,8 @@ void HandleArp(const ARP_PKT *Arp);
 void HandleIcmp(const IP_HDR *Ip, const UINT8 *Payload, UINTN PayloadLen);
 
 /* 队列态在 NetVirtio.c */
+extern volatile VIRTIO_COMMON_CFG *gCommon;
+extern volatile VIRTIO_NET_CFG *gDevCfg;
 extern VIRTQ gRxQ;
 extern VIRTQ gTxQ;
 extern UINT8 gRxBufData[RX_BUF_COUNT][PAGE_SIZE];
@@ -223,6 +225,10 @@ UINT16 VirtQueueAllocateDescriptor(VIRTQ *Q);
 void VirtQueueFreeDescriptor(VIRTQ *Q, UINT16 Idx);
 int VirtQueuePopUsed(VIRTQ *Q, UINT16 *Head, UINT32 *Len);
 void ReceiveRefillOne(VIRTQ *Q, UINT8 *Buf);
+int VirtQueueSetup(VIRTQ *Q, UINT16 QueueId, volatile VIRTIO_COMMON_CFG *Common,
+                   volatile UINT8 *NotifyBase, UINT32 NotifyMult);
+void VirtQueueEnable(VIRTQ *Q, UINT16 QueueId);
+void ReceiveRefillAll(void);
 
 int VirtioFindNet(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut);
 int VirtioNetStart(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 BarPhys);
