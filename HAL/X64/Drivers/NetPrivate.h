@@ -118,7 +118,77 @@ typedef struct {
     UINT32 NotifyMult;
 } VIRTQ;
 
-/* 协议头（ARP/IP/ICMP/ETH）留在 Net.c；队列态在 NetVirtio.c */
+/* 协议头。ByteSwap / Sum16 给各 Net*.c 共用 */
+typedef struct {
+    UINT8  Dst[6];
+    UINT8  Src[6];
+    UINT16 EtherType;
+} __attribute__((packed)) ETH_HDR;
+
+typedef struct {
+    UINT16 HwType;
+    UINT16 ProtoType;
+    UINT8  HwLen;
+    UINT8  ProtoLen;
+    UINT16 Op;
+    UINT8  SenderMac[6];
+    UINT32 SenderIp;
+    UINT8  TargetMac[6];
+    UINT32 TargetIp;
+} __attribute__((packed)) ARP_PKT;
+
+typedef struct {
+    UINT8  VerIhl;
+    UINT8  Tos;
+    UINT16 TotalLen;
+    UINT16 Id;
+    UINT16 Frag;
+    UINT8  Ttl;
+    UINT8  Proto;
+    UINT16 Checksum;
+    UINT32 Src;
+    UINT32 Dst;
+} __attribute__((packed)) IP_HDR;
+
+typedef struct {
+    UINT8  Type;
+    UINT8  Code;
+    UINT16 Checksum;
+    UINT16 Id;
+    UINT16 Seq;
+} __attribute__((packed)) ICMP_HDR;
+
+static inline UINT16 ByteSwap16(UINT16 V) {
+    return (UINT16)((V >> 8) | (V << 8));
+}
+
+static inline UINT32 ByteSwap32(UINT32 V) {
+    return ((V & 0xFF) << 24) | ((V & 0xFF00) << 8) |
+           ((V >> 8) & 0xFF00) | ((V >> 24) & 0xFF);
+}
+
+static inline UINT16 Sum16(const UINT8 *Data, UINTN Len) {
+    UINT32 Sum = 0;
+    while (Len > 1) {
+        Sum += ((UINT16)Data[0] << 8) | Data[1];
+        Data += 2;
+        Len -= 2;
+    }
+    if (Len) {
+        Sum += (UINT16)Data[0] << 8;
+    }
+    while (Sum >> 16) {
+        Sum = (Sum & 0xFFFF) + (Sum >> 16);
+    }
+    return (UINT16)~Sum;
+}
+
+int NetSendFrame(const UINT8 *Frame, UINTN FrameLen);
+void ArpLearn(UINT32 Ip, const UINT8 Mac[6]);
+void HandleArp(const ARP_PKT *Arp);
+void HandleIcmp(const IP_HDR *Ip, const UINT8 *Payload, UINTN PayloadLen);
+
+/* 队列态在 NetVirtio.c */
 extern VIRTQ gRxQ;
 extern VIRTQ gTxQ;
 extern UINT8 gRxBufData[RX_BUF_COUNT][PAGE_SIZE];
