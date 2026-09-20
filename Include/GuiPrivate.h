@@ -16,6 +16,10 @@
 #define TITLE_HEIGHT GUI_TITLE_HEIGHT
 #define CLOSE_SIZE   24
 #define CLOSE_MARGIN 6
+/* 用户窗键队列深度；Poll 返回 300+HID（HID < 100，避开点击包 400+） */
+#define GUI_USER_KEY_Q     8
+#define GUI_USER_KEY_BASE  300
+#define GUI_USER_KEY_HID_MAX 99
 /*
  * 光标随分辨率缩放（基准 1080p：臂长 6、线宽 1px）。
  * 2160p ≈ 2×；gUnder 按上限预留（含黑描边外扩 1px）。
@@ -49,12 +53,16 @@ typedef struct {
     char     TitleBuf[64];
     char     ClientText[128];
     int      ClosePending;
+    int      Closing; /* CloseWindow 重入保护（exit 收窗 vs 点击关窗） */
     int      UserButtonUsed[4];
     char     UserButtonLabel[4][24];
     int      UserButtonClick;
     int      UserClientClick;
     UINT32   UserClickX;
     UINT32   UserClickY;
+    /* 键盘入窗：焦点 USER 窗 HID 按下边沿队列（ShellTask → Poll） */
+    UINT8    UserKeyQ[GUI_USER_KEY_Q];
+    UINT8    UserKeyCount;
 } GUI_WINDOW;
 
 /* 共享状态（定义见各 .c） */
@@ -247,5 +255,7 @@ void PaintUserClient(int Idx);
 int UserWindowIndexAfterRaise(int Wid);
 void RepaintUserWindow(int Wid);
 int UserButtonHit(int Idx, UINT32 X, UINT32 Y);
+void GuiUserEnqueueKey(UINT8 HidKey);
+int GuiUserDequeueKeyEvent(void);
 
 #endif

@@ -235,3 +235,57 @@ int ToyUiGetTextField(int WindowId, int FieldId, char *Buf, unsigned Cap) {
     ToyUiCopyCap(Buf, Cap, St->Field.Text);
     return 0;
 }
+
+/* 无 Shift：字母小写、数字与空白；供焦点输入框 */
+static char ToyUiHidAscii(int Hid) {
+    if (Hid >= TOY_UI_HID_A && Hid <= 0x1D) {
+        return (char)('a' + (Hid - TOY_UI_HID_A));
+    }
+    if (Hid >= 0x1E && Hid <= 0x26) {
+        return (char)('1' + (Hid - 0x1E));
+    }
+    if (Hid == 0x27) {
+        return '0';
+    }
+    if (Hid == TOY_UI_HID_SPACE) {
+        return ' ';
+    }
+    return 0;
+}
+
+int ToyUiApplyKeyToField(int WindowId, int Hid) {
+    TOY_UI_WIN *St;
+    char C;
+    unsigned Len;
+
+    St = ToyUiWinState(WindowId);
+    if (!St || !St->Field.Used || !St->Field.Focus) {
+        return 0;
+    }
+    if (Hid == TOY_UI_HID_BACKSPACE) {
+        Len = 0;
+        while (St->Field.Text[Len]) {
+            Len++;
+        }
+        if (Len > 0) {
+            St->Field.Text[Len - 1] = 0;
+            ToyUiRedrawWin(WindowId, St);
+        }
+        return 1;
+    }
+    C = ToyUiHidAscii(Hid);
+    if (!C) {
+        return 0;
+    }
+    Len = 0;
+    while (St->Field.Text[Len]) {
+        Len++;
+    }
+    if (Len + 1 >= TOY_UI_TEXT_MAX) {
+        return 1;
+    }
+    St->Field.Text[Len] = C;
+    St->Field.Text[Len + 1] = 0;
+    ToyUiRedrawWin(WindowId, St);
+    return 1;
+}

@@ -60,7 +60,7 @@ void PaintUserClient(int Idx) {
     }
     if (W->ClientText[0] != 0) {
         HalVideoSetClipOrigin(Cx, Cy, Cw, Ch, W->Background);
-        HalVideoDrawStringAt(Cx, Cy, W->ClientText, COLOR_BLACK);
+        HalVideoDrawStringAt(Cx, Cy, W->ClientText, ThemeText());
         HalVideoClearClip();
     }
     Count = 0;
@@ -89,7 +89,7 @@ void PaintUserClient(int Idx) {
             continue;
         }
         UiDrawButton(Bx + Slot * (Bw + Gap), By, Bw, Bh,
-                     W->UserButtonLabel[Bi], COLOR_BLACK, ThemeControlFace());
+                     W->UserButtonLabel[Bi], ThemeText(), ThemeControlFace());
         Slot++;
     }
     HalVideoClearClip();
@@ -197,6 +197,7 @@ int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
     GfxIrqEnter();
     CursorRestore();
     GfxIrqLeave();
+    GuiFrameBufferBegin();
     HalVideoClearClip();
     if (OffX == 0 && OffY == 0 && ClipW == W && ClipH == H) {
         HalVideoWriteRect(ScreenX, ScreenY, ClipW, ClipH, Pixels);
@@ -207,6 +208,7 @@ int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
         }
     }
     GuiBackupSyncRect(ScreenX, ScreenY, ClipW, ClipH);
+    GuiFrameBufferEnd();
     ComposeEnd();
     GfxIrqEnter();
     CursorPaint();

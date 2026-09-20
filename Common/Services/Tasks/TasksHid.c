@@ -136,6 +136,17 @@ void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
             continue;
         }
 
+        /* 用户态窗：焦点路由 HID → Poll（300+code）；勿进 Shell 行缓冲 */
+        if (GuiFocusKind() == GUI_WIN_USER) {
+            if (Key == HID_KEY_CAPSLOCK) {
+                HIDKeyboardToggleCapsLock();
+                HalKeyboardSetLeds(HIDKeyboardGetLeds());
+                continue;
+            }
+            GuiUserEnqueueKey(Key);
+            continue;
+        }
+
         if (Key == HID_KEY_ENTER) {
             /* ConsoleOnEnter → EnsureShell：空桌面时开 Shell */
             ConsoleOnEnter();

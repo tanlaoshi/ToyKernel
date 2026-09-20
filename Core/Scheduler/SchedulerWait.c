@@ -9,6 +9,7 @@
 #include "Syscall.h"
 #include "Hal.h"
 #include "Console.h"
+#include "Gui.h"
 #include "Debug.h"
 #include "VirtualMemory.h"
 
@@ -172,9 +173,18 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
 
     (void)TerminateUserLocked(Exiting, Code, &ShowPrompt, &Detached);
 
+    /*
+     * 先收 USER 窗再切任务：避免与点击关窗淡出重入；也不要在
+     * ActivateTask 之后做重 GUI（当时 Current 已是 Shell）。
+     */
+    SpinLockRelease(&gSchedulerLock);
+    GuiCloseAllUserWindows();
+    SchedulerDestroyDetached(Detached);
+    Detached = 0;
+    SpinLockAcquire(&gSchedulerLock);
+
     if (gCoopDrain) {
         SpinLockRelease(&gSchedulerLock);
-        SchedulerDestroyDetached(Detached);
         if (ShowPrompt) {
             ConsoleShowPrompt();
         }
@@ -187,7 +197,6 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     Next = PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
-        SchedulerDestroyDetached(Detached);
         ConsoleWrite("sched: no runnable task after exit\n");
         for (;;) {
             HalCpuPark();
@@ -196,7 +205,6 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     ActivateTask(Next);
     Ret = SchedulerResumeFrame(Next);
     SpinLockRelease(&gSchedulerLock);
-    SchedulerDestroyDetached(Detached);
     if (ShowPrompt) {
         ConsoleShowPrompt();
     }

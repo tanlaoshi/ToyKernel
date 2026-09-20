@@ -55,8 +55,11 @@ int UserWindowIndexAfterRaise(int Wid) {
 void RepaintUserWindow(int Wid) {
     int Idx;
 
+    /* 开窗/加按钮期间禁鼠标边沿，避免误点进 Poll */
+    GuiInputLock(1);
     Idx = UserWindowIndexAfterRaise(Wid);
     if (Idx < 0) {
+        GuiInputLock(0);
         return;
     }
     /* 丢弃可能含透视的旧备份，Sync 时走 DrawWindowAt */
@@ -77,6 +80,10 @@ void RepaintUserWindow(int Wid) {
     CursorPaint();
     HalVideoPresent();
     GfxIrqLeave();
+    gWindows[Idx].UserButtonClick = -1;
+    gWindows[Idx].UserClientClick = 0;
+    gWindows[Idx].UserKeyCount = 0;
+    GuiInputLock(0);
 }
 
 
@@ -183,10 +190,12 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     gWindows[Idx].Title = gWindows[Idx].TitleBuf;
     gWindows[Idx].ClientText[0] = 0;
     gWindows[Idx].ClosePending = 0;
+    gWindows[Idx].Closing = 0;
     gWindows[Idx].UserButtonClick = -1;
     gWindows[Idx].UserClientClick = 0;
     gWindows[Idx].UserClickX = 0;
     gWindows[Idx].UserClickY = 0;
+    gWindows[Idx].UserKeyCount = 0;
     {
         int Bi;
         for (Bi = 0; Bi < 4; Bi++) {
@@ -244,54 +253,4 @@ int GuiUserAddButton(int Wid, int ButtonId, const char *Label) {
                  sizeof(gWindows[Wid].UserButtonLabel[ButtonId]), Label);
     RepaintUserWindow(Wid);
     return 0;
-}
-
-
-int GuiPollUserInput(int Wid) {
-    int i;
-    int Id;
-
-    (void)Wid;
-    /*
-     * RaiseWindow 会搬槽位，用户态持有的 wid 可能过期。
-     * 关闭/按钮事件在整表上查找，避免点了按钮 poll 永远读到 0。
-     */
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWindows[i].ClosePending) {
-            gWindows[i].ClosePending = 0;
-            return 1;
-        }
-    }
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWindows[i].UserButtonClick >= 0 && gWindows[i].UserButtonClick < 4) {
-            Id = gWindows[i].UserButtonClick;
-            gWindows[i].UserButtonClick = -1;
-            return 100 + Id;
-        }
-    }
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER &&
-            gWindows[i].UserClientClick) {
-            UINT32 Cx;
-            UINT32 Cy;
-
-            Cx = gWindows[i].UserClickX;
-            Cy = gWindows[i].UserClickY;
-            gWindows[i].UserClientClick = 0;
-            if (Cx > 1023u) {
-                Cx = 1023u;
-            }
-            if (Cy > 1023u) {
-                Cy = 1023u;
-            }
-            /* 400 + x + (y << 10)；不占用 0 / 1 / 100+id */
-            return 400 + (int)Cx + ((int)Cy << 10);
-        }
-    }
-    for (i = 0; i < MAX_WINS; i++) {
-        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER) {
-            return 0;
-        }
-    }
-    return -1;
 }

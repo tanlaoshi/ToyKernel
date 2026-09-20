@@ -82,16 +82,26 @@ void CloseWindow(int Idx) {
     UINT32 Wh;
     int i;
     int SavedFocus;
+    int WasUser;
 
     if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
         return;
     }
+    if (gWindows[Idx].Closing) {
+        return;
+    }
+    gWindows[Idx].Closing = 1;
+    WasUser = (gWindows[Idx].Kind == GUI_WIN_USER);
     X = gWindows[Idx].X;
     Y = gWindows[Idx].Y;
     Ww = gWindows[Idx].Width;
     Wh = gWindows[Idx].Height;
 
-    /* PR-GUI-l3-fade：仍 Active 时淡出；随后走原收尾合成 */
+    /*
+     * 淡出期间保持 Active，且此时不挂 ClosePending。
+     * 若先挂 ClosePending，应用会立刻 exit → GuiCloseAllUserWindows 再入 CloseWindow，
+     * 与淡出重入打坏物理页 / 页表，第二次 exec 在 0x40000000 #PF。
+     */
     if (ThemeWindowFadeSteps() != 0) {
         if (!gWinBackupValid[Idx]) {
             BackupWindowAt(Idx);
@@ -99,7 +109,7 @@ void CloseWindow(int Idx) {
         GuiAnimateWindowFade(Idx, 0);
     }
 
-    if (gWindows[Idx].Kind == GUI_WIN_USER) {
+    if (WasUser) {
         gWindows[Idx].ClosePending = 1;
     }
     gWindows[Idx].Active = 0;
@@ -111,6 +121,7 @@ void CloseWindow(int Idx) {
     gWindows[Idx].InputLine[0] = 0;
     gWindows[Idx].UserButtonClick = -1;
     gWindows[Idx].UserClientClick = 0;
+    gWindows[Idx].UserKeyCount = 0;
     {
         int Bi;
         for (Bi = 0; Bi < 4; Bi++) {
@@ -193,7 +204,21 @@ void CloseWindow(int Idx) {
     HalVideoPresent();
     GfxIrqLeave();
     GuiFocusApply();
+    gWindows[Idx].Closing = 0;
     DebugWrite("Gui: closed window\n");
+}
+
+void GuiCloseAllUserWindows(void) {
+    int i;
+
+    for (i = MAX_WINS - 1; i >= 0; i--) {
+        if (gWindows[i].Closing) {
+            continue;
+        }
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER) {
+            CloseWindow(i);
+        }
+    }
 }
 
 

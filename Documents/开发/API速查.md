@@ -45,7 +45,7 @@
 | `ToyGfxDamageText` / `DamageRect`（单次 ≤64×64） | `<ToyGfx.h>` |
 | `ToyGfxDrawPixel` / `DrawLine` / `FillRect` / `DrawRect` | `<ToyGfx.h>` |
 
-Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / `240+` 输入框。无键盘入窗。窗槽最多 6。
+Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / `240+` 输入框 / **`300+HID` 键**（焦点在本窗）/ `400+` 客户区点。窗槽最多 6。libToyUi **1.2.0**。
 
 ## 网络（`libToyNet` 1.2.0；内核 `LWIP=1`；Guest `lwip on`）
 
@@ -64,6 +64,6 @@ Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / 
 
 ## 已知缺口
 
-`getpid` / libc `yield()` / `sleep` / `getcwd` / `chdir` / `wait` 真实退出码 / Gfx 位图 / 键盘入窗 / 滚动条。
+`getpid` / libc `yield()` / `sleep` / `getcwd` / `chdir` / `wait` 真实退出码 / Gfx 位图 / 滚动条。
 
 `fopen` / `lseek` / `realloc` / 点线矩形 / 复选框列表输入框 **已经有**，不要当成缺口。

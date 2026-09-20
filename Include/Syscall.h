@@ -50,7 +50,7 @@
 /* SYS_KILL：rdi=pid（与 fork 返回值一致 = 槽位+1）rsi=sig；成功 0，失败 -1 */
 /* SYS_CREATE_WINDOW：rdi=title rsi=w rdx=h → wid；失败 -1（PR-G14） */
 /* SYS_DAMAGE：rdi=wid rsi=text → 0；失败 -1 */
-/* SYS_POLL_INPUT：rdi=wid → 0 无事件 / 1 已关窗 / 100+id 按钮 / 400+x+(y<<10) 客户区点击 / -1 无效 */
+/* SYS_POLL_INPUT：rdi=wid → 0 无事件 / 1 已关窗（或无 USER 窗）/ 100+id 按钮 / 300+HID 键 / 400+x+(y<<10) 客户区点击 */
 /* SYS_UI_BUTTON：rdi=wid rsi=button_id(0..3) rdx=label → 0；失败 -1（PR-G15） */
 /* SYS_FILE_STAT：rdi=path rsi=TOY_FILE_STAT* → 0；失败 -1（PR-F4） */
 /* SYS_OPEN_DIRECTORY：rdi=path → dirfd；失败 -1（PR-F4） */

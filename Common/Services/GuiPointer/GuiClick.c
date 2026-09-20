@@ -110,6 +110,11 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                     gWindows[i].UserClientClick = 1;
                     gWindows[i].UserClickX = X - Cx;
                     gWindows[i].UserClickY = Y - Cy;
+                    GuiFocusSave();
+                    RaiseWindow(i);
+                    /* 与按钮相同：勿 Sync（会重贴备份打出客户区镂空） */
+                    GuiFocusApply();
+                    return 1;
                 }
             }
         }

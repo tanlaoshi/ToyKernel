@@ -79,6 +79,7 @@ int ToyUiPoll(int WindowId) {
     long R;
     unsigned X;
     unsigned Y;
+    int Hid;
 
     if (WindowId < 0) {
         return -1;
@@ -91,6 +92,11 @@ int ToyUiPoll(int WindowId) {
         X = (unsigned)(R - TOY_UI_CLICK_PACK_BASE) & TOY_UI_CLICK_MASK;
         Y = (unsigned)(R - TOY_UI_CLICK_PACK_BASE) >> TOY_UI_CLICK_SHIFT;
         return ToyUiHitWidgets(WindowId, X, Y);
+    }
+    if (R >= TOY_UI_EVENT_KEY_BASE && R < TOY_UI_CLICK_PACK_BASE) {
+        Hid = (int)(R - TOY_UI_EVENT_KEY_BASE);
+        ToyUiApplyKeyToField(WindowId, Hid);
+        return (int)R;
     }
     return (int)R;
 }

@@ -112,8 +112,12 @@ int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
                       const UINT32 *Pixels);
 /* PR-G15：用户窗按钮；ButtonId 0..3；成功 0 */
 int GuiUserAddButton(int Wid, int ButtonId, const char *Label);
-/* 0=无事件 1=已点关闭 100+ButtonId=按钮；-1=无效 */
+/* 0=无 / 1=关 / 100+id=按钮 / 300+HID=键 / 400+=客户区点 */
 int GuiPollUserInput(int Wid);
+/* 焦点为 GUI_WIN_USER 时由 FeedHid 调用 */
+void GuiUserEnqueueKey(UINT8 HidKey);
+/* 用户进程退出时收掉残留 USER 窗（防槽位占满第二次 exec 失败） */
+void GuiCloseAllUserWindows(void);
 /* PR-I18N2：按当前语言刷新窗标题并重绘 chrome */
 void GuiRefreshTitles(void);
 GUI_WIN_KIND GuiFocusKind(void);
