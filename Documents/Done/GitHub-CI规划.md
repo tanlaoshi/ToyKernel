@@ -1,6 +1,6 @@
 # ToyOS GitHub Actions CI/CD
 
-> **本文是本柱总纲 + 现状分析 + PR 切分。** 排期认 [`路线图.md`](路线图.md#pr-ci)。  
+> **本文是本柱总纲 + 现状分析 + PR 切分。** 排期认 [`路线图.md`](../路线图.md#pr-ci)。  
 > **状态（2026-09-20）**：**PR-CI-1…3 ✅**（本柱收官）。  
 > **不占文首 ★**。验收：`git tag v*` → Actions **release** → GitHub Releases。  
 > **硬约束**：不改内核、不改 `build.sh` / `smoke-boot.sh`；只动各仓 `.github/workflows/*.yml`；不部署服务器；单 job `timeout-minutes` ≤ 30。
@@ -69,7 +69,7 @@ edk2 根也有 `.github/`，那是 **tianocore/EDK2** 的 CI，**禁止**往那�
 | `ToyBoot/` | 无 `.github` |
 | `.gitee/` | **三仓皆无**（不要 Gitee Actions） |
 
-路线图已归档：[`【归档】PR-Q1`](路线图.md) 记过这两份 workflow。本柱是 **增强**，不是从零发明。
+路线图已归档：[`【归档】PR-Q1`](../路线图.md) 记过这两份 workflow。本柱是 **增强**，不是从零发明。
 
 ### 1.5 任务书样例必须改掉的点
 
@@ -83,7 +83,7 @@ edk2 根也有 `.github/`，那是 **tianocore/EDK2** 的 CI，**禁止**往那�
 | 无 `timeout-minutes` | 额度保护 | 每 job **20**（上限 30） |
 | 默认 `LWIP=1` | CI 无 lwIP 源 | clone 或 `LWIP=0`（见下） |
 
-**lwIP（已确认）**：workflow 内 clone，**不用** `LWIP=0`。与 [`ThirdParty/README.md`](../ThirdParty/README.md) 一致：
+**lwIP（已确认）**：workflow 内 clone，**不用** `LWIP=0`。与 [`ThirdParty/README.md`](../../ThirdParty/README.md) 一致：
 
 ```bash
 git clone --depth 1 --branch STABLE-2_2_0_RELEASE \

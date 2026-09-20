@@ -35,7 +35,7 @@ cd ToyKernel && git status -sb && git log -6 --oneline
 | `581568a` | 序 5 dhcp | `lwip dhcp` / `net dhcp`；8s 软失败；后设静态停 DHCP |
 | `6a64e2c` | 序 6 doc | 指南 §5.1；`_template/TemplateNetL2.c`（**不进** Kernel） |
 
-相关路线图锚点：[`路线图.md` · #pr-n-nic](路线图.md#pr-n-nic)。
+相关路线图锚点：[`路线图.md` · #pr-n-nic](../路线图.md#pr-n-nic)。
 
 ---
 
@@ -53,9 +53,9 @@ cd ToyKernel && git status -sb && git log -6 --oneline
 
 | 文档 / 代码 | 用途 |
 | --- | --- |
-| [`驱动开发指南.md`](驱动开发指南.md) §5.1 | 新人写网卡：仍是 ToyDriver；Bind → `NetAttachNic` |
-| [`驱动开发范例-网卡L2.md`](驱动开发范例-网卡L2.md) | 本柱过程 / 决策 / 文件地图 |
-| [`路线图.md`](路线图.md#pr-n-nic) | 七刀状态与验收命令 |
+| [`驱动开发指南.md`](../驱动/驱动开发指南.md) §5.1 | 新人写网卡：仍是 ToyDriver；Bind → `NetAttachNic` |
+| [`驱动开发范例-网卡L2.md`](../驱动/驱动开发范例-网卡L2.md) | 本柱过程 / 决策 / 文件地图 |
+| [`路线图.md`](../路线图.md#pr-n-nic) | 七刀状态与验收命令 |
 | `Include/DriverNic.h` + `NetE1000.c` | L2 契约 + 活范例 |
 | `_template/TemplateNetL2.c` | 注释骨架；目录**永不**编进 Kernel |
 | `NetConfig` / `LwIpDhcp` | 地址与 DHCP（协议栈侧，不是驱动本体） |
@@ -94,7 +94,7 @@ lwip dhcp → 有 offer 时非空 IP；再 setip 后 dhcp=off
 
 ## 7. 代码原则（写新文件时）
 
-见路线图 [〇·代码原则](路线图.md#sec-0-code) 与 [`开发命名规范.md`](开发命名规范.md) §6.3：
+见路线图 [〇·代码原则](../路线图.md#sec-0-code) 与 [`开发命名规范.md`](../开发/开发命名规范.md) §6.3：
 
 - 新 `.c` **≤300 行**；1 核心 + 多辅助  
 - 命名 PascalCase；层前缀最前

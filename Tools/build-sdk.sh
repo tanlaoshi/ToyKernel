@@ -37,8 +37,8 @@ cp -a "$TPL/Makefile.template" "$DEST/Makefile.template"
 cp -a "$TPL/README.md" "$DEST/README.md"
 cp -a "$TPL/VERSION" "$DEST/VERSION"
 cp -a "$TPL/Examples/." "$DEST/Examples/"
-cp -a Documents/应用开发指南.md "$DEST/Documents/"
-cp -a Documents/API速查.md "$DEST/Documents/"
+cp -a Documents/开发/应用开发指南.md "$DEST/Documents/"
+cp -a Documents/开发/API速查.md "$DEST/Documents/"
 
 DEST_ABS=$(cd "$DEST" && pwd)
 PARENT=$(dirname "$DEST_ABS")

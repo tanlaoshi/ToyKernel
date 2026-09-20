@@ -6,8 +6,8 @@
  *
  * 活范例：../NetE1000.c
  * 契约：Include/DriverNic.h → NetAttachNic
- * 指南：Documents/驱动开发指南.md §5.1
- * 过程：Documents/驱动开发范例-网卡L2.md
+ * 指南：Documents/驱动/驱动开发指南.md §5.1
+ * 过程：Documents/驱动/驱动开发范例-网卡L2.md
  *
  * —— 下面为注释草稿（勿在本目录当真驱动改）——
  *

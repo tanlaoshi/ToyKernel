@@ -1,13 +1,13 @@
 # ToyOS GUI 美化规划
 
 > **本文是 GUI 美化方向的总纲。** 后续所有 GUI 美化 PR 都引用本文。  
-> **排期**：全仓 **P1**（[`路线图.md`](路线图.md#pr-gui)）；**P0 是命名 R 柱**。本柱不插队。`PR-GUI-doc` 已入库。
+> **排期**：全仓 **P1**（[`路线图.md`](../路线图.md#pr-gui)）；**P0 是命名 R 柱**。本柱不插队。`PR-GUI-doc` 已入库。
 >
 > 相关文档：
-> - [`技术手册.md`](技术手册.md#tm-iv-gui) — 第一个 GUI 程序 / 用户态控件 ABI
-> - [`技术手册.md`](技术手册.md#tm-iv-fonts) — 点阵字体与 TOYF
-> - [`Done/应用开发生态规划.md`](Done/应用开发生态规划.md) — 应用开发方向总纲
-> - [`路线图.md`](路线图.md) — 总体排期
+> - [`技术手册.md`](../技术手册.md#tm-iv-gui) — 第一个 GUI 程序 / 用户态控件 ABI
+> - [`技术手册.md`](../技术手册.md#tm-iv-fonts) — 点阵字体与 TOYF
+> - [`应用开发生态规划.md`](应用开发生态规划.md) — 应用开发方向总纲
+> - [`路线图.md`](../路线图.md) — 总体排期
 
 ---
 
@@ -38,7 +38,7 @@
 | 模块 | 文件 | 职责 | 约行 |
 |------|------|------|------|
 | 窗口管理 | `Common/Services/GuiWm.c` | 窗口表、Raise、命中测试 | 179 |
-| 合成 | `Common/Services/GuiCompose.c` | 桌面+窗口→后缓冲→Present | 228（已拆；见 [`Done/GuiCompose拆分.md`](Done/GuiCompose拆分.md)） |
+| 合成 | `Common/Services/GuiCompose.c` | 桌面+窗口→后缓冲→Present | 228（已拆；见 [`GuiCompose拆分.md`](GuiCompose拆分.md)） |
 | 拖动 | `Common/Services/GuiDrag.c` | 拖动备份、脏区、合成 | 678 |
 | 光标 | `Common/Services/GuiCursor.c` | save-under、擦除、绘制 | 237 |
 | 焦点 | `Common/Services/GuiFocus.c` | 焦点切换、输入路由 | 313 |
@@ -52,7 +52,7 @@
 | 像素矩形 | `HAL/X64/HalVideo.c` | `HalVideoWriteRect` 等 | — |
 | BMP | `Common/Library/Bmp.c` | BI_RGB 24/32 bpp → RGB888（G13） | 124 |
 
-控件 API：[`Include/UI.h`](../Include/UI.h)。主题 API：[`Include/Theme.h`](../Include/Theme.h)。
+控件 API：[`Include/UI.h`](../../Include/UI.h)。主题 API：[`Include/Theme.h`](../../Include/Theme.h)。
 
 ### 2.2 视觉现状
 
@@ -302,11 +302,11 @@ PR-GUI-doc（本文）✅
 
 | 文档 | 作用 |
 |------|------|
-| [`技术手册.md`](技术手册.md#tm-iv-gui) | 用户态 GUI 入门 |
-| [`技术手册.md`](技术手册.md#tm-iv-fonts) | 字体 |
-| [`Done/应用开发生态规划.md`](Done/应用开发生态规划.md) | 应用生态总纲 |
-| [`路线图.md`](路线图.md) | 排期 / JX |
-| [`Done/GuiCompose拆分.md`](Done/GuiCompose拆分.md) | 合成拆分史 |
+| [`技术手册.md`](../技术手册.md#tm-iv-gui) | 用户态 GUI 入门 |
+| [`技术手册.md`](../技术手册.md#tm-iv-fonts) | 字体 |
+| [`应用开发生态规划.md`](应用开发生态规划.md) | 应用生态总纲 |
+| [`路线图.md`](../路线图.md) | 排期 / JX |
+| [`GuiCompose拆分.md`](GuiCompose拆分.md) | 合成拆分史 |
 | **本文** | GUI 美化总纲 |
 
 ---
