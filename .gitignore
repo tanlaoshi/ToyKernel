@@ -1,5 +1,9 @@
 Build/
 VirtRootFs/
+VirtRootFs.img
+# 旧名残留（现用 VirtRootFs*）
+virt-rootfs/
+virt-rootfs.img
 ThirdParty/lwip/
 
 # 遗留根目录产物（旧 Makefile）
@@ -18,7 +22,6 @@ ThirdParty/lwip/
 ._*
 .DS_Store
 .AppleDouble
-VirtRootFs.img
 
 # PR-L1 课外模板产物
 User/Pkg/build/

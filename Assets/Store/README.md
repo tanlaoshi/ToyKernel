@@ -6,8 +6,8 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 |----------------|------|
 | `Assets/Store/catalog.txt` | 离线可安装项列表 |
 | `Assets/Store/packages/<id>/` | 可选：包描述 `PKG.TXT` + 载荷 |
-| `StoreCache/`（卷根） | **本地缓存**（`store sync`/`fetch` 或优盘拷入） |
-| `Apps/`（卷根） | **已安装**用户 ELF（`type=app`） |
+| `StoreCache/`（卷根） | **本地缓存**（运行时目录；`store sync`/`fetch` 或优盘拷入；prepare 只 `mkdir`） |
+| `Apps/`（卷根） | **已安装**用户 ELF（运行时目录；prepare 只 `mkdir`） |
 | `Assets/Fonts/` | **已安装**字库（`type=font`，TOYF `*.FNT`） |
 | `Assets/Packs/` | **已安装**资源 blob（`type=asset`） |
 
