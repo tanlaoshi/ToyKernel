@@ -88,4 +88,7 @@ int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLe
 UINT16 HalNetChecksum(const void *Data, UINTN Len);
 void HalNetSetLwipReceive(int Enable);
 
+/* 平台设备枚举：扫总线并对每个设备 DeviceAdd；由 DeviceEnumerateAll 调用 */
+void HalDeviceEnumerate(void);
+
 #endif
