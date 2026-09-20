@@ -284,6 +284,7 @@ XHCI_SPLIT_SRCS := $(wildcard HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
 DRIVER_SRCS   += $(XHCI_SPLIT_SRCS)
 ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
 ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/HalSerial/*.c)
+ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/AcpiMadt/*.c)
 ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
 ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
 
