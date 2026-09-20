@@ -363,6 +363,7 @@ USER_DIRDEMO_OBJ = $(USER_OUT)/dirdemo.o
 USER_NETLIB_OBJ = $(USER_OUT)/netlibdemo.o
 USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
 USER_LIB_TOY_UI_OBJ = User/Library/ToyUi/ToyUi.o
+USER_LIB_TOY_UI_WIDGETS_OBJ = User/Library/ToyUi/ToyUiWidgets.o
 USER_LIB_TOY_NET_OBJ = User/Library/ToyNet/ToyNet.o
 USER_LIB_FSUTIL_OBJ = User/Library/FsUtil/FsUtil.o
 USER_LIB_TOY_GFX_A = User/Library/ToyGfx/libToyGfx.a
@@ -624,14 +625,20 @@ $(USER_WINDEMO_ELF): $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OU
 $(USER_LIB_TOY_GFX_OBJ): User/Library/ToyGfx/ToyGfx.c User/include/ToyGfx.h User/include/unistd.h User/include/ToySyscall.h 
 	$(CC) $(USER_CFLAGS) -c User/Library/ToyGfx/ToyGfx.c -o $@
 
-$(USER_LIB_TOY_UI_OBJ): User/Library/ToyUi/ToyUi.c User/include/ToyUi.h User/include/ToyGfx.h User/include/unistd.h User/include/ToySyscall.h 
+$(USER_LIB_TOY_UI_OBJ): User/Library/ToyUi/ToyUi.c User/Library/ToyUi/ToyUiPrivate.h \
+		User/include/ToyUi.h User/include/ToyGfx.h User/include/unistd.h \
+		User/include/ToySyscall.h
 	$(CC) $(USER_CFLAGS) -c User/Library/ToyUi/ToyUi.c -o $@
+
+$(USER_LIB_TOY_UI_WIDGETS_OBJ): User/Library/ToyUi/ToyUiWidgets.c \
+		User/Library/ToyUi/ToyUiPrivate.h User/include/ToyUi.h User/include/ToyGfx.h
+	$(CC) $(USER_CFLAGS) -c User/Library/ToyUi/ToyUiWidgets.c -o $@
 
 $(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
 	ar rcs $@ $(USER_LIB_TOY_GFX_OBJ)
 
-$(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ)
-	ar rcs $@ $(USER_LIB_TOY_UI_OBJ)
+$(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ)
+	ar rcs $@ $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ)
 
 $(USER_LIB_TOY_NET_OBJ): User/Library/ToyNet/ToyNet.c User/include/ToyNet.h \
 		User/include/unistd.h User/include/errno.h User/include/string.h \
@@ -822,7 +829,8 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_MMAPDEMO_OBJ) $(USER_KILLDEMO_OBJ) $(USER_SIGDEMO_OBJ)
 	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_BLITDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_DIRDEMO_OBJ)
 	rm -f $(USER_NETLIB_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_NET_OBJ) $(USER_LIB_FSUTIL_OBJ)
+	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) \
+		$(USER_LIB_TOY_NET_OBJ) $(USER_LIB_FSUTIL_OBJ)
 	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_FSUTIL_A) $(USER_LIB_TOYOS_A)
 	rm -f $(USER_CRT_OBJS)
 	rm -f $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF)
