@@ -10,16 +10,18 @@ cd "$(dirname "$0")"
 #   ./build.sh SCREEN_LOG=0          # boot GOP 不上字（串口仍可开）
 #   ./build.sh SCREEN_LOG_SMP=1      # 屏上也打 SMP（默认不上）
 #   ./build.sh NO_COM1=1             # 兼容旧名，等价 SERIAL=0
-#   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0）
+#   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0；无 LwIp 端口时自动 LWIP=0）
 #   ./build.sh riscv
 #   ./build.sh arm64 BRINGUP=1   # PR-A6：仅串口 hello
 #   ./build.sh arm64 BOARD=virt
 #   ./build.sh riscv BOARD=milk-v-duo-s
+#   ./build.sh arm64 LWIP=0      # 显式关（默认已自动关）
 #   ./build.sh V=1          # 打印每条 gcc/ld；默认只留警告、错误和结果
 ARCH=x86_64
 BOARD=virt
 DEBUG=0
 LWIP=1
+LWIP_SET=0
 NO_COM1=0
 SERIAL=1
 SERIAL_BOOT=1
@@ -48,8 +50,8 @@ for Arg in "$@"; do
     case "$Arg" in
         DEBUG=1|debug=1) DEBUG=1 ;;
         DEBUG=0|debug=0) DEBUG=0 ;;
-        LWIP=1|lwip=1) LWIP=1 ;;
-        LWIP=0|lwip=0) LWIP=0 ;;
+        LWIP=1|lwip=1) LWIP=1; LWIP_SET=1 ;;
+        LWIP=0|lwip=0) LWIP=0; LWIP_SET=1 ;;
         NO_COM1=1|no_com1=1) NO_COM1=1; SERIAL=0 ;;
         NO_COM1=0|no_com1=0) NO_COM1=0 ;;
         SERIAL=1|serial=1) SERIAL=1 ;;
@@ -88,8 +90,6 @@ if [ -z "$BRINGUP" ]; then
     BRINGUP=0
 fi
 
-echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_KERNEL_DEBUG=$DEBUG SERIAL=$SERIAL SCREEN_LOG=$SCREEN_LOG USB=$SERIAL_USB LWIP=$LWIP BRINGUP=$BRINGUP"
-
 case "$ARCH" in
     x86_64) HAL_ARCH=X64 ;;
     arm64)  HAL_ARCH=Arm64 ;;
@@ -99,6 +99,19 @@ case "$ARCH" in
         exit 1
         ;;
 esac
+
+# virt arm64/riscv 尚无 HAL/*/LwIp/lwipopts.h；默认关 lwIP，避免误编挂掉
+if [ "$LWIP" = "1" ] && [ ! -f "HAL/$HAL_ARCH/LwIp/include/lwipopts.h" ]; then
+    if [ "$LWIP_SET" = "1" ]; then
+        echo "error: LWIP=1 but HAL/$HAL_ARCH/LwIp/include/lwipopts.h missing (no port yet)" >&2
+        echo "  use: ./build.sh $ARCH LWIP=0" >&2
+        exit 1
+    fi
+    echo "note: ARCH=$ARCH has no LwIp port — using LWIP=0"
+    LWIP=0
+fi
+
+echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_KERNEL_DEBUG=$DEBUG SERIAL=$SERIAL SCREEN_LOG=$SCREEN_LOG USB=$SERIAL_USB LWIP=$LWIP BRINGUP=$BRINGUP"
 ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
 USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
 
