@@ -1,5 +1,5 @@
 /*
- * TaskFdPrivate.h — FD 内部（仅 Common/Core/TaskFd；User 勿 include）
+ * TaskFdPrivate.h — FD 内部（仅 Core/TaskFd；User 勿 include）
  */
 #ifndef TASK_FD_PRIVATE_H
 #define TASK_FD_PRIVATE_H

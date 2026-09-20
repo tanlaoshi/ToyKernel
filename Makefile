@@ -252,12 +252,12 @@ $(DEMO_STAMP): FORCE
 	@echo '$(TOY_DEMO_DRIVER)' > $@.new
 	@if [ ! -f $@ ] || ! cmp -s $@.new $@; then mv $@.new $@; else rm -f $@.new; fi
 
-CORE_SRCS     := $(wildcard Common/Core/*.c)
-CORE_SRCS     += $(wildcard Common/Core/Scheduler/*.c)
-CORE_SRCS     += $(wildcard Common/Core/Process/*.c)
-CORE_SRCS     += $(wildcard Common/Core/TaskFd/*.c)
-CORE_SRCS     += $(wildcard Common/Core/Syscall/*.c)
-CORE_SRCS     += $(wildcard Common/Core/VirtualMemory/*.c)
+CORE_SRCS     := $(wildcard Core/*.c)
+CORE_SRCS     += $(wildcard Core/Scheduler/*.c)
+CORE_SRCS     += $(wildcard Core/Process/*.c)
+CORE_SRCS     += $(wildcard Core/TaskFd/*.c)
+CORE_SRCS     += $(wildcard Core/Syscall/*.c)
+CORE_SRCS     += $(wildcard Core/VirtualMemory/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
 SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
@@ -301,7 +301,7 @@ ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/AcpiMadt/*.c)
 ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
 ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
 
-CORE_OBJS     := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(CORE_SRCS))
+CORE_OBJS     := $(patsubst Core/%.c,$(BUILDDIR)/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
 FONT_OBJS     := $(patsubst Common/Fonts/%.c,$(BUILDDIR)/Common/Fonts/%.o,$(FONT_SRCS))
@@ -491,7 +491,7 @@ ifneq ($(ARCH),x86_64)
 	@echo "$(BOARD)" > $(HALDIR)/.toy_board
 endif
 
-$(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
+$(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 

@@ -1,5 +1,5 @@
 /*
- * ProcessPrivate.h — 进程加载内部（仅 Common/Core/Process；User 勿 include）
+ * ProcessPrivate.h — 进程加载内部（仅 Core/Process；User 勿 include）
  */
 #ifndef PROCESS_PRIVATE_H
 #define PROCESS_PRIVATE_H

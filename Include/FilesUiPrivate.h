@@ -1,7 +1,7 @@
 /*
  * FilesUiPrivate.h — FilesUi 内部共享头（仅 Common/Services 下 FilesUi*.c 使用）
  *
- * 禁止 User 程序、HAL、Common/Core 包含本文件。
+ * 禁止 User 程序、HAL、Core 包含本文件。
  * PR-S-filesui-split-1：Paint 迁出；全局定义仍在 FilesUi.c。
  * 源文件在 Common/Services/FilesUi/（核心 FilesUi.c）。
  */

@@ -1,5 +1,5 @@
 /*
- * SchedulerPrivate.h — 调度器内部（仅 Common/Core；User 勿 include）
+ * SchedulerPrivate.h — 调度器内部（仅 Core；User 勿 include）
  *
  * PR-S-sched-split-1：runq
  * PR-S-sched-split-2：wait/exit 共享符号
