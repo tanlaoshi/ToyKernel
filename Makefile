@@ -281,6 +281,7 @@ DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/E1000/*.c)
 XHCI_SPLIT_SRCS := $(wildcard HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
 DRIVER_SRCS   += $(XHCI_SPLIT_SRCS)
 ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
+ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/HalSerial/*.c)
 ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
 ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
 
@@ -411,7 +412,7 @@ ifeq ($(BRINGUP),1)
 # PR-B2：仍链 Board.o（Startup 横幅 BoardName；HalSerial 用 BoardConfig）
 OBJS = $(HALDIR)/Startup_asm.o \
        $(HALDIR)/Startup.o \
-       $(HALDIR)/HalSerial.o \
+       $(patsubst HAL/$(HAL_ARCH)/HalSerial/%.c,$(HALDIR)/HalSerial/%.o,$(wildcard HAL/$(HAL_ARCH)/HalSerial/*.c)) \
        $(HALDIR)/Hal.o \
        $(BOARD_OBJS)
 EXTRA_OBJS =
