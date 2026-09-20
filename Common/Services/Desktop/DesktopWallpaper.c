@@ -96,16 +96,21 @@ UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
         }
     }
     HalVideoGetSize(&Sw, &Sh);
-    (void)Sw;
-    (void)Sh;
+    if (ThemeDesktopGradientEnabled()) {
+        return ThemeDesktopGradientAt(X, Y, Sw, Sh);
+    }
     return ThemeDesktopBackground();
 }
 
 void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 Row;
+    UINT32 Col;
     UINT32 Sw;
     UINT32 Sh;
     UINT32 CopyW;
+    static UINT32 sRow[512];
+    UINT32 Chunk;
+    UINT32 Off;
 
     if (W == 0 || H == 0) {
         return;
@@ -131,6 +136,28 @@ void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
             return;
         }
+    }
+    if (ThemeDesktopGradientEnabled()) {
+        HalVideoGetSize(&Sw, &Sh);
+        if (Sw == 0 || Sh == 0) {
+            UiFillRectangle(X, Y, W, H, ThemeDesktopBackground());
+            return;
+        }
+        for (Row = 0; Row < H; Row++) {
+            Off = 0;
+            while (Off < W) {
+                Chunk = W - Off;
+                if (Chunk > (UINT32)(sizeof(sRow) / sizeof(sRow[0]))) {
+                    Chunk = (UINT32)(sizeof(sRow) / sizeof(sRow[0]));
+                }
+                for (Col = 0; Col < Chunk; Col++) {
+                    sRow[Col] = ThemeDesktopGradientAt(X + Off + Col, Y + Row, Sw, Sh);
+                }
+                HalVideoWriteRect(X + Off, Y + Row, Chunk, 1, sRow);
+                Off += Chunk;
+            }
+        }
+        return;
     }
     UiFillRectangle(X, Y, W, H, ThemeDesktopBackground());
 }

@@ -93,6 +93,11 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
             Ty += LineH + 2;
         }
+    } else if (gCat == SETTINGS_CAT_THEME && Ty + LineH * 2 < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, "Default / Tech / Gradient", ThemeTextMuted());
+        Ty += LineH;
+        HalVideoDrawStringAt(X + 10, Ty, "Applies live; saved to DB", ThemeTextMuted());
+        Ty += LineH + 2;
     }
 
     if (gDisplayHint == 2 && Ty + LineH < MaxY) {

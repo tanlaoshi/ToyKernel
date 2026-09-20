@@ -13,6 +13,7 @@ const char *CatLabel(SETTINGS_CAT C) {
     case SETTINGS_CAT_DISPLAY:  return LocStr(MSG_SET_DISPLAY);
     case SETTINGS_CAT_LANGUAGE: return LocStr(MSG_SET_LANGUAGE);
     case SETTINGS_CAT_SCALE:    return LocStr(MSG_SET_SCALE);
+    case SETTINGS_CAT_THEME:    return LocStr(MSG_SET_THEME);
     default:                    return "?";
     }
 }
@@ -69,6 +70,7 @@ int ItemCount(void) {
     case SETTINGS_CAT_DISPLAY:  return 1 + ModeCount();
     case SETTINGS_CAT_LANGUAGE: return 2;
     case SETTINGS_CAT_SCALE:    return SCALE_COUNT;
+    case SETTINGS_CAT_THEME:    return THEME_CHOICE_COUNT;
     default:                    return 0;
     }
 }
@@ -134,6 +136,15 @@ void ItemLabel(int Idx, char *Out, int OutMax) {
         Out[P++] = '%';
         Out[P] = 0;
         break;
+    case SETTINGS_CAT_THEME:
+        if (Idx == 0) {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_DEFAULT));
+        } else if (Idx == 1) {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_TECH));
+        } else {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_GRAD));
+        }
+        break;
     default:
         break;
     }
@@ -192,100 +203,12 @@ int CurrentItemIndex(void) {
             }
         }
         return 1;
+    case SETTINGS_CAT_THEME:
+        if (ThemeThemeId() != THEME_PALETTE_TECH) {
+            return 0;
+        }
+        return ThemeDesktopGradientEnabled() ? 2 : 1;
     default:
         return 0;
     }
-}
-
-void FormatNowDisplay(char *Out, UINTN Max) {
-    UINT32 PhysW = 0;
-    UINT32 PhysH = 0;
-    UINT32 LogW = 0;
-    UINT32 LogH = 0;
-    UINT32 Sc;
-    UINTN N = 0;
-
-    if (Max == 0) {
-        return;
-    }
-    HalVideoGetPhysicalSize(&PhysW, &PhysH);
-    HalVideoGetSize(&LogW, &LogH);
-    if (PhysW == 0 || PhysH == 0) {
-        PhysW = LogW;
-        PhysH = LogH;
-    }
-    Out[0] = 'N';
-    Out[1] = 'o';
-    Out[2] = 'w';
-    Out[3] = ' ';
-    FormatUxU(Out + 4, Max > 4 ? Max - 4 : 0, PhysW, PhysH);
-    while (Out[N]) {
-        N++;
-    }
-    Sc = ThemeUiScale();
-    if (N + 12 < Max) {
-        Out[N++] = ' ';
-        Out[N++] = 's';
-        Out[N++] = 'c';
-        Out[N++] = 'a';
-        Out[N++] = 'l';
-        Out[N++] = 'e';
-        Out[N++] = '=';
-        if (Sc >= 100) {
-            Out[N++] = (char)('0' + (Sc / 100) % 10);
-        }
-        Out[N++] = (char)('0' + (Sc / 10) % 10);
-        Out[N++] = (char)('0' + (Sc % 10));
-        Out[N++] = '%';
-        Out[N] = 0;
-    }
-    if (Sc != 100 && (LogW != PhysW || LogH != PhysH) && N + 16 < Max) {
-        Out[N++] = ' ';
-        Out[N++] = 'U';
-        Out[N++] = 'I';
-        Out[N++] = ' ';
-        FormatUxU(Out + N, Max - N, LogW, LogH);
-    }
-}
-
-void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {
-    UINTN N = 0;
-    char Tmp[8];
-    int Tn;
-    int i;
-    UINT32 V;
-
-    if (Max == 0) {
-        return;
-    }
-    V = A;
-    Tn = 0;
-    if (V == 0) {
-        Tmp[Tn++] = '0';
-    } else {
-        while (V > 0 && Tn < (int)sizeof(Tmp)) {
-            Tmp[Tn++] = (char)('0' + (V % 10));
-            V /= 10;
-        }
-    }
-    for (i = Tn - 1; i >= 0 && N + 1 < Max; i--) {
-        Out[N++] = Tmp[i];
-    }
-    if (N + 1 < Max) {
-        Out[N++] = 'x';
-    }
-    V = B;
-    Tn = 0;
-    if (V == 0) {
-        Tmp[Tn++] = '0';
-    } else {
-        while (V > 0 && Tn < (int)sizeof(Tmp)) {
-            Tmp[Tn++] = (char)('0' + (V % 10));
-            V /= 10;
-        }
-    }
-    for (i = Tn - 1; i >= 0 && N + 1 < Max; i--) {
-        Out[N++] = Tmp[i];
-    }
-    Out[N] = 0;
 }

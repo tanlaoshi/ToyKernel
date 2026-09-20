@@ -27,6 +27,10 @@ void ThemeSetWallpaper(int Enabled);
 #define THEME_PALETTE_TECH    1
 int ThemeThemeId(void);
 void ThemeSetThemeId(int Id);
+/* PR-GUI-tech-3：tech 对角渐变桌面（wallpaper=0 时）；0=关 */
+int ThemeDesktopGradientEnabled(void);
+void ThemeSetDesktopGradient(int Enabled);
+UINT32 ThemeDesktopGradientAt(UINT32 X, UINT32 Y, UINT32 Sw, UINT32 Sh);
 
 /*
  * PR-GUI-l1：窗框/任务栏/控件配色与客户区内边距（只扩展 getter；暂不进 THEME.CFG）。

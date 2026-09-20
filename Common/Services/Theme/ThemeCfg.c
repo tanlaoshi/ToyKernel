@@ -82,7 +82,8 @@ int ThemeLoad(void) {
 
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
              ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale") +
-             ApplyDbKey("fade") + ApplyDbKey("wallpaper") + ApplyDbKey("theme");
+             ApplyDbKey("fade") + ApplyDbKey("wallpaper") + ApplyDbKey("theme") +
+             ApplyDbKey("deskgrad");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
@@ -133,6 +134,8 @@ int ThemeLoad(void) {
     DebugHex32((UINT32)gWallpaper);
     DebugWrite(" theme=");
     DebugWrite(ThemeTechName(gThemeId));
+    DebugWrite(" deskgrad=");
+    DebugHex32((UINT32)gDesktopGrad);
     if (ThemeHasDisplayPref()) {
         DebugWrite(" mode=");
         DebugHex32(gModeW);

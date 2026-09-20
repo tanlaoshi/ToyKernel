@@ -125,6 +125,23 @@ void ApplyDisplayChoice(int Index) {
     PaintMenu();
 }
 
+void ApplyThemeChoice(int Index) {
+    if (Index < 0 || Index >= THEME_CHOICE_COUNT) {
+        return;
+    }
+    if (Index == 0) {
+        ThemeSetThemeId(THEME_PALETTE_DEFAULT);
+        ThemeSetDesktopGradient(0);
+    } else if (Index == 1) {
+        ThemeSetThemeId(THEME_PALETTE_TECH);
+        ThemeSetDesktopGradient(0);
+    } else {
+        ThemeSetThemeId(THEME_PALETTE_TECH);
+        ThemeSetDesktopGradient(1);
+    }
+    ThemeApply();
+}
+
 void ApplyItem(int Idx) {
     if (Idx < 0 || Idx >= ItemCount()) {
         return;
@@ -149,8 +166,104 @@ void ApplyItem(int Idx) {
     case SETTINGS_CAT_SCALE:
         ApplyScaleChoice(Idx);
         return;
+    case SETTINGS_CAT_THEME:
+        ApplyThemeChoice(Idx);
+        break;
     default:
         break;
     }
     PaintMenu();
+}
+
+void FormatNowDisplay(char *Out, UINTN Max) {
+    UINT32 PhysW = 0;
+    UINT32 PhysH = 0;
+    UINT32 LogW = 0;
+    UINT32 LogH = 0;
+    UINT32 Sc;
+    UINTN N = 0;
+
+    if (Max == 0) {
+        return;
+    }
+    HalVideoGetPhysicalSize(&PhysW, &PhysH);
+    HalVideoGetSize(&LogW, &LogH);
+    if (PhysW == 0 || PhysH == 0) {
+        PhysW = LogW;
+        PhysH = LogH;
+    }
+    Out[0] = 'N';
+    Out[1] = 'o';
+    Out[2] = 'w';
+    Out[3] = ' ';
+    FormatUxU(Out + 4, Max > 4 ? Max - 4 : 0, PhysW, PhysH);
+    while (Out[N]) {
+        N++;
+    }
+    Sc = ThemeUiScale();
+    if (N + 12 < Max) {
+        Out[N++] = ' ';
+        Out[N++] = 's';
+        Out[N++] = 'c';
+        Out[N++] = 'a';
+        Out[N++] = 'l';
+        Out[N++] = 'e';
+        Out[N++] = '=';
+        if (Sc >= 100) {
+            Out[N++] = (char)('0' + (Sc / 100) % 10);
+        }
+        Out[N++] = (char)('0' + (Sc / 10) % 10);
+        Out[N++] = (char)('0' + (Sc % 10));
+        Out[N++] = '%';
+        Out[N] = 0;
+    }
+    if (Sc != 100 && (LogW != PhysW || LogH != PhysH) && N + 16 < Max) {
+        Out[N++] = ' ';
+        Out[N++] = 'U';
+        Out[N++] = 'I';
+        Out[N++] = ' ';
+        FormatUxU(Out + N, Max - N, LogW, LogH);
+    }
+}
+
+void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {
+    UINTN N = 0;
+    char Tmp[8];
+    int Tn;
+    int i;
+    UINT32 V;
+
+    if (Max == 0) {
+        return;
+    }
+    V = A;
+    Tn = 0;
+    if (V == 0) {
+        Tmp[Tn++] = '0';
+    } else {
+        while (V > 0 && Tn < (int)sizeof(Tmp)) {
+            Tmp[Tn++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    for (i = Tn - 1; i >= 0 && N + 1 < Max; i--) {
+        Out[N++] = Tmp[i];
+    }
+    if (N + 1 < Max) {
+        Out[N++] = 'x';
+    }
+    V = B;
+    Tn = 0;
+    if (V == 0) {
+        Tmp[Tn++] = '0';
+    } else {
+        while (V > 0 && Tn < (int)sizeof(Tmp)) {
+            Tmp[Tn++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    for (i = Tn - 1; i >= 0 && N + 1 < Max; i--) {
+        Out[N++] = Tmp[i];
+    }
+    Out[N] = 0;
 }

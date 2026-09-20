@@ -208,6 +208,13 @@ void ApplyLine(const char *Line) {
         }
         return;
     }
+    Val = ValueAfterKey(Line, "deskgrad");
+    if (Val) {
+        if (ParseDecU32(Val, &V, 0) == 0) {
+            gDesktopGrad = (V != 0) ? 1 : 0;
+        }
+        return;
+    }
 }
 
 int ApplyDbKey(const char *Key) {

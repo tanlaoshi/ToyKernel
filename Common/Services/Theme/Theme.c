@@ -14,6 +14,7 @@ UINT32 gThemeUiScale = 100; /* 50 / 100 / 150 / 200 */
 UINT32 gFadeSteps = 6;      /* PR-GUI-l3-fade；0=关 */
 int gWallpaper = 1;         /* 默认 WALL.BMP；Settings 选色后关 */
 int gThemeId = THEME_PALETTE_DEFAULT;
+int gDesktopGrad = 0;       /* tech 对角渐变；默认关 */
 
 void ThemeInitialize(void) {
     gDesktopBg = COLOR_DARK_GRAY;
@@ -26,6 +27,7 @@ void ThemeInitialize(void) {
     gFadeSteps = 6;
     gWallpaper = 1;
     gThemeId = THEME_PALETTE_DEFAULT;
+    gDesktopGrad = 0;
     /*
      * boot GOP 镜像中：勿套桌面默认 10x18（4K 写不满一屏）。
      * gFontId 仍记桌面偏好；进调度前 KernelMain 再 FontSetById(ThemeFontId())。
@@ -67,6 +69,18 @@ void ThemeSetThemeId(int Id) {
         gDesktopBg = COLOR_DARK_GRAY;
         gShellClientBg = COLOR_LIGHT_GRAY;
         gWallpaper = 1;
+        gDesktopGrad = 0;
+    }
+}
+
+int ThemeDesktopGradientEnabled(void) {
+    return (gThemeId == THEME_PALETTE_TECH && gDesktopGrad != 0) ? 1 : 0;
+}
+
+void ThemeSetDesktopGradient(int Enabled) {
+    gDesktopGrad = Enabled ? 1 : 0;
+    if (gDesktopGrad && gThemeId != THEME_PALETTE_TECH) {
+        gDesktopGrad = 0;
     }
 }
 

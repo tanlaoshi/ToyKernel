@@ -198,3 +198,49 @@ UINT32 ThemeDialogBorder(void) {
     }
     return COLOR_BLACK;
 }
+
+/* §3.1：对角渐变暗端 / 亮端 */
+#define TECH_GRAD_DARK   0x000A1018u
+#define TECH_GRAD_LIGHT  0x00182030u
+
+UINT32 ThemeDesktopGradientAt(UINT32 X, UINT32 Y, UINT32 Sw, UINT32 Sh) {
+    UINT32 Den;
+    UINT32 Num;
+    UINT8 A;
+    UINT32 Dr;
+    UINT32 Dg;
+    UINT32 Db;
+    UINT32 Lr;
+    UINT32 Lg;
+    UINT32 Lb;
+    UINT32 R;
+    UINT32 G;
+    UINT32 B;
+
+    if (Sw == 0) {
+        Sw = 1;
+    }
+    if (Sh == 0) {
+        Sh = 1;
+    }
+    Den = (Sw - 1) + (Sh - 1);
+    if (Den == 0) {
+        return TECH_GRAD_DARK;
+    }
+    Num = X + Y;
+    if (Num > Den) {
+        Num = Den;
+    }
+    /* Alpha：亮端权重 0..255 */
+    A = (UINT8)((Num * 255u) / Den);
+    Dr = (TECH_GRAD_DARK >> 16) & 0xFFu;
+    Dg = (TECH_GRAD_DARK >> 8) & 0xFFu;
+    Db = TECH_GRAD_DARK & 0xFFu;
+    Lr = (TECH_GRAD_LIGHT >> 16) & 0xFFu;
+    Lg = (TECH_GRAD_LIGHT >> 8) & 0xFFu;
+    Lb = TECH_GRAD_LIGHT & 0xFFu;
+    R = (Dr * (255u - A) + Lr * A) / 255u;
+    G = (Dg * (255u - A) + Lg * A) / 255u;
+    B = (Db * (255u - A) + Lb * A) / 255u;
+    return (R << 16) | (G << 8) | B;
+}

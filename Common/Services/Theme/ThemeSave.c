@@ -44,6 +44,7 @@ int ThemeSave(void) {
     char ScaleVal[8];
     char FadeVal[8];
     char WallVal[2];
+    char GradVal[2];
     UINTN ModeLen = 0;
     UINTN ScaleLen = 0;
     UINTN FadeLen = 0;
@@ -81,6 +82,8 @@ int ThemeSave(void) {
     FadeVal[FadeLen] = 0;
     WallVal[0] = gWallpaper ? '1' : '0';
     WallVal[1] = 0;
+    GradVal[0] = gDesktopGrad ? '1' : '0';
+    GradVal[1] = 0;
 
     /*
      * 先写 THEME.CFG：QEMU edid / ToyBoot 认 CFG；若先写 DB 再 CFG 失败，
@@ -179,6 +182,17 @@ int ThemeSave(void) {
         }
         Buf[N++] = '\n';
     }
+    Buf[N++] = 'd';
+    Buf[N++] = 'e';
+    Buf[N++] = 's';
+    Buf[N++] = 'k';
+    Buf[N++] = 'g';
+    Buf[N++] = 'r';
+    Buf[N++] = 'a';
+    Buf[N++] = 'd';
+    Buf[N++] = '=';
+    Buf[N++] = GradVal[0];
+    Buf[N++] = '\n';
     Buf[N] = 0;
     /*
      * 勿先 Delete 再 Write：QEMU fat:rw/vvfat 上 unlink+create 常丢宿主文件
@@ -249,6 +263,9 @@ int ThemeSave(void) {
         DbOk = 0;
     }
     if (DbSet("theme", ThemeTechName(gThemeId)) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("deskgrad", GradVal) != DB_OK) {
         DbOk = 0;
     }
     if (DbEndBatch() != DB_OK) {
