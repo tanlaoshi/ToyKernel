@@ -14,6 +14,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
+#include "DevicesUi.h"
 #include "EditUi.h"
 #include "Locale.h"
 #include "CoreOps.h"
@@ -107,6 +108,8 @@ void GuiRefreshTitles(void) {
             gWindows[i].Title = LocStr(MSG_APP_SETTINGS);
         } else if (gWindows[i].Kind == GUI_WIN_STORE) {
             gWindows[i].Title = LocStr(MSG_APP_STORE);
+        } else if (gWindows[i].Kind == GUI_WIN_DEVICES) {
+            gWindows[i].Title = LocStr(MSG_APP_DEVICES);
         } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gWindows[i].Title = LocStr(MSG_APP_FILES);
         } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
@@ -123,6 +126,8 @@ void GuiRefreshTitles(void) {
         SettingsUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_STORE) {
         StoreUiRepaint();
+    } else if (GuiFocusKind() == GUI_WIN_DEVICES) {
+        DevicesUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_FILES) {
         FilesUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_EDIT) {

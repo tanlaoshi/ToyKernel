@@ -9,6 +9,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
+#include "DevicesUi.h"
 #include "EditUi.h"
 
 #define RESIZE_HOT    16u
@@ -125,6 +126,8 @@ static void RepaintAfterResize(int Idx) {
         SettingsUiRepaint();
     } else if (Kind == GUI_WIN_STORE) {
         StoreUiRepaint();
+    } else if (Kind == GUI_WIN_DEVICES) {
+        DevicesUiRepaint();
     } else if (Kind == GUI_WIN_FILES) {
         FilesUiRepaint();
     } else if (Kind == GUI_WIN_EDIT) {

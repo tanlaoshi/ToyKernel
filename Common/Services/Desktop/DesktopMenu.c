@@ -215,6 +215,8 @@ void RebuildStartMenu(void) {
     MenuAddRow(DESKTOP_ACTION_FILES, L ? L : "Files", 0, 1, 2);
     L = LocStr(MSG_ICON_STORE);
     MenuAddRow(DESKTOP_ACTION_STORE, L ? L : "Store", 0, 1, 3);
+    L = LocStr(MSG_ICON_DEVICES);
+    MenuAddRow(DESKTOP_ACTION_DEVICES, L ? L : "Devices", 0, 1, 4);
     L = LocStr(MSG_ICON_APPS);
     MenuAddRow(DESKTOP_ACTION_APPS, L ? L : "Apps", 0, 1, 2);
 
@@ -272,7 +274,7 @@ void RebuildStartMenu(void) {
     }
 
     L = LocStr(MSG_ICON_SHUTDOWN);
-    MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1, 4);
+    MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1, 6);
     L = LocStr(MSG_ICON_REBOOT);
-    MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1, 5);
+    MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1, 7);
 }

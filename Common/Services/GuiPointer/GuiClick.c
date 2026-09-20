@@ -10,6 +10,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
+#include "DevicesUi.h"
 #include "EditUi.h"
 #include "Console.h"
 #include "Process.h"
@@ -62,6 +63,8 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 (void)GuiOpenFiles();
             } else if (Act == DESKTOP_ACTION_STORE) {
                 (void)GuiOpenStore();
+            } else if (Act == DESKTOP_ACTION_DEVICES) {
+                (void)GuiOpenDevices();
             } else if (Act == DESKTOP_ACTION_EXEC) {
                 if (ExecPath[0]) {
                     DebugWrite("desktop: exec ");
@@ -163,6 +166,15 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 GuiFrameBufferEnd();
             }
             /* 客户区：同 Settings，不在按下时 OnClick */
+        } else if (GuiFocusKind() == GUI_WIN_DEVICES) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
+                DevicesUiRepaint();
+                GuiFrameBufferBegin();
+                DrawWindowChromeAt(gFocusWin);
+                GuiFrameBufferEnd();
+            } else {
+                DevicesUiOnClick(X, Y);
+            }
         } else if (GuiFocusKind() == GUI_WIN_FILES) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 FilesUiRepaint();
@@ -212,6 +224,8 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             (void)GuiOpenFiles();
         } else if (Act == DESKTOP_ACTION_STORE) {
             (void)GuiOpenStore();
+        } else if (Act == DESKTOP_ACTION_DEVICES) {
+            (void)GuiOpenDevices();
         } else if (Act == DESKTOP_ACTION_EXEC) {
             /* PR-G-desk-2：与 Files 双击 ELF 同路径；阻塞至进程退出 */
             if (ExecPath[0]) {

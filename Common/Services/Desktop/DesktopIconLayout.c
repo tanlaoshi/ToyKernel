@@ -96,6 +96,8 @@ static const char *IconLayoutKey(int Idx) {
         return "ic2";
     case 3:
         return "ic3";
+    case 4:
+        return "ic4";
     default:
         return 0;
     }
@@ -185,6 +187,12 @@ void PlaceDesktopIcons(void) {
     gIcons[3].BmpPath = "Assets/Icons/bmp48/STORE.BMP";
     gIcons[3].X = DESKTOP_ORIGIN_X;
     gIcons[3].Y = DESKTOP_ORIGIN_Y + RowH * 3;
+
+    gIcons[4].Action = DESKTOP_ACTION_DEVICES;
+    gIcons[4].IconColor = 0x00806040;
+    gIcons[4].BmpPath = "Assets/Icons/bmp48/INFO.BMP";
+    gIcons[4].X = DESKTOP_ORIGIN_X;
+    gIcons[4].Y = DESKTOP_ORIGIN_Y + RowH * 4;
 
     DesktopRefreshLabels();
 }

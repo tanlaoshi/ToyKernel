@@ -46,3 +46,7 @@ MSG_LANG_USAGE=usage: lang en|zh|reload\n
 MSG_LANG_NOW=lang: 
 MSG_LANG_SET=lang set\n
 MSG_LANG_BAD=lang: bad value (use en|zh|reload)\n
+MSG_APP_DEVICES=Devices
+MSG_ICON_DEVICES=Devices
+MSG_DEV_EMPTY=No devices enumerated
+MSG_DEV_DETAIL=Detail

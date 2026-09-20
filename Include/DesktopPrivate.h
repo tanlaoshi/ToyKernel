@@ -24,7 +24,7 @@
 #include "ToySerialLog.h"
 
 /* ===== 宏（从 Desktop.c 搬入；值不变） ===== */
-#define DESKTOP_ICON_COUNT    4
+#define DESKTOP_ICON_COUNT    5
 #define DESKTOP_ICON_SIZE     48
 #define DESKTOP_ICON_GAP      28
 #define DESKTOP_ORIGIN_X      36
@@ -41,7 +41,7 @@
 #define MENU_W                200u
 #define MENU_ITEM_H           28u
 #define MENU_ICON_SZ          18u
-#define MENU_FIXED_TOP        5 /* Shell/Settings/Files/Store/Apps */
+#define MENU_FIXED_TOP        6 /* Shell/Settings/Files/Store/Devices/Apps */
 #define MENU_FIXED_BOT        2
 #define MENU_APP_MAX          16
 #define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_FIXED_BOT)

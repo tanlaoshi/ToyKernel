@@ -24,10 +24,12 @@ static const char *const gMsgKeys[MSG_COUNT] = {
     "MSG_APP_SETTINGS",
     "MSG_APP_FILES",
     "MSG_APP_STORE",
+    "MSG_APP_DEVICES",
     "MSG_ICON_SHELL",
     "MSG_ICON_SETTINGS",
     "MSG_ICON_FILES",
     "MSG_ICON_STORE",
+    "MSG_ICON_DEVICES",
     "MSG_ICON_APPS",
     "MSG_ICON_SHUTDOWN",
     "MSG_ICON_REBOOT",
@@ -73,6 +75,8 @@ static const char *const gMsgKeys[MSG_COUNT] = {
     "MSG_LANG_NOW",
     "MSG_LANG_SET",
     "MSG_LANG_BAD",
+    "MSG_DEV_EMPTY",
+    "MSG_DEV_DETAIL",
 };
 
 static const char *const gEnFallback[MSG_COUNT] = {
@@ -80,10 +84,12 @@ static const char *const gEnFallback[MSG_COUNT] = {
     "Settings",
     "Files",
     "Store",
+    "Devices",
     "Shell",
     "Settings",
     "Files",
     "Store",
+    "Devices",
     "Apps",
     "Shutdown",
     "Reboot",
@@ -129,6 +135,8 @@ static const char *const gEnFallback[MSG_COUNT] = {
     "lang: ",
     "lang set\n",
     "lang: bad value (use en|zh|reload)\n",
+    "No devices enumerated",
+    "Detail",
 };
 
 static const char *const gZhFallback[MSG_COUNT] = {
@@ -136,10 +144,12 @@ static const char *const gZhFallback[MSG_COUNT] = {
     "设置",
     "文件",
     "商店",
+    "设备",
     "外壳",
     "设置",
     "文件",
     "商店",
+    "设备",
     "应用",
     "关机",
     "重启",
@@ -185,6 +195,8 @@ static const char *const gZhFallback[MSG_COUNT] = {
     "语言: ",
     "语言已切换\n",
     "语言: 无效（用 en|zh|reload）\n",
+    "无已枚举设备",
+    "详情"
 };
 
 static char gEn[MSG_COUNT][LOCALE_STR_MAX];

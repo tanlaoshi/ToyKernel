@@ -13,6 +13,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
+#include "DevicesUi.h"
 #include "EditUi.h"
 
 
@@ -245,6 +246,8 @@ void GuiDragEnd(void) {
             SettingsUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_STORE) {
             StoreUiRepaint();
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_DEVICES) {
+            DevicesUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_FILES) {
             FilesUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_EDIT) {

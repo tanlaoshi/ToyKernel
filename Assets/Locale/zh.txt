@@ -46,3 +46,7 @@ MSG_LANG_USAGE=用法: lang en|zh|reload\n
 MSG_LANG_NOW=语言: 
 MSG_LANG_SET=语言已切换\n
 MSG_LANG_BAD=语言: 无效（用 en|zh|reload）\n
+MSG_APP_DEVICES=设备
+MSG_ICON_DEVICES=设备
+MSG_DEV_EMPTY=无已枚举设备
+MSG_DEV_DETAIL=详情

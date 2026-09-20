@@ -198,6 +198,7 @@ void DesktopRefreshLabels(void) {
     gIcons[1].Label = LocStr(MSG_ICON_SETTINGS);
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
     gIcons[3].Label = LocStr(MSG_ICON_STORE);
+    gIcons[4].Label = LocStr(MSG_ICON_DEVICES);
 }
 
 void DesktopTickClock(void) {

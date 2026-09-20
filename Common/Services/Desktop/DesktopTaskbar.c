@@ -160,18 +160,18 @@ void DrawStartMenuRaw(void) {
             UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                             gIcons[R->IconSrc].IconColor);
             HasIcon = 1;
-        } else if (R->IconSrc == 4 && gPowerBmpReady) {
+        } else if (R->IconSrc == 6 && gPowerBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gPowerBmp);
             HasIcon = 1;
-        } else if (R->IconSrc == 4) {
+        } else if (R->IconSrc == 6) {
             UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, ThemeIconFallbackPower());
             HasIcon = 1;
-        } else if (R->IconSrc == 5 && gRebootBmpReady) {
+        } else if (R->IconSrc == 7 && gRebootBmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
                              &gRebootBmp);
             HasIcon = 1;
-        } else if (R->IconSrc == 5) {
+        } else if (R->IconSrc == 7) {
             UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, ThemeIconFallbackReboot());
             HasIcon = 1;
         } else if (R->Action == DESKTOP_ACTION_EXEC && gIcons[0].BmpReady) {

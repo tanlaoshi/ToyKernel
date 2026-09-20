@@ -10,6 +10,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
+#include "DevicesUi.h"
 #include "EditUi.h"
 #include "ToySerialLog.h"
 
@@ -123,6 +124,9 @@ void GuiRaiseToFront(int Idx) {
         BackupWindowAt(Top);
     } else if (gWindows[Top].Kind == GUI_WIN_STORE) {
         StoreUiRepaint();
+        BackupWindowAt(Top);
+    } else if (gWindows[Top].Kind == GUI_WIN_DEVICES) {
+        DevicesUiRepaint();
         BackupWindowAt(Top);
     } else if (gWindows[Top].Kind == GUI_WIN_FILES) {
         FilesUiRepaint();

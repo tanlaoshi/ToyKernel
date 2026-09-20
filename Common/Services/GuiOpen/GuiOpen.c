@@ -14,6 +14,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
+#include "DevicesUi.h"
 #include "EditUi.h"
 #include "Locale.h"
 
@@ -167,6 +168,10 @@ void CloseWindow(int Idx) {
         } else if (gWindows[i].Kind == GUI_WIN_STORE) {
             gFocusWin = i;
             StoreUiRepaint();
+            gFocusWin = SavedFocus;
+        } else if (gWindows[i].Kind == GUI_WIN_DEVICES) {
+            gFocusWin = i;
+            DevicesUiRepaint();
             gFocusWin = SavedFocus;
         } else if (gWindows[i].Kind == GUI_WIN_FILES) {
             gFocusWin = i;
