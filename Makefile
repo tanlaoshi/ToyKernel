@@ -273,6 +273,7 @@ LIB_SRCS      += $(wildcard Common/Library/Fat/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Gpt/*.c)
 FONT_SRCS     := $(wildcard Common/Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
+DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Video/*.c)
 # PR-H-xhci-split-8：Drivers/XHCI/*.c（Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c
 XHCI_SPLIT_SRCS := $(wildcard HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
 DRIVER_SRCS   += $(XHCI_SPLIT_SRCS)
@@ -365,8 +366,9 @@ EXTRA_OBJS += $(BOARD_OBJS)
 INCLUDES_HAL += -IHAL/X64/Drivers -IHAL/Virt
 VIRT_SRCS := $(wildcard HAL/Virt/*.c)
 VIRT_OBJS := $(patsubst HAL/Virt/%.c,$(HALDIR)/Virt/%.o,$(VIRT_SRCS))
-VIRT_VIDEO_OBJ = $(HALDIR)/Drivers/Video.o
-EXTRA_OBJS += $(VIRT_OBJS) $(VIRT_VIDEO_OBJ)
+VIRT_VIDEO_SRCS := $(wildcard HAL/X64/Drivers/Video/*.c)
+VIRT_VIDEO_OBJS := $(patsubst HAL/X64/Drivers/Video/%.c,$(HALDIR)/Drivers/Video/%.o,$(VIRT_VIDEO_SRCS))
+EXTRA_OBJS += $(VIRT_OBJS) $(VIRT_VIDEO_OBJS)
 ifeq ($(ARCH),riscv)
 # RiscV virt MMIO 窗与 Arm 不同；Arm 用 VirtioMmio.c 内默认值
 CFLAGS_HAL += -DVIRTIO_MMIO_BASE0=0x10001000ULL \
@@ -490,7 +492,7 @@ $(HALDIR)/HalDevices.o: HAL/$(HAL_ARCH)/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifneq ($(ARCH),x86_64)
-$(VIRT_VIDEO_OBJ): HAL/X64/Drivers/Video.c | $(HALDIR)
+$(HALDIR)/Drivers/Video/%.o: HAL/X64/Drivers/Video/%.c | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 

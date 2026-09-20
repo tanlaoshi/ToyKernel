@@ -67,6 +67,24 @@ extern UINT32  gCy1;
 
 extern int     gCursorOverlay;
 
+static inline UINT32 *DrawBase(void) {
+    if (gForceFront && gFront) {
+        return gFront;
+    }
+    return gBackOn ? gBack : gFront;
+}
+
+static inline UINT32 DrawPitch(void) {
+    if (gForceFront && gFront) {
+        return gFrontPitch;
+    }
+    return gBackOn ? gBackPitch : gFrontPitch;
+}
+
+static inline UINT32 CodepointAdvance(UINT32 Cp) {
+    return FontCodepointAdvance(Cp);
+}
+
 /* Scale / 逻辑分辨率（VideoScale.c） */
 UINT32 NormalizeUiScale(UINT32 Percent);
 void ApplyLogicalFromPhys(void);
