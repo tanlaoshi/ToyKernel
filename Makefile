@@ -118,7 +118,8 @@ endif
 INCLUDES_COMMON = -IInclude \
                   -ICommon/Library \
                   -IFonts \
-                  -IHAL/$(HAL_ARCH)
+                  -IHAL/$(HAL_ARCH) \
+                  -IHAL/$(HAL_ARCH)/Hal
 INCLUDES_HAL    = $(INCLUDES_COMMON) \
                   -IHAL/$(HAL_ARCH)/Drivers
 
@@ -294,7 +295,8 @@ DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ahci/*.c)
 XHCI_SPLIT_SRCS := $(wildcard HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
 DRIVER_SRCS   += $(XHCI_SPLIT_SRCS)
 ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
-ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/HalSerial/*.c)
+ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/Hal/*.c)
+ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/Hal/HalSerial/*.c)
 ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/AcpiMadt/*.c)
 ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
 ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
@@ -427,8 +429,9 @@ ifeq ($(BRINGUP),1)
 # PR-B2：仍链 Board.o（Startup 横幅 BoardName；HalSerial 用 BoardConfig）
 OBJS = $(HALDIR)/Startup_asm.o \
        $(HALDIR)/Startup.o \
-       $(patsubst HAL/$(HAL_ARCH)/HalSerial/%.c,$(HALDIR)/HalSerial/%.o,$(wildcard HAL/$(HAL_ARCH)/HalSerial/*.c)) \
-       $(HALDIR)/Hal.o \
+       $(patsubst HAL/$(HAL_ARCH)/Hal/HalSerial/%.c,$(HALDIR)/Hal/HalSerial/%.o,$(wildcard HAL/$(HAL_ARCH)/Hal/HalSerial/*.c)) \
+       $(patsubst HAL/$(HAL_ARCH)/Hal/%.c,$(HALDIR)/Hal/%.o,$(wildcard HAL/$(HAL_ARCH)/Hal/HalSerial.c)) \
+       $(HALDIR)/Hal/Hal.o \
        $(BOARD_OBJS)
 EXTRA_OBJS =
 endif
@@ -506,7 +509,7 @@ $(HALDIR)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 
 # 先于通用 HAL/%.o：依赖 DEMO_STAMP，换 TOY_DEMO_DRIVER=0/1 会触发重编+重链
-$(HALDIR)/HalDevices.o: HAL/$(HAL_ARCH)/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
+$(HALDIR)/Hal/HalDevices.o: HAL/$(HAL_ARCH)/Hal/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_HAL) -c $< -o $@
 

@@ -1,5 +1,5 @@
 /*
- * HAL/X64/HalSerial.c — 调试日志门面
+ * HAL/X64/Hal/HalSerial/HalSerial.c — 调试日志门面
  *
  * 输出契约（串口是旁路，不得影响桌面/输入主路径）：
  *   1) 常驻 ring（Desktop 可叠画历史）
