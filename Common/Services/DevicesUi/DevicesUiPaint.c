@@ -1,5 +1,5 @@
 /*
- * DevicesUiPaint.c — 列表 + 详情（PR-DEV-6）
+ * DevicesUiPaint.c — 三栏：筛选 / 列表 / 详情（PR-DEV-6）
  */
 #include "DevicesUiPrivate.h"
 
@@ -16,44 +16,65 @@ static void PutHex8(char *Dst, UINTN *N, UINTN Max, UINT32 V) {
     }
 }
 
+static const char *FiltLabel(int Filt) {
+    if (Filt == DEVUI_FILT_BOUND) {
+        return LocaleGet() == LOC_LANG_ZH ? "已绑定" : "Bound";
+    }
+    if (Filt == DEVUI_FILT_FREE) {
+        return LocaleGet() == LOC_LANG_ZH ? "未绑定" : "Free";
+    }
+    return LocaleGet() == LOC_LANG_ZH ? "全部" : "All";
+}
+
+static int DrawLine(UINT32 X, UINT32 *Ty, UINT32 MaxY, const char *S, UINT32 Fg) {
+    UINT32 H = FontCellH();
+
+    if (!S || *Ty + H > MaxY) {
+        return 0;
+    }
+    HalVideoDrawStringAt(X, *Ty, S, Fg);
+    *Ty += H + 2;
+    return 1;
+}
+
 static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
     DEVICE_NODE *Dev;
     char Line[80];
     UINTN N;
     int b;
     UINT32 Ty;
+    UINT32 MaxY;
     const char *Bound;
     UINT32 V;
     char Tmp[4];
     int T;
 
     HalVideoFillRect(Dx, Dy, Dw, Dh, ThemePanelDetailBackground());
-    UiDrawRectangle(Dx, Dy, Dw, Dh, ThemePanelSeparator());
-    Ty = Dy + 6;
-    if (gDevUiCount <= 0) {
-        HalVideoDrawStringAt(Dx + 8, Ty, LocStr(MSG_DEV_EMPTY), ThemeText());
+    if (Dw > 3) {
+        HalVideoFillRect(Dx, Dy, 3, Dh, ThemePanelSeparator());
+    }
+    Ty = Dy + 8;
+    MaxY = Dy + Dh - 4;
+    if (gDevUiFiltCount <= 0) {
+        DrawLine(Dx + 10, &Ty, MaxY, LocStr(MSG_DEV_EMPTY), ThemeText());
         return;
     }
     Dev = DeviceGet(gDevUiSel);
     if (!Dev) {
         return;
     }
-    HalVideoDrawStringAt(Dx + 8, Ty, LocStr(MSG_DEV_DETAIL), ThemeTextAccent());
-    Ty += FontCellH() + 4;
+    DrawLine(Dx + 10, &Ty, MaxY, LocStr(MSG_DEV_DETAIL), ThemeTextAccent());
     DevicesUiFormatPci(Dev, Line, sizeof(Line));
-    HalVideoDrawStringAt(Dx + 8, Ty, Line, ThemeText());
-    Ty += FontCellH() + 2;
+    DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
     DevicesUiFormatIds(Dev, Line, sizeof(Line));
-    HalVideoDrawStringAt(Dx + 8, Ty, Line, ThemeText());
-    Ty += FontCellH() + 2;
-    HalVideoDrawStringAt(Dx + 8, Ty,
-                         Dev->Name[0] ? Dev->Name : "pci", ThemeText());
-    Ty += FontCellH() + 2;
-    Bound = (Dev->Bound && Dev->Driver && Dev->Driver->Name)
-                ? Dev->Driver->Name
-                : "-";
-    HalVideoDrawStringAt(Dx + 8, Ty, Bound, ThemeText());
-    Ty += FontCellH() + 4;
+    DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, Dev->Name[0] ? Dev->Name : "pci", ThemeText());
+    Bound = (Dev->Bound && Dev->Driver && Dev->Driver->Name) ? Dev->Driver->Name
+                                                             : "-";
+    DrawLine(Dx + 10, &Ty, MaxY, Bound, ThemeText());
+    if (Dev->Compatible[0]) {
+        DrawLine(Dx + 10, &Ty, MaxY, Dev->Compatible, ThemeTextMuted());
+    }
     N = 0;
     Line[N++] = 'I';
     Line[N++] = 'R';
@@ -73,9 +94,8 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
         Line[N++] = Tmp[--T];
     }
     Line[N] = 0;
-    HalVideoDrawStringAt(Dx + 8, Ty, Line, ThemeText());
-    Ty += FontCellH() + 2;
-    for (b = 0; b < 6 && Ty + FontCellH() < Dy + Dh; b++) {
+    DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
+    for (b = 0; b < 6; b++) {
         if (Dev->Bar[b] == 0) {
             continue;
         }
@@ -85,49 +105,94 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
         Line[N++] = '=';
         PutHex8(Line, &N, sizeof(Line), (UINT32)Dev->Bar[b]);
         Line[N] = 0;
-        HalVideoDrawStringAt(Dx + 8, Ty, Line, ThemeText());
-        Ty += FontCellH() + 2;
+        if (!DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText())) {
+            break;
+        }
     }
 }
 
 void DevicesUiPaint(void) {
-    UINT32 Cx;
-    UINT32 Cy;
-    UINT32 Cw;
-    UINT32 Ch;
-    UINT32 Bg;
-    UINT32 ListH;
-    UINT32 DetailY;
+    UINT32 Cx, Cy, Cw, Ch, Bg;
+    UINT32 SideW;
+    UINT32 ContentX, ContentW;
+    UINT32 ListW;
+    UINT32 LineH;
+    UINT32 RowW;
     int Row;
+    int Fi;
     int Idx;
+    int i;
     char Line[96];
     UINTN N;
-    UINTN i;
+    UINTN k;
     DEVICE_NODE *Dev;
     UINT32 Fg;
     UINT32 RowBg;
     const char *Nm;
 
-    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Cw < 40 || Ch < 80) {
+    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Cw < 40 || Ch < 60) {
         return;
     }
+    GuiFrameBufferBegin();
     HalVideoFillRect(Cx, Cy, Cw, Ch, ThemeSettingsClientBackground());
+    HalVideoSetClipRegion(Cx, Cy, Cw, Ch, ThemeSettingsClientBackground());
 
-    DetailY = Cy + Ch - DEVUI_DETAIL_H;
-    if (DetailY <= Cy + DEVUI_PAD * 2) {
-        DetailY = Cy + Ch / 2;
+    LineH = FontAdvanceY();
+    if (LineH < 16) {
+        LineH = 16;
     }
-    ListH = DetailY - Cy - DEVUI_PAD;
-    gDevUiListX = Cx + DEVUI_PAD;
+
+    SideW = 0;
+    gDevUiSideW = 0;
+    if (Cw > DEVUI_SIDE_W + 280u) {
+        SideW = DEVUI_SIDE_W;
+    }
+    ContentX = Cx + SideW;
+    ContentW = Cw - SideW;
+
+    gDevUiPrevW = 0;
+    if (ContentW > 360u) {
+        gDevUiPrevW = ContentW * 2u / 5u;
+        if (gDevUiPrevW < 160u) {
+            gDevUiPrevW = 160u;
+        }
+        if (gDevUiPrevW + 180u > ContentW) {
+            gDevUiPrevW = ContentW > 180u ? ContentW - 180u : 0;
+        }
+    }
+    ListW = ContentW - gDevUiPrevW;
+
+    if (SideW > 0) {
+        gDevUiSideX = Cx;
+        gDevUiSideW = SideW;
+        gDevUiSideLineH = LineH;
+        gDevUiSideRow0 = Cy + 8 + LineH + 4;
+        RowW = SideW > 10 ? SideW - 10 : SideW;
+        HalVideoFillRect(Cx, Cy, SideW, Ch, ThemePanelSideBackground());
+        if (SideW > 3) {
+            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, ThemePanelSeparator());
+        }
+        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_APP_DEVICES), ThemeText());
+        for (i = 0; i < DEVUI_FILT_N; i++) {
+            UiDrawListRow(Cx + 4, gDevUiSideRow0 + (UINT32)i * LineH, RowW, LineH,
+                          FiltLabel(i), i == gDevUiFilt, 0);
+        }
+    }
+
+    gDevUiListX = ContentX + DEVUI_PAD;
     gDevUiListY = Cy + DEVUI_PAD;
-    gDevUiListW = Cw > DEVUI_PAD * 2 ? Cw - DEVUI_PAD * 2 : Cw;
-    gDevUiListH = ListH;
-    gDevUiVisible = (int)(ListH / DEVUI_ROW_H);
+    gDevUiListW = ListW > DEVUI_PAD * 2 ? ListW - DEVUI_PAD * 2 : ListW;
+    if (gDevUiPrevW > 0) {
+        gDevUiListH = Ch > DEVUI_PAD * 2 ? Ch - DEVUI_PAD * 2 : Ch;
+    } else {
+        gDevUiListH = Ch / 2 > DEVUI_PAD * 2 ? Ch / 2 - DEVUI_PAD * 2 : Ch / 2;
+    }
+    gDevUiVisible = (int)(gDevUiListH / DEVUI_ROW_H);
     if (gDevUiVisible < 1) {
         gDevUiVisible = 1;
     }
-    if (gDevUiScroll + gDevUiVisible > gDevUiCount && gDevUiCount > 0) {
-        gDevUiScroll = gDevUiCount - gDevUiVisible;
+    if (gDevUiScroll + gDevUiVisible > gDevUiFiltCount && gDevUiFiltCount > 0) {
+        gDevUiScroll = gDevUiFiltCount - gDevUiVisible;
         if (gDevUiScroll < 0) {
             gDevUiScroll = 0;
         }
@@ -138,15 +203,16 @@ void DevicesUiPaint(void) {
     UiDrawRectangle(gDevUiListX, gDevUiListY, gDevUiListW, gDevUiListH,
                     ThemePanelSeparator());
 
-    if (gDevUiCount <= 0) {
+    if (gDevUiFiltCount <= 0) {
         HalVideoDrawStringAt(gDevUiListX + 8, gDevUiListY + 8,
                              LocStr(MSG_DEV_EMPTY), ThemeText());
     } else {
         for (Row = 0; Row < gDevUiVisible; Row++) {
-            Idx = gDevUiScroll + Row;
-            if (Idx >= gDevUiCount) {
+            Fi = gDevUiScroll + Row;
+            if (Fi >= gDevUiFiltCount) {
                 break;
             }
+            Idx = gDevUiMap[Fi];
             Dev = DeviceGet(Idx);
             if (!Dev) {
                 continue;
@@ -166,16 +232,9 @@ void DevicesUiPaint(void) {
             if (N + 1 < sizeof(Line)) {
                 Line[N++] = ' ';
             }
-            DevicesUiFormatIds(Dev, Line + N, sizeof(Line) - N);
-            while (Line[N]) {
-                N++;
-            }
-            if (N + 1 < sizeof(Line)) {
-                Line[N++] = ' ';
-            }
             Nm = Dev->Name[0] ? Dev->Name : "pci";
-            for (i = 0; Nm[i] && N + 1 < sizeof(Line); i++) {
-                Line[N++] = Nm[i];
+            for (k = 0; Nm[k] && N + 1 < sizeof(Line); k++) {
+                Line[N++] = Nm[k];
             }
             Line[N] = 0;
             HalVideoDrawStringAt(gDevUiListX + 6,
@@ -184,5 +243,16 @@ void DevicesUiPaint(void) {
         }
     }
 
-    DrawDetail(gDevUiListX, DetailY, gDevUiListW, Cy + Ch - DetailY - 4);
+    if (gDevUiPrevW > 0) {
+        gDevUiPrevX = ContentX + ListW;
+        DrawDetail(gDevUiPrevX, Cy, gDevUiPrevW, Ch);
+    } else {
+        gDevUiPrevX = ContentX + ListW;
+        DrawDetail(gDevUiListX, Cy + Ch / 2, gDevUiListW,
+                   Ch > Ch / 2 + DEVUI_PAD ? Ch - Ch / 2 - DEVUI_PAD : Ch / 2);
+    }
+
+    GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+    HalVideoClearClip();
+    GuiFrameBufferEnd();
 }

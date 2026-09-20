@@ -1,5 +1,5 @@
 /*
- * DevicesUiModel.c — Device 表格式化（PR-DEV-6）
+ * DevicesUiModel.c — Device 表格式化 / 筛选（PR-DEV-6）
  */
 #include "DevicesUiPrivate.h"
 
@@ -68,12 +68,53 @@ void DevicesUiFormatIds(const DEVICE_NODE *Dev, char *Out, UINTN Max) {
     Out[N] = 0;
 }
 
+static int FiltMatch(const DEVICE_NODE *Dev, int Filt) {
+    if (!Dev) {
+        return 0;
+    }
+    if (Filt == DEVUI_FILT_BOUND) {
+        return Dev->Bound ? 1 : 0;
+    }
+    if (Filt == DEVUI_FILT_FREE) {
+        return Dev->Bound ? 0 : 1;
+    }
+    return 1;
+}
+
+void DevicesUiRebuildFilt(void) {
+    int i;
+    int N = 0;
+    DEVICE_NODE *Dev;
+
+    gDevUiFiltCount = 0;
+    for (i = 0; i < gDevUiCount && N < DEVUI_MAP_MAX; i++) {
+        Dev = DeviceGet(i);
+        if (!FiltMatch(Dev, gDevUiFilt)) {
+            continue;
+        }
+        gDevUiMap[N++] = i;
+    }
+    gDevUiFiltCount = N;
+    if (gDevUiFiltCount <= 0) {
+        gDevUiSel = 0;
+        gDevUiScroll = 0;
+        return;
+    }
+    for (i = 0; i < gDevUiFiltCount; i++) {
+        if (gDevUiMap[i] == gDevUiSel) {
+            break;
+        }
+    }
+    if (i >= gDevUiFiltCount) {
+        gDevUiSel = gDevUiMap[0];
+        gDevUiScroll = 0;
+    }
+}
+
 void DevicesUiReload(void) {
     gDevUiCount = DeviceCount();
     if (gDevUiSel >= gDevUiCount) {
         gDevUiSel = gDevUiCount > 0 ? gDevUiCount - 1 : 0;
     }
-    if (gDevUiScroll > gDevUiSel) {
-        gDevUiScroll = gDevUiSel;
-    }
+    DevicesUiRebuildFilt();
 }

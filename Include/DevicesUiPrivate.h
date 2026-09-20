@@ -17,18 +17,33 @@
 
 #define DEVUI_ROW_H     22u
 #define DEVUI_PAD       8u
-#define DEVUI_DETAIL_H  120u
+#define DEVUI_SIDE_W    96u
+#define DEVUI_MAP_MAX   256
+#define DEVUI_FILT_ALL  0
+#define DEVUI_FILT_BOUND 1
+#define DEVUI_FILT_FREE 2
+#define DEVUI_FILT_N    3
 
 extern int gDevUiSel;
 extern int gDevUiScroll;
 extern int gDevUiCount;
+extern int gDevUiFilt;
+extern int gDevUiMap[DEVUI_MAP_MAX];
+extern int gDevUiFiltCount;
 extern UINT32 gDevUiListX;
 extern UINT32 gDevUiListY;
 extern UINT32 gDevUiListW;
 extern UINT32 gDevUiListH;
 extern int gDevUiVisible;
+extern UINT32 gDevUiSideX;
+extern UINT32 gDevUiSideW;
+extern UINT32 gDevUiSideRow0;
+extern UINT32 gDevUiSideLineH;
+extern UINT32 gDevUiPrevX;
+extern UINT32 gDevUiPrevW;
 
 void DevicesUiReload(void);
+void DevicesUiRebuildFilt(void);
 void DevicesUiFormatPci(const DEVICE_NODE *Dev, char *Out, UINTN Max);
 void DevicesUiFormatIds(const DEVICE_NODE *Dev, char *Out, UINTN Max);
 void DevicesUiPaint(void);
