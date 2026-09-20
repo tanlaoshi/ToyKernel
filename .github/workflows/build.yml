@@ -1,4 +1,4 @@
-# Build ToyKernel (PR-CI-1：x86_64 + artifact)
+# Build ToyKernel (PR-CI-2：三架构 + smoke)
 name: build
 
 on:
@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 jobs:
-  x86_64:
+  build-x86_64:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -36,3 +36,88 @@ jobs:
           name: Kernel-x86_64
           path: Build/HAL/X64/Kernel.elf
           retention-days: 7
+
+  build-arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential make \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Build
+        run: ./build.sh arm64
+
+      - name: Check Kernel.elf
+        run: test -f Build/HAL/Arm64/Kernel.elf && ls -lh Build/HAL/Arm64/Kernel.elf
+
+      - name: Upload Kernel.elf
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-arm64
+          path: Build/HAL/Arm64/Kernel.elf
+          retention-days: 7
+
+  build-riscv:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential make \
+            gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu
+
+      - name: Build
+        run: ./build.sh riscv
+
+      - name: Check Kernel.elf
+        run: test -f Build/HAL/RiscV/Kernel.elf && ls -lh Build/HAL/RiscV/Kernel.elf
+
+      - name: Upload Kernel.elf
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-riscv
+          path: Build/HAL/RiscV/Kernel.elf
+          retention-days: 7
+
+  smoke:
+    needs: [build-x86_64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout ToyImage
+        uses: actions/checkout@v4
+        with:
+          repository: tanlaoshi/ToyImage
+          path: ToyImage
+
+      - name: Download Kernel.elf
+        uses: actions/download-artifact@v4
+        with:
+          name: Kernel-x86_64
+          path: artifact
+
+      - name: Install QEMU + OVMF
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            qemu-system-x86 ovmf
+
+      - name: Place Kernel.elf
+        run: |
+          mkdir -p ToyImage/RootFs/X64
+          cp artifact/Kernel.elf ToyImage/RootFs/X64/Kernel.elf
+          test -f ToyImage/RootFs/X64/Kernel.elf
+          test -f ToyImage/Esp/X64/EFI/BOOT/BOOTX64.EFI
+
+      - name: Smoke boot (TOY_SMP=1)
+        run: |
+          cd ToyImage
+          TOY_SMP=1 SMOKE_TIMEOUT=120 ./Scripts/smoke-boot.sh
