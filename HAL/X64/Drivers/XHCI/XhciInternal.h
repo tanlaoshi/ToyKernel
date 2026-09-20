@@ -399,6 +399,13 @@ int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
                    int (*ParseFn)(UINT8 *, UINT16, UINT8, UINT8 *, UINT8 *,
                                   UINT16 *, UINT8 *),
                    int UseBootProto);
+int HubCtrl(UINT8 BmReq, UINT8 Req, UINT16 Value, UINT16 Index,
+            UINT16 Len, void *Data);
+int FinishHubSetup(UINT8 *OutNumPorts);
+int HubGetPortStatus(UINT8 Port, UINT32 *OutSt);
+int HubSetPortFeat(UINT8 Port, UINT16 Feat);
+int HubClearPortFeat(UINT8 Port, UINT16 Feat);
+UINT8 HubPortSpeed(UINT32 St);
 int IsHubDeviceDesc(void);
 int ConfigHasHubIface(UINT8 *Cfg, UINT16 Total);
 int TryConfigureKeyboardSlot(UINT8 Speed);
