@@ -414,6 +414,9 @@ int EnumHubChildrenForMsc(void);
  */
 int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed);
 int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
+int MscClaimForceUntilPed(UINT32 P, int *Force);
+int MscClaimAddressPort(UINT32 P, int Force, UINT8 *Speed);
+int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok);
 
 int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);
