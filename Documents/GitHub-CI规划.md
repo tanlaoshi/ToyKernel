@@ -1,8 +1,8 @@
 # ToyOS GitHub Actions CI/CD
 
 > **本文是本柱总纲 + 现状分析 + PR 切分。** 排期认 [`路线图.md`](路线图.md#pr-ci)。  
-> **状态（2026-09-20）**：文档与三阶段已立；**等确认后再改 workflow**。  
-> **不抢文首 ★**：当前 ★ 仍是 [`科技感主题`](路线图.md#pr-gui-tech)；本柱排在设备管理器之后（或明文改 ★ 再插队）。  
+> **状态（2026-09-20）**：**PR-CI-1 进行中**（增强 `build.yml`：ubuntu-24.04 + lwIP clone + artifact）。  
+> **文首 ★** = 本柱 [`PR-CI-1`](路线图.md#pr-ci)。  
 > **硬约束**：不改内核、不改 `build.sh` / `smoke-boot.sh`；只动各仓 `.github/workflows/*.yml`；不部署服务器；单 job `timeout-minutes` ≤ 30。
 
 ---
@@ -111,7 +111,7 @@ git clone --depth 1 --branch STABLE-2_2_0_RELEASE \
 
 | 序 | PR | 仓 | 交付 | 验收 |
 | -- | -- | -- | ---- | ---- |
-| **1** | **PR-CI-1** | **ToyKernel** | 增强现有 `build.yml`：x86_64 编通 + 上传 artifact | GitHub Actions ✅；能下载 `Kernel.elf` |
+| **1** | **PR-CI-1** | **ToyKernel** | 增强现有 `build.yml`：x86_64 编通 + 上传 artifact | 本刀；Actions 绿后 ✅ |
 | **2** | **PR-CI-2** | Kernel + Image | Kernel：arm64/riscv job；Image：smoke 在 Kernel 相关 PR/push 可跑（或 `workflow_call`） | 三架构绿；QEMU smoke 绿 |
 | **3** | **PR-CI-3** | **ToyKernel** | `release.yml`：tag `v*` → 三架构包 + GitHub Release | `git tag v*` 后 Releases 可见 |
 
@@ -203,4 +203,4 @@ lint：可选、warn-only；行数阈值与仓库 **300** 对齐或标明「历�
 4. **已有** PR-Q1 `build.yml` + `smoke.yml`，阶段 1 是增强不是空白。  
 5. **无 .gitee**。
 
-**下一步**：lwIP = **clone** 已确认。不插队；轮到本柱时再 JX **PR-CI-1**（只改 Kernel `build.yml`）。
+**下一步**：本刀改完 `build.yml` 后 **TG**；**TS** 推 `main` 或开 PR 看 Actions。勿一次做 CI-2/3。

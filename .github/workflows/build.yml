@@ -1,4 +1,4 @@
-# Build ToyKernel (PR-Q1 CI)
+# Build ToyKernel (PR-CI-1：x86_64 + artifact)
 name: build
 
 on:
@@ -9,10 +9,30 @@ on:
 
 jobs:
   x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc make
+
+      - name: Clone lwIP
+        run: |
+          git clone --depth 1 --branch STABLE-2_2_0_RELEASE \
+            https://github.com/lwip-tcpip/lwip.git ThirdParty/lwip
+
       - name: Build
         run: ./build.sh x86_64
+
       - name: Check Kernel.elf
         run: test -f Build/HAL/X64/Kernel.elf && ls -lh Build/HAL/X64/Kernel.elf
+
+      - name: Upload Kernel.elf
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-x86_64
+          path: Build/HAL/X64/Kernel.elf
+          retention-days: 7
