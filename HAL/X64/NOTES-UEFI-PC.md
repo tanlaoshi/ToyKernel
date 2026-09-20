@@ -23,7 +23,7 @@
 
 ## 2. U 盘布局（与课堂双盘同形）
 
-课堂 QEMU：`ToyImage/run-split.sh`（盘0=ESP，盘1=`rootfs/`）。真机可压成 **一盘两分区** 或 **单 FAT**：
+课堂 QEMU：`ToyImage/run-split.sh`（盘0=ESP，盘1=`RootFs/X64/`）。真机可压成 **一盘两分区** 或 **单 FAT**：
 
 ```
 ESP (FAT):     EFI/BOOT/BOOTX64.EFI

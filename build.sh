@@ -155,31 +155,31 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage ]; then
     cp User/dirdemo.elf ../ToyImage/DIRDEMO.ELF
     cp User/netlibdemo.elf ../ToyImage/NETLIB.ELF
     echo "Copied HELLO/.../GUIDEMO/BLITDEMO/LIBCDEMO/DIRDEMO/NETLIB -> ../ToyImage/"
-    if [ -d ../ToyImage/rootfs ]; then
-        cp -f ../ToyImage/Kernel.elf ../ToyImage/rootfs/Kernel.elf
-        cp -f ../ToyImage/HELLO.ELF ../ToyImage/rootfs/HELLO.ELF
-        cp -f ../ToyImage/CAT.ELF ../ToyImage/rootfs/CAT.ELF
-        cp -f ../ToyImage/WRITE.ELF ../ToyImage/rootfs/WRITE.ELF
-        cp -f ../ToyImage/WAITNH.ELF ../ToyImage/rootfs/WAITNH.ELF
-        cp -f ../ToyImage/LIBTOY.SO ../ToyImage/rootfs/LIBTOY.SO
-        cp -f ../ToyImage/DYNDEMO.ELF ../ToyImage/rootfs/DYNDEMO.ELF
-        cp -f ../ToyImage/NETDEMO.ELF ../ToyImage/rootfs/NETDEMO.ELF
-        cp -f ../ToyImage/NETSRV.ELF ../ToyImage/rootfs/NETSRV.ELF
-        cp -f ../ToyImage/SYSHELLO.ELF ../ToyImage/rootfs/SYSHELLO.ELF
-        cp -f ../ToyImage/SYSFORK.ELF ../ToyImage/rootfs/SYSFORK.ELF
-        cp -f ../ToyImage/EXECDEMO.ELF ../ToyImage/rootfs/EXECDEMO.ELF
-        cp -f ../ToyImage/PIPEDEMO.ELF ../ToyImage/rootfs/PIPEDEMO.ELF
-        cp -f ../ToyImage/BRKDEMO.ELF ../ToyImage/rootfs/BRKDEMO.ELF
-        cp -f ../ToyImage/MMAPDEMO.ELF ../ToyImage/rootfs/MMAPDEMO.ELF
-        cp -f ../ToyImage/KILLDEMO.ELF ../ToyImage/rootfs/KILLDEMO.ELF
-        cp -f ../ToyImage/SIGDEMO.ELF ../ToyImage/rootfs/SIGDEMO.ELF
-        cp -f ../ToyImage/WINDEMO.ELF ../ToyImage/rootfs/WINDEMO.ELF
-        cp -f ../ToyImage/GUIDEMO.ELF ../ToyImage/rootfs/GUIDEMO.ELF
-        cp -f ../ToyImage/BLITDEMO.ELF ../ToyImage/rootfs/BLITDEMO.ELF
-        cp -f ../ToyImage/LIBCDEMO.ELF ../ToyImage/rootfs/LIBCDEMO.ELF
-        cp -f ../ToyImage/DIRDEMO.ELF ../ToyImage/rootfs/DIRDEMO.ELF
-        cp -f ../ToyImage/NETLIB.ELF ../ToyImage/rootfs/NETLIB.ELF
-        echo "Synced Kernel/HELLO/.../DIRDEMO/NETLIB -> ../ToyImage/rootfs/"
+    if [ -d ../ToyImage/RootFs/X64 ]; then
+        cp -f ../ToyImage/Kernel.elf ../ToyImage/RootFs/X64/Kernel.elf
+        cp -f ../ToyImage/HELLO.ELF ../ToyImage/RootFs/X64/HELLO.ELF
+        cp -f ../ToyImage/CAT.ELF ../ToyImage/RootFs/X64/CAT.ELF
+        cp -f ../ToyImage/WRITE.ELF ../ToyImage/RootFs/X64/WRITE.ELF
+        cp -f ../ToyImage/WAITNH.ELF ../ToyImage/RootFs/X64/WAITNH.ELF
+        cp -f ../ToyImage/LIBTOY.SO ../ToyImage/RootFs/X64/LIBTOY.SO
+        cp -f ../ToyImage/DYNDEMO.ELF ../ToyImage/RootFs/X64/DYNDEMO.ELF
+        cp -f ../ToyImage/NETDEMO.ELF ../ToyImage/RootFs/X64/NETDEMO.ELF
+        cp -f ../ToyImage/NETSRV.ELF ../ToyImage/RootFs/X64/NETSRV.ELF
+        cp -f ../ToyImage/SYSHELLO.ELF ../ToyImage/RootFs/X64/SYSHELLO.ELF
+        cp -f ../ToyImage/SYSFORK.ELF ../ToyImage/RootFs/X64/SYSFORK.ELF
+        cp -f ../ToyImage/EXECDEMO.ELF ../ToyImage/RootFs/X64/EXECDEMO.ELF
+        cp -f ../ToyImage/PIPEDEMO.ELF ../ToyImage/RootFs/X64/PIPEDEMO.ELF
+        cp -f ../ToyImage/BRKDEMO.ELF ../ToyImage/RootFs/X64/BRKDEMO.ELF
+        cp -f ../ToyImage/MMAPDEMO.ELF ../ToyImage/RootFs/X64/MMAPDEMO.ELF
+        cp -f ../ToyImage/KILLDEMO.ELF ../ToyImage/RootFs/X64/KILLDEMO.ELF
+        cp -f ../ToyImage/SIGDEMO.ELF ../ToyImage/RootFs/X64/SIGDEMO.ELF
+        cp -f ../ToyImage/WINDEMO.ELF ../ToyImage/RootFs/X64/WINDEMO.ELF
+        cp -f ../ToyImage/GUIDEMO.ELF ../ToyImage/RootFs/X64/GUIDEMO.ELF
+        cp -f ../ToyImage/BLITDEMO.ELF ../ToyImage/RootFs/X64/BLITDEMO.ELF
+        cp -f ../ToyImage/LIBCDEMO.ELF ../ToyImage/RootFs/X64/LIBCDEMO.ELF
+        cp -f ../ToyImage/DIRDEMO.ELF ../ToyImage/RootFs/X64/DIRDEMO.ELF
+        cp -f ../ToyImage/NETLIB.ELF ../ToyImage/RootFs/X64/NETLIB.ELF
+        echo "Synced Kernel/HELLO/.../DIRDEMO/NETLIB -> ../ToyImage/RootFs/X64/"
     fi
     echo "Copied $ELF -> ../ToyImage/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
@@ -187,9 +187,16 @@ elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
 else
     echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
     if [ "$BRINGUP" = "0" ] && [ -f "$USER_HELLO" ]; then
-        mkdir -p VirtRootFs
-        cp -f "$USER_HELLO" VirtRootFs/HELLO.ELF
-        echo "Copied $USER_HELLO -> VirtRootFs/HELLO.ELF"
+        case "$ARCH" in
+            arm64) HAL_DIR=Arm64 ;;
+            riscv) HAL_DIR=RiscV ;;
+            *) HAL_DIR= ;;
+        esac
+        if [ -n "$HAL_DIR" ]; then
+            mkdir -p "../ToyImage/RootFs/$HAL_DIR"
+            cp -f "$USER_HELLO" "../ToyImage/RootFs/$HAL_DIR/HELLO.ELF"
+            echo "Copied $USER_HELLO -> ../ToyImage/RootFs/$HAL_DIR/HELLO.ELF"
+        fi
     fi
 fi
 

@@ -56,7 +56,7 @@ cd ../ToyBoot && ./build.sh
 
 # 3. QEMU（x86 主路径）
 cd ../ToyImage
-./run-split.sh                 # 盘0=ESP，盘1=rootfs/
+./run-split.sh                 # 盘0=ESP，盘1=RootFs/X64/
 ./smoke-boot.sh                # 无头冒烟 → ToyOS ready
 ```
 
@@ -75,16 +75,16 @@ exec NETLIB.ELF          # 或 NETDEMO.ELF（裸 syscall 对照）
 ### Arm64 / RiscV（virt，非 OVMF）
 
 ```bash
-cd ToyKernel
-./build.sh arm64                 # 或 ./build.sh riscv
-./run-virt-arm.sh                # / ./run-virt-riscv.sh
-./smoke-virt.sh                  # 双 arch 无头冒烟
+cd ToyKernel && ./build.sh arm64 LWIP=0   # 或 riscv；virt 尚无 LwIp 端口须 LWIP=0
+cd ../ToyImage
+./run-virt-arm.sh                         # / ./run-virt-riscv.sh
+./smoke-virt.sh                           # 双 arch 无头冒烟
 ```
 
 ### 构建产物
 
 - `Build/HAL/{X86_64,Arm64,RiscV}/Kernel.elf`
-- 用户 ELF 复制到 `../ToyImage/` 与 `rootfs/`
+- 用户 ELF 复制到 `../ToyImage/` 与 `RootFs/X64/`
 - 板包：`./build.sh arm64 BOARD=virt`；`make boards ARCH=arm64`
 
 ---
@@ -96,7 +96,7 @@ ToyKernel/
 ├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
 ├── Common/{Core,Services,Library,Fonts}
 ├── HAL/{X86_64,Arm64,RiscV,Board}/
-├── Assets/  StoreCache/  User/
+├── Assets/  User/
 ├── Documents/        # 路线图 + 技术手册（仅此两份正文）
 ├── build.sh  Makefile
 └── README.md         # 本文件

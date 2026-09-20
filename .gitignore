@@ -1,7 +1,7 @@
 Build/
+# 旧 virt 盘路径（已迁 ToyImage/RootFs/{Arm64,RiscV}.img）
 VirtRootFs/
 VirtRootFs.img
-# 旧名残留（现用 VirtRootFs*）
 virt-rootfs/
 virt-rootfs.img
 ThirdParty/lwip/
