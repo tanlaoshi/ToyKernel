@@ -56,8 +56,8 @@ cd ../ToyBoot && ./build.sh
 
 # 3. QEMU（x86 主路径）
 cd ../ToyImage
-./run-split.sh                 # 盘0=ESP，盘1=RootFs/X64/
-./smoke-boot.sh                # 无头冒烟 → ToyOS ready
+./Scripts/run-split.sh         # 盘0=Esp/X64，盘1=RootFs/X64/
+./Scripts/smoke-boot.sh        # 无头冒烟 → ToyOS ready
 ```
 
 串口或 Shell 窗出现 `toyos>` 后：`help`、`ls`、`exec HELLO.ELF`。
@@ -77,14 +77,14 @@ exec NETLIB.ELF          # 或 NETDEMO.ELF（裸 syscall 对照）
 ```bash
 cd ToyKernel && ./build.sh arm64 LWIP=0   # 或 riscv；virt 尚无 LwIp 端口须 LWIP=0
 cd ../ToyImage
-./run-virt-arm.sh                         # / ./run-virt-riscv.sh
-./smoke-virt.sh                           # 双 arch 无头冒烟
+./Scripts/run-virt-arm.sh                 # / ./Scripts/run-virt-riscv.sh
+./Scripts/smoke-virt.sh                   # 双 arch 无头冒烟
 ```
 
 ### 构建产物
 
 - `Build/HAL/{X86_64,Arm64,RiscV}/Kernel.elf`
-- 用户 ELF 复制到 `../ToyImage/` 与 `RootFs/X64/`
+- 用户 ELF 只复制到 `../ToyImage/RootFs/X64/`（arm/riscv → 对应 `RootFs/$HAL/`）
 - 板包：`./build.sh arm64 BOARD=virt`；`make boards ARCH=arm64`
 
 ---

@@ -127,65 +127,39 @@ fi
 
 echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
-# CI 只 checkout ToyKernel，无 ../ToyImage；有则同步演示 ELF，无则跳过
-if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage ]; then
-    cp "$ELF" ../ToyImage/
-    cp User/hello.elf ../ToyImage/HELLO.ELF
-    cp User/count.elf ../ToyImage/COUNT.ELF
-    cp User/fork.elf ../ToyImage/FORK.ELF
-    cp User/waitnh.elf ../ToyImage/WAITNH.ELF
-    cp User/libtoy.so ../ToyImage/LIBTOY.SO
-    cp User/dyndemo.elf ../ToyImage/DYNDEMO.ELF
-    cp User/catfile.elf ../ToyImage/CAT.ELF
-    cp User/writefile.elf ../ToyImage/WRITE.ELF
-    cp User/netdemo.elf ../ToyImage/NETDEMO.ELF
-    cp User/netsrv.elf ../ToyImage/NETSRV.ELF
-    cp User/syshello.elf ../ToyImage/SYSHELLO.ELF
-    cp User/sysfork.elf ../ToyImage/SYSFORK.ELF
-    cp User/execdemo.elf ../ToyImage/EXECDEMO.ELF
-    cp User/pipedemo.elf ../ToyImage/PIPEDEMO.ELF
-    cp User/brkdemo.elf ../ToyImage/BRKDEMO.ELF
-    cp User/mmapdemo.elf ../ToyImage/MMAPDEMO.ELF
-    cp User/killdemo.elf ../ToyImage/KILLDEMO.ELF
-    cp User/sigdemo.elf ../ToyImage/SIGDEMO.ELF
-    cp User/windemo.elf ../ToyImage/WINDEMO.ELF
-    cp User/guidemo.elf ../ToyImage/GUIDEMO.ELF
-    cp User/blitdemo.elf ../ToyImage/BLITDEMO.ELF
-    cp User/libcdemo.elf ../ToyImage/LIBCDEMO.ELF
-    cp User/dirdemo.elf ../ToyImage/DIRDEMO.ELF
-    cp User/netlibdemo.elf ../ToyImage/NETLIB.ELF
-    echo "Copied HELLO/.../GUIDEMO/BLITDEMO/LIBCDEMO/DIRDEMO/NETLIB -> ../ToyImage/"
-    if [ -d ../ToyImage/RootFs/X64 ]; then
-        cp -f ../ToyImage/Kernel.elf ../ToyImage/RootFs/X64/Kernel.elf
-        cp -f ../ToyImage/HELLO.ELF ../ToyImage/RootFs/X64/HELLO.ELF
-        cp -f ../ToyImage/CAT.ELF ../ToyImage/RootFs/X64/CAT.ELF
-        cp -f ../ToyImage/WRITE.ELF ../ToyImage/RootFs/X64/WRITE.ELF
-        cp -f ../ToyImage/WAITNH.ELF ../ToyImage/RootFs/X64/WAITNH.ELF
-        cp -f ../ToyImage/LIBTOY.SO ../ToyImage/RootFs/X64/LIBTOY.SO
-        cp -f ../ToyImage/DYNDEMO.ELF ../ToyImage/RootFs/X64/DYNDEMO.ELF
-        cp -f ../ToyImage/NETDEMO.ELF ../ToyImage/RootFs/X64/NETDEMO.ELF
-        cp -f ../ToyImage/NETSRV.ELF ../ToyImage/RootFs/X64/NETSRV.ELF
-        cp -f ../ToyImage/SYSHELLO.ELF ../ToyImage/RootFs/X64/SYSHELLO.ELF
-        cp -f ../ToyImage/SYSFORK.ELF ../ToyImage/RootFs/X64/SYSFORK.ELF
-        cp -f ../ToyImage/EXECDEMO.ELF ../ToyImage/RootFs/X64/EXECDEMO.ELF
-        cp -f ../ToyImage/PIPEDEMO.ELF ../ToyImage/RootFs/X64/PIPEDEMO.ELF
-        cp -f ../ToyImage/BRKDEMO.ELF ../ToyImage/RootFs/X64/BRKDEMO.ELF
-        cp -f ../ToyImage/MMAPDEMO.ELF ../ToyImage/RootFs/X64/MMAPDEMO.ELF
-        cp -f ../ToyImage/KILLDEMO.ELF ../ToyImage/RootFs/X64/KILLDEMO.ELF
-        cp -f ../ToyImage/SIGDEMO.ELF ../ToyImage/RootFs/X64/SIGDEMO.ELF
-        cp -f ../ToyImage/WINDEMO.ELF ../ToyImage/RootFs/X64/WINDEMO.ELF
-        cp -f ../ToyImage/GUIDEMO.ELF ../ToyImage/RootFs/X64/GUIDEMO.ELF
-        cp -f ../ToyImage/BLITDEMO.ELF ../ToyImage/RootFs/X64/BLITDEMO.ELF
-        cp -f ../ToyImage/LIBCDEMO.ELF ../ToyImage/RootFs/X64/LIBCDEMO.ELF
-        cp -f ../ToyImage/DIRDEMO.ELF ../ToyImage/RootFs/X64/DIRDEMO.ELF
-        cp -f ../ToyImage/NETLIB.ELF ../ToyImage/RootFs/X64/NETLIB.ELF
-        echo "Synced Kernel/HELLO/.../DIRDEMO/NETLIB -> ../ToyImage/RootFs/X64/"
-    fi
-    echo "Copied $ELF -> ../ToyImage/"
+# CI 只 checkout ToyKernel，无 ../ToyImage；有则同步到 RootFs/$HAL（不再丢根目录）
+if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64 ]; then
+    DEST=../ToyImage/RootFs/X64
+    cp -f "$ELF" "$DEST/Kernel.elf"
+    cp -f User/hello.elf "$DEST/HELLO.ELF"
+    cp -f User/count.elf "$DEST/COUNT.ELF"
+    cp -f User/fork.elf "$DEST/FORK.ELF"
+    cp -f User/waitnh.elf "$DEST/WAITNH.ELF"
+    cp -f User/libtoy.so "$DEST/LIBTOY.SO"
+    cp -f User/dyndemo.elf "$DEST/DYNDEMO.ELF"
+    cp -f User/catfile.elf "$DEST/CAT.ELF"
+    cp -f User/writefile.elf "$DEST/WRITE.ELF"
+    cp -f User/netdemo.elf "$DEST/NETDEMO.ELF"
+    cp -f User/netsrv.elf "$DEST/NETSRV.ELF"
+    cp -f User/syshello.elf "$DEST/SYSHELLO.ELF"
+    cp -f User/sysfork.elf "$DEST/SYSFORK.ELF"
+    cp -f User/execdemo.elf "$DEST/EXECDEMO.ELF"
+    cp -f User/pipedemo.elf "$DEST/PIPEDEMO.ELF"
+    cp -f User/brkdemo.elf "$DEST/BRKDEMO.ELF"
+    cp -f User/mmapdemo.elf "$DEST/MMAPDEMO.ELF"
+    cp -f User/killdemo.elf "$DEST/KILLDEMO.ELF"
+    cp -f User/sigdemo.elf "$DEST/SIGDEMO.ELF"
+    cp -f User/windemo.elf "$DEST/WINDEMO.ELF"
+    cp -f User/guidemo.elf "$DEST/GUIDEMO.ELF"
+    cp -f User/blitdemo.elf "$DEST/BLITDEMO.ELF"
+    cp -f User/libcdemo.elf "$DEST/LIBCDEMO.ELF"
+    cp -f User/dirdemo.elf "$DEST/DIRDEMO.ELF"
+    cp -f User/netlibdemo.elf "$DEST/NETLIB.ELF"
+    echo "Synced Kernel/HELLO/.../NETLIB -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
-    echo "note: no ../ToyImage (CI) — skip demo ELF copy"
+    echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else
-    echo "Non-x86 / bringup ELF (not copied to ToyImage): $ELF"
+    echo "Non-x86 / bringup ELF (not copied to ToyImage root): $ELF"
     if [ "$BRINGUP" = "0" ] && [ -f "$USER_HELLO" ]; then
         case "$ARCH" in
             arm64) HAL_DIR=Arm64 ;;
