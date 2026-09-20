@@ -48,7 +48,7 @@ void YieldForPollInput(void) {
         }
         /* 真机 poll-USB：勿 hlt 等 tick，否则光标锁 ~10ms+ */
         for (i = 0; i < 200; i++) {
-            __asm__ volatile ("pause");
+            HalCpuRelax();
         }
         return;
     }
@@ -86,13 +86,13 @@ void WorkerTask(void) {
  */
 void InputTask(void) {
     for (;;) {
-        __asm__ volatile ("cli");   /* drain 期关中断：勿在深调用中被抢 */
+        HalIrqDisable();   /* drain 期关中断：勿在深调用中被抢 */
         HalInputPoll();
-        __asm__ volatile ("sti");   /* pause 期开中断：浅栈处可被定时器抢 → ticks>0 */
+        HalIrqEnable();    /* pause 期开中断：浅栈处可被定时器抢 → ticks>0 */
         {
             UINT32 i;
             for (i = 0; i < 200; i++) {
-                __asm__ volatile ("pause");
+                HalCpuRelax();
             }
         }
     }

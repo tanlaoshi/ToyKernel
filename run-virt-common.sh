@@ -129,9 +129,14 @@ toy_virt_ensure_elf() {
         echo "note: $TOY_VIRT_ELF board='${PrevBoard:-unknown}' → rebuilding BOARD=$WantBoard"
         make clean "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard"
     fi
+    # Arm64/RiscV 尚无 HAL/<Arch>/LwIp 端口；缺目录时勿用默认 LWIP=1（会找 lwipopts.h 失败）
+    VirtLwip=1
+    if [ ! -d "HAL/${TOY_VIRT_HAL_ARCH}/LwIp" ]; then
+        VirtLwip=0
+    fi
     if [ "$NeedBuild" = "1" ]; then
-        echo "building ARCH=$TOY_VIRT_MAKE_ARCH BOARD=$WantBoard ..."
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard" BRINGUP=0
+        echo "building ARCH=$TOY_VIRT_MAKE_ARCH BOARD=$WantBoard LWIP=$VirtLwip ..."
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard" BRINGUP=0 "LWIP=$VirtLwip"
     fi
     if [ ! -f "$TOY_VIRT_ELF" ]; then
         echo "error: missing $TOY_VIRT_ELF" >&2
@@ -140,7 +145,7 @@ toy_virt_ensure_elf() {
     # PR-A12：确保本 arch HELLO.ELF 已构建（prepare 会装入盘）
     HelloElf="Build/HAL/${TOY_VIRT_HAL_ARCH}/user/hello.elf"
     if [ ! -f "$HelloElf" ]; then
-        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard" BRINGUP=0 "$HelloElf"
+        make "ARCH=$TOY_VIRT_MAKE_ARCH" "BOARD=$WantBoard" BRINGUP=0 "LWIP=$VirtLwip" "$HelloElf"
     fi
 }
 toy_virt_build_dev_args() {

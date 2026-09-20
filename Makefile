@@ -219,6 +219,17 @@ LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 BUILDDIR = Build
 HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
+# Common/Fonts/.o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式（如 EM:183 aarch64 → riscv）
+ARCH_STAMP := $(BUILDDIR)/.toy_arch
+ifneq ($(wildcard $(BUILDDIR)/Common),)
+_STAMP_ARCH := $(shell cat $(ARCH_STAMP) 2>/dev/null)
+ifneq ($(_STAMP_ARCH),$(ARCH))
+$(info ARCH: stale Common '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning Build/Common Fonts lwip)
+$(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Fonts' '$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
+endif
+endif
+$(shell mkdir -p '$(BUILDDIR)' && echo '$(ARCH)' > '$(ARCH_STAMP)')
+
 # PR-B3：同 HALDIR 多板包共用；BOARD 与 .toy_board 不一致（或缺 stamp）时清 HAL，避免链错 UART/Config
 ifneq ($(ARCH),x86_64)
 BOARD_STAMP := $(HALDIR)/.toy_board
@@ -372,6 +383,7 @@ EXTRA_OBJS += $(BOARD_OBJS)
 # PR-R5：Arm/RiscV 共享 virtio/ramfb/DTB/HalVideo（HAL/Virt）；复用 x86 Video 绘制
 INCLUDES_HAL += -IHAL/X64/Drivers -IHAL/Virt
 VIRT_SRCS := $(wildcard HAL/Virt/*.c)
+VIRT_SRCS += $(wildcard HAL/Virt/VirtioNet/*.c)
 VIRT_OBJS := $(patsubst HAL/Virt/%.c,$(HALDIR)/Virt/%.o,$(VIRT_SRCS))
 VIRT_VIDEO_SRCS := $(wildcard HAL/X64/Drivers/Video/*.c)
 VIRT_VIDEO_OBJS := $(patsubst HAL/X64/Drivers/Video/%.c,$(HALDIR)/Drivers/Video/%.o,$(VIRT_VIDEO_SRCS))

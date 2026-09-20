@@ -27,6 +27,12 @@ int HalPlatformRuntimeRangeCount(void) {
     return 0;
 }
 
+void HalVirtPlatformIdleLoop(void) {
+    for (;;) {
+        HalCpuPark();
+    }
+}
+
 int HalRtcGetTime(UINT16 *Year, UINT8 *Month, UINT8 *Day,
                   UINT8 *Hour, UINT8 *Minute, UINT8 *Second) {
     (void)Year;
