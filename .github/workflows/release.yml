@@ -38,18 +38,21 @@ jobs:
 
       - name: Build x86_64
         run: |
+          rm -rf Build
           ./build.sh x86_64
           test -f Build/HAL/X64/Kernel.elf
           cp Build/HAL/X64/Kernel.elf Kernel-x86_64.elf
 
       - name: Build arm64
         run: |
+          rm -rf Build
           ./build.sh arm64
           test -f Build/HAL/Arm64/Kernel.elf
           cp Build/HAL/Arm64/Kernel.elf Kernel-arm64.elf
 
       - name: Build riscv
         run: |
+          rm -rf Build
           ./build.sh riscv
           test -f Build/HAL/RiscV/Kernel.elf
           cp Build/HAL/RiscV/Kernel.elf Kernel-riscv.elf
