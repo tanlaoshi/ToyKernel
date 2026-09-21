@@ -70,6 +70,24 @@ UINT32 ThemeWindowTitleGradientBottom(UINT32 Top);
 UINT32 ThemeWindowFadeSteps(void);
 void ThemeSetWindowFadeSteps(UINT32 Steps);
 
+/*
+ * PR-GUI-effects：美化效果级别（默认 high = 现网全开）。
+ * Is* 由级别派生；绘制接入在后续步。DB 键 theme.effects 在第 3 步。
+ */
+typedef enum {
+    THEME_EFFECT_MINIMAL = 0, /* 无美化（边框三态仍开） */
+    THEME_EFFECT_LOW = 1,     /* 同 minimal：只保留边框 */
+    THEME_EFFECT_MEDIUM = 2,  /* + 半透明 + 标题渐变 */
+    THEME_EFFECT_HIGH = 3     /* + 阴影 + 淡入淡出 */
+} THEME_EFFECT_LEVEL;
+
+THEME_EFFECT_LEVEL ThemeGetEffectLevel(void);
+void ThemeSetEffectLevel(THEME_EFFECT_LEVEL Level);
+int ThemeIsShadowEnabled(void);
+int ThemeIsFadeEnabled(void);
+int ThemeIsAlphaEnabled(void);
+int ThemeIsGradientEnabled(void);
+
 /* PR-GUI-tech-2：文字 / 桌面图标 / 菜单 / 面板 / 滚动条（只追加；classic 返回值不变） */
 UINT32 ThemeShellText(void);
 UINT32 ThemeShellPrompt(void);

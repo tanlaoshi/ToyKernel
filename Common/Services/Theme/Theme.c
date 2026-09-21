@@ -12,6 +12,7 @@ UINT32 gModeW;
 UINT32 gModeH;
 UINT32 gThemeUiScale = 100; /* 50 / 100 / 150 / 200 */
 UINT32 gFadeSteps = 6;      /* PR-GUI-l3-fade；0=关 */
+THEME_EFFECT_LEVEL gEffectLevel = THEME_EFFECT_HIGH; /* PR-GUI-effects */
 int gWallpaper = 1;         /* 默认 WALL.BMP；Settings 选色后关 */
 int gThemeId = THEME_PALETTE_DEFAULT;
 int gDesktopGrad = 0;       /* tech 对角渐变；默认关 */
@@ -28,6 +29,7 @@ void ThemeInitialize(void) {
     gModeH = 0;
     gThemeUiScale = 100;
     gFadeSteps = 6;
+    gEffectLevel = THEME_EFFECT_HIGH;
     gWallpaper = 1;
     gThemeId = THEME_PALETTE_DEFAULT;
     gDesktopGrad = 0;
@@ -133,6 +135,35 @@ void ThemeSetWindowFadeSteps(UINT32 Steps) {
         Steps = 16u;
     }
     gFadeSteps = Steps;
+}
+
+THEME_EFFECT_LEVEL ThemeGetEffectLevel(void) {
+    return gEffectLevel;
+}
+
+void ThemeSetEffectLevel(THEME_EFFECT_LEVEL Level) {
+    if ((int)Level < (int)THEME_EFFECT_MINIMAL ||
+        (int)Level > (int)THEME_EFFECT_HIGH) {
+        Level = THEME_EFFECT_HIGH;
+    }
+    gEffectLevel = Level;
+}
+
+int ThemeIsShadowEnabled(void) {
+    return (gEffectLevel >= THEME_EFFECT_HIGH) ? 1 : 0;
+}
+
+int ThemeIsFadeEnabled(void) {
+    /* high 才允许淡入；fade=0 仍可单独关掉 */
+    return (gEffectLevel >= THEME_EFFECT_HIGH && gFadeSteps > 0u) ? 1 : 0;
+}
+
+int ThemeIsAlphaEnabled(void) {
+    return (gEffectLevel >= THEME_EFFECT_MEDIUM) ? 1 : 0;
+}
+
+int ThemeIsGradientEnabled(void) {
+    return (gEffectLevel >= THEME_EFFECT_MEDIUM) ? 1 : 0;
 }
 
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */

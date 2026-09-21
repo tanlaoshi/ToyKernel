@@ -29,6 +29,7 @@ extern UINT32 gModeW;
 extern UINT32 gModeH;
 extern UINT32 gThemeUiScale; /* 50 / 100 / 150 / 200；与 Video gUiScale 区分 */
 extern UINT32 gFadeSteps;    /* PR-GUI-l3-fade；0=关 */
+extern THEME_EFFECT_LEVEL gEffectLevel; /* PR-GUI-effects；默认 HIGH */
 extern int gWallpaper;       /* 1=BMP 壁纸；0=纯色桌面 */
 extern int gThemeId;         /* THEME_PALETTE_DEFAULT | THEME_PALETTE_TECH */
 extern int gDesktopGrad;     /* 1=tech 对角渐变；仅 theme=tech 有意义 */
