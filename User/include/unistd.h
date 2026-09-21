@@ -1,5 +1,5 @@
 /*
- * unistd.h — read/write/close/execve/pipe/dup/fork/wait/brk/kill + 窗口（CRT2～G15）
+ * unistd.h — read/write/close/execve/pipe/dup/fork/wait/brk/kill + 窗口 + sleep
  */
 #ifndef UNISTD_H
 #define UNISTD_H
@@ -34,5 +34,11 @@ int create_window(const char *title, unsigned w, unsigned h);
 int damage(int wid, const char *text);
 int poll_input(int wid);
 int ui_button(int wid, int button_id, const char *label);
+/* sleep：按调度节拍阻塞（课堂 1 tick≈1ms；非墙钟校准） */
+unsigned sleep(unsigned seconds);
+int usleep(unsigned usec);
+unsigned msleep(unsigned ms);
+/* 稳节拍：与 sleep 同尺的 BSP tick（≈ms） */
+unsigned long clock_ms(void);
 
 #endif

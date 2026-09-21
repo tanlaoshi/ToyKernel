@@ -11,12 +11,15 @@
 #include "Font.h"
 #include "Debug.h"
 #include "Theme.h"
+#include "PhysicalMemory.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
 #include "Locale.h"
+#include "Desktop.h"
+#include "DesktopPrivate.h"
 
 /*
  * 开窗：Defer Present，先画满 chrome+客户区再备份，最后一次淡入。
@@ -24,10 +27,7 @@
  */
 void OpenChromeDefer(int Idx) {
     GuiPresentDeferPush();
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
+    ComposeBeginEraseCursor();
     HalVideoClearClip();
     DrawWindowAt(Idx);
     ComposeEnd();
@@ -98,11 +98,10 @@ void CloseWindow(int Idx) {
     Wh = gWindows[Idx].Height;
 
     /*
-     * 淡出期间保持 Active，且此时不挂 ClosePending。
-     * 若先挂 ClosePending，应用会立刻 exit → GuiCloseAllUserWindows 再入 CloseWindow，
-     * 与淡出重入打坏物理页 / 页表，第二次 exec 在 0x40000000 #PF。
+     * USER 关窗不做淡出（真机淡出易与 exit 竞态 → 二次 exec #PF）。
+     * 其它窗仍可淡出；淡出 under 只铺本窗矩形（GuiFade）。
      */
-    if (ThemeWindowFadeSteps() != 0) {
+    if (!WasUser && ThemeWindowFadeSteps() != 0) {
         if (!gWinBackupValid[Idx]) {
             BackupWindowAt(Idx);
         }
@@ -130,6 +129,13 @@ void CloseWindow(int Idx) {
         }
     }
     gWinBackupValid[Idx] = 0;
+    if (gWinBackup[Idx] != 0) {
+        PhysicalMemoryFreePages(gWinBackup[Idx], gWinBackupPages[Idx]);
+        gWinBackup[Idx] = 0;
+        gWinBackupPages[Idx] = 0;
+        gWinBackupW[Idx] = 0;
+        gWinBackupH[Idx] = 0;
+    }
     if (gDragWin == Idx) {
         gDragWin = -1;
     }
@@ -149,63 +155,87 @@ void CloseWindow(int Idx) {
         }
     }
 
-    /*
-     * 关窗后整桌重合成：只擦关窗矩形会留下桌面/图标残影；
-     * 相交窗备份常含被关窗像素（标题栏关闭钮被盖住时尤甚）→ 不透明重画+内容。
-     */
     SavedFocus = gFocusWin;
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
-    HalVideoClearClip();
-    SyncWindowVisualsEx(1);
-    gFocusWin = SavedFocus;
-    for (i = 0; i < MAX_WINS; i++) {
-        if (!gWindows[i].Active) {
-            continue;
+
+    if (WasUser) {
+        UINT32 BarY;
+        UINT32 Sw;
+        UINT32 Sh;
+
+        /*
+         * USER 轻量关窗：只擦本窗 + 相交窗重画 + 任务栏置顶。
+         * 禁止在此走 4K 全屏 Compose（exit 等待会超时 → Destroy 抢页 → #PF）。
+         * 完整合成在 SchedulerExitUser Destroy 之后。
+         */
+        ComposeBeginEraseCursor();
+        HalVideoClearClip();
+        DesktopFillRect(X, Y, Ww, Wh);
+        DesktopDrawRect(X, Y, Ww, Wh);
+        for (i = 0; i < MAX_WINS; i++) {
+            if (!gWindows[i].Active) {
+                continue;
+            }
+            if (!RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width,
+                                gWindows[i].Height, X, Y, Ww, Wh)) {
+                continue;
+            }
+            gWinBackupValid[i] = 0;
+            DrawWindowAtEx(i, 0);
+            if (gWindows[i].Kind == GUI_WIN_SHELL) {
+                GuiConsoleOpsPaintShellWindow(i);
+            } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
+                gFocusWin = i;
+                SettingsUiRepaint();
+                gFocusWin = SavedFocus;
+            } else if (gWindows[i].Kind == GUI_WIN_STORE) {
+                gFocusWin = i;
+                StoreUiRepaint();
+                gFocusWin = SavedFocus;
+            } else if (gWindows[i].Kind == GUI_WIN_DEVICES) {
+                gFocusWin = i;
+                DevicesUiRepaint();
+                gFocusWin = SavedFocus;
+            } else if (gWindows[i].Kind == GUI_WIN_FILES) {
+                gFocusWin = i;
+                FilesUiRepaint();
+                gFocusWin = SavedFocus;
+            } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
+                gFocusWin = i;
+                EditUiRepaint();
+                gFocusWin = SavedFocus;
+            } else if (gWindows[i].Kind == GUI_WIN_USER) {
+                PaintUserClient(i);
+            }
+            BackupWindowAtEx(i, 1);
         }
-        if (!RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width, gWindows[i].Height,
-                            X, Y, Ww, Wh)) {
-            continue;
+        TaskbarGeom(&BarY, &Sw, &Sh);
+        /*
+         * Shell ConsoleWrite 常留下客户区 clip。DesktopFillRect 走 WriteRect
+         *（无视 clip）先擦掉整条栏，而 DrawTaskbarRaw 的 Fill/Alpha 受 clip
+         * → 栏没了（与 DesktopTickClock 同坑，见 Desktop.c）。
+         */
+        HalVideoClearClip();
+        DesktopFillRect(0, BarY, Sw, TASKBAR_H);
+        DrawTaskbarRaw();
+        gFocusWin = SavedFocus;
+        GfxIrqEnter();
+        CursorPaint();
+        GfxIrqLeave();
+        HalVideoPresentFlush();
+        ComposeEnd();
+    } else {
+        for (i = 0; i < MAX_WINS; i++) {
+            if (gWindows[i].Active) {
+                gWinBackupValid[i] = 0;
+            }
         }
-        DrawWindowAtEx(i, 0);
-        if (gWindows[i].Kind == GUI_WIN_SHELL) {
-            GuiConsoleOpsPaintShellWindow(i);
-        } else if (gWindows[i].Kind == GUI_WIN_SETTINGS) {
-            gFocusWin = i;
-            SettingsUiRepaint();
-            gFocusWin = SavedFocus;
-        } else if (gWindows[i].Kind == GUI_WIN_STORE) {
-            gFocusWin = i;
-            StoreUiRepaint();
-            gFocusWin = SavedFocus;
-        } else if (gWindows[i].Kind == GUI_WIN_DEVICES) {
-            gFocusWin = i;
-            DevicesUiRepaint();
-            gFocusWin = SavedFocus;
-        } else if (gWindows[i].Kind == GUI_WIN_FILES) {
-            gFocusWin = i;
-            FilesUiRepaint();
-            gFocusWin = SavedFocus;
-        } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
-            gFocusWin = i;
-            EditUiRepaint();
-            gFocusWin = SavedFocus;
-        } else if (gWindows[i].Kind == GUI_WIN_USER) {
-            PaintUserClient(i);
-        }
-        BackupWindowAtEx(i, 1);
+        GuiComposeThemeScene();
+        gFocusWin = SavedFocus;
     }
-    gFocusWin = SavedFocus;
-    ComposeEnd();
-    GfxIrqEnter();
-    CursorPaint();
-    HalVideoPresent();
-    GfxIrqLeave();
+
     GuiFocusApply();
     gWindows[Idx].Closing = 0;
-    DebugWrite("Gui: closed window\n");
+    DebugWrite("Gui: closed (clip)\n");
 }
 
 void GuiCloseAllUserWindows(void) {
@@ -221,12 +251,44 @@ void GuiCloseAllUserWindows(void) {
     }
 }
 
+/*
+ * 真机 SMP：点 × 在 Gui 核上关窗时，用户核可能已 exit。
+ * 必须等到 Closing 清零再 Destroy（禁止自旋上限超时后强拆页表）。
+ */
+void GuiWaitNoWindowClosing(void) {
+    UINTN Spin = 0;
+
+    for (;;) {
+        int i;
+        int Busy = 0;
+
+        for (i = 0; i < MAX_WINS; i++) {
+            if (gWindows[i].Closing) {
+                Busy = 1;
+                break;
+            }
+        }
+        if (!Busy) {
+            return;
+        }
+        if (Spin == 0) {
+            DebugWrite("Gui: wait closing (smp)\n");
+        }
+        Spin++;
+        if ((Spin & 0xFFFFFu) == 0) {
+            DebugWrite("Gui: still closing...\n");
+        }
+        HalCpuRelax();
+    }
+}
+
 
 int AllocWindowSlot(void) {
     int i;
 
     for (i = 0; i < MAX_WINS; i++) {
-        if (!gWindows[i].Active) {
+        /* Closing 时槽仍被关窗路径占用，勿复用 */
+        if (!gWindows[i].Active && !gWindows[i].Closing) {
             return i;
         }
     }

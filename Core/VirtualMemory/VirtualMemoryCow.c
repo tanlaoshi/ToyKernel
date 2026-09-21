@@ -30,7 +30,7 @@ VIRTUAL_ADDRESS_SPACE *VirtualMemorySpaceClone(VIRTUAL_ADDRESS_SPACE *Src) {
         if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
             continue;
         }
-        Phys = Pte & ~0xFFFULL;
+        Phys = Pte & 0x000FFFFFFFFFF000ULL;
         SharedFlags = PTE_PRESENT | PTE_USER;
         if (Pte & HAL_PAGE_WRITABLE) {
             SharedFlags = HalPageMarkCopyOnWrite(SharedFlags);
@@ -82,7 +82,7 @@ int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode) {
         return -1;
     }
 
-    Phys = Pte & ~0xFFFULL;
+    Phys = Pte & 0x000FFFFFFFFFF000ULL;
     NewPage = PhysicalMemoryAllocatePage();
     if (!NewPage) {
         return -1;

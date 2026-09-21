@@ -30,7 +30,7 @@
 #define CURSOR_THICK_MAX 3
 #define CURSOR_OUTLINE   1
 /* +1：UI 缩放时 CursorBox 再外扩 1 逻辑像素 */
-#define CURSOR_SCALE_PAD 1
+#define CURSOR_SCALE_PAD 3
 #define CURSOR_EXT_MAX   (CURSOR_HALF_MAX + CURSOR_THICK_MAX + CURSOR_OUTLINE + CURSOR_SCALE_PAD)
 #define CURSOR_BOX       (CURSOR_EXT_MAX * 2 + 1)
 
@@ -53,7 +53,7 @@ typedef struct {
     char     TitleBuf[64];
     char     ClientText[128];
     int      ClosePending;
-    int      Closing; /* CloseWindow 重入保护（exit 收窗 vs 点击关窗） */
+    volatile int Closing; /* CloseWindow 重入保护（exit 收窗 vs 点击关窗）；SMP 可见 */
     int      UserButtonUsed[4];
     char     UserButtonLabel[4][24];
     int      UserButtonClick;
@@ -119,7 +119,7 @@ extern UINT32   gDragStartH;
 
 extern int    gGfxLockDepth;
 extern UINT64 gGfxIrqFlags;
-extern int    gComposeBusy;
+extern volatile int gComposeBusy;
 extern int    gDeferPresent;
 extern int    gShellEchoCoalesce;
 
@@ -151,6 +151,7 @@ void GfxIrqEnter(void);
 void GfxIrqLeave(void);
 void ComposeBegin(void);
 void ComposeEnd(void);
+void ComposeBeginEraseCursor(void);
 void GfxPresent(void);
 UINT32 TitleBarColor(int Idx);
 UINT32 TitleBarColorAtRow(int Idx, UINT32 Row, UINT32 TitleH);

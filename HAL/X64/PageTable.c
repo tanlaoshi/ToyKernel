@@ -8,6 +8,7 @@
 #define PTE_PWT  (1ULL << 3)
 #define PTE_PCD  (1ULL << 4)
 #define PTE_PAT2M (1ULL << 12) /* 2M PDE：PAT；4K 时 bit7 为 PAT（与 PS 同号不同级） */
+#define PTE_ADDR_MASK 0x000FFFFFFFFFF000ULL
 
 #define MSR_IA32_PAT 0x277u
 #define PAT_TYPE_UC  0u
@@ -96,7 +97,7 @@ static UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
         Pml4[Pml4i] |= HAL_PAGE_USER;
     }
 
-    UINT64 *Pdpt = (UINT64 *)(UINTN)(Pml4[Pml4i] & ~0xFFFULL);
+    UINT64 *Pdpt = (UINT64 *)(UINTN)(Pml4[Pml4i] & PTE_ADDR_MASK);
     if (!(Pdpt[Pdpti] & HAL_PAGE_PRESENT)) {
         if (!Create) {
             return 0;
@@ -113,7 +114,7 @@ static UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
         Pdpt[Pdpti] |= HAL_PAGE_USER;
     }
 
-    UINT64 *Pd = (UINT64 *)(UINTN)(Pdpt[Pdpti] & ~0xFFFULL);
+    UINT64 *Pd = (UINT64 *)(UINTN)(Pdpt[Pdpti] & PTE_ADDR_MASK);
     /*
      * 2M 大页：Map 需改单页属性（如 LFB→WC）时拆成 4K PT。
      * 保留原 PWT/PCD；2M PAT(bit12) → 4K PAT(bit7)。
@@ -159,7 +160,7 @@ static UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
         }
     }
 
-    UINT64 *Pt = (UINT64 *)(UINTN)(Pd[Pdi] & ~0xFFFULL);
+    UINT64 *Pt = (UINT64 *)(UINTN)(Pd[Pdi] & PTE_ADDR_MASK);
     if (!(Pd[Pdi] & HAL_PAGE_PRESENT)) {
         if (!Create) {
             return 0;
@@ -180,7 +181,7 @@ static UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
 }
 
 static UINT64 *PageLookup(UINT64 Root, UINT64 Virt) {
-    UINT64 *Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    UINT64 *Pml4 = (UINT64 *)(UINTN)(Root & PTE_ADDR_MASK);
     return PageWalk(Pml4, Virt, 0, 0, 0, 0);
 }
 
@@ -252,8 +253,8 @@ UINT64 HalPageRootCreate(HalPageAllocateFunction Alloc, void *Ctx) {
 }
 
 void HalPageRootCopy(UINT64 DstRoot, UINT64 SrcRoot) {
-    UINT64 *Dst = (UINT64 *)(UINTN)(DstRoot & ~0xFFFULL);
-    UINT64 *Src = (UINT64 *)(UINTN)(SrcRoot & ~0xFFFULL);
+    UINT64 *Dst = (UINT64 *)(UINTN)(DstRoot & PTE_ADDR_MASK);
+    UINT64 *Src = (UINT64 *)(UINTN)(SrcRoot & PTE_ADDR_MASK);
     for (int i = 0; i < 512; i++) {
         Dst[i] = Src[i];
     }
@@ -274,11 +275,11 @@ int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction 
     if (!Alloc || Index >= 512) {
         return -1;
     }
-    Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    Pml4 = (UINT64 *)(UINTN)(Root & PTE_ADDR_MASK);
     if (!(Pml4[Index] & HAL_PAGE_PRESENT)) {
         return 0;
     }
-    OldPdpt = (UINT64 *)(UINTN)(Pml4[Index] & ~0xFFFULL);
+    OldPdpt = (UINT64 *)(UINTN)(Pml4[Index] & PTE_ADDR_MASK);
     NewPdpt = (UINT64 *)Alloc(Ctx);
     if (!NewPdpt) {
         return -1;
@@ -295,7 +296,65 @@ int HalPagePrivatizeRootSlot(UINT64 Root, UINT32 Index, HalPageAllocateFunction 
  * PR-A3：用户根私有化。x86 用户 VA 与恒等映射同属 PML4[0]，必须私有 PDPT。
  */
 int HalPagePrepareUserRoot(UINT64 Root, HalPageAllocateFunction Alloc, void *Ctx) {
-    return HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx);
+    UINT64 *Pml4;
+    UINT64 *Pdpt;
+    UINT64 *OldPd;
+    UINT64 *NewPd;
+    UINT64 Flags;
+    int i;
+
+    /* 私有 PDPT（与内核槽 0 脱钩） */
+    if (HalPagePrivatizeRootSlot(Root, 0, Alloc, Ctx) != 0) {
+        return -1;
+    }
+    /*
+     * 再私有 PDPT[0]→PD：浅拷贝仍共享内核恒等 2M PD。
+     * 若之后拆大页/改 USER，会改到内核页表。用户区虽多在 PDPT[1]，
+     * 真机路径上仍见过共享 PD 被改坏 → 二次 exec RSVD。
+     */
+    Pml4 = (UINT64 *)(UINTN)(Root & PTE_ADDR_MASK);
+    if (!(Pml4[0] & HAL_PAGE_PRESENT)) {
+        return 0;
+    }
+    Pdpt = (UINT64 *)(UINTN)(Pml4[0] & PTE_ADDR_MASK);
+    if (!(Pdpt[0] & HAL_PAGE_PRESENT)) {
+        return 0;
+    }
+    if (Pdpt[0] & PTE_HUGE) {
+        return 0;
+    }
+    OldPd = (UINT64 *)(UINTN)(Pdpt[0] & PTE_ADDR_MASK);
+    NewPd = (UINT64 *)Alloc(Ctx);
+    if (!NewPd) {
+        return -1;
+    }
+    for (i = 0; i < 512; i++) {
+        NewPd[i] = OldPd[i];
+    }
+    Flags = Pdpt[0] & 0xFFFULL;
+    Pdpt[0] = PagePhys(NewPd) | Flags | HAL_PAGE_PRESENT | HAL_PAGE_WRITABLE;
+
+    /*
+     * 用户 VA @0x40000000 落在 PDPT[1]。浅拷贝后若内核曾填过同槽，
+     * 会共享内核 PD；User Map/Destroy 会改/释内核页表 → 二次 exec RSVD。
+     * 清空用户区间各 PDPT 槽，强制私有 PD/PT 树。
+     */
+    {
+        UINT64 UserStart = HalUserCodeVirt();
+        UINT64 UserEnd = HalUserVirtEnd();
+        UINT64 Idx0;
+        UINT64 Idx1;
+        UINT64 Ui;
+
+        if (UserEnd > UserStart) {
+            Idx0 = (UserStart >> 30) & 0x1FFull;
+            Idx1 = ((UserEnd - 1) >> 30) & 0x1FFull;
+            for (Ui = Idx0; Ui <= Idx1 && Ui < 512ull; Ui++) {
+                Pdpt[Ui] = 0;
+            }
+        }
+    }
+    return 0;
 }
 
 /* x86 PTE 软件可用位 bit9：fork COW */
@@ -312,12 +371,12 @@ UINT64 HalPageMarkCopyOnWrite(UINT64 Flags) {
 int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT64 Flags,
                HalPageAllocateFunction Alloc, void *Ctx) {
     int User = (Flags & HAL_PAGE_USER) != 0;
-    UINT64 *Pml4 = (UINT64 *)(UINTN)(Root & ~0xFFFULL);
+    UINT64 *Pml4 = (UINT64 *)(UINTN)(Root & PTE_ADDR_MASK);
     UINT64 *Pte = PageWalk(Pml4, VirtualAddress, 1, User, Alloc, Ctx);
     if (!Pte) {
         return -1;
     }
-    *Pte = (PhysicalAddress & ~0xFFFULL) | Flags | HAL_PAGE_PRESENT;
+    *Pte = (PhysicalAddress & PTE_ADDR_MASK) | Flags | HAL_PAGE_PRESENT;
     HalFlushTlb(VirtualAddress);
     return 0;
 }

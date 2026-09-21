@@ -64,22 +64,26 @@ void RepaintUserWindow(int Wid) {
     }
     /* 丢弃可能含透视的旧备份，Sync 时走 DrawWindowAt */
     gWinBackupValid[Idx] = 0;
-    ComposeBegin();
+    ComposeBeginEraseCursor();
+    HalVideoClearClip();
+    SyncWindowVisualsEx(0);
+    /*
+     * Sync 末尾已 CursorPaint，gUnder 是重画前的按钮像素。
+     * 若不先 Restore，后面的 CursorPaint 会把旧底盖回新按钮 → 轮廓/文字被擦。
+     */
     GfxIrqEnter();
     CursorRestore();
     GfxIrqLeave();
-    HalVideoClearClip();
-    SyncWindowVisualsEx(0);
     /* Sync 后仍强制不透明整窗，再画控件 */
     DrawWindowAtEx(Idx, 0);
     PaintUserClient(Idx);
     BackupWindowAtEx(Idx, 1);
     GuiFocusApply();
-    ComposeEnd();
     GfxIrqEnter();
     CursorPaint();
-    HalVideoPresent();
     GfxIrqLeave();
+    HalVideoPresentFlush();
+    ComposeEnd();
     gWindows[Idx].UserButtonClick = -1;
     gWindows[Idx].UserClientClick = 0;
     gWindows[Idx].UserKeyCount = 0;
@@ -209,10 +213,7 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     gWindows[Idx].PromptShown = 0;
     gWindows[Idx].InputLine[0] = 0;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
+    ComposeBeginEraseCursor();
     HalVideoClearClip();
     DrawWindowAtEx(Idx, 0);
     ComposeEnd();
@@ -220,20 +221,20 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     RaiseWindow(Idx);
     Idx = gFocusWin;
     gWinBackupValid[Idx] = 0;
-    ComposeBegin();
+    ComposeBeginEraseCursor();
+    SyncWindowVisualsEx(0);
     GfxIrqEnter();
     CursorRestore();
     GfxIrqLeave();
-    SyncWindowVisualsEx(0);
     DrawWindowAtEx(Idx, 0);
     PaintUserClient(Idx);
     BackupWindowAtEx(Idx, 1);
     GuiFocusApply();
-    ComposeEnd();
     GfxIrqEnter();
     CursorPaint();
-    HalVideoPresent();
     GfxIrqLeave();
+    HalVideoPresentFlush();
+    ComposeEnd();
     DebugWrite("Gui: open user idx=");
     DebugHex32((UINT32)gFocusWin);
     DebugWrite("\n");

@@ -60,6 +60,14 @@ void VideoSet(VIDEO_CONFIG *VideoConfig) {
     gScreen.CursorY = 0;
     gFront = (UINT32 *)(UINTN)VideoConfig->FrameBufferBase;
     gFrontPitch = VideoConfig->PixelsPerScanLine;
+    /* Pitch*H 可能大于 Width*H；Present/映射须按 Pitch 算 */
+    if (gFrontPitch != 0 && VideoConfig->VerticalResolution != 0) {
+        UINT64 Layout = (UINT64)gFrontPitch *
+                        (UINT64)VideoConfig->VerticalResolution * 4ull;
+        if (gScreen.FrameBufferSize < Layout) {
+            gScreen.FrameBufferSize = Layout;
+        }
+    }
     gBack = 0;
     gBackPitch = 0;
     gBackPages = 0;

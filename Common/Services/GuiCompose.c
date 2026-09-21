@@ -41,6 +41,14 @@ void ComposeEnd(void) {
     }
 }
 
+/* 先擦光标再置 Busy，避免 SMP 上 Busy 抢在 Restore 前清 Visible → 镂空 */
+void ComposeBeginEraseCursor(void) {
+    GfxIrqEnter();
+    CursorRestore();
+    ComposeBegin();
+    GfxIrqLeave();
+}
+
 
 /* 主题合成中推迟 Present；拖动等路径仍立即提交 */
 void GfxPresent(void) {
@@ -82,10 +90,7 @@ void GuiRedraw(void) {
     int i;
 
     /* G7：桌面/窗体开中断绘制；ComposeBusy 丢弃嵌套鼠标；只锁光标 */
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
+    ComposeBeginEraseCursor();
     HalVideoClearClip();
     DesktopFillRect(0, 0, gScreenWidth, gScreenHeight);
     DesktopDraw();
@@ -96,8 +101,8 @@ void GuiRedraw(void) {
     DesktopDrawNetTrayPopup();
     GfxIrqEnter();
     CursorPaint();
-    HalVideoPresent();
     GfxIrqLeave();
+    HalVideoPresentFlush();
     ComposeEnd();
 }
 
@@ -156,10 +161,7 @@ void GuiComposeThemeScene(void) {
     int SavedFocus = gFocusWin;
 
     gDeferPresent = 1;
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
+    ComposeBeginEraseCursor();
     HalVideoClearClip();
 
     /* 先铺底：有 DeferPresent 时整屏 wipe 不会露到屏幕 */
@@ -222,11 +224,13 @@ void GuiComposeThemeScene(void) {
     GfxIrqEnter();
     CursorPaint();
     GfxIrqLeave();
-    ComposeEnd();
     gDeferPresent = 0;
-    GfxIrqEnter();
-    HalVideoPresent();
-    GfxIrqLeave();
+    /*
+     * PresentFlush 必须仍在 ComposeBusy 内：NUC 8 核上 AP 鼠标否则会
+     * CursorRestore 旧 gUnder → 正方形镂空；任务栏半截 Present 同窗。
+     */
+    HalVideoPresentFlush();
+    ComposeEnd();
 }
 
 

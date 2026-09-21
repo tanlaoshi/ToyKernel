@@ -56,6 +56,7 @@ typedef struct TASK {
     INT32                  ParentId;   /* -1 = 无父进程 */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
+    UINT64                 SleepWakeTick; /* sleep 截止 HalCpuTicks(0)；0=未睡 */
     INT32                  PendingKill; /* PR-P4/U-sig：>0 待本核入口处理（终止或 handler） */
     UINT64                 SigHandlerInt;  /* PR-U-sig：0=DFL 1=IGN 其它=用户 VA */
     UINT64                 SigHandlerTerm;
@@ -86,6 +87,8 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame);
 UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame);
 UINT64 SchedulerWait(HAL_INTERRUPT_FRAME *Frame);
 UINT64 SchedulerYield(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerSleepMs(HAL_INTERRUPT_FRAME *Frame, UINT32 Ms);
+void SchedulerWakeSleepers(void);
 /* PR-P4：rdi=pid rsi=sig；杀内核/idle 失败。非当前任务返回 0；杀自身则切走 */
 UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame);
 /* Shell：pid=槽位+1；默认终止用户任务。成功 0，失败 -1 */

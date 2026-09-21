@@ -310,6 +310,10 @@ void HalVideoPresent(void) {
     VideoPresent();
 }
 
+void HalVideoPresentFlush(void) {
+    VideoPresentFlush();
+}
+
 void HalVideoDrawBeginFront(void) {
     VideoDrawBeginFront();
 }

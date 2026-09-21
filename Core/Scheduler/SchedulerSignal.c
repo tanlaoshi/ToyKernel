@@ -149,6 +149,12 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
     Cur->Frame = Frame;
     Cur->Ticks++;
 
+    /* 原地 sleep：未到期不抢占；并唤醒已 BLOCKED 的 sleep 者（若有） */
+    SchedulerWakeSleepers();
+    if (Cur->SleepWakeTick != 0 && HalCpuTicks(0) < Cur->SleepWakeTick) {
+        return 0;
+    }
+
     /* 跨核 PendingKill：终止或 handler（锁序：大锁 → runq） */
     if (Cur->IsUser && Cur->PendingKill > 0) {
         INT32 Sig = Cur->PendingKill;

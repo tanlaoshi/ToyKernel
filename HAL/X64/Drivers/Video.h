@@ -26,6 +26,8 @@ int VideoBackbufferEnabled(void);
 UINT32 VideoBackbufferPages(void);
 /* 脏矩形 blit 到 GOP；无后缓冲时为空操作 */
 void VideoPresent(void);
+/* 循环 Present 直到脏区清空（4K 全屏合成勿半截留下任务栏空洞） */
+void VideoPresentFlush(void);
 /* PR-G-hotres：Bochs/QEMU VGA DISPI；成功 0，无 Bochs/失败 -1 */
 int VideoBochsSetMode(UINT32 Width, UINT32 Height);
 int VideoBochsAvailable(void);

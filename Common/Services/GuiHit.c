@@ -135,9 +135,17 @@ void GuiRaiseToFront(int Idx) {
         EditUiRepaint();
         BackupWindowAt(Top);
     } else if (gWindows[Top].Kind == GUI_WIN_USER) {
+        /* Sync 已画过光标；先擦再重画客户区，避免旧底盖住按钮 */
+        GfxIrqEnter();
+        CursorRestore();
+        GfxIrqLeave();
         DrawWindowAtEx(Top, 0);
         PaintUserClient(Top);
         BackupWindowAtEx(Top, 1);
+        GfxIrqEnter();
+        CursorPaint();
+        GfxIrqLeave();
+        HalVideoPresentFlush();
     } else if (gWindows[Top].Kind == GUI_WIN_SHELL && !gWinBackupValid[Top]) {
         /* 欢迎语级恢复；完整历史需备份一直有效 */
         GuiConsoleOpsOnShellOpened();

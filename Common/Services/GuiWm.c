@@ -65,7 +65,7 @@ UINT32   gDragStartH;
 
 int    gGfxLockDepth;
 UINT64 gGfxIrqFlags;
-int    gComposeBusy;
+volatile int gComposeBusy;
 int    gDeferPresent;
 int    gShellEchoCoalesce; /* PR-G-shell-present：打字回显合并 Present */
 
@@ -116,12 +116,7 @@ void GuiRefreshTitles(void) {
             gWindows[i].Title = "Edit";
         }
     }
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
     SyncWindowVisualsEx(1);
-    ComposeEnd();
     if (GuiFocusKind() == GUI_WIN_SETTINGS) {
         SettingsUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_STORE) {

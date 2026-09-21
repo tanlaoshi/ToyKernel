@@ -18,7 +18,6 @@ static void FadeFrameDelay(void) {
     for (i = 0; i < N; i++) {
         HalCpuRelax();
     }
-    HalTimerPoll();
 }
 
 /*
@@ -31,10 +30,14 @@ static int CaptureUnderNoPresent(int Idx, UINT32 *Under, UINT32 Rw, UINT32 Rh) {
     int i;
 
     HalVideoClearClip();
-    DesktopFillRect(0, 0, gScreenWidth, gScreenHeight);
-    DesktopDraw();
+    DesktopFillRect(Win->X, Win->Y, Rw, Rh);
+    DesktopDrawRect(Win->X, Win->Y, Rw, Rh);
     for (i = 0; i < MAX_WINS; i++) {
         if (i == Idx || !gWindows[i].Active) {
+            continue;
+        }
+        if (!RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width,
+                            gWindows[i].Height, Win->X, Win->Y, Rw, Rh)) {
             continue;
         }
         if (gWinBackupValid[i] && gWinBackup[i] != 0) {
@@ -45,6 +48,10 @@ static int CaptureUnderNoPresent(int Idx, UINT32 *Under, UINT32 Rw, UINT32 Rh) {
     }
     for (i = 0; i < MAX_WINS; i++) {
         if (i == Idx || !gWindows[i].Active) {
+            continue;
+        }
+        if (!RectIntersects(gWindows[i].X, gWindows[i].Y, gWindows[i].Width,
+                            gWindows[i].Height, Win->X, Win->Y, Rw, Rh)) {
             continue;
         }
         DrawWindowShadowAt(i);

@@ -84,6 +84,7 @@ void SchedulerInitialize(void) {
         gTasks[i].ParentId = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].SleepWakeTick = 0;
         gTasks[i].PendingKill = 0;
         gTasks[i].SigHandlerInt = 0;
         gTasks[i].SigHandlerTerm = 0;
@@ -135,6 +136,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].ParentId = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].SleepWakeTick = 0;
         gTasks[i].PendingKill = 0;
         gTasks[i].SigHandlerInt = 0;
         gTasks[i].SigHandlerTerm = 0;
@@ -181,6 +183,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].ParentId = Cur ? TaskSlot(Cur) : -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
+        gTasks[i].SleepWakeTick = 0;
         gTasks[i].PendingKill = 0;
         gTasks[i].SigHandlerInt = 0;
         gTasks[i].SigHandlerTerm = 0;

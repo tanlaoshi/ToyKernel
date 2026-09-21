@@ -38,6 +38,8 @@
 #define SYS_SIGNAL        27
 #define SYS_DAMAGE_RECT   28 /* PR-G-desk-3：用户窗像素矩形 blit */
 #define SYS_LSEEK         29 /* PR-A-libc：rdi=fd rsi=off rdx=whence */
+#define SYS_SLEEP         30 /* rdi=ms；阻塞约 Ms 节拍（≈ms） */
+#define SYS_CLOCK_MS      31 /* 返回 BSP tick（与 sleep 同尺） */
 
 #define WNOHANG 1
 
@@ -146,6 +148,14 @@ static inline long toy_munmap(long addr, long len) {
 
 static inline long toy_signal(long sig, long handler) {
     return toy_syscall(SYS_SIGNAL, sig, handler, 0);
+}
+
+static inline long toy_sleep(long ms) {
+    return toy_syscall(SYS_SLEEP, ms, 0, 0);
+}
+
+static inline long toy_clock_ms(void) {
+    return toy_syscall(SYS_CLOCK_MS, 0, 0, 0);
 }
 
 static inline long toy_socket(long domain, long type, long protocol) {

@@ -102,7 +102,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 GuiFocusApply();
                 return 1;
             }
-            /* PR-A-ui-api：客户区点击（相对 ToyGfx 原点，含 pad） */
+            /* 客户区：记下点击并置顶重画。只 Raise 不合成时窗仍画在 Shell 下面。 */
             {
                 UINT32 Cx = gWindows[i].X + 1 + GUI_CLIENT_PAD;
                 UINT32 Cy = gWindows[i].Y + TITLE_HEIGHT + GUI_CLIENT_PAD;
@@ -111,9 +111,7 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                     gWindows[i].UserClickX = X - Cx;
                     gWindows[i].UserClickY = Y - Cy;
                     GuiFocusSave();
-                    RaiseWindow(i);
-                    /* 与按钮相同：勿 Sync（会重贴备份打出客户区镂空） */
-                    GuiFocusApply();
+                    GuiRaiseToFront(i);
                     return 1;
                 }
             }

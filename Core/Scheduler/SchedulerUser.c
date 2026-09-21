@@ -84,6 +84,7 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].ParentId = ParentSlot;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
+    gTasks[Child].SleepWakeTick = 0;
     gTasks[Child].PendingKill = 0;
     gTasks[Child].SigHandlerInt = Parent->SigHandlerInt;
     gTasks[Child].SigHandlerTerm = Parent->SigHandlerTerm;
@@ -152,6 +153,7 @@ UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame) {
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
         SchedulerDestroyDetached(Detached);
         ConsoleWrite("sched: no runnable after self-kill\n");
         for (;;) {

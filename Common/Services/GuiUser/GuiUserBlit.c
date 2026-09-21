@@ -193,10 +193,6 @@ int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
     OffX = SrcX0 - X;
     OffY = SrcY0 - Y;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
     GuiFrameBufferBegin();
     HalVideoClearClip();
     if (OffX == 0 && OffY == 0 && ClipW == W && ClipH == H) {
@@ -209,10 +205,5 @@ int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
     }
     GuiBackupSyncRect(ScreenX, ScreenY, ClipW, ClipH);
     GuiFrameBufferEnd();
-    ComposeEnd();
-    GfxIrqEnter();
-    CursorPaint();
-    HalVideoPresent();
-    GfxIrqLeave();
     return 0;
 }

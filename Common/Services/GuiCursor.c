@@ -53,7 +53,7 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
     Ext = (UINT32)(Half + Thick + CURSOR_OUTLINE);
     /* UI 缩放时再外扩 1 逻辑像素，配合 Present 最近邻防拖尾 */
     if (HalVideoGetUiScale() != 100u) {
-        Ext += 1u;
+        Ext += 2u;
     }
     *Sx = Cx >= Ext ? Cx - Ext : 0;
     *Sy = Cy >= Ext ? Cy - Ext : 0;
@@ -216,17 +216,14 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
  * 4K：旧路径整段 cli + DirtyUnion(Shell∪远处光标)→近全屏 Present 饿死 USB。
  */
 void GuiFrameBufferBegin(void) {
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
+    ComposeBeginEraseCursor();
 }
 
 void GuiFrameBufferEnd(void) {
     GfxIrqEnter();
     CursorPaint();
-    GfxPresent();
     GfxIrqLeave();
+    HalVideoPresentFlush();
     ComposeEnd();
 }
 

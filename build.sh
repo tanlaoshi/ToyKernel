@@ -167,9 +167,10 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/guidemo.elf" "$DEST/GUIDEMO.ELF"
     cp -f "$USER_OUT/blitdemo.elf" "$DEST/BLITDEMO.ELF"
     cp -f "$USER_OUT/libcdemo.elf" "$DEST/LIBCDEMO.ELF"
+    cp -f "$USER_OUT/sleepdemo.elf" "$DEST/SLEEPDEMO.ELF"
     cp -f "$USER_OUT/dirdemo.elf" "$DEST/DIRDEMO.ELF"
     cp -f "$USER_OUT/netlibdemo.elf" "$DEST/NETLIB.ELF"
-    echo "Synced Kernel/HELLO/.../NETLIB -> $DEST/"
+    echo "Synced Kernel/HELLO/.../SLEEPDEMO/NETLIB -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else

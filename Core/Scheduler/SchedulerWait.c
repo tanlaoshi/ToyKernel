@@ -27,6 +27,7 @@ static void ReapZombie(TASK *Z) {
     Z->Started = 0;
     Z->ParentId = -1;
     Z->Waiting = 0;
+    Z->SleepWakeTick = 0;
     Z->PendingKill = 0;
     Z->OnCpu = -1;
     Z->InRunQueue = 0;
@@ -118,6 +119,7 @@ int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
     Exiting->ExitCode = Code;
     Exiting->PageRoot = VirtualMemoryKernelRoot();
     Exiting->Waiting = 0;
+    Exiting->SleepWakeTick = 0;
     Exiting->PendingKill = 0;
     Exiting->OnCpu = -1;
     RunQueueRemove(Exiting);
@@ -174,13 +176,22 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     (void)TerminateUserLocked(Exiting, Code, &ShowPrompt, &Detached);
 
     /*
-     * 先收 USER 窗再切任务：避免与点击关窗淡出重入；也不要在
-     * ActivateTask 之后做重 GUI（当时 Current 已是 Shell）。
+     * 先卸用户 CR3，再收窗/销毁地址空间。
+     * 若仍挂着用户 PML4 就 Free 页表页，真机 IRQ 页漫步会踩已释放页
+     * → 二次 exec #PF@0x40000000 err=0xD（RSVD）。
      */
     SpinLockRelease(&gSchedulerLock);
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+    /* 再写一次 CR3：冲掉本核用户 TLB，避免 Destroy 后旧 PTE 幽灵 */
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+    /* 等点 × 关窗结束再拆页表（无限等，禁止超时强拆） */
+    GuiWaitNoWindowClosing();
     GuiCloseAllUserWindows();
+    GuiWaitNoWindowClosing();
     SchedulerDestroyDetached(Detached);
     Detached = 0;
+    /* USER 轻量关窗后补一次全桌合成，恢复任务栏/残影（此时页表已拆完） */
+    GuiComposeThemeScene();
     SpinLockAcquire(&gSchedulerLock);
 
     if (gCoopDrain) {
@@ -188,7 +199,6 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
         if (ShowPrompt) {
             ConsoleShowPrompt();
         }
-        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
         HalUserCoopReturn();
         return 0;
     }

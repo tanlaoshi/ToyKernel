@@ -13,6 +13,8 @@
 | `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM |
 | `signal(sig, handler)` | `<signal.h>` | 教学级；无 sigaction |
 | `toy_yield()` | `<toyos/syscall.h>` | **没有** libc `yield()` |
+| `sleep` / `usleep` / `msleep` | `<unistd.h>` | 按调度节拍阻塞（课堂 ≈ms；非墙钟） |
+| `clock_ms()` | `<unistd.h>` | 与 sleep 同尺；稳节拍用 |
 
 ## 文件
 
@@ -64,6 +66,6 @@ Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / 
 
 ## 已知缺口
 
-`getpid` / libc `yield()` / `sleep` / `getcwd` / `chdir` / `wait` 真实退出码 / Gfx 位图 / 滚动条。
+`getpid` / libc `yield()` / `getcwd` / `chdir` / `wait` 真实退出码 / Gfx 位图 / 滚动条。
 
-`fopen` / `lseek` / `realloc` / 点线矩形 / 复选框列表输入框 **已经有**，不要当成缺口。
+`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 **已经有**，不要当成缺口。

@@ -120,17 +120,14 @@ void GuiOnMouse(const GUI_MOUSE_STATE *Mouse) {
     /* 合成进行中只跟踪坐标/钮，避免嵌套 Move/Capture 采到半成品 FB。
      * 若光标仍画在旧位置，先擦掉，否则 Compose 期间移动会留下十字印。 */
     if (gComposeBusy) {
-        if (gCursorVisible &&
-            (Mouse->X != gCursorX || Mouse->Y != gCursorY)) {
-            GfxIrqEnter();
-            CursorRestore();
-            HalVideoPresent();
-            GfxIrqLeave();
-        }
+        /*
+         * 合成中只跟踪坐标/钮。禁止清 gCursorVisible：
+         * ComposeBegin 后、CursorRestore 前若 AP 清掉 Visible，Restore 空操作，
+         * 十字留在后缓冲 → 末尾 ReadRect 把字形采进 gUnder → 镂空方块。
+         */
         gCursorX = Mouse->X;
         gCursorY = Mouse->Y;
         gCursorBtn = Mouse->Buttons;
-        /* 仍推进边沿基准，避免合成结束后误触发按下 */
         gMousePrevBtn = Mouse->Buttons;
         return;
     }

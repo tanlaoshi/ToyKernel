@@ -81,32 +81,71 @@ static int Format(FmtOut *O, const char *fmt, va_list ap) {
         if (!*p) {
             break;
         }
-        switch (*p) {
-        case '%':
-            OutChar(O, '%');
-            break;
-        case 'c':
-            OutChar(O, (char)va_arg(ap, int));
-            break;
-        case 's':
-            OutStr(O, va_arg(ap, const char *));
-            break;
-        case 'd':
-            OutInt(O, (long)va_arg(ap, int));
-            break;
-        case 'u':
-            OutUInt(O, (unsigned long)va_arg(ap, unsigned), 10, 0);
-            break;
-        case 'x':
-            OutUInt(O, (unsigned long)va_arg(ap, unsigned), 16, 0);
-            break;
-        case 'X':
-            OutUInt(O, (unsigned long)va_arg(ap, unsigned), 16, 1);
-            break;
-        default:
-            OutChar(O, '%');
-            OutChar(O, *p);
-            break;
+        /* 可选 0 填充宽度：%02x %08x（忽略非 0 的宽度标志数字串） */
+        {
+            int ZeroPad = 0;
+            int Width = 0;
+
+            if (*p == '0') {
+                ZeroPad = 1;
+                p++;
+            }
+            while (*p >= '0' && *p <= '9') {
+                Width = Width * 10 + (*p - '0');
+                p++;
+            }
+            if (!*p) {
+                break;
+            }
+            switch (*p) {
+            case '%':
+                OutChar(O, '%');
+                break;
+            case 'c':
+                OutChar(O, (char)va_arg(ap, int));
+                break;
+            case 's':
+                OutStr(O, va_arg(ap, const char *));
+                break;
+            case 'd':
+                OutInt(O, (long)va_arg(ap, int));
+                break;
+            case 'u':
+                OutUInt(O, (unsigned long)va_arg(ap, unsigned), 10, 0);
+                break;
+            case 'x':
+            case 'X': {
+                unsigned long V = (unsigned long)va_arg(ap, unsigned);
+                char Tmp[32];
+                int Ti = 0;
+                unsigned Base = 16;
+                const char *Dig = (*p == 'X') ? "0123456789ABCDEF" : "0123456789abcdef";
+                unsigned long T = V;
+
+                if (T == 0) {
+                    Tmp[Ti++] = '0';
+                } else {
+                    while (T > 0 && Ti < (int)sizeof(Tmp)) {
+                        Tmp[Ti++] = Dig[T % Base];
+                        T /= Base;
+                    }
+                }
+                if (ZeroPad && Width > Ti) {
+                    int Z;
+                    for (Z = 0; Z < Width - Ti; Z++) {
+                        OutChar(O, '0');
+                    }
+                }
+                while (Ti > 0) {
+                    OutChar(O, Tmp[--Ti]);
+                }
+                break;
+            }
+            default:
+                OutChar(O, '%');
+                OutChar(O, *p);
+                break;
+            }
         }
     }
     return (int)O->Pos;

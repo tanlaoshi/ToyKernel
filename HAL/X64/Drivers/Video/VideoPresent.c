@@ -241,12 +241,12 @@ void VideoPresent(void) {
     if (gPhysH == 0) {
         LayoutBytes = (UINT64)gFrontPitch * (UINT64)gScreen.Height * 4ull;
     }
+    /*
+     * 真机 GOP 常报 Size=Width*Height*4，但 Pitch>Width。
+     * 若仍用 Size 做边界，Y 到中下部就 Partial 且永不前进 → 任务栏/底边永远不 Present。
+     */
     FbBytes = gScreen.FrameBufferSize;
-    if (FbBytes == 0) {
-        FbBytes = LayoutBytes;
-    } else if (gFrontPitch > gPhysW && gPhysW != 0 &&
-               FbBytes == (UINT64)gPhysW * (UINT64)gPhysH * 4ull &&
-               LayoutBytes > FbBytes) {
+    if (FbBytes < LayoutBytes) {
         FbBytes = LayoutBytes;
     }
 
@@ -286,6 +286,27 @@ void VideoPresent(void) {
             }
             PresentRectRows(X0, Y0, X1, Y1, FbBytes, &gCurDirty, &gCx0, &gCy0,
                             &gCx1, &gCy1, &Partial);
+        }
+    }
+}
+
+void VideoPresentFlush(void) {
+    UINTN Guard;
+
+    for (Guard = 0; Guard < 8192u; Guard++) {
+        if (!gDirty && !gCurDirty) {
+            return;
+        }
+        VideoPresent();
+    }
+    /* 仍脏：强制整屏再刷一轮（避免 4K 半截留下任务栏空洞） */
+    if (gDirty || gCurDirty) {
+        DirtyUnion(0, 0, gScreen.Width, gScreen.Height);
+        for (Guard = 0; Guard < 8192u; Guard++) {
+            if (!gDirty && !gCurDirty) {
+                return;
+            }
+            VideoPresent();
         }
     }
 }

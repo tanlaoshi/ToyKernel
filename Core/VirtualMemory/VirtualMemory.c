@@ -85,6 +85,9 @@ int VirtualMemorySpaceMapPage(VIRTUAL_ADDRESS_SPACE *Space, UINT64 Virt, UINT64 
 
 void VirtualMemorySpaceDestroy(VIRTUAL_ADDRESS_SPACE *Space) {
     UINT64 Va;
+    void *Tracked[VM_SPACE_MAX_PAGES];
+    int Count;
+    int i;
 
     if (!Space) {
         return;
@@ -97,13 +100,29 @@ void VirtualMemorySpaceDestroy(VIRTUAL_ADDRESS_SPACE *Space) {
             if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER)) {
                 continue;
             }
-            Phys = Pte & ~0xFFFULL;
+            Phys = Pte & 0x000FFFFFFFFFF000ULL;
             PhysicalMemoryReleasePage((void *)(UINTN)Phys);
         }
         HalPageUnmapRange(Space->Root, USER_CODE_VIRT, USER_VIRT_END);
     }
-    for (int i = 0; i < Space->PageCount; i++) {
-        PhysicalMemoryFreePage(Space->Pages[i]);
+    /*
+     * Pages[0] 即 Space 自身。若边读 Space->Pages[] 边 Free，
+     * 第一次 Free 后就是 UAF：会误释其它物理页 → 二次 exec 页表 RSVD/#PF@0x40000000。
+     */
+    Count = Space->PageCount;
+    if (Count < 0) {
+        Count = 0;
+    }
+    if (Count > VM_SPACE_MAX_PAGES) {
+        Count = VM_SPACE_MAX_PAGES;
+    }
+    for (i = 0; i < Count; i++) {
+        Tracked[i] = Space->Pages[i];
+    }
+    for (i = 0; i < Count; i++) {
+        if (Tracked[i] != 0) {
+            PhysicalMemoryFreePage(Tracked[i]);
+        }
     }
 }
 
@@ -192,7 +211,7 @@ int VirtualMemoryCopyToSpace(VIRTUAL_ADDRESS_SPACE *Space, UINT64 UserDst, const
             /* exec 装栈/重定位不应碰到只读/未拆 COW；失败即可 */
             return -1;
         }
-        Phys = Pte & ~0xFFFULL;
+        Phys = Pte & 0x000FFFFFFFFFF000ULL;
         Dst = (UINT8 *)(UINTN)(Phys + (Va & (PAGE_SIZE - 1)));
         *Dst = S[i];
     }

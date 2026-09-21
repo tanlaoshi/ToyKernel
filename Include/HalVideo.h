@@ -10,6 +10,8 @@ void HalVideoSet(const VIDEO_CONFIG *Config);
 /* PR-G9：分配并启用后缓冲；Present 提交脏区到 GOP */
 void HalVideoInitBackbuffer(void);
 void HalVideoPresent(void);
+/* 刷完所有脏区（关窗/主题全屏合成后用） */
+void HalVideoPresentFlush(void);
 void HalVideoDrawBeginFront(void);
 void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);

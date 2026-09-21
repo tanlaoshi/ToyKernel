@@ -55,8 +55,20 @@ static int InitializeVirtualMemory(void) {
     if (VirtualMemoryInitialize() != 0) {
         return -1;
     }
-    if (Info && Info->FrameBufferSize != 0) {
-        VirtualMemoryMapIdentity(Info->FrameBufferBase, Info->FrameBufferSize);
+    if (Info && Info->FrameBufferBase != 0) {
+        UINT64 FbBytes = Info->FrameBufferSize;
+        UINT64 Layout = 0;
+
+        if (Info->PixelsPerScanLine != 0 && Info->VerticalResolution != 0) {
+            Layout = (UINT64)Info->PixelsPerScanLine *
+                     (UINT64)Info->VerticalResolution * 4ull;
+        }
+        if (Layout > FbBytes) {
+            FbBytes = Layout;
+        }
+        if (FbBytes != 0) {
+            VirtualMemoryMapIdentity(Info->FrameBufferBase, FbBytes);
+        }
     }
     HalPlatformMapMmio();
     VirtualMemoryEnable();

@@ -112,10 +112,7 @@ void GuiHoverUpdate(UINT32 X, UINT32 Y) {
 void SyncWindowVisualsEx(int ClearDesktop) {
     int i;
 
-    ComposeBegin();
-    GfxIrqEnter();
-    CursorRestore();
-    GfxIrqLeave();
+    ComposeBeginEraseCursor();
     HalVideoClearClip();
     if (ClearDesktop) {
         DesktopFillRect(0, 0, gScreenWidth, gScreenHeight);
@@ -147,8 +144,8 @@ void SyncWindowVisualsEx(int ClearDesktop) {
     DesktopDrawNetTrayPopup();
     GfxIrqEnter();
     CursorPaint();
-    GfxPresent(); /* 尊重 gDeferPresent：开窗填内容前勿把空框刷到 GOP */
     GfxIrqLeave();
+    HalVideoPresentFlush();
     ComposeEnd();
 }
 

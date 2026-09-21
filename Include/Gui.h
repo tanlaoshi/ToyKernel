@@ -118,6 +118,8 @@ int GuiPollUserInput(int Wid);
 void GuiUserEnqueueKey(UINT8 HidKey);
 /* 用户进程退出时收掉残留 USER 窗（防槽位占满第二次 exec 失败） */
 void GuiCloseAllUserWindows(void);
+/* exit 拆页表前等待关窗 Closing 结束（NUC SMP） */
+void GuiWaitNoWindowClosing(void);
 /* PR-I18N2：按当前语言刷新窗标题并重绘 chrome */
 void GuiRefreshTitles(void);
 GUI_WIN_KIND GuiFocusKind(void);
