@@ -214,20 +214,20 @@ LDFLAGS = -nostdlib -static -z noexecstack -T HAL/$(HAL_ARCH)/link.ld -e KernelE
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
 LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
-# Build/ 镜像源码树：Common、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
-# Common/Fonts 的 .o 随当前 ARCH 编译（不可三架构并存同一套 .o）；clean 会清掉它们。
-# 各 Arch 的 Kernel.elf / HAL .o 留在 Build/HAL/<Arch>/，换架构 clean 不删其它 Arch 成品。
+# Build/ 镜像源码树：Common、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
+# 上述共享路径的 .o 随当前 ARCH 编译（不可三架构并存同一套 .o）；换 ARCH 时清掉它们。
+# 各 Arch 的 Kernel.elf / HAL .o 留在 Build/HAL/<Arch>/，换架构不删其它 Arch 成品。
 BUILDDIR = Build
 HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
-# Common/Fonts/.o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式（如 EM:183 aarch64 → riscv）
+# Common/Core/User/Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
+# （如 EM:62 x86_64 → aarch64/riscv）。勿只清 Common。
 ARCH_STAMP := $(BUILDDIR)/.toy_arch
-ifneq ($(wildcard $(BUILDDIR)/Common),)
 _STAMP_ARCH := $(shell cat $(ARCH_STAMP) 2>/dev/null)
 ifneq ($(_STAMP_ARCH),$(ARCH))
-$(info ARCH: stale Common '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning Build/Common Fonts lwip)
-$(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Fonts' '$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
-endif
+$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning Build/{Common,Core,User,Fonts,lwip})
+$(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Core' '$(BUILDDIR)/User' \
+	'$(BUILDDIR)/Fonts' '$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
 endif
 $(shell mkdir -p '$(BUILDDIR)' && echo '$(ARCH)' > '$(ARCH_STAMP)')
 
