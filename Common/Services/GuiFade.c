@@ -99,7 +99,7 @@ void GuiAnimateWindowFade(int Idx, int FadeIn) {
     int Ok = 0;
 
     Steps = ThemeWindowFadeSteps();
-    if (Steps == 0 || Idx < 0 || Idx >= MAX_WINS) {
+    if (!ThemeIsFadeEnabled() || Steps == 0 || Idx < 0 || Idx >= MAX_WINS) {
         return;
     }
     Win = &gWindows[Idx];

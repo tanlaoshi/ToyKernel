@@ -113,10 +113,16 @@ void DrawTaskbarRaw(void) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
+    UINT8 Alpha;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
-    UiFillRectangleAlpha(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground(),
-                         ThemeTaskbarAlpha());
+    Alpha = ThemeIsAlphaEnabled() ? ThemeTaskbarAlpha() : 255u;
+    if (Alpha == 255u) {
+        UiFillRectangle(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground());
+    } else {
+        UiFillRectangleAlpha(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground(),
+                             Alpha);
+    }
     DrawTaskbarControls();
 }
 
@@ -276,10 +282,11 @@ void DrawTaskbarOccluded(void) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
+    UINT8 Alpha;
 
     TaskbarGeom(&BarY, &Sw, &Sh);
-    FillRectFreeAlpha(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground(),
-                      ThemeTaskbarAlpha());
+    Alpha = ThemeIsAlphaEnabled() ? ThemeTaskbarAlpha() : 255u;
+    FillRectFreeAlpha(0, BarY, Sw, TASKBAR_H, ThemeTaskbarBackground(), Alpha);
     /* 控件：勿再调 DrawTaskbarRaw（会双重 Blend 底色） */
     DrawTaskbarControls();
     if (gMenuOpen) {

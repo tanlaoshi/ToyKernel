@@ -11,7 +11,12 @@
 #include "Desktop.h"
 
 void ExpandRectByWindowShadow(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H) {
-    UINT32 N = ThemeWindowShadowSize();
+    UINT32 N;
+
+    if (!ThemeIsShadowEnabled()) {
+        return;
+    }
+    N = ThemeWindowShadowSize();
 
     (void)X;
     (void)Y;
@@ -78,6 +83,9 @@ void DrawWindowShadowAt(int Idx) {
     UINT32 Color;
     UINT32 d;
 
+    if (!ThemeIsShadowEnabled()) {
+        return;
+    }
     if (Idx < 0 || Idx >= MAX_WINS) {
         return;
     }

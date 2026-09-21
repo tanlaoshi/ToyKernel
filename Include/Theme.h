@@ -71,8 +71,8 @@ UINT32 ThemeWindowFadeSteps(void);
 void ThemeSetWindowFadeSteps(UINT32 Steps);
 
 /*
- * PR-GUI-effects：美化效果级别（默认 high = 现网全开）。
- * Is* 由级别派生；绘制接入在后续步。DB 键 theme.effects 在第 3 步。
+ * PR-GUI-effects：美化效果级别（默认 low；high = 全开美化）。
+ * Is* 由级别派生；DB 键 theme.effects 在第 3 步。
  */
 typedef enum {
     THEME_EFFECT_MINIMAL = 0, /* 无美化（边框三态仍开） */

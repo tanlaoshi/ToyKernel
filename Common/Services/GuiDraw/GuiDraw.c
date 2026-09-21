@@ -32,7 +32,7 @@ UINT32 TitleBarColorAtRow(int Idx, UINT32 Row, UINT32 TitleH) {
     UINT8 T;
 
     Top = TitleBarColor(Idx);
-    if (TitleH <= 1u) {
+    if (!ThemeIsGradientEnabled() || TitleH <= 1u) {
         return Top;
     }
     if (Row >= TitleH) {

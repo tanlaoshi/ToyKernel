@@ -12,7 +12,7 @@ UINT32 gModeW;
 UINT32 gModeH;
 UINT32 gThemeUiScale = 100; /* 50 / 100 / 150 / 200 */
 UINT32 gFadeSteps = 6;      /* PR-GUI-l3-fade；0=关 */
-THEME_EFFECT_LEVEL gEffectLevel = THEME_EFFECT_HIGH; /* PR-GUI-effects */
+THEME_EFFECT_LEVEL gEffectLevel = THEME_EFFECT_LOW; /* PR-GUI-effects；课验默认 low */
 int gWallpaper = 1;         /* 默认 WALL.BMP；Settings 选色后关 */
 int gThemeId = THEME_PALETTE_DEFAULT;
 int gDesktopGrad = 0;       /* tech 对角渐变；默认关 */
@@ -29,7 +29,7 @@ void ThemeInitialize(void) {
     gModeH = 0;
     gThemeUiScale = 100;
     gFadeSteps = 6;
-    gEffectLevel = THEME_EFFECT_HIGH;
+    gEffectLevel = THEME_EFFECT_LOW;
     gWallpaper = 1;
     gThemeId = THEME_PALETTE_DEFAULT;
     gDesktopGrad = 0;
