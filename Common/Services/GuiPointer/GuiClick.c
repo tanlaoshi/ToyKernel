@@ -196,9 +196,17 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             } else {
                 EditUiOnClick(X, Y);
             }
-        } else if (GuiFocusKind() == GUI_WIN_SHELL &&
-                   !gWinBackupValid[gFocusWin]) {
-            GuiConsoleOpsOnShellOpened();
+        } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
+                if (!gWinBackupValid[gFocusWin]) {
+                    GuiConsoleOpsOnShellOpened();
+                }
+            } else {
+                ConsoleOnClick(X, Y);
+                if (!gWinBackupValid[gFocusWin]) {
+                    GuiConsoleOpsOnShellOpened();
+                }
+            }
         } else if (gFocusWin >= 0) {
             BackupWindowAt(gFocusWin);
         }

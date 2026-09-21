@@ -45,6 +45,8 @@ void ConsolePaintShellWindow(int Idx);
 void ConsoleRepaintShellWindows(void);
 /* PR-I2 补：Shell 客户区滚轮（行缓冲 scrollback，可滚回） */
 void ConsoleOnWheel(INT8 Wheel);
+/* PR-GUI-shell-sb：Shell 客户区滚动条点选 */
+void ConsoleOnClick(UINT32 X, UINT32 Y);
 
 /* PR-G2：焦点切换时保存/恢复当前窗输入行（由 GuiFocusSave/Apply 调用） */
 void ConsoleFocusSave(void);

@@ -87,5 +87,18 @@ void ConsoleSbPaint(void);
 void ConsoleSbRepaint(void);
 int ConsoleSbHasContent(void);
 void ConsoleSbEnsureLive(void);
+/* 视图度量 / 滚动条（ConsoleSbBar.c） */
+int ConsoleSbLineCount(void);
+int ConsoleSbAccLen(void);
+int ConsoleSbViewOff(void);
+int ConsoleSbMaxOff(int Vis);
+void ConsoleSbSetViewOff(int Next, int MaxOff);
+void ConsoleSbBarReset(void);
+void ConsoleSbBarReapplyClip(void);
+void ConsoleSbBarPrepare(UINT32 Cx, UINT32 Cy, UINT32 Cw, UINT32 Ch, UINT32 Bg,
+                         UINT32 LineH, int VisRows, int First, int Total);
+void ConsoleSbBarFinishRepaint(UINT32 Cx, UINT32 Cy, UINT32 Cw, UINT32 Ch,
+                               UINT32 Bg);
+void ConsoleSbBarAfterWrite(void);
 
 #endif

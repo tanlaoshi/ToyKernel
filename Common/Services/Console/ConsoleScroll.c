@@ -6,6 +6,7 @@
 #include "Console.h"
 #include "ConsolePrivate.h"
 #include "Hal.h"
+#include "HalVideo.h"
 #include "Gui.h"
 #include "Font.h"
 #include "UI.h"
@@ -23,6 +24,49 @@ void ConsoleSbReset(void) {
     gViewOff = 0;
     gAccLen = 0;
     gAcc[0] = 0;
+    ConsoleSbBarReset();
+}
+
+int ConsoleSbLineCount(void) {
+    return gSbCount;
+}
+
+int ConsoleSbAccLen(void) {
+    return gAccLen;
+}
+
+int ConsoleSbViewOff(void) {
+    return gViewOff;
+}
+
+int ConsoleSbMaxOff(int Vis) {
+    int MaxOff;
+
+    if (Vis < 1) {
+        Vis = 1;
+    }
+    MaxOff = gSbCount - Vis;
+    if (gAccLen > 0 && MaxOff > 0) {
+        MaxOff = gSbCount - (Vis - 1);
+    }
+    if (MaxOff < 0) {
+        MaxOff = 0;
+    }
+    return MaxOff;
+}
+
+void ConsoleSbSetViewOff(int Next, int MaxOff) {
+    if (Next < 0) {
+        Next = 0;
+    }
+    if (Next > MaxOff) {
+        Next = MaxOff;
+    }
+    if (Next == gViewOff) {
+        return;
+    }
+    gViewOff = Next;
+    ConsoleSbPaint();
 }
 
 void ConsoleSbPushLine(void) {
@@ -99,8 +143,10 @@ void ConsoleSbRepaint(void) {
     UINT32 Bg;
     UINT32 LineH;
     int Vis;
+    int VisRows;
     int Start;
     int End;
+    int MaxOff;
     int i;
 
     if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Ch == 0) {
@@ -115,7 +161,11 @@ void ConsoleSbRepaint(void) {
         Vis = 1;
     }
 
-    GuiFocusClearClient();
+    /*
+     * 安静清客户区：勿走 GuiFocusClearClient（内含 GfxPresent），
+     * 否则滚轮每格 Present 极慢。
+     */
+    HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
     GuiFocusHome();
 
     End = gSbCount - gViewOff;
@@ -125,13 +175,23 @@ void ConsoleSbRepaint(void) {
     if (End > gSbCount) {
         End = gSbCount;
     }
-    Start = End - Vis;
+    VisRows = Vis;
     if (gViewOff == 0 && gAccLen > 0) {
-        /* 末行留给当前未完成行 */
-        Start = End - (Vis - 1);
+        VisRows = Vis - 1;
     }
+    if (VisRows < 1) {
+        VisRows = 1;
+    }
+    Start = End - VisRows;
     if (Start < 0) {
         Start = 0;
+    }
+    MaxOff = ConsoleSbMaxOff(Vis);
+    if (MaxOff > 0) {
+        ConsoleSbBarPrepare(Cx, Cy, Cw, Ch, Bg, LineH, VisRows, Start, gSbCount);
+    } else {
+        ConsoleSbBarReset();
+        HalVideoSetClipOrigin(Cx, Cy, Cw, Ch, Bg);
     }
 
     for (i = Start; i < End; i++) {
@@ -160,8 +220,10 @@ void ConsoleSbRepaint(void) {
         }
     }
 
+    if (MaxOff > 0) {
+        ConsoleSbBarFinishRepaint(Cx, Cy, Cw, Ch, Bg);
+    }
     GuiFocusSave();
-    HalVideoClearClip();
     GuiBackupFocusWindow();
 }
 
@@ -190,7 +252,6 @@ void ConsoleOnWheel(INT8 Wheel) {
     UINT32 LineH;
     int Vis;
     int MaxOff;
-    int Next;
 
     if (Wheel == 0 || !GuiShellAcceptsInput()) {
         return;
@@ -207,24 +268,6 @@ void ConsoleOnWheel(INT8 Wheel) {
         Vis = 1;
     }
     /* 正滚轮 = 看更早的行 → 增大 gViewOff */
-    MaxOff = gSbCount - Vis;
-    if (gAccLen > 0 && MaxOff > 0) {
-        /* 留一行给当前输入时，历史上限略紧 */
-        MaxOff = gSbCount - (Vis - 1);
-    }
-    if (MaxOff < 0) {
-        MaxOff = 0;
-    }
-    Next = gViewOff + (int)Wheel;
-    if (Next < 0) {
-        Next = 0;
-    }
-    if (Next > MaxOff) {
-        Next = MaxOff;
-    }
-    if (Next == gViewOff) {
-        return;
-    }
-    gViewOff = Next;
-    ConsoleSbPaint();
+    MaxOff = ConsoleSbMaxOff(Vis);
+    ConsoleSbSetViewOff(gViewOff + (int)Wheel, MaxOff);
 }

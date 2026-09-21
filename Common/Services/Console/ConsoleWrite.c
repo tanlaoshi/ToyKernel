@@ -31,6 +31,7 @@ void ConsoleDrawString(const char *Text, UINT32 Color) {
 
     GuiFrameBufferBegin();
     GuiFocusApplyClip();
+    ConsoleSbBarReapplyClip();
     HalConsoleGetTextCursor(&X0, &Y0);
     HalConsoleDrawString(Text, Color);
     HalConsoleGetTextCursor(&X1, &Y1);
@@ -111,6 +112,7 @@ void ConsoleWrite(const char *Text) {
     ConsoleSbEnsureLive();
     ConsoleSbFeed(Text);
     ConsoleDrawString(Text, ThemeShellText());
+    ConsoleSbBarAfterWrite();
 }
 
 /* 按长度输出（SYS_WRITE 用；UTF-8 按码点画，不因中间的 NUL 截断） */
