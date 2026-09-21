@@ -22,5 +22,7 @@ void E1000Poll(void);
 /* PR-H4e-3：MSI 向量入口 */
 void E1000Irq(void);
 int E1000IrqEnabled(void);
+/* PR-N-i219-note：只读 dump；Write 可由 Shell 传 ConsoleWrite */
+void E1000DumpNote(void (*Write)(const char *Text));
 
 #endif

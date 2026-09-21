@@ -11,6 +11,7 @@
 #include "InputPs2.h"
 #include "Net.h"
 #include "UsbMsc.h"
+#include "E1000.h"
 
 #ifndef TOY_DEMO_DRIVER
 #define TOY_DEMO_DRIVER 1
@@ -171,6 +172,10 @@ int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
         return 0;
     }
     return 1;
+}
+
+void HalNetDumpNicNote(void (*Write)(const char *Text)) {
+    E1000DumpNote(Write);
 }
 
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {

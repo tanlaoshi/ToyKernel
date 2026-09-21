@@ -102,8 +102,16 @@ static void CommandSetAddr(int Argc, char **Argv) {
     PrintConfig();
 }
 
+/* PR-N-i219-note：PCI Intel 网卡 + e1000 Bind 只读；填路线图现场清单 */
+static void CommandNetNote(int Argc, char **Argv) {
+    (void)Argc;
+    (void)Argv;
+    HalNetDumpNicNote(ConsoleWrite);
+}
+
 void ShellCommandsNetAddrRegister(void) {
     ConsoleRegister2("net", "config", "show/set ip gw dns mask", CommandNetConfig);
+    ConsoleRegister2("net", "note", "e1000/I219 field note (read-only)", CommandNetNote);
     ConsoleRegister2("set", "ip", "set IPv4 address", CommandSetAddr);
     ConsoleRegister2("set", "gw", "set default gateway", CommandSetAddr);
     ConsoleRegister2("set", "dns", "set DNS server", CommandSetAddr);

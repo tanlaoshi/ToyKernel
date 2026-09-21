@@ -70,6 +70,6 @@
 - 复杂参考：`HAL/X64/Drivers/InputXhci.c`（含中断）
 - 网卡 L2：`HAL/X64/Drivers/NetE1000.c` + `Include/DriverNic.h`
 - 网卡骨架：同目录 `TemplateNetL2.c`（注释草稿，不链入）
-- 设计：`Documents/Done/驱动模板设计.md`
+- 设计：`Documents/已完/驱动模板设计.md`
 - 完整指南（PR-D-tpl-3）：`Documents/驱动开发指南.md`
 - 过程范例：`Documents/驱动开发范例-网卡L2.md`

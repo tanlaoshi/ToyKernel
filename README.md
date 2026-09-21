@@ -16,9 +16,10 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | [`Documents/驱动/`](Documents/驱动/) | 驱动开发指南 / 匹配规范 / 网卡 L2 范例 |
 | [`Documents/开发/`](Documents/开发/) | 命名规范 / 应用开发指南 / API 速查 |
 | [`HAL/X64/Drivers/_template/`](HAL/X64/Drivers/_template/) | 驱动拷贝源（**不**编进 Kernel） |
-| [`Documents/Done/`](Documents/Done/) | 已完成专题（含应用生态规划、驱动标准化分析/拆分/设计） |
+| [`Documents/已完/`](Documents/已完/) | 已完成专题（含应用生态规划、驱动标准化分析/拆分/设计） |
+| [`Documents/待做/`](Documents/待做/) | 规划中柱（可替换模块化等） |
 
-`Documents/` 顶层只留 **路线图** + **技术手册**；活指南在 `驱动/`、`开发/`；归档见 `Done/`。课堂讲义见 [`教学内容/`](../教学内容/)。
+`Documents/` 顶层只留 **路线图** + **技术手册**；活指南在 `驱动/`、`开发/`；归档见 `已完/`；待做规划见 `待做/`。课堂讲义见 [`教学内容/`](../教学内容/)。
 
 协作暗号（详见路线图）：**JX** = 下一刀；**TG** = 通过，只 commit；**TS** = push；**TB** = 拉同步。真机 USB 轨请先读 handoff。
 
@@ -96,7 +97,7 @@ ToyKernel/
 ├── Common/{Core,Services,Library,Fonts}
 ├── HAL/{X86_64,Arm64,RiscV,Board}/
 ├── Assets/  User/
-├── Documents/        # 顶层仅路线图 + 技术手册；驱动/ 开发/ Done/
+├── Documents/        # 顶层仅路线图 + 技术手册；驱动/ 开发/ 已完/ 待做/
 ├── build.sh  Makefile
 └── README.md         # 本文件
 ```

@@ -179,6 +179,12 @@ int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
     return 0;
 }
 
+void HalNetDumpNicNote(void (*Write)(const char *Text)) {
+    if (Write) {
+        Write("e1000 note: n/a (not x86)\n");
+    }
+}
+
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
     return ToyDriverNetSendIp(DstIp, Proto, Payload, PayloadLen);
 }

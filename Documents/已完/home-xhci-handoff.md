@@ -3,7 +3,7 @@
 > **分支**：`home/xhci-pr1-5-bundle`  
 > **计划全文**：[`real-pc-usb-pr-split.md`](real-pc-usb-pr-split.md)  
 > **路线图家里轨**：[`路线图.md`](../路线图.md) §家里轨  
-> 家里开新 Agent 时：先 `@` 本文件 + `@Documents/Done/real-pc-usb-pr-split.md`，再说 JX。
+> 家里开新 Agent 时：先 `@` 本文件 + `@Documents/已完/real-pc-usb-pr-split.md`，再说 JX。
 
 ## 一句话
 

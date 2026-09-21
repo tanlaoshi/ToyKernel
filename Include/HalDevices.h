@@ -84,6 +84,8 @@ int HalNetPing(const char *Host, int TimeoutMs);
 void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames);
 /* PR-H4e-2：有 e1000* 时返回 1 并填链路；virtio/无卡返回 0 */
 int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex);
+/* PR-N-i219-note：Intel 网卡 PCI + e1000 Bind 只读现场；Write 通常=ConsoleWrite */
+void HalNetDumpNicNote(void (*Write)(const char *Text));
 int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen);
 UINT16 HalNetChecksum(const void *Data, UINTN Len);
 void HalNetSetLwipReceive(int Enable);

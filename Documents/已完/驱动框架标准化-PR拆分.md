@@ -13,7 +13,7 @@
 | --- | --------------- | ------------------------------------------------------------------------------------------------------------------ |
 | 1   | 模板编译            | `**HAL/X64/Drivers/_template/` 永不编进 Kernel**（只作拷贝源 / 文档骨架）。不得加入 `DRIVER_SRCS` 通配，也不得被递归 wildcard 扫进链接。             |
 | 1b  | Demo 源码位置       | 扁平 `HAL/X64/Drivers/DemoDriver.c`（现有 `Drivers/*.c` 通配自动编入）                                                         |
-| 2   | 文档落点            | 规划/分析/设计已归档 `Documents/Done/`；活文档仍 `Documents/`：`驱动开发指南.md` / `驱动匹配规范.md`                                         |
+| 2   | 文档落点            | 规划/分析/设计已归档 `Documents/已完/`；活文档仍 `Documents/`：`驱动开发指南.md` / `驱动匹配规范.md`                                         |
 | 3   | Demo 注册         | **默认注册**（`HalDriverRegister` 调 `DemoDriverRegister()`）；可用 `TOY_DEMO_DRIVER=0` 关掉                                   |
 | 4   | Demo 编译开关       | `TOY_DEMO_DRIVER` 默认 **1**（`#ifndef` 保护）；传 `-DTOY_DEMO_DRIVER=0` 关闭。勿写裸 `#if TOY_DEMO_DRIVER` 且不定义宏（未定义时求值为 0，会误关） |
 | 5   | Demo Bind       | **永远不**调用 `ToyDriverInputAttach`；只占 Driver 实例槽，保证 `lsdev` 可见且不抢真键鼠                                                 |

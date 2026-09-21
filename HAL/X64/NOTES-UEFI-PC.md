@@ -143,11 +143,12 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
 - **H4e-2** ✅ TG `486de82`：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
 - **H4e-3** ✅ TG `ddd4eb7`：`VEC_E1000`；MSI（MSI-X bad BIR 回落 MSI）；`boot: e1000e irq=msi`；NetPoll 备份
-- **未做**：Realtek、无线；NUC I219 等 DID 未扩（无卡不挡桌面）
+- **未做**：Realtek、无线；NUC I219 等 DID 未扩（无卡不挡桌面）→ 规划 [`Documents/路线图.md`](../../Documents/路线图.md#pr-n-i219)
+- **PR-N-i219-note（现场齐）**：`net note` → `8086:156F` @0:31.6 以太网 `in_table=no` / `bound=no`；同机 `8086:24FD` 无线 **不做**。下一刀 **did 只加 156F**。
 
 ### H-xhci-evt-excl：事件环单消费者（✅ 1…4）
 
-- 细则：[`../../Documents/Done/XHCI事件环单消费者.md`](../../Documents/Done/XHCI事件环单消费者.md)
+- 细则：[`../../Documents/已完/XHCI事件环单消费者.md`](../../Documents/已完/XHCI事件环单消费者.md)
 - **excl-1** ✅ TG `7c28c51`：独占 API + 门铃同窗 + 全 Wait*；保留 `fallback msc-claim`
 - **excl-2** ✅ TG `e982dd6`：`gEvtConsumerLock` + ProcessEventsLocked；Irq/Drain 与 HID 锁分离
 - **excl-3** ✅ TG `c26117c`：删 `fallback msc-claim`；真机永留 dual；irq-stall 认 `gStatEvtRing` 前进
@@ -157,13 +158,13 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
-| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)` |
+| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)`。**网**：`net note` 见 `8086:156F`（I219 族）未入 e1000 表；`24FD` 无线不做 |
 | 工业 PC（家用靶） | ✅ | ✅ | 🔧 **poll base**（PR1–5 落地） | U 盘 FAT | 2026-09-09：`firmware-first` + 无 PED=0 + `irq=poll (base)`；验收看 `xhci OK|FAIL` / `RS running` / `xhci-hid keyboard` |
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 
 **冒烟勾选表**（上电→Boot→桌面/串口；xHCI/盘/网；交作业用一页总表）：
 
-→ [`../../Documents/Done/真机冒烟清单.md`](../../Documents/Done/真机冒烟清单.md)（**PR-PC-smoke**）
+→ [`../../Documents/已完/真机冒烟清单.md`](../../Documents/已完/真机冒烟清单.md)（**PR-PC-smoke**）
 
 ---
 
