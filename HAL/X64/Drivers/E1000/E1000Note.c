@@ -129,6 +129,9 @@ static void DumpBound(NOTE_WRITE Write) {
     }
 
     if (gBar) {
+        UINT32 Ral = MmioR32(E1000_REG_RAL);
+        UINT32 Rah = MmioR32(E1000_REG_RAH);
+
         Write("e1000: STATUS=0x");
         WHex32(Write, MmioR32(E1000_REG_STATUS));
         Write(" TCTL=0x");
@@ -143,6 +146,25 @@ static void DumpBound(NOTE_WRITE Write) {
         Write(" RDT=0x");
         WHex32(Write, MmioR32(E1000_REG_RDT));
         Write("\n");
+        /* PR-N-i219-mac：RAL 对照软件 MAC */
+        Write("e1000: RAL=0x");
+        WHex32(Write, Ral);
+        Write(" RAH=0x");
+        WHex32(Write, Rah);
+        Write("\n");
+        /* PR-N-i219-txdiag */
+        Write("e1000: tx_ok=0x");
+        WHex32(Write, gE1000TxOk);
+        Write(" tx_fail=0x");
+        WHex32(Write, gE1000TxFail);
+        Write(" last_rc=");
+        if (gE1000TxLastRc < 0) {
+            Write("-");
+            WDec(Write, (UINT32)(-gE1000TxLastRc));
+        } else {
+            WDec(Write, (UINT32)gE1000TxLastRc);
+        }
+        Write(" (0=ok -1=arg -2=desc -3=DD)\n");
     }
 }
 
@@ -213,7 +235,7 @@ void E1000DumpNote(void (*Write)(const char *Text)) {
     } else if (!Bound && Found > InTable) {
         Write("saw Intel NIC outside table → next PR-N-i219-did (exact DID)\n");
     } else if (Bound) {
-        Write("bound → fill LU/tx via show network; next may be mac/txdiag\n");
+        Write("bound → ping/ARP 后看 tx_ok/last_rc；TDH=TDT=0 且 tx_ok=0 → 未进 Send\n");
     } else {
         Write("in table but unbound → link timeout or Setup fail; note STATUS\n");
     }

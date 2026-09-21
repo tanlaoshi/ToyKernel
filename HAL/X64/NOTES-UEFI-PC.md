@@ -143,9 +143,12 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
 - **H4e-2** ✅ TG `486de82`：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
 - **H4e-3** ✅ TG `ddd4eb7`：`VEC_E1000`；MSI（MSI-X bad BIR 回落 MSI）；`boot: e1000e irq=msi`；NetPoll 备份
-- **未做**：Realtek、无线；NUC I219 等 DID 未扩（无卡不挡桌面）→ 规划 [`Documents/路线图.md`](../../Documents/路线图.md#pr-n-i219)
+- **未做**：Realtek、无线 → 规划 [`Documents/路线图.md`](../../Documents/路线图.md#pr-n-i219)
 - **PR-N-i219-note** ✅ TG `bc4c288`。
-- **PR-N-i219-did** ✅ NUC：`156F` Bind / `i219` / LU 1000/FD / MAC `54:B2:03:09:0F:63`；**TDH=TDT=0**（无 TX）、RDH 前进（有 RX）。待 TG；下一 mac 或 txdiag。
+- **PR-N-i219-did** ✅ TG `dbe6441`：`156F` Bind / `i219` / LU 1000/FD / MAC `54:B2:03:09:0F:63`；RDH 前进（有 RX）。
+- **PR-N-i219-mac** ✅ 短核：MAC 非垃圾；EERD 够用；`net note` 打 RAL/RAH（不开独立 flash）。
+- **PR-N-i219-txdiag** ✅：`tx_ok`/`tx_fail`/`last_rc`（0/-1/-2/-3）+ RAL；双 smoke PASS。NUC：`ping`/`ARP` 后再 `net note`。下一 **tx**。
+- **机型行**：NUC7I7DNH 有线 `8086:156F` 已入表 Bind；无线 `24FD` 不做。
 
 ### H-xhci-evt-excl：事件环单消费者（✅ 1…4）
 
@@ -159,7 +162,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
-| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)`。**网**：`net note` 见 `8086:156F`（I219 族）未入 e1000 表；`24FD` 无线不做 |
+| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)`。**网**：`8086:156F` I219-LM **did ✅** Bind；无线 `24FD` 不做；现 ★ **tx** |
 | 工业 PC（家用靶） | ✅ | ✅ | 🔧 **poll base**（PR1–5 落地） | U 盘 FAT | 2026-09-09：`firmware-first` + 无 PED=0 + `irq=poll (base)`；验收看 `xhci OK|FAIL` / `RS running` / `xhci-hid keyboard` |
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 

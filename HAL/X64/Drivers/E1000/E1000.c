@@ -34,6 +34,9 @@ UINT8 gE1000Mac[6];
 static int gReady;
 int gE1000UseIrq; /* PR-H4e-3：MSI 武装成功 */
 static volatile UINT32 gStatIrq;
+UINT32 gE1000TxOk;
+UINT32 gE1000TxFail;
+INT32 gE1000TxLastRc;
 
 int E1000Ready(void) {
     return gReady;
@@ -218,11 +221,16 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
     E1000_TX_DESC *D;
     UINTN Wire = Len;
     int Spin;
+    int Rc;
 
     if (!gReady || !Frame || Len < 14) {
+        gE1000TxFail++;
+        gE1000TxLastRc = -1;
         return -1;
     }
     if (Wire > E1000_BUF_SIZE) {
+        gE1000TxFail++;
+        gE1000TxLastRc = -1;
         return -1;
     }
     if (Wire < 60) {
@@ -235,6 +243,8 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
         HalCpuRelax();
     }
     if (!(D->Status & E1000_TX_DD)) {
+        gE1000TxFail++;
+        gE1000TxLastRc = -2; /* 等空闲描述符超时 */
         return -1;
     }
 
@@ -255,7 +265,14 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
     while (!(D->Status & E1000_TX_DD) && Spin-- > 0) {
         HalCpuRelax();
     }
-    return (D->Status & E1000_TX_DD) ? 0 : -1;
+    Rc = (D->Status & E1000_TX_DD) ? 0 : -3; /* -3=提交后等 DD 超时 */
+    if (Rc == 0) {
+        gE1000TxOk++;
+    } else {
+        gE1000TxFail++;
+    }
+    gE1000TxLastRc = Rc;
+    return Rc;
 }
 
 void E1000Poll(void) {

@@ -115,6 +115,10 @@ extern UINT8 gPciDev;
 extern UINT8 gPciFn;
 extern UINT8 gE1000Mac[6];
 extern int gE1000UseIrq;
+/* PR-N-i219-txdiag：只读计数；Send 路径递增，不改发送语义 */
+extern UINT32 gE1000TxOk;
+extern UINT32 gE1000TxFail;
+extern INT32 gE1000TxLastRc;
 
 static inline UINT32 MmioR32(UINT32 Off) {
     return *(volatile UINT32 *)(gBar + Off);
