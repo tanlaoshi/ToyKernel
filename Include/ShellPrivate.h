@@ -11,6 +11,7 @@ void ShellCommandsNetRegister(void);
 void ShellCommandsNetAddrRegister(void);
 void ShellCommandsSystemRegister(void);
 void ShellCommandsSystemRegisterVirtMin(void);
+void ShellCommandsThemeRegister(void);
 void ShellCommandsFsUiRegister(void);
 void ShellCommandsInstallRegister(void);
 

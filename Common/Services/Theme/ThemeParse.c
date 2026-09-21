@@ -227,6 +227,24 @@ void ApplyLine(const char *Line) {
         }
         return;
     }
+    Val = ValueAfterKey(Line, "theme.effects");
+    if (Val) {
+        while (*Val && IsSpace(*Val)) {
+            Val++;
+        }
+        if (Val[0] == 'm' && Val[1] == 'i' && Val[2] == 'n' && Val[3] == 'i' &&
+            Val[4] == 'm' && Val[5] == 'a' && Val[6] == 'l') {
+            ThemeSetEffectLevel(THEME_EFFECT_MINIMAL);
+        } else if (Val[0] == 'l' && Val[1] == 'o' && Val[2] == 'w') {
+            ThemeSetEffectLevel(THEME_EFFECT_LOW);
+        } else if (Val[0] == 'm' && Val[1] == 'e' && Val[2] == 'd' && Val[3] == 'i' &&
+                   Val[4] == 'u' && Val[5] == 'm') {
+            ThemeSetEffectLevel(THEME_EFFECT_MEDIUM);
+        } else if (Val[0] == 'h' && Val[1] == 'i' && Val[2] == 'g' && Val[3] == 'h') {
+            ThemeSetEffectLevel(THEME_EFFECT_HIGH);
+        }
+        return;
+    }
 }
 
 int ApplyDbKey(const char *Key) {

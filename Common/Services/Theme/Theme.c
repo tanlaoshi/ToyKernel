@@ -166,6 +166,20 @@ int ThemeIsGradientEnabled(void) {
     return (gEffectLevel >= THEME_EFFECT_MEDIUM) ? 1 : 0;
 }
 
+const char *ThemeEffectLevelName(THEME_EFFECT_LEVEL Level) {
+    switch (Level) {
+    case THEME_EFFECT_MINIMAL:
+        return "minimal";
+    case THEME_EFFECT_LOW:
+        return "low";
+    case THEME_EFFECT_MEDIUM:
+        return "medium";
+    case THEME_EFFECT_HIGH:
+    default:
+        return "high";
+    }
+}
+
 /* 优先 Sun 8x16，其次 Terminus 10x18；避免默认 16×32 */
 UINT32 ThemeCompactFontId(void) {
     UINT32 i;

@@ -98,6 +98,13 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         Ty += LineH;
         HalVideoDrawStringAt(X + 10, Ty, "Applies live; saved to DB", ThemeTextMuted());
         Ty += LineH + 2;
+    } else if (gCat == SETTINGS_CAT_EFFECTS && Ty + LineH * 2 < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, "Minimal / Low / Medium / High",
+                             ThemeTextMuted());
+        Ty += LineH;
+        HalVideoDrawStringAt(X + 10, Ty, "Applies live; saved to DB",
+                             ThemeTextMuted());
+        Ty += LineH + 2;
     }
 
     if (gDisplayHint == 2 && Ty + LineH < MaxY) {

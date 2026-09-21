@@ -14,6 +14,7 @@ const char *CatLabel(SETTINGS_CAT C) {
     case SETTINGS_CAT_LANGUAGE: return LocStr(MSG_SET_LANGUAGE);
     case SETTINGS_CAT_SCALE:    return LocStr(MSG_SET_SCALE);
     case SETTINGS_CAT_THEME:    return LocStr(MSG_SET_THEME);
+    case SETTINGS_CAT_EFFECTS:  return LocStr(MSG_SET_EFFECTS);
     default:                    return "?";
     }
 }
@@ -71,6 +72,7 @@ int ItemCount(void) {
     case SETTINGS_CAT_LANGUAGE: return 2;
     case SETTINGS_CAT_SCALE:    return SCALE_COUNT;
     case SETTINGS_CAT_THEME:    return THEME_CHOICE_COUNT;
+    case SETTINGS_CAT_EFFECTS:  return EFFECTS_CHOICE_COUNT;
     default:                    return 0;
     }
 }
@@ -145,6 +147,17 @@ void ItemLabel(int Idx, char *Out, int OutMax) {
             CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_GRAD));
         }
         break;
+    case SETTINGS_CAT_EFFECTS:
+        if (Idx == 0) {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_EFFECTS_MINIMAL));
+        } else if (Idx == 1) {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_EFFECTS_LOW));
+        } else if (Idx == 2) {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_EFFECTS_MEDIUM));
+        } else {
+            CopyStr(Out, OutMax, LocStr(MSG_SET_EFFECTS_HIGH));
+        }
+        break;
     default:
         break;
     }
@@ -208,6 +221,8 @@ int CurrentItemIndex(void) {
             return 0;
         }
         return ThemeDesktopGradientEnabled() ? 2 : 1;
+    case SETTINGS_CAT_EFFECTS:
+        return (int)ThemeGetEffectLevel();
     default:
         return 0;
     }

@@ -1,42 +1,13 @@
 /*
  * ThemeSave.c — 写 THEME.CFG 与 TOYOS.DB
- * 核心：Theme.c
+ * 核心：Theme.c；格式化：ThemeSaveFmt.c
  */
 #include "Theme.h"
 #include "ThemePrivate.h"
 #include "HalConsole.h"
 
-void PutHex6(char *Dst, UINT32 Color) {
-    static const char Hex[] = "0123456789abcdef";
-    UINT32 C = Color & 0x00FFFFFFu;
-    int i;
-
-    for (i = 5; i >= 0; i--) {
-        Dst[i] = Hex[C & 0xF];
-        C >>= 4;
-    }
-}
-
-void PutDec(char *Dst, UINT32 V, UINTN *Len) {
-    char Tmp[8];
-    int N = 0;
-    int i;
-
-    if (V == 0) {
-        Dst[(*Len)++] = '0';
-        return;
-    }
-    while (V > 0 && N < (int)sizeof(Tmp)) {
-        Tmp[N++] = (char)('0' + (V % 10));
-        V /= 10;
-    }
-    for (i = N - 1; i >= 0; i--) {
-        Dst[(*Len)++] = Tmp[i];
-    }
-}
-
 int ThemeSave(void) {
-    char Buf[256];
+    char Buf[320];
     UINTN N = 0;
     char Hex[7];
     char FontVal[8];
@@ -50,7 +21,7 @@ int ThemeSave(void) {
     UINTN FadeLen = 0;
     int i;
     int DbOk = 1;
-    static char sLastCfg[256];
+    static char sLastCfg[320];
     static UINTN sLastCfgN;
     static int sBusy;
 
@@ -199,6 +170,17 @@ int ThemeSave(void) {
     Buf[N++] = '=';
     Buf[N++] = GradVal[0];
     Buf[N++] = '\n';
+    {
+        const char *En = ThemeEffectLevelName(gEffectLevel);
+        const char *Ek = "theme.effects=";
+        for (i = 0; Ek[i]; i++) {
+            Buf[N++] = Ek[i];
+        }
+        for (i = 0; En[i]; i++) {
+            Buf[N++] = En[i];
+        }
+        Buf[N++] = '\n';
+    }
     Buf[N] = 0;
     /*
      * 勿先 Delete 再 Write：QEMU fat:rw/vvfat 上 unlink+create 常丢宿主文件
@@ -279,6 +261,9 @@ int ThemeSave(void) {
         DbOk = 0;
     }
     if (DbSet("deskgrad", GradVal) != DB_OK) {
+        DbOk = 0;
+    }
+    if (DbSet("theme.effects", ThemeEffectLevelName(gEffectLevel)) != DB_OK) {
         DbOk = 0;
     }
     if (DbEndBatch() != DB_OK) {

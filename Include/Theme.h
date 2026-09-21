@@ -87,6 +87,8 @@ int ThemeIsShadowEnabled(void);
 int ThemeIsFadeEnabled(void);
 int ThemeIsAlphaEnabled(void);
 int ThemeIsGradientEnabled(void);
+/* 供 DB/Shell/CFG；未知级别回 "high" */
+const char *ThemeEffectLevelName(THEME_EFFECT_LEVEL Level);
 
 /* PR-GUI-tech-2：文字 / 桌面图标 / 菜单 / 面板 / 滚动条（只追加；classic 返回值不变） */
 UINT32 ThemeShellText(void);

@@ -11,6 +11,7 @@ void ShellCommandsRegisterVirtMin(void) {
 void ShellCommandsRegister(void) {
     /* 目录类二级在 ShellCommandsRegisterFs（FileSystem.c） */
     ShellCommandsSystemRegister();
+    ShellCommandsThemeRegister();
     ShellCommandsUsbRegister();
     ShellCommandsNetRegister();
     ShellCommandsFsUiRegister();

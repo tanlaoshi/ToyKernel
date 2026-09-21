@@ -27,6 +27,7 @@ typedef enum {
     SETTINGS_CAT_LANGUAGE,
     SETTINGS_CAT_SCALE,
     SETTINGS_CAT_THEME,
+    SETTINGS_CAT_EFFECTS,
     SETTINGS_CAT_COUNT
 } SETTINGS_CAT;
 
@@ -63,6 +64,7 @@ typedef struct {
 #define SHELL_COLOR_COUNT   5
 #define SCALE_COUNT         4
 #define THEME_CHOICE_COUNT  3
+#define EFFECTS_CHOICE_COUNT 4
 #define MODES_FALLBACK_COUNT 5
 
 /* ===== 全局（定义在 SettingsUi.c） ===== */
@@ -133,6 +135,7 @@ void ApplyFont(int Index);
 void ApplyScaleChoice(int Index);
 void ApplyDisplayChoice(int Index);
 void ApplyThemeChoice(int Index);
+void ApplyEffectsChoice(int Index);
 void ApplyItem(int Idx);
 
 /* SettingsUiPaint.c */

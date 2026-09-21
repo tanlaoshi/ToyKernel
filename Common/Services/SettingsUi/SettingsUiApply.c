@@ -142,6 +142,14 @@ void ApplyThemeChoice(int Index) {
     ThemeApply();
 }
 
+void ApplyEffectsChoice(int Index) {
+    if (Index < 0 || Index >= EFFECTS_CHOICE_COUNT) {
+        return;
+    }
+    ThemeSetEffectLevel((THEME_EFFECT_LEVEL)Index);
+    ThemeApply();
+}
+
 void ApplyItem(int Idx) {
     if (Idx < 0 || Idx >= ItemCount()) {
         return;
@@ -168,6 +176,9 @@ void ApplyItem(int Idx) {
         return;
     case SETTINGS_CAT_THEME:
         ApplyThemeChoice(Idx);
+        break;
+    case SETTINGS_CAT_EFFECTS:
+        ApplyEffectsChoice(Idx);
         break;
     default:
         break;

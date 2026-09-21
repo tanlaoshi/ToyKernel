@@ -83,7 +83,8 @@ int ThemeLoad(void) {
     FromDb = ApplyDbKey("desktop") + ApplyDbKey("shell") +
              ApplyDbKey("font") + ApplyDbKey("mode") + ApplyDbKey("scale") +
              ApplyDbKey("scalesrc") + ApplyDbKey("fade") + ApplyDbKey("wallpaper") +
-             ApplyDbKey("theme") + ApplyDbKey("deskgrad");
+             ApplyDbKey("theme") + ApplyDbKey("deskgrad") +
+             ApplyDbKey("theme.effects");
     if (FromDb == 0) {
         if (ThemeLoadFromCfg() != 0) {
             return -1;
