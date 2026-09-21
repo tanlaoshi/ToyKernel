@@ -168,6 +168,8 @@ void ConsolePaintShellWindow(int Idx) {
         ConsoleSbRepaint();
         /* Theme 清过 PromptShown；重绘后勿让 FocusLoad 再打欢迎语 */
         GuiConsoleMarkPrompt();
+        /* 与空窗路径一致：勿把客户区 clip 留给随后的开始菜单/任务栏 */
+        HalVideoClearClip();
         if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
             GuiSetFocusWindow(Saved);
         }

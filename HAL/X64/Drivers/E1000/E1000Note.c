@@ -235,7 +235,7 @@ void E1000DumpNote(void (*Write)(const char *Text)) {
     } else if (!Bound && Found > InTable) {
         Write("saw Intel NIC outside table → next PR-N-i219-did (exact DID)\n");
     } else if (Bound) {
-        Write("bound → ping/ARP 后看 tx_ok/last_rc；TDH=TDT=0 且 tx_ok=0 → 未进 Send\n");
+        Write("bound → 看 tx_ok/last_rc；0=DD 完成；-3=DD 超时；有 tx_ok 仍 no reply → 查 ARP\n");
     } else {
         Write("in table but unbound → link timeout or Setup fail; note STATUS\n");
     }

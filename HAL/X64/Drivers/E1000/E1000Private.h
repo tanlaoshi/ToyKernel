@@ -43,9 +43,17 @@
 #define E1000_REG_TDLEN       0x3808u
 #define E1000_REG_TDH         0x3810u
 #define E1000_REG_TDT         0x3818u
+#define E1000_REG_TXDCTL      0x3828u /* PR-N-i219-tx：I219 队列门控 */
+#define E1000_REG_TARC0       0x3840u /* PR-N-i219-tx2：TX 仲裁 */
 #define E1000_REG_MTA         0x5200u
 #define E1000_REG_RAL         0x5400u
 #define E1000_REG_RAH         0x5404u
+#define E1000_REG_FEXTNVM11   0x5BBCu /* PR-N-i219-tx3：I219 MULR/flush */
+
+/* TXDCTL：PTHRESH/HTHRESH/WTHRESH + GRAN + QUEUE_ENABLE */
+#define E1000_TXDCTL_GRAN         (1u << 24)
+#define E1000_TXDCTL_QUEUE_ENABLE (1u << 25)
+#define E1000_FEXTNVM11_DISABLE_MULR_FIX (1u << 13)
 
 #define E1000_CTRL_SLU        (1u << 6)
 #define E1000_CTRL_RST        (1u << 26)
@@ -151,6 +159,9 @@ static inline void CopyMemory(void *Dst, const void *Src, UINTN Len) {
 
 int PciFindE1000(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut, UINT16 *DidOut);
 void ReadMac(void);
+void E1000ApplyI219TxDctl(void); /* PR-N-i219-tx：已试 ❌ */
+void E1000ApplyI219Tarc(void);   /* PR-N-i219-tx2：已试 ❌ */
+void E1000FlushI219Rings(void);  /* PR-N-i219-tx3：单假说 ring flush */
 int TryEnableMsiRx(void);
 int WaitLinkUp(void);
 

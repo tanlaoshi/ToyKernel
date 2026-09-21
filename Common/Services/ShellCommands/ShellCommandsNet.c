@@ -110,10 +110,15 @@ static void CommandPing(int Argc, char **Argv) {
     ConsoleWrite(Argv[1]);
     ConsoleWrite(" ...\n");
 #ifdef TOY_LWIP
-    if (LwIpActive()) {
+    {
         UINT32 Ip;
+
         if (HalNetParseIp(Argv[1], &Ip) != 0) {
             ConsoleWrite("bad ip\n");
+            return;
+        }
+        if (!LwIpActive() && LwIpInit() != 0) {
+            ConsoleWrite("lwip: init failed\n");
             return;
         }
         if (LwIpPing(Ip, 3000) == 0) {
@@ -125,7 +130,7 @@ static void CommandPing(int Argc, char **Argv) {
         }
         return;
     }
-#endif
+#else
     if (HalNetPing(Argv[1], 3000) == 0) {
         ConsoleWrite("reply from ");
         ConsoleWrite(Argv[1]);
@@ -133,6 +138,7 @@ static void CommandPing(int Argc, char **Argv) {
     } else {
         ConsoleWrite("no reply\n");
     }
+#endif
 }
 
 #ifdef TOY_LWIP
@@ -518,7 +524,8 @@ static void CommandLwIpDhcp(int Argc, char **Argv) {
         return;
     }
     ConsoleWrite("lwip dhcp: requesting...\n");
-    if (LwIpDhcpStart(8000) != 0) {
+    /* 12s：真机路由器 offer 常慢于 QEMU SLIRP */
+    if (LwIpDhcpStart(12000) != 0) {
         ConsoleWrite("lwip dhcp: no offer (kept static)\n");
         return;
     }

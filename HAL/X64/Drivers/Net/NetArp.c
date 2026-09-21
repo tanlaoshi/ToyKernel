@@ -245,10 +245,11 @@ int NetPing(const char *Host, int TimeoutMs) {
         gPingWait = 0;
         return -2;
     }
-    Tries = TimeoutMs > 0 ? TimeoutMs / 10 : 300;
+    /* 勿 HalCpuHalt：shell 协作态 IF=0，hlt 永不醒 → ping 卡在 "..." */
+    Tries = TimeoutMs > 0 ? TimeoutMs * 200 : 600000;
     while (Tries-- > 0 && gPingWait) {
         NetPoll();
-        HalCpuHalt();
+        HalCpuRelax();
     }
     if (gPingWait) {
         gPingWait = 0;

@@ -38,6 +38,63 @@ UINT32 gE1000TxOk;
 UINT32 gE1000TxFail;
 INT32 gE1000TxLastRc;
 
+/*
+ * PR-N-i219-tx3 单假说：I219 reset 后 unit hang — FEXTNVM11 MULR fix
+ * + 哑元 TX 冲环。仅 156F；环基址已写后调用；不改 PHY。
+ */
+void E1000FlushI219Rings(void) {
+    UINT32 Fext;
+    UINT32 Tctl;
+    E1000_TX_DESC *D;
+    int Spin;
+    int GotDd;
+
+    if (gPciDid != E1000_DID_I219_LM || !gTxRing || !gTxBuf) {
+        return;
+    }
+
+    Fext = MmioR32(E1000_REG_FEXTNVM11);
+    MmioW32(E1000_REG_FEXTNVM11, Fext | E1000_FEXTNVM11_DISABLE_MULR_FIX);
+
+    Tctl = MmioR32(E1000_REG_TCTL);
+    MmioW32(E1000_REG_TCTL, Tctl | E1000_TCTL_EN);
+    E1000ApplyI219TxDctl();
+
+    D = &gTxRing[0];
+    ZeroMemory(gTxBuf, 512);
+    D->Addr = (UINT64)(UINTN)gTxBuf;
+    D->Length = 512;
+    D->Cso = 0;
+    D->Cmd = (UINT8)(E1000_TX_CMD_EOP | E1000_TX_CMD_IFCS | E1000_TX_CMD_RS);
+    D->Status = 0;
+    D->Css = 0;
+    D->Special = 0;
+    Fence();
+    MmioW32(E1000_REG_TDT, 1);
+
+    Spin = 200000;
+    while (Spin-- > 0 && !(D->Status & E1000_TX_DD)) {
+        HalCpuRelax();
+    }
+    GotDd = (D->Status & E1000_TX_DD) ? 1 : 0;
+
+    /* 保持 TCTL.EN：勿用冲环前的旧值（可能关 EN）盖回去 */
+    MmioW32(E1000_REG_TCTL, Tctl | E1000_TCTL_EN);
+    MmioW32(E1000_REG_TDH, 0);
+    MmioW32(E1000_REG_TDT, 0);
+    gTxTail = 0;
+    D->Addr = 0;
+    D->Length = 0;
+    D->Cmd = 0;
+    D->Status = E1000_TX_DD;
+
+    /*
+     * PR-N-i219-tx5：勿恢复 Fext（MULR fix 常驻）。
+     */
+    (void)Fext;
+    ToyLogNet(GotDd ? "Boot: I219 Flush OK\n" : "Boot: I219 Flush NoDD\n");
+}
+
 int E1000Ready(void) {
     return gReady;
 }
@@ -168,6 +225,12 @@ int E1000Setup(void) {
     MmioW32(E1000_REG_TDT, 0);
     gTxTail = 0;
 
+    /*
+     * PR-N-i219-tx10：唯一 Flush OK 过的位置 = 环写完立刻冲。
+     * tx7/9 在 ReadMac/SLU/TIPG 之后冲 → 均为 NoDD。
+     */
+    E1000FlushI219Rings();
+
     for (i = 0; i < 128; i++) {
         MmioW32(E1000_REG_MTA + i * 4u, 0);
     }
@@ -176,12 +239,19 @@ int E1000Setup(void) {
 
     MmioW32(E1000_REG_CTRL, MmioR32(E1000_REG_CTRL) | E1000_CTRL_SLU);
     MmioW32(E1000_REG_TIPG, 0x0060200Au);
+    /*
+     * PR-N-i219-tx11：Flush OK 后勿写满配 TCTL（0x4010A）。
+     * 满配曾导致事后冲环 NoDD；保留 flush 留下的 EN + TXDCTL。
+     */
+    if (gPciDid != E1000_DID_I219_LM) {
+        MmioW32(E1000_REG_TCTL,
+                E1000_TCTL_EN | E1000_TCTL_PSP |
+                (0x10u << E1000_TCTL_CT_SHIFT) |
+                (0x40u << E1000_TCTL_COLD_SHIFT));
+    }
     MmioW32(E1000_REG_RCTL,
             E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_BSIZE_2048 |
             E1000_RCTL_SECRC | E1000_RCTL_LBM_NONE);
-    MmioW32(E1000_REG_TCTL,
-            E1000_TCTL_EN | E1000_TCTL_PSP |
-            (0x10u << E1000_TCTL_CT_SHIFT) | (0x40u << E1000_TCTL_COLD_SHIFT));
 
     if (!WaitLinkUp()) {
         ToyLogNet("Boot: E1000 Link Timeout\n");
@@ -194,16 +264,18 @@ int E1000Setup(void) {
 
     gReady = 1;
     gE1000UseIrq = 0;
-    if (TryEnableMsiRx()) {
-        if (gPciDid == E1000_DID_I219_LM) {
-            ToyLogNet("Boot: I219 IRQ=MSI\n");
-        } else if (gPciDid == E1000_DID_82574L) {
+    /*
+     * PR-N-i219-tx8：I219 保持 poll（tx7 已是 Flush NoDD，MSI 非主因；
+     * 仍禁用以免多变量）。QEMU e1000e 照旧 MSI。
+     */
+    if (gPciDid != E1000_DID_I219_LM && TryEnableMsiRx()) {
+        if (gPciDid == E1000_DID_82574L) {
             ToyLogNet("Boot: E1000E IRQ=MSI\n");
         } else {
             ToyLogNet("Boot: E1000 IRQ=MSI\n");
         }
     } else if (gPciDid == E1000_DID_I219_LM) {
-        ToyLogNet("Boot: I219\n");
+        ToyLogNet("Boot: I219 IRQ=Poll\n");
     } else if (gPciDid == E1000_DID_82574L) {
         ToyLogNet("Boot: E1000E\n");
     } else {
@@ -277,13 +349,16 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
 
 void E1000Poll(void) {
     UINT16 Next;
+    int Left;
 
     if (!gReady) {
         return;
     }
     (void)MmioR32(E1000_REG_ICR);
 
-    for (;;) {
+    /* 护栏：关中断下若 Status 粘住 DD 会死循环，ping 表现为永远 "..." */
+    Left = (int)E1000_RING_COUNT + 2;
+    while (Left-- > 0) {
         Next = (UINT16)((gRxTail + 1u) % E1000_RING_COUNT);
         if (!(gRxRing[Next].Status & E1000_RX_DD)) {
             break;

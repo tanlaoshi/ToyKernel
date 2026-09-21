@@ -74,7 +74,6 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
     struct pbuf *P;
     struct icmp_echo_hdr *Echo;
     u16_t PingSize;
-    int Tries;
 
     if (!LwIpActive()) {
         return -1;
@@ -103,10 +102,21 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
     }
     pbuf_free(P);
 
-    Tries = TimeoutMs > 0 ? TimeoutMs : 3000;
-    while (Tries-- > 0 && !gPingDone) {
-        LwIpService();
-        HalCpuHalt();
+    /*
+     * 超时必须不依赖 timer：内核 shell/gui 协作态 IF=0（见 SchedulerSleep），
+     * HalCpuTicks 不涨；HalCpuHalt 也醒不来。用循环预算 + Poll（I219 本就 irq=poll）。
+     */
+    {
+        UINT32 Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 3000u;
+        UINT32 Budget = Ms * 4000u;
+
+        if (Budget < 100000u) {
+            Budget = 100000u;
+        }
+        while (!gPingDone && Budget-- > 0) {
+            LwIpService();
+            HalCpuRelax();
+        }
     }
     raw_remove(Pcb);
     return gPingDone ? 0 : -1;

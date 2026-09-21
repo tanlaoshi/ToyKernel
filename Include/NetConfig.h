@@ -1,7 +1,7 @@
 /*
  * NetConfig.h — 可配 IPv4 / 网关 / DNS（PR-N-nic-addr）
  *
- * 默认：hypervisor 用 QEMU SLIRP；真机 gw/dns=0（须 net config / set*）。
+ * 默认：hypervisor=QEMU SLIRP；真机=192.168.31.129 / gw .1（可 set* 覆盖）。
  */
 #ifndef NET_CONFIG_H
 #define NET_CONFIG_H

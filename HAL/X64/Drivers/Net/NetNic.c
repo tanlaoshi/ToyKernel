@@ -7,6 +7,7 @@
 #include "Net.h"
 #include "DriverNic.h"
 #include "Debug.h"
+#include "NetConfig.h"
 
 const NIC_L2 *gNicL2;
 
@@ -19,6 +20,7 @@ int NetAttachNic(const NIC_L2 *Nic) {
     Nic->GetMac(gMac);
     gLwIpRx = 0;
     gNetOk = 1;
+    NetConfigEnsure();
     DebugWrite("Net: NIC_L2 attached\n");
     return NetProtocolAttach();
 }

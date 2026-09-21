@@ -1,7 +1,8 @@
 /*
- * LwIpDhcp.c — DHCP 客户端（PR-N-nic-dhcp）
+ * LwIpDhcp.c — DHCP 客户端（PR-N-nic-dhcp / PR-N-i219-dhcp）
  *
  * 有 offer → 写回 NetConfig；超时/失败 → 停 DHCP，保留原静态配置。
+ * shell IF=0：禁 Halt；用循环预算（与 ToyPing 同尺）。
  */
 #include "LwIp.h"
 #include "NetConfig.h"
@@ -14,6 +15,7 @@
 #include "lwip/dhcp.h"
 #include "lwip/dns.h"
 #include "lwip/netif.h"
+#include "lwip/ip4_addr.h"
 #include "toy_netif.h"
 #include "toy_ip.h"
 
@@ -54,10 +56,19 @@ static void AdoptFromNetif(struct netif *Netif) {
     NetConfigAdopt(Ip, Mask, Gw, Dns);
 }
 
+/* PR-N-i219-dhcp：DISCOVER 前清静态，避免带着 .129 去要租约 */
+static void ClearNetifAddr(struct netif *Netif) {
+    ip4_addr_t Any;
+
+    ip4_addr_set_any(&Any);
+    netif_set_addr(Netif, &Any, &Any, &Any);
+}
+
 int LwIpDhcpStart(int TimeoutMs) {
     struct netif *Netif;
     err_t Err;
-    int Left;
+    UINT32 Ms;
+    UINT32 Budget;
     char IpBuf[16];
 
     if (!HalNetReady()) {
@@ -71,14 +82,21 @@ int LwIpDhcpStart(int TimeoutMs) {
         return -1;
     }
     LwIpDhcpStop();
+    ClearNetifAddr(Netif);
     Err = dhcp_start(Netif);
     if (Err != ERR_OK) {
         DebugWrite("lwip: dhcp_start fail\n");
+        (void)LwIpApplyConfig();
         return -1;
     }
     gDhcpRunning = 1;
-    Left = TimeoutMs > 0 ? TimeoutMs : 8000;
-    while (Left-- > 0) {
+    Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 8000u;
+    /* 与 ToyPing 同尺：IF=0 下空转 Poll；过短会误报 no offer */
+    Budget = Ms * 4000u;
+    if (Budget < 2000000u) {
+        Budget = 2000000u;
+    }
+    while (Budget-- > 0) {
         LwIpService();
         if (dhcp_supplied_address(Netif)) {
             AdoptFromNetif(Netif);
@@ -88,7 +106,7 @@ int LwIpDhcpStart(int TimeoutMs) {
             DebugWrite("\n");
             return 0;
         }
-        HalCpuHalt();
+        HalCpuRelax();
     }
     DebugWrite("lwip: dhcp timeout (keep static)\n");
     LwIpDhcpStop();

@@ -178,7 +178,7 @@ int LwIpDnsLookup(const char *Name, UINT32 *OutIp, int TimeoutMs) {
     Tries = TimeoutMs > 0 ? TimeoutMs : 5000;
     while (!gDnsDone && Tries-- > 0) {
         LwIpService();
-        HalCpuHalt();
+        HalCpuRelax();
     }
     if (!gDnsDone) {
         return -TOY_ETIMEDOUT;

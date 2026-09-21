@@ -201,8 +201,7 @@ void PlaceDesktopIcons(void) {
     gIcons[5].Action = DESKTOP_ACTION_EXEC;
     gIcons[5].ExecPath = "SNAKE.ELF";
     gIcons[5].IconColor = 0x0040C080;
-    gIcons[5].BmpPath = 0;
-    gIcons[5].BmpReady = 0;
+    gIcons[5].BmpPath = "Assets/Icons/bmp48/GAME.BMP";
     gIcons[5].X = DESKTOP_ORIGIN_X;
     gIcons[5].Y = DESKTOP_ORIGIN_Y + RowH * 5;
 

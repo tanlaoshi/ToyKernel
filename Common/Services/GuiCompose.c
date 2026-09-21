@@ -211,7 +211,8 @@ void GuiComposeThemeScene(void) {
         }
     }
 
-    /* 开始菜单 / 网络托盘盖住所有窗 */
+    /* 开始菜单 / 网络托盘盖住所有窗；须清 Shell 客户区 clip（FillRect/文字受 clip，BMP 图标走 WriteRect 不受） */
+    HalVideoClearClip();
     DesktopDrawStartMenu();
     DesktopDrawNetTrayPopup();
 

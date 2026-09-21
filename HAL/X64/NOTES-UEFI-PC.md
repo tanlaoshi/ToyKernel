@@ -134,21 +134,26 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **课堂**：`cd ToyImage && ./smoke-msc.sh` → `boot: msc auto mux ok`
 - **里程碑 tag**：`v1.0.0-nuc-live`（NUC Live：桌面 + TOYOS）；下一刀见路线图缺口
 
-### H4：真机网卡范例（e1000）
+### H4：真机网卡范例（e1000）+ NUC I219 课路径
 
-- 驱动：`E1000.c` + `NetE1000.c`；复用 Net.c ARP/ICMP（`NetAttachNic` / `NetInputFrame`；PR-N-nic）
-- PCI 8086:100E 等；TX/RX ring 轮询；无中断
-- 课堂：`TOY_NET=e1000 ./smoke-boot.sh` → `boot: e1000`；默认 virtio 不回归
-- **无卡不挡桌面**；`lsdev` 见 `e1000`
-- **H4e-1** ✅ `967ff69`：`TOY_NET=e1000e` → `-device e1000e`；串口 `boot: e1000e`；等 STATUS.LU；RAL 空则 EERD NVM MAC；仍 poll
-- **H4e-2** ✅ TG `486de82`：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
-- **H4e-3** ✅ TG `ddd4eb7`：`VEC_E1000`；MSI（MSI-X bad BIR 回落 MSI）；`boot: e1000e irq=msi`；NetPoll 备份
-- **未做**：Realtek、无线 → 规划 [`Documents/路线图.md`](../../Documents/路线图.md#pr-n-i219)
-- **PR-N-i219-note** ✅ TG `bc4c288`。
-- **PR-N-i219-did** ✅ TG `dbe6441`：`156F` Bind / `i219` / LU 1000/FD / MAC `54:B2:03:09:0F:63`；RDH 前进（有 RX）。
-- **PR-N-i219-mac** ✅ 短核：MAC 非垃圾；EERD 够用；`net note` 打 RAL/RAH（不开独立 flash）。
-- **PR-N-i219-txdiag** ✅：`tx_ok`/`tx_fail`/`last_rc`（0/-1/-2/-3）+ RAL；双 smoke PASS。NUC：`ping`/`ARP` 后再 `net note`。下一 **tx**。
-- **机型行**：NUC7I7DNH 有线 `8086:156F` 已入表 Bind；无线 `24FD` 不做。
+- 驱动：`E1000.c` + `NetE1000.c`；`NetAttachNic` / `NetInputFrame`（PR-N-nic）
+- QEMU：`TOY_NET=e1000|e1000e ./smoke-boot.sh`；默认 virtio 不回归；**无卡不挡桌面**
+- **H4e-1…3** ✅：e1000e 设备 / link / MSI（QEMU）；真机 I219 **禁 MSI → poll**
+- **PR-N-i219 课路径 ✅**（2026-09-22）：[`Documents/已完/I219真机网课路径.md`](../../Documents/已完/I219真机网课路径.md)
+  - DID `156F`；Flush OK；**tx11**（Flush 后勿满配 TCTL）；ping / dhcp
+  - 默认静态 `.129`/gw`.1`；shell **禁** `HalCpuHalt` 做协议超时
+- **序 4 刀史（失败也记）**：
+
+  | 刀 | 假说 | 结果 |
+  | -- | ---- | ---- |
+  | tx…tx10 | TXDCTL / TARC / MULR / 冲环时机 / 满配 TCTL / MSI… | ❌ 或 ⚠（见路线图全表） |
+  | **tx11** | Flush 后勿再写满配 TCTL | ✅ `tx_ok=1` |
+  | static | Halt/IF=0 | ✅ ping reply |
+  | dhcp | 清静态 + busy | ✅ `ok ip=192.168.31.47` |
+  | doc | 课路径页 | ✅ |
+
+- **未做**：Realtek、无线
+- 细表：[`Documents/路线图.md`](../../Documents/路线图.md#pr-n-i219)「序 4～6 刀史」
 
 ### H-xhci-evt-excl：事件环单消费者（✅ 1…4）
 
@@ -162,7 +167,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 
 | 机型 | UEFI | GOP 亮屏 | 键盘 | 盘 | 备注 |
 |------|------|----------|------|-----|------|
-| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)`。**网**：`8086:156F` I219-LM **did ✅** Bind；无线 `24FD` 不做；现 ★ **tx** |
+| NUC7I7DNH | ✅ | ✅ | 🔧（已枚举；打字靠 **H-xhci-base**） | U 盘 FAT | 2026-09-08 后置口。已见 `xhci-hid keyboard/mouse`；见过 `irq=msi` 后桌面死输入。目标：零 MSI 的 `irq=poll (base)`。**网**：`156F`；TX ✅；ping ✅；**dhcp ✅** `192.168.31.47` |
 | 工业 PC（家用靶） | ✅ | ✅ | 🔧 **poll base**（PR1–5 落地） | U 盘 FAT | 2026-09-09：`firmware-first` + 无 PED=0 + `irq=poll (base)`；验收看 `xhci OK|FAIL` / `RS running` / `xhci-hid keyboard` |
 | （例）ThinkPad T480 | ✅ | ✅ / ❌ | USB? | AHCI? | … |
 

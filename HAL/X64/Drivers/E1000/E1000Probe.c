@@ -200,6 +200,26 @@ void ReadMac(void) {
     DebugWrite("e1000: mac classroom fallback\n");
 }
 
+/*
+ * PR-N-i219-tx：I219 写 TXDCTL。NUC 2026-09-22：仍 TDT↑ TDH=0 / last_rc=-3 → 假说失败，保留无害。
+ */
+void E1000ApplyI219TxDctl(void) {
+    if (gPciDid != E1000_DID_I219_LM) {
+        return;
+    }
+    MmioW32(E1000_REG_TXDCTL,
+            (0x1fu << 0) | (1u << 8) | (1u << 16) |
+            E1000_TXDCTL_GRAN | E1000_TXDCTL_QUEUE_ENABLE);
+}
+
+/*
+ * PR-N-i219-tx2 曾写 TARC0；tx3 flush 在无 TARC 时 DD 成功，正式 Send 在
+ * 写入 TARC 后仍 -3 → tx4 停用（保留函数供对照，Setup 不再调用）。
+ */
+void E1000ApplyI219Tarc(void) {
+    (void)0;
+}
+
 /* PR-H4e-3：PCI MSI → VEC_E1000；失败则保持 poll（IMC 全掩） */
 static void FillPciBars(USB_CONTROLLER *Dev) {
     int i;
