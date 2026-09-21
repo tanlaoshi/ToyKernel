@@ -18,6 +18,23 @@
 #include "ShellCommands.h"
 #include "ToySerialLog.h"
 
+void TasksPumpKeyboard(void) {
+    static HAL_KEYBOARD_REPORT Prev;
+    HAL_KEYBOARD_REPORT Report;
+
+    /*
+     * SMP≥3：HalInputPoll 归 InputTask；此处只 dequeue，与 ShellTask 同队列。
+     * 用户态 sleep 钉 BSP 且不抢占时，Shell 同核转不到 → 须在 poll 路径自抽。
+     */
+    if (HalCpuCount() < 3) {
+        HalInputPoll();
+    }
+    while (HalKeyboardDequeue(&Report)) {
+        FeedHid(&Report, &Prev);
+        Prev = Report;
+    }
+}
+
 void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
     for (int i = 0; i < 6; i++) {
         UINT8 Key = Report->KeyCode[i];

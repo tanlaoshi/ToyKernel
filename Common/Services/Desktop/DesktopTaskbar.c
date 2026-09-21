@@ -120,6 +120,55 @@ void DrawTaskbarRaw(void) {
     DrawTaskbarControls();
 }
 
+static void DrawFlyoutBox(UINT32 Fx, UINT32 Fy, UINT32 Fw, UINT32 Fh,
+                          MENU_ROW *Rows, int Count, int IconIdx) {
+    int i;
+    int N = Count > 0 ? Count : 1;
+
+    UiFillRectangle(Fx, Fy, Fw, Fh, ThemeControlFace());
+    UiDrawRectangle(Fx, Fy, Fw, Fh, ThemeMenuBorder());
+    for (i = 0; i < N; i++) {
+        MENU_ROW *R;
+        UINT32 Iy = Fy + (UINT32)i * MENU_ITEM_H;
+        UINT32 IconX;
+        UINT32 IconY;
+        UINT32 TextX;
+        UINT32 Fg;
+        const char *Lab;
+        int UseIcon = (IconIdx >= 0 && IconIdx < DESKTOP_ICON_COUNT);
+
+        UiDrawRectangle(Fx, Iy, Fw, MENU_ITEM_H, ThemeMenuSep());
+        if (Count <= 0) {
+            HalVideoDrawStringAt(Fx + 10u,
+                                 Iy + (MENU_ITEM_H > FontCellH()
+                                           ? (MENU_ITEM_H - FontCellH()) / 2
+                                           : 0),
+                                 "(empty)", ThemeControlBorder());
+            break;
+        }
+        R = &Rows[i];
+        Lab = R->Label[0] ? R->Label : "?";
+        Fg = R->Enabled ? ThemeMenuText() : ThemeControlBorder();
+        IconX = Fx + 6;
+        IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
+        TextX = Fx + 10;
+        if (UseIcon && gIcons[IconIdx].BmpReady) {
+            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                             &gIcons[IconIdx].Bmp);
+            TextX = IconX + MENU_ICON_SZ + 6u;
+        } else if (UseIcon) {
+            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
+                            gIcons[IconIdx].IconColor);
+            TextX = IconX + MENU_ICON_SZ + 6u;
+        }
+        HalVideoDrawStringAt(TextX,
+                             Iy + (MENU_ITEM_H > FontCellH()
+                                       ? (MENU_ITEM_H - FontCellH()) / 2
+                                       : 0),
+                             Lab, Fg);
+    }
+}
+
 void DrawStartMenuRaw(void) {
     UINT32 Mx;
     UINT32 My;
@@ -191,12 +240,15 @@ void DrawStartMenuRaw(void) {
                                        ? (MENU_ITEM_H - FontCellH()) / 2
                                        : 0),
                              R->Label[0] ? R->Label : "?", Fg);
-        if (R->Action == DESKTOP_ACTION_APPS) {
+        if (R->Action == DESKTOP_ACTION_APPS || R->Action == DESKTOP_ACTION_GAME) {
+            int Open = (R->Action == DESKTOP_ACTION_APPS) ? gMenuAppsOpen
+                                                         : gMenuGameOpen;
+
             HalVideoDrawStringAt(Mx + Mw - 14u,
                                  Iy + (MENU_ITEM_H > FontCellH()
                                            ? (MENU_ITEM_H - FontCellH()) / 2
                                            : 0),
-                                 gMenuAppsOpen ? "v" : ">", Fg);
+                                 Open ? "v" : ">", Fg);
         }
     }
 
@@ -205,53 +257,18 @@ void DrawStartMenuRaw(void) {
         UINT32 Fy;
         UINT32 Fw;
         UINT32 Fh;
-        int Rows;
 
         AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
-        UiFillRectangle(Fx, Fy, Fw, Fh, ThemeControlFace());
-        UiDrawRectangle(Fx, Fy, Fw, Fh, ThemeMenuBorder());
-        Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
-        for (i = 0; i < Rows; i++) {
-            MENU_ROW *R;
-            UINT32 Iy = Fy + (UINT32)i * MENU_ITEM_H;
-            UINT32 IconX;
-            UINT32 IconY;
-            UINT32 TextX;
-            UINT32 Fg;
-            const char *Lab;
+        DrawFlyoutBox(Fx, Fy, Fw, Fh, gMenuAppRows, gMenuAppCount, 0);
+    }
+    if (gMenuGameOpen) {
+        UINT32 Fx;
+        UINT32 Fy;
+        UINT32 Fw;
+        UINT32 Fh;
 
-            UiDrawRectangle(Fx, Iy, Fw, MENU_ITEM_H, ThemeMenuSep());
-            if (gMenuAppCount <= 0) {
-                HalVideoDrawStringAt(Fx + 10u,
-                                     Iy + (MENU_ITEM_H > FontCellH()
-                                               ? (MENU_ITEM_H - FontCellH()) / 2
-                                               : 0),
-                                     "(empty)", ThemeControlBorder());
-                break;
-            }
-            R = &gMenuAppRows[i];
-            Lab = R->Label[0] ? R->Label : "?";
-            Fg = R->Enabled ? ThemeMenuText() : ThemeControlBorder();
-            IconX = Fx + 6;
-            IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ
-                              ? (MENU_ITEM_H - MENU_ICON_SZ) / 2
-                              : 0);
-            TextX = Fx + 10;
-            if (gIcons[0].BmpReady) {
-                BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                                 &gIcons[0].Bmp);
-                TextX = IconX + MENU_ICON_SZ + 6u;
-            } else {
-                UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                                gIcons[0].IconColor);
-                TextX = IconX + MENU_ICON_SZ + 6u;
-            }
-            HalVideoDrawStringAt(TextX,
-                                 Iy + (MENU_ITEM_H > FontCellH()
-                                           ? (MENU_ITEM_H - FontCellH()) / 2
-                                           : 0),
-                                 Lab, Fg);
-        }
+        GameFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+        DrawFlyoutBox(Fx, Fy, Fw, Fh, gMenuGameRows, gMenuGameCount, 5);
     }
 }
 

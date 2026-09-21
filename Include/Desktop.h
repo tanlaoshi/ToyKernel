@@ -17,8 +17,9 @@ typedef enum {
     DESKTOP_ACTION_DEVICES,
     DESKTOP_ACTION_SHUTDOWN,
     DESKTOP_ACTION_REBOOT,
-    DESKTOP_ACTION_EXEC, /* PR-G-desk-2：跑 Apps/ 下 .ELF；路径见 OutExecPath */
-    DESKTOP_ACTION_APPS  /* 开始菜单 Apps 一级；二级 flyout 列已装 ELF */
+    DESKTOP_ACTION_EXEC, /* PR-G-desk-2：跑 ELF；路径见 OutExecPath */
+    DESKTOP_ACTION_APPS, /* 开始菜单 Apps 一级；二级 flyout 列已装 ELF */
+    DESKTOP_ACTION_GAME  /* 开始菜单 Game 一级；二级 flyout（贪吃蛇） */
 } DESKTOP_ACTION;
 
 /* Store 装卸后：若开始菜单开着则重建（含 Apps 二级） */

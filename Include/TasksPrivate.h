@@ -9,5 +9,7 @@
 
 void YieldForPollInput(void);
 void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous);
+/* 用户态 poll/sleep 间也可抽键：不依赖 ShellTask 同核轮转 */
+void TasksPumpKeyboard(void);
 
 #endif

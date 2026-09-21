@@ -2,6 +2,7 @@
  * GuiUserPoll.c — GuiPollUserInput（关 / 按钮 / 键 / 客户区点）
  */
 #include "GuiPrivate.h"
+#include "Tasks.h"
 
 int GuiPollUserInput(int Wid) {
     int I;
@@ -9,6 +10,8 @@ int GuiPollUserInput(int Wid) {
     int KeyEv;
 
     (void)Wid;
+    /* sleep 不让同核 Shell 转时，仍能把 HID 送进 USER 键队列 */
+    TasksPumpKeyboard();
     /*
      * RaiseWindow 会搬槽位，用户态持有的 wid 可能过期。
      * 关闭/按钮/键事件在整表上查找，避免 poll 永远读到 0。

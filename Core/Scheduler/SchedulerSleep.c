@@ -1,7 +1,7 @@
 /*
  * SchedulerSleep.c — 用户态 sleep：原地 sti+hlt 等节拍（不切到 shell）
  *
- * 契约：HalCpuTicks(0) 每 tick ≈ 1ms（LAPIC INIT=50000）。
+ * 契约：HalCpuTicks 经 HalTicksPerSec 换成墙钟毫秒（QEMU/真机拍长不同）。
  * 不调度走：内核 shell/gui 协作态 IF=0，切过去会吃不到 timer / 误 swapgs。
  * OnTimer 见 SchedulerSignal.c：SleepWakeTick≠0 且未到期则不抢占。
  */
@@ -44,6 +44,7 @@ UINT64 SchedulerSleepMs(HAL_INTERRUPT_FRAME *Frame, UINT32 Ms) {
     TASK *Self;
     UINT64 Now;
     UINT64 Wake;
+    UINT32 Tps;
 
     if (Ms == 0) {
         HalFrameSetReturn(Frame, 0);
@@ -59,8 +60,12 @@ UINT64 SchedulerSleepMs(HAL_INTERRUPT_FRAME *Frame, UINT32 Ms) {
         return 0;
     }
 
+    Tps = HalTicksPerSec();
+    if (Tps == 0) {
+        Tps = 1000;
+    }
     Now = HalCpuTicks(0);
-    Wake = Now + (UINT64)Ms;
+    Wake = Now + ((UINT64)Ms * (UINT64)Tps) / 1000ULL;
     if (Wake <= Now) {
         Wake = Now + 1;
     }

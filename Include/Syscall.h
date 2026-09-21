@@ -35,7 +35,7 @@
 #define SYS_DAMAGE_RECT    28 /* PR-G-desk-3：用户窗像素矩形 blit */
 #define SYS_LSEEK          29 /* PR-A-libc：rdi=fd rsi=off rdx=whence → 新偏移；失败 -errno */
 #define SYS_SLEEP          30 /* rdi=ms；阻塞约 Ms 个调度节拍（≈ms）；0=yield */
-#define SYS_CLOCK_MS       31 /* 返回 HalCpuTicks(0)（稳节拍时钟，单位≈ms） */
+#define SYS_CLOCK_MS       31 /* 墙钟毫秒：HalCpuTicks(0)*1000/HalTicksPerSec() */
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1

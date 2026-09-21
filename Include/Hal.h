@@ -208,7 +208,12 @@ int HalCpuCount(void);
 UINT32 HalGetCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
 UINT8 HalCpuApicId(UINT32 LogicalCpu); /* x86：LAPIC ID；其它 arch：0 */
 int HalCpuIsBootstrapProcessor(void);
-UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 timer 计数 */
+UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 LAPIC/定时器原始拍 */
+/*
+ * LAPIC 每秒拍数（启发式）：QEMU≈20000（~50µs），NUC≈250（~4ms，按半秒验收反推）。
+ * sleep / clock_ms = 拍 ×1000 / 此值；桌面双击仍用裸 HalCpuTicks。
+ */
+UINT32 HalTicksPerSec(void);
 void HalCpuIncrementTicks(void);
 int HalSmpStartApplicationProcessors(void);
 /* Startup 记下 DTB，供 DtbCpuCount（RiscV 地址可变；Arm 可回退固定 loader 址） */

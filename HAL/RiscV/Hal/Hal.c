@@ -147,6 +147,10 @@ void HalTimerStart(void) {
     HalSerialWrite("timer: RiscV SBI timer irq\n");
 }
 
+UINT32 HalTicksPerSec(void) {
+    return 1000; /* SBI timer 已按 ms 武装 */
+}
+
 /* PR-A14：AP 本地开 STIE + SBI timer */
 void HalTimerStartAp(void) {
     extern void HalTrapVectorInstall(void);

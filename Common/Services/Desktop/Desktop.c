@@ -14,6 +14,8 @@ MENU_ROW gMenuRows[MENU_ROWS_MAX];
 int gMenuCount;
 MENU_ROW gMenuAppRows[MENU_APP_MAX];
 int gMenuAppCount;
+MENU_ROW gMenuGameRows[MENU_GAME_MAX];
+int gMenuGameCount;
 FAT_DIRECTORY_ENTRY gMenuDirScratch[FAT_LIST_MAX];
 STORE_INSTALLED gMenuInstScratch[STORE_INSTALLED_MAX];
 
@@ -41,6 +43,7 @@ BMP_IMAGE gRebootBmp;
 int gRebootBmpReady;
 int gMenuOpen;
 int gMenuAppsOpen;
+int gMenuGameOpen;
 UINT8 gClockHour;
 UINT8 gClockMinute;
 int gClockValid;
@@ -116,11 +119,12 @@ int DesktopStartMenuIsOpen(void) {
 }
 
 void DesktopDismissStartMenu(void) {
-    if (!gMenuOpen && !gMenuAppsOpen) {
+    if (!gMenuOpen && !gMenuAppsOpen && !gMenuGameOpen) {
         return;
     }
     gMenuOpen = 0;
     gMenuAppsOpen = 0;
+    gMenuGameOpen = 0;
     DesktopNetTrayClose();
     RequestRefresh();
 }
@@ -138,7 +142,9 @@ int DesktopClickOnTaskbar(UINT32 X, UINT32 Y) {
 void DesktopNotifyAppsChanged(void) {
     gMenuCount = 0;
     gMenuAppCount = 0;
+    gMenuGameCount = 0;
     gMenuAppsOpen = 0;
+    gMenuGameOpen = 0;
     if (gMenuOpen) {
         RebuildStartMenu();
         RequestRefresh();
@@ -161,8 +167,10 @@ void DesktopInit(void) {
     gSelectY = 0;
     gMenuOpen = 0;
     gMenuAppsOpen = 0;
+    gMenuGameOpen = 0;
     gMenuCount = 0;
     gMenuAppCount = 0;
+    gMenuGameCount = 0;
     DesktopNetTrayClose();
     gIconDragIdx = -1;
     gIconDragMoved = 0;
@@ -184,6 +192,7 @@ void DesktopOnDisplayResize(void) {
     ClampAllIcons();
     gMenuOpen = 0;
     gMenuAppsOpen = 0;
+    gMenuGameOpen = 0;
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     FreeWallScreen();
@@ -199,6 +208,7 @@ void DesktopRefreshLabels(void) {
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
     gIcons[3].Label = LocStr(MSG_ICON_STORE);
     gIcons[4].Label = LocStr(MSG_ICON_DEVICES);
+    gIcons[5].Label = LocStr(MSG_ICON_SNAKE);
 }
 
 void DesktopTickClock(void) {

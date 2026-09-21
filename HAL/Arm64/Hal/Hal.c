@@ -125,6 +125,10 @@ void HalTimerStart(void) {
     HalSerialWrite("timer: Arm64 CNTV+GIC irq\n");
 }
 
+UINT32 HalTicksPerSec(void) {
+    return 1000; /* CNTV 已按 ms 武装 */
+}
+
 /* PR-A14：AP 在 BSP HalTimerStart 之前也可本地开 CNTV（gCntPeriod 已在 InitCpu） */
 void HalTimerStartAp(void) {
     extern void HalGicInitCpu(void);

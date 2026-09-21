@@ -31,13 +31,17 @@ void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         MenuGeom(&Mx, &My, &Mw, &Mh);
         if (RectsOverlap(X, Y, W, H, Mx, My, Mw, Mh)) {
             DrawStartMenuRaw();
-        } else if (gMenuAppsOpen) {
+        } else if (gMenuAppsOpen || gMenuGameOpen) {
             UINT32 Fx;
             UINT32 Fy;
             UINT32 Fw;
             UINT32 Fh;
 
-            AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            if (gMenuAppsOpen) {
+                AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            } else {
+                GameFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            }
             if (RectsOverlap(X, Y, W, H, Fx, Fy, Fw, Fh)) {
                 DrawStartMenuRaw();
             }
@@ -76,13 +80,17 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
             *Out = ThemeControlFace();
             return 1;
         }
-        if (gMenuAppsOpen) {
+        if (gMenuAppsOpen || gMenuGameOpen) {
             UINT32 Fx;
             UINT32 Fy;
             UINT32 Fw;
             UINT32 Fh;
 
-            AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            if (gMenuAppsOpen) {
+                AppsFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            } else {
+                GameFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
+            }
             if (X >= Fx && Y >= Fy && X < Fx + Fw && Y < Fy + Fh) {
                 *Out = ThemeControlFace();
                 return 1;

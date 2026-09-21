@@ -152,7 +152,8 @@ void ClampAllIcons(void) {
     }
 }
 
-void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
+static void FlyoutGeom(DESKTOP_ACTION Anchor, int Rows,
+                       UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
     UINT32 Mx;
     UINT32 My;
     UINT32 Mw;
@@ -160,9 +161,8 @@ void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
     UINT32 Sw;
     UINT32 Sh;
     UINT32 BarY;
-    int AppsIdx = -1;
+    int Idx = -1;
     int i;
-    int Rows;
 
     if (!Fx || !Fy || !Fw || !Fh) {
         return;
@@ -170,15 +170,18 @@ void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
     TaskbarGeom(&BarY, &Sw, &Sh);
     MenuGeom(&Mx, &My, &Mw, &Mh);
     for (i = 0; i < gMenuCount; i++) {
-        if (gMenuRows[i].Action == DESKTOP_ACTION_APPS) {
-            AppsIdx = i;
+        if (gMenuRows[i].Action == Anchor) {
+            Idx = i;
             break;
         }
     }
-    if (AppsIdx < 0) {
-        AppsIdx = MENU_FIXED_TOP - 1;
+    if (Idx < 0) {
+        Idx = (Anchor == DESKTOP_ACTION_GAME) ? (MENU_FIXED_TOP - 1)
+                                              : (MENU_FIXED_TOP - 2);
     }
-    Rows = gMenuAppCount > 0 ? gMenuAppCount : 1;
+    if (Rows < 1) {
+        Rows = 1;
+    }
     *Fw = MENU_W;
     if (*Fw + 8u > Sw) {
         *Fw = Sw > 8u ? Sw - 8u : Sw;
@@ -186,14 +189,25 @@ void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
     *Fh = MENU_ITEM_H * (UINT32)Rows;
     *Fx = Mx + Mw;
     if (*Fx + *Fw > Sw && Mw + 4u < Sw) {
-        /* 右侧放不下则叠在主菜单右侧内缩 */
         *Fx = (Sw > *Fw + 4u) ? (Sw - *Fw - 4u) : 0;
     }
-    *Fy = My + (UINT32)AppsIdx * MENU_ITEM_H;
+    *Fy = My + (UINT32)Idx * MENU_ITEM_H;
     if (*Fy + *Fh > BarY && *Fh <= BarY) {
         *Fy = BarY - *Fh;
     }
     if (*Fy + *Fh > BarY) {
         *Fh = (BarY > *Fy) ? (BarY - *Fy) : MENU_ITEM_H;
     }
+}
+
+void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
+    FlyoutGeom(DESKTOP_ACTION_APPS,
+               gMenuAppCount > 0 ? gMenuAppCount : 1,
+               Fx, Fy, Fw, Fh);
+}
+
+void GameFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh) {
+    FlyoutGeom(DESKTOP_ACTION_GAME,
+               gMenuGameCount > 0 ? gMenuGameCount : 1,
+               Fx, Fy, Fw, Fh);
 }

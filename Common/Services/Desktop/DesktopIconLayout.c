@@ -98,6 +98,8 @@ static const char *IconLayoutKey(int Idx) {
         return "ic3";
     case 4:
         return "ic4";
+    case 5:
+        return "ic5";
     default:
         return 0;
     }
@@ -165,6 +167,7 @@ void PlaceDesktopIcons(void) {
                   DESKTOP_ICON_GAP;
 
     gIcons[0].Action = DESKTOP_ACTION_SHELL;
+    gIcons[0].ExecPath = 0;
     gIcons[0].IconColor = COLOR_BLUE;
     gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
     gIcons[0].X = DESKTOP_ORIGIN_X;
@@ -189,10 +192,19 @@ void PlaceDesktopIcons(void) {
     gIcons[3].Y = DESKTOP_ORIGIN_Y + RowH * 3;
 
     gIcons[4].Action = DESKTOP_ACTION_DEVICES;
+    gIcons[4].ExecPath = 0;
     gIcons[4].IconColor = 0x00806040;
     gIcons[4].BmpPath = "Assets/Icons/bmp48/INFO.BMP";
     gIcons[4].X = DESKTOP_ORIGIN_X;
     gIcons[4].Y = DESKTOP_ORIGIN_Y + RowH * 4;
+
+    gIcons[5].Action = DESKTOP_ACTION_EXEC;
+    gIcons[5].ExecPath = "SNAKE.ELF";
+    gIcons[5].IconColor = 0x0040C080;
+    gIcons[5].BmpPath = 0;
+    gIcons[5].BmpReady = 0;
+    gIcons[5].X = DESKTOP_ORIGIN_X;
+    gIcons[5].Y = DESKTOP_ORIGIN_Y + RowH * 5;
 
     DesktopRefreshLabels();
 }

@@ -148,6 +148,24 @@ void HalTimerStart(void) {
     TimerStart();
 }
 
+/*
+ * LAPIC INIT=50000、DIV=1：墙钟拍长随 APIC 总线变。
+ * QEMU≈20000 拍/s（~50µs）；NUC 实测约 250 拍/s（~4ms，500ms 请求曾走到 4s）。
+ */
+UINT32 HalTicksPerSec(void) {
+    static UINT32 Cached;
+
+    if (Cached != 0) {
+        return Cached;
+    }
+    if (HalCpuIsHypervisor()) {
+        Cached = 20000;
+    } else {
+        Cached = 250;
+    }
+    return Cached;
+}
+
 void HalInstallUserMode(void) {
     ArchTssInstall();
 }

@@ -151,7 +151,14 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         Ret = SchedulerSleepMs(Frame, (UINT32)HalFrameGetArgument0(Frame));
         break;
     case SYS_CLOCK_MS:
-        HalFrameSetReturn(Frame, HalCpuTicks(0));
+        {
+            UINT32 Tps = HalTicksPerSec();
+
+            if (Tps == 0) {
+                Tps = 1000;
+            }
+            HalFrameSetReturn(Frame, HalCpuTicks(0) * 1000ULL / (UINT64)Tps);
+        }
         break;
     default:
         ConsoleWrite("syscall: unknown ");
