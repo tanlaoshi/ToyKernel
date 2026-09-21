@@ -76,10 +76,13 @@ int E1000GetLink(int *UpOut, UINT32 *MbpsOut, int *FullDuplexOut) {
     return 0;
 }
 
-/* 82574 → "e1000e"；其它 → "e1000" */
+/* 82574 → "e1000e"；I219 → "i219"；其它 → "e1000" */
 const char *E1000ChipName(void) {
     if (gPciDid == E1000_DID_82574L) {
         return "e1000e";
+    }
+    if (gPciDid == E1000_DID_I219_LM) {
+        return "i219";
     }
     return "e1000";
 }
@@ -189,11 +192,15 @@ int E1000Setup(void) {
     gReady = 1;
     gE1000UseIrq = 0;
     if (TryEnableMsiRx()) {
-        if (gPciDid == E1000_DID_82574L) {
+        if (gPciDid == E1000_DID_I219_LM) {
+            ToyLogNet("Boot: I219 IRQ=MSI\n");
+        } else if (gPciDid == E1000_DID_82574L) {
             ToyLogNet("Boot: E1000E IRQ=MSI\n");
         } else {
             ToyLogNet("Boot: E1000 IRQ=MSI\n");
         }
+    } else if (gPciDid == E1000_DID_I219_LM) {
+        ToyLogNet("Boot: I219\n");
     } else if (gPciDid == E1000_DID_82574L) {
         ToyLogNet("Boot: E1000E\n");
     } else {

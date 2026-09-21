@@ -144,7 +144,8 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - **H4e-2** ✅ TG `486de82`：`E1000GetLink` → `show network` / `lsdev` 显示 `link=up 1000/FD`；lsdev 名 `e1000e`
 - **H4e-3** ✅ TG `ddd4eb7`：`VEC_E1000`；MSI（MSI-X bad BIR 回落 MSI）；`boot: e1000e irq=msi`；NetPoll 备份
 - **未做**：Realtek、无线；NUC I219 等 DID 未扩（无卡不挡桌面）→ 规划 [`Documents/路线图.md`](../../Documents/路线图.md#pr-n-i219)
-- **PR-N-i219-note（现场齐）**：`net note` → `8086:156F` @0:31.6 以太网 `in_table=no` / `bound=no`；同机 `8086:24FD` 无线 **不做**。下一刀 **did 只加 156F**。
+- **PR-N-i219-note** ✅ TG `bc4c288`。
+- **PR-N-i219-did** ✅ NUC：`156F` Bind / `i219` / LU 1000/FD / MAC `54:B2:03:09:0F:63`；**TDH=TDT=0**（无 TX）、RDH 前进（有 RX）。待 TG；下一 mac 或 txdiag。
 
 ### H-xhci-evt-excl：事件环单消费者（✅ 1…4）
 

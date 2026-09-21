@@ -18,6 +18,7 @@ static const UINT16 gE1000Ids[] = {
     0x100F,            /* 82545EM */
     E1000_DID_82574L,  /* 82574L — e1000e */
     0x10F5,            /* 82567LM */
+    E1000_DID_I219_LM, /* I219-LM — NUC 现场 8086:156F */
     0
 };
 
@@ -119,7 +120,9 @@ static int EepromReadWordLegacy(UINT16 Addr, UINT16 *Out) {
 }
 
 static int EepromReadWord(UINT16 Addr, UINT16 *Out) {
-    if (gPciDid == E1000_DID_82574L || gPciDid == 0x10F5) {
+    /* I219 与 82574 同走 EERD 新布局试读；真 flash 路径留给 PR-N-i219-mac */
+    if (gPciDid == E1000_DID_82574L || gPciDid == 0x10F5 ||
+        gPciDid == E1000_DID_I219_LM) {
         if (EepromReadWordE1000e(Addr, Out)) {
             return 1;
         }
@@ -127,7 +130,8 @@ static int EepromReadWord(UINT16 Addr, UINT16 *Out) {
     if (EepromReadWordLegacy(Addr, Out)) {
         return 1;
     }
-    if (gPciDid != E1000_DID_82574L && gPciDid != 0x10F5) {
+    if (gPciDid != E1000_DID_82574L && gPciDid != 0x10F5 &&
+        gPciDid != E1000_DID_I219_LM) {
         return EepromReadWordE1000e(Addr, Out);
     }
     return 0;

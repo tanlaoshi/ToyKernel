@@ -74,6 +74,7 @@ static int DidInDriverTable(UINT16 Did) {
         0x100F,
         E1000_DID_82574L,
         0x10F5,
+        E1000_DID_I219_LM,
         0
     };
     int i;
@@ -158,7 +159,7 @@ void E1000DumpNote(void (*Write)(const char *Text)) {
     }
 
     Write("=== e1000 note (PR-N-i219-note; no DID change) ===\n");
-    Write("driver table: 100E 100F 10D3 10F5 (I219 not listed)\n");
+    Write("driver table: 100E 100F 10D3 10F5 156F (I219-LM)\n");
 
     for (B = 0; B < 256; B++) {
         for (D = 0; D < 32; D++) {

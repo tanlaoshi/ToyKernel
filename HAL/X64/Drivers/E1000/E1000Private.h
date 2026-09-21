@@ -9,6 +9,7 @@
 #define E1000_VENDOR          0x8086u
 #define E1000_DID_82540EM     0x100Eu /* QEMU -device e1000 */
 #define E1000_DID_82574L      0x10D3u /* QEMU -device e1000e */
+#define E1000_DID_I219_LM     0x156Fu /* NUC I219-LM（PR-N-i219-did） */
 
 #define E1000_REG_CTRL        0x0000u
 #define E1000_REG_STATUS      0x0008u
