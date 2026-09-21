@@ -1,5 +1,5 @@
 /*
- * GuiResize.c — PR-GUI-win-resize：右下角拖拽改大小（线框松手提交）
+ * GuiResize.c — 右/底边与右下角拖拽改大小（线框松手提交）
  */
 #include "GuiPrivate.h"
 #include "UI.h"
@@ -12,13 +12,13 @@
 #include "DevicesUi.h"
 #include "EditUi.h"
 
-#define RESIZE_HOT    16u
-#define RESIZE_MIN_W  480u
-#define RESIZE_MIN_H  360u
+#define RESIZE_MIN_W    480u
+#define RESIZE_MIN_H    360u
 #define RESIZE_MIN_STEP 3u
 
 int    gResizeWin = -1;
 int    gResizeArmed;
+int    gResizeEdge;
 UINT32 gResizeOrigW;
 UINT32 gResizeOrigH;
 INT32  gResizeAnchorX;
@@ -26,19 +26,6 @@ INT32  gResizeAnchorY;
 int    gResizeBandOn;
 UINT32 gResizeBandW;
 UINT32 gResizeBandH;
-
-int PointInResizeCorner(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
-    UINT32 Rx;
-    UINT32 Ry;
-
-    if (!W || !W->Active || W->Width < RESIZE_HOT || W->Height < RESIZE_HOT) {
-        return 0;
-    }
-    Rx = W->X + W->Width - RESIZE_HOT;
-    Ry = W->Y + W->Height - RESIZE_HOT;
-    return (X >= Rx && X < W->X + W->Width && Y >= Ry && Y < W->Y + W->Height) ? 1
-                                                                              : 0;
-}
 
 static void ClampResizeSize(const GUI_WINDOW *W, UINT32 *OutW, UINT32 *OutH) {
     UINT32 MaxW;
@@ -103,17 +90,30 @@ static void DrawResizeBand(int Idx, UINT32 Bw, UINT32 Bh) {
     gResizeBandOn = 1;
 }
 
-static void ComputeResizeSize(UINT32 X, UINT32 Y, UINT32 *OutW, UINT32 *OutH) {
-    const GUI_WINDOW *W = &gWindows[gResizeWin];
+static void ComputeResizeSize(int Idx, int Edge, UINT32 X, UINT32 Y,
+                              UINT32 *OutW, UINT32 *OutH) {
+    const GUI_WINDOW *W;
     INT32 Dw;
     INT32 Dh;
     UINT32 Nw;
     UINT32 Nh;
 
+    if (Idx < 0 || Idx >= MAX_WINS) {
+        *OutW = gResizeOrigW;
+        *OutH = gResizeOrigH;
+        return;
+    }
+    W = &gWindows[Idx];
     Dw = (INT32)X - gResizeAnchorX;
     Dh = (INT32)Y - gResizeAnchorY;
-    Nw = (UINT32)((INT32)gResizeOrigW + Dw);
-    Nh = (UINT32)((INT32)gResizeOrigH + Dh);
+    Nw = gResizeOrigW;
+    Nh = gResizeOrigH;
+    if (Edge == RESIZE_EDGE_SE || Edge == RESIZE_EDGE_E) {
+        Nw = (UINT32)((INT32)gResizeOrigW + Dw);
+    }
+    if (Edge == RESIZE_EDGE_SE || Edge == RESIZE_EDGE_S) {
+        Nh = (UINT32)((INT32)gResizeOrigH + Dh);
+    }
     ClampResizeSize(W, &Nw, &Nh);
     *OutW = Nw;
     *OutH = Nh;
@@ -140,12 +140,19 @@ static void RepaintAfterResize(int Idx) {
 }
 
 void GuiResizeBegin(int Idx, UINT32 X, UINT32 Y) {
+    int Edge;
+
     if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
+        return;
+    }
+    Edge = GuiResizeEdgeAt(&gWindows[Idx], X, Y);
+    if (Edge == RESIZE_EDGE_NONE) {
         return;
     }
     gDragWin = -1;
     gDragArmed = 0;
     gResizeWin = Idx;
+    gResizeEdge = Edge;
     gResizeOrigW = gWindows[Idx].Width;
     gResizeOrigH = gWindows[Idx].Height;
     gResizeAnchorX = (INT32)X;
@@ -154,6 +161,7 @@ void GuiResizeBegin(int Idx, UINT32 X, UINT32 Y) {
     gResizeBandOn = 0;
     gResizeBandW = 0;
     gResizeBandH = 0;
+    gCursorKind = GuiResizeCursorKindAt(X, Y);
 }
 
 void GuiResizeUpdate(UINT32 X, UINT32 Y) {
@@ -165,7 +173,7 @@ void GuiResizeUpdate(UINT32 X, UINT32 Y) {
     if (gResizeWin < 0 || gResizeWin >= MAX_WINS || !gWindows[gResizeWin].Active) {
         return;
     }
-    ComputeResizeSize(X, Y, &Nw, &Nh);
+    ComputeResizeSize(gResizeWin, gResizeEdge, X, Y, &Nw, &Nh);
     OdW = (Nw > gResizeOrigW) ? (Nw - gResizeOrigW) : (gResizeOrigW - Nw);
     OdH = (Nh > gResizeOrigH) ? (Nh - gResizeOrigH) : (gResizeOrigH - Nh);
     if (gResizeArmed) {
@@ -193,20 +201,27 @@ void GuiResizeUpdate(UINT32 X, UINT32 Y) {
 
 void GuiResizeEnd(void) {
     int Idx = gResizeWin;
+    int Edge = gResizeEdge;
     UINT32 Nw;
     UINT32 Nh;
     int Did;
 
-    gResizeWin = -1;
-    gResizeArmed = 0;
     if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
+        gResizeWin = -1;
+        gResizeArmed = 0;
+        gResizeEdge = RESIZE_EDGE_NONE;
         gResizeBandOn = 0;
         return;
     }
 
     Did = gResizeBandOn ||
           (gResizeBandW != 0 && gResizeBandH != 0);
-    ComputeResizeSize(gCursorX, gCursorY, &Nw, &Nh);
+    /* 须在清 gResizeEdge / gResizeWin 之前算尺寸 */
+    ComputeResizeSize(Idx, Edge, gCursorX, gCursorY, &Nw, &Nh);
+
+    gResizeWin = -1;
+    gResizeArmed = 0;
+    gResizeEdge = RESIZE_EDGE_NONE;
 
     ComposeBegin();
     GfxIrqEnter();
@@ -225,7 +240,6 @@ void GuiResizeEnd(void) {
         UINT32 Fw = Ow;
         UINT32 Fh = Oh;
 
-        /* 先擦旧 footprint（含影），再提交新尺寸 */
         ExpandRectByWindowShadow(&Fx, &Fy, &Fw, &Fh);
         ClipRectToScreen(&Fx, &Fy, &Fw, &Fh);
         ClearOldDragFootprint(Fx, Fy, Fw, Fh, Idx);

@@ -25,6 +25,7 @@ UINT32 gScreenHeight;
 UINT32 gCursorX;
 UINT32 gCursorY;
 UINT8  gCursorBtn;
+int    gCursorKind;
 int    gFocusWin;
 int    gHoverWin = -1;
 
@@ -141,8 +142,10 @@ void GuiInit(void) {
     gCursorY = gScreenHeight / 2;
     gFocusWin = -1;
     gCursorVisible = 0;
+    gCursorKind = CURSOR_KIND_ARROW;
     gDragWin = -1;
     gResizeWin = -1;
+    gResizeEdge = RESIZE_EDGE_NONE;
 
     {
         int i;

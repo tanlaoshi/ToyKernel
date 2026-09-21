@@ -34,6 +34,18 @@
 #define CURSOR_EXT_MAX   (CURSOR_HALF_MAX + CURSOR_THICK_MAX + CURSOR_OUTLINE + CURSOR_SCALE_PAD)
 #define CURSOR_BOX       (CURSOR_EXT_MAX * 2 + 1)
 
+/* 光标外形（对角/边框 resize） */
+#define CURSOR_KIND_ARROW     0
+#define CURSOR_KIND_RESIZE_SE 1
+#define CURSOR_KIND_RESIZE_E  2
+#define CURSOR_KIND_RESIZE_S  3
+
+/* 改大小热区：右下角 / 右边 / 底边（不挪原点） */
+#define RESIZE_EDGE_NONE 0
+#define RESIZE_EDGE_SE   1
+#define RESIZE_EDGE_E    2
+#define RESIZE_EDGE_S    3
+
 typedef struct {
     int      Active;
     GUI_WIN_KIND Kind;
@@ -72,6 +84,7 @@ extern UINT32 gScreenHeight;
 extern UINT32 gCursorX;
 extern UINT32 gCursorY;
 extern UINT8  gCursorBtn;
+extern int    gCursorKind; /* CURSOR_KIND_* */
 extern int    gFocusWin;
 extern int    gHoverWin; /* PR-GUI-l1：指针下最顶层窗（-1=无） */
 
@@ -89,6 +102,7 @@ extern int    gDragArmed;
 
 extern int    gResizeWin;
 extern int    gResizeArmed;
+extern int    gResizeEdge; /* RESIZE_EDGE_*；拖动中锁定 */
 extern UINT32 gResizeOrigW;
 extern UINT32 gResizeOrigH;
 extern INT32  gResizeAnchorX;
@@ -196,7 +210,9 @@ int WindowBackupCoversPixel(int Idx, UINT32 Px, UINT32 Py);
 int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py);
 
 /* Cursor */
+void CursorMetrics(int *Half, int *Thick);
 void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy, UINT32 *Sw, UINT32 *Sh);
+void DrawCursorGlyph(UINT32 X, UINT32 Y);
 void DrawCursorAt(UINT32 X, UINT32 Y);
 void CursorRestore(void);
 void CursorPaint(void);
@@ -230,6 +246,8 @@ void GuiDragEnd(void);
 
 /* PR-GUI-win-resize */
 int PointInResizeCorner(const GUI_WINDOW *W, UINT32 X, UINT32 Y);
+int GuiResizeEdgeAt(const GUI_WINDOW *W, UINT32 X, UINT32 Y);
+int GuiResizeCursorKindAt(UINT32 X, UINT32 Y);
 void GuiResizeBegin(int Idx, UINT32 X, UINT32 Y);
 void GuiResizeUpdate(UINT32 X, UINT32 Y);
 void GuiResizeEnd(void);

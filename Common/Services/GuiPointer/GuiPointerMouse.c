@@ -40,6 +40,7 @@ void GuiOnDisplayResize(void) {
     gCursorVisible = 0;
     gDragWin = -1;
     gResizeWin = -1;
+    gResizeEdge = RESIZE_EDGE_NONE;
 
     for (i = 0; i < MAX_WINS; i++) {
         if (!gWindows[i].Active) {
