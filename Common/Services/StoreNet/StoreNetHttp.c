@@ -4,6 +4,7 @@
  * 核心：StoreNet.c
  */
 #include "StoreNetPrivate.h"
+#include "Scheduler.h"
 
 static char gHttpReq[256]; /* 避免 HttpGet 再占任务栈 */
 
@@ -12,9 +13,20 @@ static void PollNet(void) {
     TcpPoll();
 }
 
+static void HttpBreath(void) {
+    /* 紧循环补路：同步装/sync 时仍可拖鼠（可残影） */
+    SchedulerIoBreath();
+    PollNet();
+}
+
 static int WaitEstablished(int Tries) {
+    int N = 0;
+
     while (Tries-- > 0) {
         PollNet();
+        if ((++N & 0x3FF) == 0) {
+            HttpBreath();
+        }
         if (TcpGetState() == TCP_ESTABLISHED) {
             return 0;
         }
@@ -108,8 +120,12 @@ int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
     Tries = STORE_HTTP_TRIES;
     {
         int Idle = 0;
+        int Spin = 0;
         while (Tries-- > 0 && Got < STORE_HTTP_MAX) {
             PollNet();
+            if ((++Spin & 0x3FF) == 0) {
+                HttpBreath();
+            }
             Chunk = 0;
             (void)TcpRecv(Resp + Got, STORE_HTTP_MAX - Got, &Chunk);
             Got += Chunk;
@@ -119,6 +135,7 @@ int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
                 Idle++;
                 if (Idle > 0 && (Idle % STORE_HTTP_IDLE_ACK) == 0) {
                     (void)TcpSendAck(); /* 催促对端重传缺失段 */
+                    HttpBreath();
                 }
             }
             if (Got >= 16) {

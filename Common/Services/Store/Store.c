@@ -31,27 +31,11 @@ int gStoreComboDepth;
 int gNeedFontReload;
 
 /*
- * 长 IO 呼吸：每块拷贝/写盘后排空 xHCI 事件环 + 让鼠标动。
- *
- * PR-S-input-drain：稳态 drain 在 YieldForPollInput（shell/gui 每轮让步处）；
- * 但长 Store 拷贝/写盘期间 GuiTask 不走 YieldForPollInput，且真机 poll-USB 下
- * MSC/FAT 完成事件需 XchiDrainEvents 推进 → 此处自带 HalInputPoll 兜底。
- * 序 1「或等价」：drain 集中在 yield 路径 + IO 呼吸两处，GuiPollMouse 等只 dequeue。
- *
- * cli 守 drain：Shell 经 HalCpuHalt（sti;hlt）后常带 IF=1；HalInputPoll 调用链深，
- * 若被 LAPIC timer 嵌套（InterruptDispatch→SchedulerOnTimer）会压坏 iret 帧 →
- * #UD（见 InputTask scoped-sti 注释；QEMU smp=2 上 uncombo+combo guidemo 复现）。
+ * 长 IO 呼吸：薄包装 → SchedulerIoBreath（PR-K-preempt-breath）。
+ * FatSetIoBreath(StoreIoBreath) 仍有效；勿删本符号。
  */
 void StoreIoBreath(void) {
-    UINT64 Flags;
-
-    /* PR-K-preempt-cs：深 drain 禁切；与 cli 双保险 */
-    SchedulerPreemptDisable();
-    Flags = HalIrqSave();
-    HalInputPoll();
-    GuiPollMouseMotion();
-    HalIrqRestore(Flags);
-    SchedulerPreemptEnable();
+    SchedulerIoBreath();
 }
 
 void StoreFlushFontReload(void) {

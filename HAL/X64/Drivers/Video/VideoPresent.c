@@ -123,6 +123,7 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
                 memcpy(Dst, Src, (UINTN)RowBytes);
             }
             HalIrqRestore(Flags);
+            /* 条带间只 Restore IF（G7）；勿 SchedulerIoBreath——会 GuiPoll→Present 重入 */
         }
         return;
     }
