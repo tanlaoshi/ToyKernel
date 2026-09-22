@@ -6,17 +6,23 @@
 
 static void DoBtn(int Btn) {
     STORE_ENTRY *E;
+    char Buf[80];
+    int i;
+    int j;
+    const char *Verb;
 
     if (StoreJobIsBusy()) {
         StoreSetStatus("busy...");
         StoreUiRepaint();
         return;
     }
+    gHoverBtn = -1;
+    gPressBtn = -1;
     if (Btn == 2) {
         if (StoreJobEnqueue(STORE_JOB_SYNC, 0) != 0) {
             StoreSetStatus("busy...");
         } else {
-            StoreSetStatus("syncing...");
+            StoreSetStatus("sync: catalog");
         }
         StoreUiRepaint();
         return;
@@ -27,18 +33,22 @@ static void DoBtn(int Btn) {
         StoreUiRepaint();
         return;
     }
-    if (Btn == 0) {
-        if (StoreJobEnqueue(STORE_JOB_INSTALL, E->Id) != 0) {
-            StoreSetStatus("busy...");
-        } else {
-            StoreSetStatus("installing...");
-        }
+    Verb = (Btn == 0) ? "install" : "remove";
+    if (StoreJobEnqueue(Btn == 0 ? STORE_JOB_INSTALL : STORE_JOB_REMOVE, E->Id) != 0) {
+        StoreSetStatus("busy...");
     } else {
-        if (StoreJobEnqueue(STORE_JOB_REMOVE, E->Id) != 0) {
-            StoreSetStatus("busy...");
-        } else {
-            StoreSetStatus("removing...");
+        i = 0;
+        while (Verb[i] && i < 24) {
+            Buf[i] = Verb[i];
+            i++;
         }
+        Buf[i++] = ':';
+        Buf[i++] = ' ';
+        for (j = 0; E->Id[j] && i < 78; j++) {
+            Buf[i++] = E->Id[j];
+        }
+        Buf[i] = 0;
+        StoreSetStatus(Buf);
     }
     StoreUiRepaint();
 }

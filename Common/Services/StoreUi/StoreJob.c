@@ -1,6 +1,7 @@
 /*
- * StoreJob.c — Store UI 作业状态机（PR-S-job-api）
- * 首版 Step = 一次跑完旧 Combo/Sync + Reload/Notify（同原 StoreUiPump）。
+ * StoreJob.c — Store UI 作业状态机（PR-S-job）
+ * 序 1：Step = 一次跑完旧 Combo/Sync + Reload/Notify。
+ * 序 2：Busy 阶段文案（含 id）；相位/chunk 后续刀。
  */
 #include "StoreUiPrivate.h"
 #include "StoreJob.h"
@@ -8,6 +9,35 @@
 static STORE_JOB_KIND sPendingKind;
 static int sRunning;
 static char sJobId[STORE_ID_MAX];
+
+static void StatusWithId(const char *Verb, const char *Id) {
+    char Buf[80];
+    int i = 0;
+    int j;
+
+    if (!Verb) {
+        Verb = "?";
+    }
+    while (Verb[i] && i < 24) {
+        Buf[i] = Verb[i];
+        i++;
+    }
+    if (Id && Id[0] && i < 76) {
+        Buf[i++] = ':';
+        Buf[i++] = ' ';
+        for (j = 0; Id[j] && i < 78; j++) {
+            Buf[i++] = Id[j];
+        }
+    }
+    Buf[i] = 0;
+    StoreSetStatus(Buf);
+}
+
+static void BusyRepaint(void) {
+    if (StoreUiIsFocused()) {
+        StoreUiRepaint();
+    }
+}
 
 int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id) {
     int i;
@@ -49,24 +79,42 @@ int StoreJobStep(void) {
     sRunning = 1;
 
     if (Job == STORE_JOB_INSTALL) {
+        StatusWithId("install", sJobId);
+        BusyRepaint();
         Err = StoreComboInstall(sJobId);
-        StoreSetStatus(Err == 0 ? "installed" : "install fail");
     } else if (Job == STORE_JOB_REMOVE) {
+        StatusWithId("remove", sJobId);
+        BusyRepaint();
         Err = StoreComboRemove(sJobId);
-        StoreSetStatus(Err == 0 ? "removed" : "remove fail");
     } else {
+        StoreSetStatus("sync: catalog");
+        BusyRepaint();
         Err = StoreSyncCatalog();
-        StoreSetStatus(Err == 0 ? "sync ok" : "sync fail (need repo)");
     }
+
+    StoreSetStatus("reload...");
+    BusyRepaint();
     GuiPollMouseMotion();
     Reload();
     GuiPollMouseMotion();
     DesktopNotifyAppsChanged();
-    if (StoreUiIsFocused()) {
-        StoreUiRepaint();
+    if (Err == 0) {
+        if (Job == STORE_JOB_INSTALL) {
+            StoreSetStatus("installed");
+        } else if (Job == STORE_JOB_REMOVE) {
+            StoreSetStatus("removed");
+        } else {
+            StoreSetStatus("sync ok");
+        }
+    } else if (Job == STORE_JOB_INSTALL) {
+        StoreSetStatus("install fail");
+    } else if (Job == STORE_JOB_REMOVE) {
+        StoreSetStatus("remove fail");
+    } else {
+        StoreSetStatus("sync fail (need repo)");
     }
+    BusyRepaint();
     sRunning = 0;
-    (void)Err;
     return 1;
 }
 
