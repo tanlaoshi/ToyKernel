@@ -142,11 +142,9 @@ IsrCommon:
 
 /* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16）
  *
- * PR-S-input 序 2：曾试改 iretq 恢复 RFLAGS（IF=1）以启抢占，NUC 实测 shell/gui
- * ticks 确转 >0，但暴露 latent bug（shell rip 损坏 0xD400147F8A → ACPI Reset，
- * 疑 ConsolePaintShellWindow 等重绘路径非抢占安全）。已回退为 jmp rax（IF=0 协作式）。
- * 序 2 改走 scoped sti：只让钉专核的 InputTask 开中断，不动 shell/gui 协作态。
- * 全局抢占需单独一轮「内核抢占安全」硬化，不在本柱。 */
+ * PR-K-preempt-enter（2026-09-22 NUC）：曾试 iretq（IF=1）→ store remove 时 #PF
+ *（cpu=3 cr2=0x8001DF9A8）随后 combo ACPI Reset。整刀回退 jmp rax（IF=0 协作）。
+ * 序 1～4（PreemptCount / Breath / NeedResched）仍保留；全局 IF=1 另择时机。 */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */
