@@ -17,6 +17,7 @@
 #include "Debug.h"
 #include "ShellCommands.h"
 #include "ToySerialLog.h"
+#include "Scheduler.h"
 
 static volatile UINT32 gWorkerCount;
 
@@ -50,9 +51,11 @@ void YieldForPollInput(void) {
         for (i = 0; i < 200; i++) {
             HalCpuRelax();
         }
+        (void)SchedulerCondResched();
         return;
     }
     HalCpuHalt();
+    (void)SchedulerCondResched();
 }
 
 void GuiTask(void) {
@@ -68,6 +71,7 @@ void WorkerTask(void) {
         for (volatile int i = 0; i < 5000; i++) {
         }
         HalCpuHalt();
+        (void)SchedulerCondResched();
     }
 }
 
@@ -95,5 +99,6 @@ void InputTask(void) {
                 HalCpuRelax();
             }
         }
+        (void)SchedulerCondResched();
     }
 }

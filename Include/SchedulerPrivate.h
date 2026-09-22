@@ -39,6 +39,9 @@ INT32 TaskSlot(const TASK *T);
 void ActivateTask(TASK *T);
 UINT64 SchedulerResumeFrame(TASK *T);
 
+/* PR-K-preempt-needresched：OnTimer 置位；CondResched 见 Scheduler.h */
+void SchedulerSetNeedResched(void);
+
 /* 定义在 SchedulerRunq.c */
 void RunQueueInitialize(void);
 void RunQueueEnqueue(UINT32 Cpu, TASK *T);

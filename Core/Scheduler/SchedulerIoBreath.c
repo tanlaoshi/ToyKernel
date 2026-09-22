@@ -21,5 +21,5 @@ void SchedulerIoBreath(void) {
     GuiPollMouseMotion();
     HalIrqRestore(Flags);
     SchedulerPreemptEnable();
-    /* PR-K-preempt-needresched：此处挂 SchedulerCondResched() */
+    (void)SchedulerCondResched();
 }

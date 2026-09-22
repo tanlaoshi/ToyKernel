@@ -155,8 +155,9 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
 
-    /* PR-K-preempt-cs：禁切段内只记账/唤醒，不换任务（含 PendingKill 切走） */
+    /* 禁切段：只置 NeedResched；出段后 CondResched 浅 hlt 再让 OnTimer 切 */
     if (SchedulerPreemptCount() != 0) {
+        SchedulerSetNeedResched();
         return 0;
     }
 
