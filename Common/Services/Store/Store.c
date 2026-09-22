@@ -22,6 +22,7 @@
 #include "Gui.h"
 #include "Font.h"
 #include "Theme.h"
+#include "Scheduler.h"
 
 /* 内核任务栈仅 8KiB；catalog 表放 BSS，避免 store sync/HTTP 栈溢出闪退 */
 STORE_ENTRY gStoreTab[STORE_ENTRIES_MAX];
@@ -42,10 +43,15 @@ int gNeedFontReload;
  * #UD（见 InputTask scoped-sti 注释；QEMU smp=2 上 uncombo+combo guidemo 复现）。
  */
 void StoreIoBreath(void) {
-    UINT64 Flags = HalIrqSave();
+    UINT64 Flags;
+
+    /* PR-K-preempt-cs：深 drain 禁切；与 cli 双保险 */
+    SchedulerPreemptDisable();
+    Flags = HalIrqSave();
     HalInputPoll();
     GuiPollMouseMotion();
     HalIrqRestore(Flags);
+    SchedulerPreemptEnable();
 }
 
 void StoreFlushFontReload(void) {

@@ -125,6 +125,11 @@ void SchedulerReapOrphanZombies(void);
 /* PR-A12：virt 无定时抢占时，协作跑完就绪用户任务（exec HELLO） */
 void SchedulerCoopDrainUsers(void);
 
+/* PR-K-preempt-cs：嵌套禁切；OnTimer 见 count≠0 则不换任务 */
+void SchedulerPreemptDisable(void);
+void SchedulerPreemptEnable(void);
+int  SchedulerPreemptCount(void);
+
 TASK *SchedulerCurrent(void);
 int SchedulerTaskCount(void);
 UINT64 SchedulerStealCount(void);

@@ -4,6 +4,7 @@
  * 从 Video.c 迁出；只搬家、不改逻辑。
  */
 #include "VideoPrivate.h"
+#include "Scheduler.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
@@ -233,6 +234,8 @@ void VideoPresent(void) {
     if (!gDirty && !gCurDirty) {
         return;
     }
+    /* PR-K-preempt-cs：条带 cli 岛禁切（条间仍可 Restore IF） */
+    SchedulerPreemptDisable();
     /*
      * 内容与光标分矩形 Present，避免 AABB 并成近全屏。
      * 大块按行条带 cli，条间开中断（G7：禁止长 cli 饿死 USB）。
@@ -266,6 +269,7 @@ void VideoPresent(void) {
             PresentRectRows(X0, Y0, X1, Y1, FbBytes, &gDirty, &gDx0, &gDy0,
                             &gDx1, &gDy1, &Partial);
             if (Partial) {
+                SchedulerPreemptEnable();
                 return;
             }
         }
@@ -288,6 +292,7 @@ void VideoPresent(void) {
                             &gCx1, &gCy1, &Partial);
         }
     }
+    SchedulerPreemptEnable();
 }
 
 void VideoPresentFlush(void) {

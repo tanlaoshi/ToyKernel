@@ -15,9 +15,11 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "Scheduler.h"
 
 void GfxIrqEnter(void) {
     if (gGfxLockDepth++ == 0) {
+        SchedulerPreemptDisable();
         gGfxIrqFlags = HalIrqSave();
     }
 }
@@ -26,18 +28,21 @@ void GfxIrqEnter(void) {
 void GfxIrqLeave(void) {
     if (gGfxLockDepth > 0 && --gGfxLockDepth == 0) {
         HalIrqRestore(gGfxIrqFlags);
+        SchedulerPreemptEnable();
     }
 }
 
 
 void ComposeBegin(void) {
-    gComposeBusy++;
+    if (gComposeBusy++ == 0) {
+        SchedulerPreemptDisable();
+    }
 }
 
 
 void ComposeEnd(void) {
-    if (gComposeBusy > 0) {
-        gComposeBusy--;
+    if (gComposeBusy > 0 && --gComposeBusy == 0) {
+        SchedulerPreemptEnable();
     }
 }
 

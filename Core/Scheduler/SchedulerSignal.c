@@ -155,6 +155,11 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
 
+    /* PR-K-preempt-cs：禁切段内只记账/唤醒，不换任务（含 PendingKill 切走） */
+    if (SchedulerPreemptCount() != 0) {
+        return 0;
+    }
+
     /* 跨核 PendingKill：终止或 handler（锁序：大锁 → runq） */
     if (Cur->IsUser && Cur->PendingKill > 0) {
         INT32 Sig = Cur->PendingKill;
