@@ -88,6 +88,11 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
     UINT64 Flags;
     int Scaled = (gUiScale != 100u) || (gScreen.Width != gPhysW) ||
                  (gScreen.Height != gPhysH);
+    UINT32 ChunkRows = gPresentChunkRows;
+
+    if (ChunkRows == 0) {
+        ChunkRows = PRESENT_CHUNK_ROWS;
+    }
 
     *OutPartial = 0;
     if (X0 >= X1 || Y0 >= Y1) {
@@ -98,9 +103,11 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
         RowBytes = (UINT64)(X1 - X0) * 4ull;
         Y = Y0;
         while (Y < Y1) {
-            ChunkEnd = Y + PRESENT_CHUNK_ROWS;
-            if (ChunkEnd > Y1) {
+            /* 勿 Y+ChunkRows：ChunkRows=0xFFFFFFFF 会回绕 → Y 不前进死循环 */
+            if (ChunkRows >= (Y1 - Y)) {
                 ChunkEnd = Y1;
+            } else {
+                ChunkEnd = Y + ChunkRows;
             }
             Flags = HalIrqSave();
             for (; Y < ChunkEnd; Y++) {
@@ -175,9 +182,10 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
         }
         Py = Py0;
         while (Py < Py1) {
-            ChunkPy = Py + PRESENT_CHUNK_ROWS;
-            if (ChunkPy > Py1) {
+            if (ChunkRows >= (Py1 - Py)) {
                 ChunkPy = Py1;
+            } else {
+                ChunkPy = Py + ChunkRows;
             }
             Flags = HalIrqSave();
             for (; Py < ChunkPy; Py++) {
@@ -315,5 +323,13 @@ void VideoPresentFlush(void) {
             VideoPresent();
         }
     }
+}
+
+void VideoSetPresentChunkRows(UINT32 Rows) {
+    /* 0=默认；禁止全 1 作「无限」——与 Y 相加会回绕死循环 */
+    if (Rows == 0xFFFFFFFFu) {
+        Rows = 16384u;
+    }
+    gPresentChunkRows = Rows;
 }
 

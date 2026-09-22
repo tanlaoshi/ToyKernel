@@ -28,6 +28,8 @@ UINT32 VideoBackbufferPages(void);
 void VideoPresent(void);
 /* 循环 Present 直到脏区清空（4K 全屏合成勿半截留下任务栏空洞） */
 void VideoPresentFlush(void);
+/* Rows=0 → 默认 64；拖窗可传极大值整块 blit */
+void VideoSetPresentChunkRows(UINT32 Rows);
 /* PR-G-hotres：Bochs/QEMU VGA DISPI；成功 0，无 Bochs/失败 -1 */
 int VideoBochsSetMode(UINT32 Width, UINT32 Height);
 int VideoBochsAvailable(void);

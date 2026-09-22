@@ -239,6 +239,8 @@ void ClearOldDragFootprint(UINT32 Ox, UINT32 Oy, UINT32 Ww, UINT32 Wh, int DragI
 void GuiClearIconDragFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void PaintAllWindowsDraw(int DragIdx);
 void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY);
+/* CopyRect 平移 + 只擦露出条（减左右拖频闪） */
+void RedrawDragFrameSlide(int DragIdx, UINT32 OldX, UINT32 OldY);
 void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y);
 void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY);
 void GuiDragUpdate(UINT32 X, UINT32 Y);

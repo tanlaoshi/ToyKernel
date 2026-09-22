@@ -32,6 +32,9 @@
 
 #define PRESENT_CHUNK_ROWS 64u
 
+/* 0=默认 PRESENT_CHUNK_ROWS；拖窗可升到极大值整块 blit，减左右条带频闪 */
+extern UINT32 gPresentChunkRows;
+
 /* 全局定义在 Video.c */
 extern SCREEN_INFO gScreen;
 extern UINT32 gBackground;

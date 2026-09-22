@@ -12,6 +12,8 @@ void HalVideoInitBackbuffer(void);
 void HalVideoPresent(void);
 /* 刷完所有脏区（关窗/主题全屏合成后用） */
 void HalVideoPresentFlush(void);
+/* 拖窗：Rows 极大 → 整脏区一次 blit，减轻左右条带频闪；0=恢复默认 64 */
+void HalVideoSetPresentChunkRows(UINT32 Rows);
 void HalVideoDrawBeginFront(void);
 void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);

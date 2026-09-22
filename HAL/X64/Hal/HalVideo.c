@@ -314,6 +314,10 @@ void HalVideoPresentFlush(void) {
     VideoPresentFlush();
 }
 
+void HalVideoSetPresentChunkRows(UINT32 Rows) {
+    VideoSetPresentChunkRows(Rows);
+}
+
 void HalVideoDrawBeginFront(void) {
     VideoDrawBeginFront();
 }

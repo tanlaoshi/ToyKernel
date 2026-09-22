@@ -124,14 +124,16 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
     GfxIrqEnter();
     if (gCursorVisible) {
         CursorRestore();
-        HalVideoPresent();
+        /* 拖窗中勿在此 Present：会多刷一帧旧画面，加重两侧闪 */
+        if (gDragWin < 0) {
+            HalVideoPresent();
+        }
     }
     GfxIrqLeave();
     if (gDragHasBackup) {
         W->X = NewX;
         W->Y = NewY;
-        RedrawDragFrame(Idx, Ox, Oy);
-        /* RedrawDragFrame 内已 Present */
+        RedrawDragFrameSlide(Idx, Ox, Oy);
     } else if (gDragWin >= 0) {
         UINT32 Fx = Ox;
         UINT32 Fy = Oy;
@@ -151,7 +153,9 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
             PaintAllWindowsDraw(Idx);
         }
         GfxIrqEnter();
+        HalVideoSetPresentChunkRows(0xFFFFFFFFu);
         HalVideoPresent();
+        HalVideoSetPresentChunkRows(0);
         GfxIrqLeave();
     } else {
         UINT32 Fx = Ox;

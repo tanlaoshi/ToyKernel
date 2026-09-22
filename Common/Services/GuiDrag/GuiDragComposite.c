@@ -145,7 +145,9 @@ void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
         /* Present：短临界区写后缓冲再提交到 GOP（PR-G9） */
         GfxIrqEnter();
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
+        HalVideoSetPresentChunkRows(0xFFFFFFFFu);
         HalVideoPresent();
+        HalVideoSetPresentChunkRows(0);
         GfxIrqLeave();
         return;
     }
@@ -173,7 +175,9 @@ void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
             }
         }
         GfxIrqEnter();
+        HalVideoSetPresentChunkRows(0xFFFFFFFFu);
         HalVideoPresent();
+        HalVideoSetPresentChunkRows(0);
         GfxIrqLeave();
     }
 }
@@ -285,7 +289,10 @@ void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
         DrawWindowAt(DragIdx);
     }
     GfxIrqEnter();
+    /* 左右拖时脏区又高又宽；默认 64 行条带会在两侧「方块刷」——整块一次 Present */
+    HalVideoSetPresentChunkRows(0xFFFFFFFFu);
     HalVideoPresent();
+    HalVideoSetPresentChunkRows(0);
     GfxIrqLeave();
 }
 
