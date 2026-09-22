@@ -2,7 +2,7 @@
  * SchedulerIoBreath.c — PR-K-preempt-breath：统一长 IO 呼吸
  *
  * 长 Store/FAT/Present/HTTP 路径改调本函数；稳态仍走 YieldForPollInput。
- * CondResched 归刀 4（本刀只留挂点注释，不切任务）。
+ * 5i ❌ 曾去掉 CondResched；已恢复。5j 不改本文件。
  */
 #include "Scheduler.h"
 #include "Hal.h"

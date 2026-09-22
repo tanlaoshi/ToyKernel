@@ -19,10 +19,24 @@
 
 TASK gTasks[MAX_TASKS];
 static TASK *gCurrentCpu[HAL_MAX_CPUS];
-TASK *gIdleTask[HAL_MAX_CPUS];
+/* 5k：idle 用槽位索引，避免 IF=1 下裸指针被砸成 PickNext bad idle */
+INT32 gIdleSlot[HAL_MAX_CPUS];
 SPIN_LOCK gSchedulerLock;           /* 任务槽 / fork·exit·wait·kill */
 volatile int gSchedulerOnline;
 int gTaskCount;
+
+TASK *IdleTaskForCpu(UINT32 Cpu) {
+    INT32 S;
+
+    if (Cpu >= HAL_MAX_CPUS) {
+        return 0;
+    }
+    S = gIdleSlot[Cpu];
+    if (S < 0 || (UINT32)S >= (UINT32)MAX_TASKS) {
+        return 0;
+    }
+    return &gTasks[S];
+}
 
 TASK *CurrentTask(void) {
     UINT32 Id = HalGetCpuId();
@@ -41,11 +55,14 @@ void SetCurrentTask(TASK *T) {
 
 int IsIdleTask(const TASK *T) {
     UINT32 c;
+    INT32 S;
+
     if (!T) {
         return 0;
     }
     for (c = 0; c < HAL_MAX_CPUS; c++) {
-        if (gIdleTask[c] == T) {
+        S = gIdleSlot[c];
+        if (S >= 0 && (UINT32)S < (UINT32)MAX_TASKS && &gTasks[S] == T) {
             return 1;
         }
     }
@@ -69,7 +86,7 @@ void SchedulerInitialize(void) {
     RunQueueInitialize();
     for (c = 0; c < HAL_MAX_CPUS; c++) {
         gCurrentCpu[c] = 0;
-        gIdleTask[c] = 0;
+        gIdleSlot[c] = -1;
     }
     for (int i = 0; i < MAX_TASKS; i++) {
         gTasks[i].State = TASK_UNUSED;

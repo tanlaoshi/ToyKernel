@@ -3,6 +3,8 @@
  *
  * 禁切段内 OnTimer 只置位；安全点 CondResched 开 IF + hlt，由 OnTimer 浅栈切核。
  * 勿用 int 0x80：AP idle 上造 Frame 会 #UD（rip 垃圾）。
+ *
+ * 5f ❌ 曾加 KernelYield（内核软让步）→ NUC 全系统约 1s 顿挫；已撤。
  */
 #include "Scheduler.h"
 #include "SchedulerPrivate.h"

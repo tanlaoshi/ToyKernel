@@ -1,6 +1,8 @@
 /*
  * StoreRemove.c — 卸装已装包
  * 核心：Store.c。查询仍在 Store.c。
+ *
+ * 5j：曾打 rm:* 串口；5k 已撤（证据：rm:in → PickNext bad idle → MSC fail）。
  */
 #include "Store.h"
 #include "StorePrivate.h"
@@ -201,5 +203,3 @@ int StoreRemove(const char *Id) {
     }
     return FAT_OK;
 }
-
-

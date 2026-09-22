@@ -13,7 +13,7 @@
 /* 定义在 Scheduler.c */
 extern TASK gTasks[MAX_TASKS];
 extern int gTaskCount;
-extern TASK *gIdleTask[HAL_MAX_CPUS];
+extern INT32 gIdleSlot[HAL_MAX_CPUS]; /* 5k：槽位；-1=无 · 勿存裸 TASK* */
 extern SPIN_LOCK gSchedulerLock;
 extern int gCoopDrain;
 extern volatile int gSchedulerOnline;
@@ -23,6 +23,7 @@ extern volatile int gSchedulerOnline;
 
 void CopyName(TASK *T, const char *Name);
 void IdleTask(void);
+TASK *IdleTaskForCpu(UINT32 Cpu);
 TASK *FindRunnable(UINT32 Cpu);
 int SignalDefaultTerminates(INT32 Sig);
 UINT64 *SignalHandlerSlot(TASK *T, INT32 Sig);

@@ -140,16 +140,27 @@ IsrCommon:
     add rsp, 16
     iretq
 
-/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16）
+/* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；iretq 开 IF=1
  *
- * PR-K-preempt-enter-5d ❌（NUC）：iretq 仍拖窗不跟手 + remove demopack 卡死。
- * 回退 jmp rax（IF=0）。TaskPtrOk 保留。依赖 sd.="-" 误放行见 StoreDepends 5e。 */
+ * 5l ✅（NUC）：入栈 RSP=StackTop-8 伪返回（同旧 jmp push）+ gIdleSlot。
+ * remove 不卡；install/remove 期鼠标不顿。 */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */
-    mov rsp, [rdi + 160]    /* StackPointer（创建时为 16 字节对齐栈顶） */
-    push rax                /* 占位返回地址 → RSP≡8，满足 SysV / SSE */
-    jmp rax
+    mov rcx, [rdi + 144]    /* Cs */
+    mov rdx, [rdi + 152]    /* Rflags（0x202） */
+    mov r11, [rdi + 160]    /* StackPointer = StackTop（16 对齐） */
+    mov r10, [rdi + 168]    /* Ss */
+    sub r11, 8
+    mov qword ptr [r11], 0  /* 伪返回 → 入任务后 RSP≡8（同旧 push） */
+    mov rsp, r11
+    sub rsp, 40
+    mov [rsp], rax
+    mov [rsp + 8], rcx
+    mov [rsp + 16], rdx
+    mov [rsp + 24], r11     /* iretq 恢复的 RSP = StackTop-8 */
+    mov [rsp + 32], r10
+    iretq
 
 /* 调度器首次进入任务（须在 .text；勿放进下方 .rodata，否则会 #UD） */
 .global SchedulerEnter

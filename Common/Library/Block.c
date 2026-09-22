@@ -1,5 +1,8 @@
 /*
  * Block.c — 块设备抽象（后端由 HAL 注册）
+ *
+ * 5h ❌：曾对 Read/Write/Flush 套 HalIrqSave；NUC remove 仍卡 + ~1s 顿挫
+ * （疑 cli 下 MSC WaitBulk ~500ms 超时）。已撤。
  */
 #include "Block.h"
 #include "Debug.h"

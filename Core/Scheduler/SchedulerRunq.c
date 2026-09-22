@@ -230,10 +230,14 @@ TASK *PickNext(UINT32 Cpu) {
     /*
      * 5c ❌（NUC）：全程 cli → 拖窗不跟手 + remove 卡死（饿 MSI/xHCI）。
      * 5d：去掉外层 cli；保留 TaskPtrOk（5a）。
+     * 5k：idle 经槽位取址，不再读易腐 gIdleTask*。
      */
-    Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
+    Idle = IdleTaskForCpu(Cpu);
     if (Idle && !TaskPtrOk(Idle)) {
         PickNextBadPtr(Cpu, "idle", Idle);
+        if (Cpu < HAL_MAX_CPUS) {
+            gIdleSlot[Cpu] = -1;
+        }
         Idle = 0;
     }
 

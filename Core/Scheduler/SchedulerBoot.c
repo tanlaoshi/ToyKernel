@@ -29,9 +29,9 @@ static int CreateIdleForCpu(UINT32 Cpu) {
     }
     SchedulerSetAffinity(Id, (INT32)Cpu);
     SpinLockAcquire(&gSchedulerLock);
-    gIdleTask[Cpu] = &gTasks[Id];
-    gIdleTask[Cpu]->Priority = SCHED_PRIORITY_IDLE;
-    RunQueueRemove(gIdleTask[Cpu]);
+    gIdleSlot[Cpu] = Id;
+    gTasks[Id].Priority = SCHED_PRIORITY_IDLE;
+    RunQueueRemove(&gTasks[Id]);
     SpinLockRelease(&gSchedulerLock);
     return Id;
 }
@@ -50,7 +50,7 @@ void SchedulerApStart(void) {
         HalCpuRelax();
     }
     SpinLockAcquire(&gSchedulerLock);
-    Idle = (Cpu < HAL_MAX_CPUS) ? gIdleTask[Cpu] : 0;
+    Idle = IdleTaskForCpu(Cpu);
     if (!Idle) {
         SpinLockRelease(&gSchedulerLock);
         ToyLogSmp("sched: AP has no idle\n");
@@ -131,22 +131,26 @@ void SchedulerStart(void) {
     }
 
     First = 0;
-    for (i = 0; i < MAX_TASKS; i++) {
-        if (gTasks[i].State != TASK_READY) {
-            continue;
+    {
+        TASK *Idle0 = IdleTaskForCpu(0);
+
+        for (i = 0; i < MAX_TASKS; i++) {
+            if (gTasks[i].State != TASK_READY) {
+                continue;
+            }
+            if (Idle0 && &gTasks[i] == Idle0) {
+                continue;
+            }
+            /* BSP 勿直接切入钉在 AP 上的任务 */
+            if (gTasks[i].Affinity >= 0 && gTasks[i].Affinity != 0) {
+                continue;
+            }
+            First = &gTasks[i];
+            break;
         }
-        if (gIdleTask[0] && &gTasks[i] == gIdleTask[0]) {
-            continue;
-        }
-        /* BSP 勿直接切入钉在 AP 上的任务 */
-        if (gTasks[i].Affinity >= 0 && gTasks[i].Affinity != 0) {
-            continue;
-        }
-        First = &gTasks[i];
-        break;
     }
     if (!First) {
-        First = gIdleTask[0];
+        First = IdleTaskForCpu(0);
     }
     if (!First) {
         ConsoleWrite("sched: no tasks\n");
