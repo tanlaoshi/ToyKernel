@@ -47,6 +47,12 @@ int StoreInstall(const char *Id);
 /* PR-M2：按依赖顺序装齐「功能」（缺依赖先装，再装 Id）；单包仍可用 StoreInstall */
 int StoreComboInstall(const char *Id);
 
+/* PR-S-job-phases：展开装卸序（供 Job 每 Step 一包）；Batch 合并 FontReload */
+int StoreComboPlanInstall(const char *Id, char OutIds[][STORE_ID_MAX], int Max, int *OutN);
+int StoreComboPlanRemove(const char *Id, char OutIds[][STORE_ID_MAX], int Max, int *OutN);
+void StoreComboBatchBegin(void);
+void StoreComboBatchEnd(void);
+
 /* PR-S4：列已装 / 卸载（删载荷 + 清 ToyDB） */
 int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount);
 int StoreRemove(const char *Id);

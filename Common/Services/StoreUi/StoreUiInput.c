@@ -33,28 +33,55 @@ static void DoBtn(int Btn) {
         StoreUiRepaint();
         return;
     }
-    Verb = (Btn == 0) ? "install" : "remove";
-    if (StoreJobEnqueue(Btn == 0 ? STORE_JOB_INSTALL : STORE_JOB_REMOVE, E->Id) != 0) {
-        StoreSetStatus("busy...");
+    if (Btn == 0) {
+        if (StoreIsInstalled(E->Id)) {
+            StoreSetStatus("already installed");
+            StoreUiRepaint();
+            return;
+        }
+        Verb = "install";
+        if (StoreJobEnqueue(STORE_JOB_INSTALL, E->Id) != 0) {
+            StoreSetStatus("busy...");
+            StoreUiRepaint();
+            return;
+        }
     } else {
-        i = 0;
-        while (Verb[i] && i < 24) {
-            Buf[i] = Verb[i];
-            i++;
+        if (!StoreIsInstalled(E->Id)) {
+            StoreSetStatus("not installed");
+            StoreUiRepaint();
+            return;
         }
-        Buf[i++] = ':';
-        Buf[i++] = ' ';
-        for (j = 0; E->Id[j] && i < 78; j++) {
-            Buf[i++] = E->Id[j];
+        Verb = "remove";
+        if (StoreJobEnqueue(STORE_JOB_REMOVE, E->Id) != 0) {
+            StoreSetStatus("busy...");
+            StoreUiRepaint();
+            return;
         }
-        Buf[i] = 0;
-        StoreSetStatus(Buf);
     }
+    i = 0;
+    while (Verb[i] && i < 24) {
+        Buf[i] = Verb[i];
+        i++;
+    }
+    Buf[i++] = ':';
+    Buf[i++] = ' ';
+    for (j = 0; E->Id[j] && i < 78; j++) {
+        Buf[i++] = E->Id[j];
+    }
+    Buf[i] = 0;
+    StoreSetStatus(Buf);
     StoreUiRepaint();
 }
 
 void StoreUiPump(void) {
+    static int sPump;
+
+    if (sPump) {
+        return;
+    }
+    sPump = 1;
     (void)StoreJobStep();
+    sPump = 0;
 }
 
 void StoreUiOnClick(UINT32 X, UINT32 Y) {

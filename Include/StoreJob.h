@@ -2,7 +2,7 @@
  * StoreJob.h — Store UI 后台作业（PR-S-job）
  *
  * 协作切片：Enqueue 入队，GuiPollMouse 末尾 StoreJobStep 推进。
- * 序 1：Step 一次跑完旧 Combo/Sync（行为同现网）；相位/chunk 后续刀。
+ * 序 3：每 Step 一相（Plan / 每包 / Font / Reload）；chunk 后续刀。
  * Shell 同步 Store* API 不变；本头供 StoreUi / 日后 Shell 互斥用。
  */
 #ifndef STORE_JOB_H

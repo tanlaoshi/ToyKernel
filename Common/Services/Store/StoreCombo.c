@@ -1,13 +1,13 @@
 /*
  * StoreCombo.c — 按依赖顺序装卸多包
  * 核心：Store.c。单包安装在 StoreInstall.c。
+ * PR-S-job-phases：Plan + Batch 供 StoreJob 按包切片。
  */
 #include "Store.h"
 #include "StorePrivate.h"
 #include "Fat.h"
 #include "HalConsole.h"
 #include "Hal.h"
-#include "Db.h"
 
 /* 字体/资源包/库：可被多 app 引用，uncombo 只卸叶子 app，不级联卸这些 */
 static int PackageIsSharedDep(int Kind) {
@@ -17,14 +17,26 @@ static int PackageIsSharedDep(int Kind) {
            Kind < 0; /* 未知类型宁可保留 */
 }
 
-static int ComboInstallRec(const char *Id, int Depth) {
+static int PlanHasId(char Out[][STORE_ID_MAX], int N, const char *Id) {
+    int i;
+
+    for (i = 0; i < N; i++) {
+        if (StrEq(Out[i], Id)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int PlanInstallRec(const char *Id, int Depth,
+                          char Out[][STORE_ID_MAX], int Max, int *OutN) {
     char DepBuf[STORE_DEPENDS_MAX];
     char Tok[STORE_ID_MAX];
     const char *P;
     int n;
     int Err;
 
-    if (!Id || Id[0] == 0) {
+    if (!Id || Id[0] == 0 || !Out || !OutN) {
         return FAT_ERR_INVAL;
     }
     if (Depth > STORE_ENTRIES_MAX) {
@@ -32,13 +44,15 @@ static int ComboInstallRec(const char *Id, int Depth) {
         return FAT_ERR_INVAL;
     }
     if (StoreIsInstalled(Id)) {
-        /* 盘上已有但无 si.*（镜像预置）：补登记，便于随后 Remove */
         if (!StoreHasSi(Id)) {
             Err = StoreAdoptInstalled(Id);
             if (Err != FAT_OK) {
                 return Err;
             }
         }
+        return FAT_OK;
+    }
+    if (PlanHasId(Out, *OutN, Id)) {
         return FAT_OK;
     }
 
@@ -66,36 +80,34 @@ static int ComboInstallRec(const char *Id, int Depth) {
         if (Tok[0] == 0) {
             continue;
         }
-        StoreIoBreath();
-        Err = ComboInstallRec(Tok, Depth + 1);
+        Err = PlanInstallRec(Tok, Depth + 1, Out, Max, OutN);
         if (Err != FAT_OK) {
             return Err;
         }
     }
 
-    HalConsoleWriteSerial("store combo: +");
-    HalConsoleWriteSerial(Id);
-    HalConsoleWriteSerial("\n");
-    StoreIoBreath();
-    return StoreInstall(Id);
-}
-
-int StoreComboInstall(const char *Id) {
-    int Err;
-
-    if (!Id || Id[0] == 0) {
+    if (*OutN >= Max) {
         return FAT_ERR_INVAL;
     }
-    gStoreComboDepth++;
-    Err = ComboInstallRec(Id, 0);
-    gStoreComboDepth--;
-    if (gStoreComboDepth == 0) {
-        StoreFlushFontReload();
-    }
-    return Err;
+    CopyStr(Out[*OutN], STORE_ID_MAX, Id);
+    (*OutN)++;
+    return FAT_OK;
 }
 
-int StoreComboRemove(const char *Id) {
+int StoreComboPlanInstall(const char *Id, char OutIds[][STORE_ID_MAX], int Max,
+                          int *OutN) {
+    if (!OutN) {
+        return FAT_ERR_INVAL;
+    }
+    *OutN = 0;
+    if (!Id || Id[0] == 0 || !OutIds || Max <= 0) {
+        return FAT_ERR_INVAL;
+    }
+    return PlanInstallRec(Id, 0, OutIds, Max, OutN);
+}
+
+int StoreComboPlanRemove(const char *Id, char OutIds[][STORE_ID_MAX], int Max,
+                         int *OutN) {
     char DepBuf[STORE_DEPENDS_MAX];
     char Tok[STORE_ID_MAX];
     char Deps[STORE_ENTRIES_MAX][STORE_ID_MAX];
@@ -103,10 +115,12 @@ int StoreComboRemove(const char *Id) {
     int DepN = 0;
     int n;
     int i;
-    int Err;
-    int Users;
 
-    if (!Id || Id[0] == 0) {
+    if (!OutN) {
+        return FAT_ERR_INVAL;
+    }
+    *OutN = 0;
+    if (!Id || Id[0] == 0 || !OutIds || Max <= 0) {
         return FAT_ERR_INVAL;
     }
     if (!StoreIsInstalled(Id)) {
@@ -117,7 +131,6 @@ int StoreComboRemove(const char *Id) {
     (void)StoreGetDepends(Id, DepBuf, (int)sizeof(DepBuf));
     NormalizeDepends(DepBuf);
     if (DepBuf[0] == 0) {
-        /* 无 sd.*（仅盘上 / 刚 Adopt 失败）：用 catalog 依赖做 uncombo */
         (void)ResolveEntryDepends(Id, DepBuf, (int)sizeof(DepBuf));
         NormalizeDepends(DepBuf);
     }
@@ -144,29 +157,12 @@ int StoreComboRemove(const char *Id) {
         }
     }
 
-    HalConsoleWriteSerial("store uncombo: -");
-    HalConsoleWriteSerial(Id);
-    HalConsoleWriteSerial("\n");
-    gStoreComboDepth++;
-    Err = StoreRemove(Id);
-    if (Err != FAT_OK) {
-        gStoreComboDepth--;
-        if (gStoreComboDepth == 0) {
-            StoreFlushFontReload();
-        }
-        return Err;
-    }
+    CopyStr(OutIds[0], STORE_ID_MAX, Id);
+    *OutN = 1;
 
-    /*
-     * 逆序卸依赖：
-     * - font / asset / lib（公共依赖）一律保留，哪怕暂时无人引用
-     * - 仅级联卸 type=app 且已无其它包引用的依赖
-     */
-    for (i = DepN - 1; i >= 0; i--) {
-        char UsersArr[STORE_INSTALLED_MAX][STORE_ID_MAX];
+    for (i = DepN - 1; i >= 0 && *OutN < Max; i--) {
         int Kind;
 
-        StoreIoBreath();
         if (!StoreIsInstalled(Deps[i])) {
             continue;
         }
@@ -177,25 +173,77 @@ int StoreComboRemove(const char *Id) {
             HalConsoleWriteSerial("\n");
             continue;
         }
-        Users = CollectDependents(Deps[i], UsersArr, STORE_INSTALLED_MAX);
-        if (Users > 0) {
-            continue;
-        }
-        HalConsoleWriteSerial("store uncombo: -");
-        HalConsoleWriteSerial(Deps[i]);
-        HalConsoleWriteSerial("\n");
-        Err = StoreRemove(Deps[i]);
-        if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
-            gStoreComboDepth--;
-            if (gStoreComboDepth == 0) {
-                StoreFlushFontReload();
-            }
-            return Err;
-        }
+        /* Users 在卸叶子后才准；Job/Combo 逐步 StoreRemove，仍被引用则跳过 */
+        CopyStr(OutIds[*OutN], STORE_ID_MAX, Deps[i]);
+        (*OutN)++;
     }
-    gStoreComboDepth--;
+    return FAT_OK;
+}
+
+void StoreComboBatchBegin(void) {
+    gStoreComboDepth++;
+}
+
+void StoreComboBatchEnd(void) {
+    if (gStoreComboDepth > 0) {
+        gStoreComboDepth--;
+    }
     if (gStoreComboDepth == 0) {
         StoreFlushFontReload();
     }
+}
+
+int StoreComboInstall(const char *Id) {
+    char Plan[STORE_ENTRIES_MAX][STORE_ID_MAX];
+    int N = 0;
+    int i;
+    int Err;
+
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    StoreComboBatchBegin();
+    Err = StoreComboPlanInstall(Id, Plan, STORE_ENTRIES_MAX, &N);
+    for (i = 0; Err == FAT_OK && i < N; i++) {
+        HalConsoleWriteSerial("store combo: +");
+        HalConsoleWriteSerial(Plan[i]);
+        HalConsoleWriteSerial("\n");
+        StoreIoBreath();
+        Err = StoreInstall(Plan[i]);
+    }
+    StoreComboBatchEnd();
+    return Err;
+}
+
+int StoreComboRemove(const char *Id) {
+    char Plan[STORE_ENTRIES_MAX][STORE_ID_MAX];
+    int N = 0;
+    int i;
+    int Err;
+
+    if (!Id || Id[0] == 0) {
+        return FAT_ERR_INVAL;
+    }
+    Err = StoreComboPlanRemove(Id, Plan, STORE_ENTRIES_MAX, &N);
+    if (Err != FAT_OK) {
+        return Err;
+    }
+    StoreComboBatchBegin();
+    for (i = 0; i < N; i++) {
+        HalConsoleWriteSerial("store uncombo: -");
+        HalConsoleWriteSerial(Plan[i]);
+        HalConsoleWriteSerial("\n");
+        StoreIoBreath();
+        Err = StoreRemove(Plan[i]);
+        if (i > 0 && (Err == FAT_ERR_INVAL || Err == FAT_ERR_NOENT)) {
+            /* 仍被引用或已不在：与旧 uncombo continue 一致 */
+            continue;
+        }
+        if (Err != FAT_OK) {
+            StoreComboBatchEnd();
+            return Err;
+        }
+    }
+    StoreComboBatchEnd();
     return FAT_OK;
 }
