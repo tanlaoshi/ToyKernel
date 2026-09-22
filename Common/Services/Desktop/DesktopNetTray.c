@@ -67,9 +67,14 @@ static void BuildShortLabel(char *Buf, int Max) {
         StrCopy(Buf, Max, "down");
         return;
     }
-    Ip = HalNetGetIpAddress();
+    /*
+     * 以 NetConfig 为准（真机默认 192.168.31.129 / QEMU 10.0.2.15）。
+     * 勿先信 HalNetGetIpAddress：后端未挂或 Ensure 早于 Attach 时 Hal 会停在
+     * SLIRP 残留，任务栏就会一直显示 10.0.2.x。
+     */
+    Ip = NetConfigGetIp();
     if (Ip == 0) {
-        Ip = NetConfigGetIp();
+        Ip = HalNetGetIpAddress();
     }
     if (Ip == 0) {
         StrCopy(Buf, Max, "up");
@@ -181,7 +186,10 @@ void DesktopNetTrayDrawPopup(void) {
     HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "Network", ThemeText());
     Ty += FontCellH();
 
-    Ip = HalNetReady() ? HalNetGetIpAddress() : 0;
+    Ip = NetConfigGetIp();
+    if (Ip == 0 && HalNetReady()) {
+        Ip = HalNetGetIpAddress();
+    }
     MakePrefixed(Line, (int)sizeof(Line), "ip  ", Ip);
     HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
     Ty += FontCellH();

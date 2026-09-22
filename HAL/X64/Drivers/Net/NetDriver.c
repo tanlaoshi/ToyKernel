@@ -15,6 +15,7 @@
 #include "Driver.h"
 #include "DriverNet.h"
 #include "DriverNic.h"
+#include "NetConfig.h"
 
 static int NetDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     UINT8 Bus;
@@ -84,7 +85,11 @@ static const NET_BACKEND gNetBackend = {
 
 static int NetDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    return ToyDriverNetAttach(&gNetBackend);
+    if (ToyDriverNetAttach(&gNetBackend) != 0) {
+        return -1;
+    }
+    NetConfigEnsure(); /* virtio 路径原先不 Ensure → Hal 停在 10.0.2.15 */
+    return 0;
 }
 
 static void NetDriverRemove(TOY_DRIVER_INSTANCE *Inst) {

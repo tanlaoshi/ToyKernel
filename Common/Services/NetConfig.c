@@ -21,6 +21,10 @@ static UINT32 gDns;
 
 void NetConfigEnsure(void) {
     if (gReady) {
+        /* Attach 晚于首次 Ensure、或 Hal 后端曾空写：把配置表推回驱动 */
+        if (gIp != 0 && HalNetGetIpAddress() != gIp) {
+            HalNetSetIpAddress(gIp);
+        }
         return;
     }
     if (HalCpuIsHypervisor()) {
