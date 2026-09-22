@@ -140,6 +140,11 @@ void GuiInit(void) {
     }
     gCursorX = gScreenWidth / 2;
     gCursorY = gScreenHeight / 2;
+    /*
+     * 相对 USB 鼠把像素累加在驱动 Abs；PHOTO/ThemeLoad 期 HalInputPoll
+     * 会把 Abs 推到右下。只画居中十字不同步 → 首动 dequeue 仍是旧 Abs → 飞角。
+     */
+    HalInputMouseHandoffDesktop(gCursorX, gCursorY);
     gFocusWin = -1;
     gCursorVisible = 0;
     gCursorKind = CURSOR_KIND_ARROW;

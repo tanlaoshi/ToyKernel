@@ -11,6 +11,8 @@
 
 static int gSerialOk;
 static int gSerialInited;
+/* -1=无人；否则 = 独占 UART 的逻辑 CPU（ExceptionHalt） */
+static volatile INT32 gSerialExcOwner = -1;
 
 static int ProbeCom1(void) {
     UINT8 A;
@@ -88,8 +90,30 @@ char SerialReadChar(void) {
     return (char)HalIoRead8(COM1);
 }
 
+void SerialClaimException(void) {
+    INT32 Cpu = (INT32)HalGetCpuId();
+    INT32 Expected = -1;
+
+    if (__sync_bool_compare_and_swap(&gSerialExcOwner, Expected, Cpu)) {
+        return;
+    }
+    if (gSerialExcOwner == Cpu) {
+        return;
+    }
+    /* 另一核已在打 EXCEPTION：本核静默停，勿再砸串口 */
+    for (;;) {
+        __asm__ volatile ("cli; hlt");
+    }
+}
+
 void SerialWrite(const char *Text) {
+    INT32 Own;
+
     if (!gSerialOk || !Text) {
+        return;
+    }
+    Own = gSerialExcOwner;
+    if (Own >= 0 && Own != (INT32)HalGetCpuId()) {
         return;
     }
     while (*Text) {

@@ -317,43 +317,60 @@ void TimerStart(void) {
     DebugWrite("timer: LAPIC periodic vec=0x41\n");
 }
 
-/* 打印异常信息后 cli+hlt 死循环（#PF 时额外打印 CR2） */
-static void ExceptionHalt(HAL_INTERRUPT_FRAME *F) {
+/* 拼一段到 Line；超长截断（rm-exc-1：整行一次 SerialWrite） */
+static void ExcAppend(char *Line, int Cap, int *Len, const char *Text) {
+    if (!Line || !Len || !Text || Cap <= 0) {
+        return;
+    }
+    while (*Text && *Len < Cap - 1) {
+        Line[(*Len)++] = *Text++;
+    }
+    Line[*Len] = 0;
+}
+
+static void ExcAppendHex(char *Line, int Cap, int *Len, UINT64 Value, int Digits) {
     char Buf[24];
 
+    SerialHexFormat(Buf, Value, Digits);
+    ExcAppend(Line, Cap, Len, Buf);
+}
+
+/*
+ * 打印异常信息后 cli+hlt（#PF 时额外 CR2）。
+ * PR-K-rm-exc-1：先 SerialClaimException 独占 UART，再整行一次写出，
+ * 避免与其它核的 store: removed / MSC 日志字符交织。
+ */
+static void ExceptionHalt(HAL_INTERRUPT_FRAME *F) {
+    char Line[256];
+    int Len = 0;
+
     ArchCli();
-    SerialWrite("\nEXCEPTION vec=");
-    SerialHexFormat(Buf, (UINT32)F->Vector, 8);
-    SerialWrite(Buf);
-    SerialWrite(" err=");
-    SerialHexFormat(Buf, (UINT32)F->ErrorCode, 8);
-    SerialWrite(Buf);
-    SerialWrite(" ip=");
-    SerialHexFormat(Buf, F->InstructionPointer, 16);
-    SerialWrite(Buf);
-    SerialWrite(" cs=");
-    SerialHexFormat(Buf, F->Cs, 4);
-    SerialWrite(Buf);
-    SerialWrite(" ss=");
-    SerialHexFormat(Buf, F->Ss, 4);
-    SerialWrite(Buf);
-    SerialWrite(" rsp=");
-    SerialHexFormat(Buf, F->StackPointer, 16);
-    SerialWrite(Buf);
-    SerialWrite(" rfl=");
-    SerialHexFormat(Buf, F->Rflags, 8);
-    SerialWrite(Buf);
-    SerialWrite(" cpu=");
-    SerialHexFormat(Buf, (UINT32)HalGetCpuId(), 2);
-    SerialWrite(Buf);
+    SerialClaimException();
+
+    ExcAppend(Line, (int)sizeof(Line), &Len, "\nEXCEPTION vec=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, (UINT32)F->Vector, 8);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " err=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, (UINT32)F->ErrorCode, 8);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " ip=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, F->InstructionPointer, 16);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " cs=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, F->Cs, 4);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " ss=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, F->Ss, 4);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " rsp=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, F->StackPointer, 16);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " rfl=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, F->Rflags, 8);
+    ExcAppend(Line, (int)sizeof(Line), &Len, " cpu=");
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, (UINT32)HalGetCpuId(), 2);
     if (F->Vector == 14) {
         UINT64 Cr2;
         __asm__ volatile ("mov %%cr2, %0" : "=r"(Cr2));
-        SerialWrite(" cr2=");
-        SerialHexFormat(Buf, Cr2, 16);
-        SerialWrite(Buf);
+        ExcAppend(Line, (int)sizeof(Line), &Len, " cr2=");
+        ExcAppendHex(Line, (int)sizeof(Line), &Len, Cr2, 16);
     }
-    SerialWrite("\n");
+    ExcAppend(Line, (int)sizeof(Line), &Len, "\n");
+    SerialWrite(Line);
     for (;;) {
         __asm__ volatile ("cli; hlt");
     }

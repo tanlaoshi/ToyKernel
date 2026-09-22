@@ -183,7 +183,20 @@ static int InitializeGui(void) {
     }
     GuiInit();
     if (!HalCpuIsHypervisor()) {
+        HAL_MOUSE_REPORT Mdump;
+        UINT32 Sw = 0;
+        UINT32 Sh = 0;
+        UINT32 Cx;
+        UINT32 Cy;
+
+        /* GuiInit 后若再 Poll，相对鼠又会改 Abs/入队；对齐并抽空 */
         HalInputPoll();
+        HalVideoGetSize(&Sw, &Sh);
+        Cx = (Sw > 0) ? (Sw / 2) : 512;
+        Cy = (Sh > 0) ? (Sh / 2) : 384;
+        HalInputMouseHandoffDesktop(Cx, Cy);
+        while (HalMouseDequeue(&Mdump)) {
+        }
     }
     return 0;
 }

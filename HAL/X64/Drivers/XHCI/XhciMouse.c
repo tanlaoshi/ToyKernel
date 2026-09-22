@@ -113,9 +113,6 @@ void MousePush(void) {
         int MaxX;
         int MaxY;
 
-        if (!gMouseAbsInit) {
-            gMouseAbsInit = 1;
-        }
         HalVideoGetSize(&Sw, &Sh);
         if (Sw == 0) {
             Sw = 1024;
@@ -125,6 +122,12 @@ void MousePush(void) {
         }
         MaxX = (int)(Sw > 0 ? Sw - 1 : 0);
         MaxY = (int)(Sh > 0 ? Sh - 1 : 0);
+        /* 首次相对报告：落到屏心，勿沿用 BSS 默认 512×384（大分辨率会偏） */
+        if (!gMouseAbsInit) {
+            gMouseAbsX = (int)(Sw / 2);
+            gMouseAbsY = (int)(Sh / 2);
+            gMouseAbsInit = 1;
+        }
         gMouseAbsX += Dx;
         gMouseAbsY += Dy;
         if (gMouseAbsX < 0) {
