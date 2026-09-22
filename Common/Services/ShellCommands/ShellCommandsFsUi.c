@@ -349,10 +349,15 @@ static void CommandStore(int Argc, char **Argv) {
         Err = StoreRemove(Argv[2]);
         StoreJobShellEnd();
         if (Err != FAT_OK) {
-            ConsoleWrite("store remove: ");
-            ConsoleWrite(FatStrError(Err));
-            ConsoleWrite("\n");
-            ConsoleWrite("hint: still required? store uncombo <leaf>\n");
+            /* 与 Store UI「remove fail」对齐（含仍被 app 依赖 → FAT_ERR_INVAL） */
+            ConsoleWrite("store remove: remove fail\n");
+            if (Err == FAT_ERR_INVAL) {
+                ConsoleWrite("hint: still required by dependents; remove app first, or store uncombo <leaf>\n");
+            } else {
+                ConsoleWrite("hint: ");
+                ConsoleWrite(FatStrError(Err));
+                ConsoleWrite("\n");
+            }
             return;
         }
         ConsoleWrite("store: removed ");
