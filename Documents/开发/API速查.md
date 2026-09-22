@@ -69,3 +69,7 @@ Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / 
 `getpid` / libc `yield()` / `getcwd` / `chdir` / `wait` 真实退出码 / Gfx 位图 / 滚动条。
 
 `fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 **已经有**，不要当成缺口。
+
+## 商店（内核服务 · 非用户 API）
+
+桌面 **Store UI** = 异步 `StoreJob`；Shell `store …` = **同步**且与 UI Job 互斥。详见 [`应用开发指南.md`](应用开发指南.md)「十四、商店分发」与路线图 [`PR-S-job`](../路线图.md#pr-s-job)。
