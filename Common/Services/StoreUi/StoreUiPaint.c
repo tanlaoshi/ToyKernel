@@ -7,11 +7,15 @@
 static void DrawButtons(void) {
     int i;
     UINT32 Bx;
-    int Busy = StoreJobIsBusy();
+    int ShellBusy = StoreJobShellIsBusy();
+    int UiBusy = StoreJobIsBusy() && !ShellBusy;
 
     for (i = 0; i < STORE_BTN_N; i++) {
         Bx = gBtnX0 + (UINT32)i * (gBtnW + STORE_BTN_GAP);
-        if (Busy) {
+        if (ShellBusy) {
+            UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], ThemeTextMuted(),
+                           ThemePanelSideBackground(), 0, 0);
+        } else if (UiBusy) {
             if (i == 0) {
                 UINT32 Face = (gHoverBtn == 0) ? ThemeControlAccent() : ThemeControlFace();
                 UINT32 Fg = (gHoverBtn == 0) ? ThemeTextOnAccent() : ThemeText();

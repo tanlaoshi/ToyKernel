@@ -46,7 +46,7 @@ int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id) {
     if (Kind == STORE_JOB_NONE) {
         return -1;
     }
-    if (sRunning || sPendingKind != STORE_JOB_NONE) {
+    if (StoreJobUiIsBusy() || StoreJobShellIsBusy()) {
         return -1;
     }
     if (Kind == STORE_JOB_SYNC) {
@@ -256,8 +256,12 @@ int StoreJobStep(void) {
     }
 }
 
-int StoreJobIsBusy(void) {
+int StoreJobUiIsBusy(void) {
     return (sRunning || sPendingKind != STORE_JOB_NONE) ? 1 : 0;
+}
+
+int StoreJobIsBusy(void) {
+    return (StoreJobUiIsBusy() || StoreJobShellIsBusy()) ? 1 : 0;
 }
 
 int StoreJobIsRunning(void) {
@@ -277,7 +281,10 @@ void StoreJobGetStatus(char *Out, int OutMax) {
 }
 
 int StoreJobCancel(void) {
-    if (!StoreJobIsBusy()) {
+    if (StoreJobShellIsBusy() && !StoreJobUiIsBusy()) {
+        return -1;
+    }
+    if (!StoreJobUiIsBusy()) {
         return -1;
     }
     sCancel = 1;

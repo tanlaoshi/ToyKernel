@@ -10,9 +10,18 @@
 #include "Font.h"
 #include "Theme.h"
 #include "Store.h"
+#include "StoreJob.h"
 #include "Desktop.h"
 #include "Fat.h"
 #include "Hal.h"
+
+static int ShellStoreLock(void) {
+    if (StoreJobShellBegin() != 0) {
+        ConsoleWrite("store: Store UI busy (Cancel or wait)\n");
+        return -1;
+    }
+    return 0;
+}
 
 static void CommandShell(int Argc, char **Argv) {
     int Idx;
@@ -182,7 +191,11 @@ static void CommandStore(int Argc, char **Argv) {
     }
 
     if (StoreWordEq(Sub, "sync")) {
+        if (ShellStoreLock() != 0) {
+            return;
+        }
         Err = StoreSyncCatalog();
+        StoreJobShellEnd();
         if (Err == -41 || Err == -2) {
             ConsoleWrite("store sync: HTTP not 200 (host http.server + /catalog.txt?)\n");
             return;
@@ -210,7 +223,11 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("usage: store fetch <id>\n");
             return;
         }
+        if (ShellStoreLock() != 0) {
+            return;
+        }
         Err = StoreFetchId(Argv[2]);
+        StoreJobShellEnd();
         if (Err == -41 || Err == -2) {
             ConsoleWrite("store fetch: HTTP not 200\n");
             return;
@@ -243,7 +260,11 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("usage: store install <id>\n");
             return;
         }
+        if (ShellStoreLock() != 0) {
+            return;
+        }
         Err = StoreInstall(Argv[2]);
+        StoreJobShellEnd();
         if (Err != FAT_OK) {
             ConsoleWrite("store install: ");
             ConsoleWrite(FatStrError(Err));
@@ -322,7 +343,11 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("usage: store remove <id>\n");
             return;
         }
+        if (ShellStoreLock() != 0) {
+            return;
+        }
         Err = StoreRemove(Argv[2]);
+        StoreJobShellEnd();
         if (Err != FAT_OK) {
             ConsoleWrite("store remove: ");
             ConsoleWrite(FatStrError(Err));
@@ -343,7 +368,11 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("hint: e.g. store combo guidemo  (demopack+sun8 then app)\n");
             return;
         }
+        if (ShellStoreLock() != 0) {
+            return;
+        }
         Err = StoreComboInstall(Argv[2]);
+        StoreJobShellEnd();
         if (Err != FAT_OK) {
             ConsoleWrite("store combo: ");
             ConsoleWrite(FatStrError(Err));
@@ -362,7 +391,11 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("usage: store uncombo <id>\n");
             return;
         }
+        if (ShellStoreLock() != 0) {
+            return;
+        }
         Err = StoreComboRemove(Argv[2]);
+        StoreJobShellEnd();
         if (Err != FAT_OK) {
             ConsoleWrite("store uncombo: ");
             ConsoleWrite(FatStrError(Err));

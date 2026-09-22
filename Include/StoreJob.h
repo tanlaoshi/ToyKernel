@@ -24,12 +24,23 @@ typedef enum {
 int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id);
 /* 0=仍忙/前进；1=本轮结束或空闲（成败看 GetStatus / Store 状态行） */
 int StoreJobStep(void);
-/* 排队中或执行中 */
+/* 排队中或执行中（含 Shell 同步互斥） */
 int StoreJobIsBusy(void);
+/* 仅 UI Job（running/pending），不含 Shell */
+int StoreJobUiIsBusy(void);
 /* 仅执行中（悬停禁重绘；排队阶段仍可悬停） */
 int StoreJobIsRunning(void);
 void StoreJobGetStatus(char *Out, int OutMax);
-/* Busy 时请求取消；0=已受理；-1=空闲无可取消 */
+/* Busy 时请求取消 UI 作业；0=已受理；-1=空闲或仅 Shell busy */
 int StoreJobCancel(void);
+
+/*
+ * Shell 同步路径互斥（PR-S-job-shell）：
+ * Begin 失败 = UI 作业进行中；成功后 UI 见 IsBusy，勿与 UI Job 并行。
+ * Shell 仍直接调 StoreInstall/Combo*（保持同步），不改走 Step。
+ */
+int StoreJobShellBegin(void);
+void StoreJobShellEnd(void);
+int StoreJobShellIsBusy(void);
 
 #endif

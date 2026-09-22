@@ -11,6 +11,11 @@ static void DoBtn(int Btn) {
     int j;
     const char *Verb;
 
+    if (StoreJobShellIsBusy()) {
+        StoreSetStatus("shell busy");
+        StoreUiRepaint();
+        return;
+    }
     if (StoreJobIsBusy()) {
         if (Btn == 0) {
             if (StoreJobCancel() == 0) {
