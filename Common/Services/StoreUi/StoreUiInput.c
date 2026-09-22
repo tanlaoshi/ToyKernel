@@ -6,17 +6,18 @@
 
 static void DoBtn(int Btn) {
     STORE_ENTRY *E;
-    int i;
 
-    if (gJobPending || gJobBusy) {
+    if (StoreJobIsBusy()) {
         StoreSetStatus("busy...");
         StoreUiRepaint();
         return;
     }
     if (Btn == 2) {
-        gJobPending = 3;
-        gJobId[0] = 0;
-        StoreSetStatus("syncing...");
+        if (StoreJobEnqueue(STORE_JOB_SYNC, 0) != 0) {
+            StoreSetStatus("busy...");
+        } else {
+            StoreSetStatus("syncing...");
+        }
         StoreUiRepaint();
         return;
     }
@@ -26,49 +27,24 @@ static void DoBtn(int Btn) {
         StoreUiRepaint();
         return;
     }
-    for (i = 0; E->Id[i] && i < STORE_ID_MAX - 1; i++) {
-        gJobId[i] = E->Id[i];
-    }
-    gJobId[i] = 0;
     if (Btn == 0) {
-        gJobPending = 1;
-        StoreSetStatus("installing...");
+        if (StoreJobEnqueue(STORE_JOB_INSTALL, E->Id) != 0) {
+            StoreSetStatus("busy...");
+        } else {
+            StoreSetStatus("installing...");
+        }
     } else {
-        gJobPending = 2;
-        StoreSetStatus("removing...");
+        if (StoreJobEnqueue(STORE_JOB_REMOVE, E->Id) != 0) {
+            StoreSetStatus("busy...");
+        } else {
+            StoreSetStatus("removing...");
+        }
     }
     StoreUiRepaint();
 }
 
 void StoreUiPump(void) {
-    int Job;
-    int Err;
-
-    if (gJobBusy || gJobPending == 0) {
-        return;
-    }
-    Job = gJobPending;
-    gJobPending = 0;
-    gJobBusy = 1;
-
-    if (Job == 1) {
-        Err = StoreComboInstall(gJobId);
-        StoreSetStatus(Err == 0 ? "installed" : "install fail");
-    } else if (Job == 2) {
-        Err = StoreComboRemove(gJobId);
-        StoreSetStatus(Err == 0 ? "removed" : "remove fail");
-    } else {
-        Err = StoreSyncCatalog();
-        StoreSetStatus(Err == 0 ? "sync ok" : "sync fail (need repo)");
-    }
-    GuiPollMouseMotion();
-    Reload();
-    GuiPollMouseMotion();
-    DesktopNotifyAppsChanged();
-    if (StoreUiIsFocused()) {
-        StoreUiRepaint();
-    }
-    gJobBusy = 0;
+    (void)StoreJobStep();
 }
 
 void StoreUiOnClick(UINT32 X, UINT32 Y) {
@@ -149,7 +125,7 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
     static UINT8 sPrevBtn;
 
     /* 装卸中只挪光标（CursorMove 已做）；禁止整窗重绘抢 Present */
-    if (gJobBusy) {
+    if (StoreJobIsRunning()) {
         sPrevBtn = Buttons;
         return;
     }

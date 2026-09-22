@@ -15,10 +15,10 @@ void StoreUiRepaint(void);
 void StoreUiOnClick(UINT32 X, UINT32 Y);
 /* 与 Settings 一致：悬停/按下高亮，抬起触发 */
 void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons);
-/* 鼠标轮询末尾：执行已排队的 Install/Remove/Sync（勿在 OnPointer 里同步 IO） */
+/* 鼠标轮询末尾：推进 StoreJob（勿在 OnPointer 里同步 IO） */
 void StoreUiPump(void);
 int StoreUiIsFocused(void);
-/* Install/Remove/Sync 进行中：跳过悬停重绘，只让光标跟着走 */
+/* 作业排队或执行中：跳过悬停重绘，只让光标跟着走 */
 int StoreUiIsBusy(void);
 
 #endif

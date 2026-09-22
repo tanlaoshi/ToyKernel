@@ -24,10 +24,6 @@ int gHoverSide = -1;
 int gHoverRow = -1;
 int gHoverBtn = -1;
 int gPressBtn = -1;
-/* 0=无 1=install 2=remove 3=sync；抬起只入队，GuiPollMouse 末尾 Pump */
-int gJobPending;
-int gJobBusy;
-char gJobId[STORE_ID_MAX];
 
 const char *const gBtnLabel[STORE_BTN_N] = {
     "Install", "Remove", "Sync"
@@ -67,5 +63,5 @@ void StoreUiOpen(void) {
 }
 
 int StoreUiIsBusy(void) {
-    return (gJobBusy || gJobPending != 0) ? 1 : 0;
+    return StoreJobIsBusy();
 }

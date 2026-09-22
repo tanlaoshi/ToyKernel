@@ -9,6 +9,7 @@
 #define STORE_UI_PRIVATE_H
 
 #include "StoreUi.h"
+#include "StoreJob.h"
 #include "Store.h"
 #include "Desktop.h"
 #include "Gui.h"
@@ -61,10 +62,6 @@ extern int gHoverSide;
 extern int gHoverRow;
 extern int gHoverBtn;
 extern int gPressBtn;
-/* 0=无 1=install 2=remove 3=sync；抬起只入队，GuiPollMouse 末尾 Pump */
-extern int gJobPending;
-extern int gJobBusy;
-extern char gJobId[STORE_ID_MAX];
 
 extern const char *const gBtnLabel[STORE_BTN_N];
 
