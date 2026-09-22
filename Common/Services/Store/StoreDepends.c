@@ -17,6 +17,7 @@
 int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
     char Path[96];
     char Pkg[80];
+    char Tmp[STORE_DEPENDS_MAX];
     UINT8 Buf[STORE_PKG_MAX];
     UINTN Size = 0;
     UINTN i;
@@ -26,7 +27,7 @@ int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
     if (!Id || !Out || OutMax <= 0) {
         return 0;
     }
-    Out[0] = 0;
+    /* 失败时勿清 Out：调用方可能已写入 catalog Depends */
     JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
     JoinPath(Path, (int)sizeof(Path), Pkg, "PKG.TXT");
     Err = FileSystemReadFile(Path, Buf, STORE_PKG_MAX - 1, &Size);
@@ -35,6 +36,7 @@ int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
     }
     Buf[Size] = 0;
     LineStart = 0;
+    Tmp[0] = 0;
     for (i = 0; i <= Size; i++) {
         if (i == Size || Buf[i] == '\n' || Buf[i] == '\r') {
             char Saved = (char)Buf[i];
@@ -46,8 +48,9 @@ int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
             }
             if (L[0] == 'd' && L[1] == 'e' && L[2] == 'p' && L[3] == 'e' &&
                 L[4] == 'n' && L[5] == 'd' && L[6] == 's' && L[7] == '=') {
-                CopyStr(Out, OutMax, L + 8);
-                NormalizeDepends(Out);
+                CopyStr(Tmp, (int)sizeof(Tmp), L + 8);
+                NormalizeDepends(Tmp);
+                CopyStr(Out, OutMax, Tmp);
                 Buf[i] = (UINT8)Saved;
                 return 1;
             }
@@ -194,8 +197,12 @@ int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max) {
         if (!StoreIsInstalled(Tab[i].Id)) {
             continue;
         }
+        /* 勿信 sd.="-"（镜像/旧 Adopt）：以 catalog+PKG 为反向依赖真源 */
         Dep[0] = 0;
-        (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
+        CopyStr(Dep, (int)sizeof(Dep), Tab[i].Depends);
+        if (LoadPkgDepends(Tab[i].Id, Dep, (int)sizeof(Dep))) {
+            /* PKG 覆盖 */
+        }
         NormalizeDepends(Dep);
         if (Dep[0] == 0) {
             (void)ResolveEntryDepends(Tab[i].Id, Dep, (int)sizeof(Dep));

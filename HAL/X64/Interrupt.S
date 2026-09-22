@@ -142,9 +142,8 @@ IsrCommon:
 
 /* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；伪造 call 对齐（入口 RSP≡8 mod 16）
  *
- * PR-K-preempt-enter（2026-09-22 NUC）：曾试 iretq（IF=1）→ store remove 时 #PF
- *（cpu=3 cr2=0x8001DF9A8）随后 combo ACPI Reset。整刀回退 jmp rax（IF=0 协作）。
- * 序 1～4（PreemptCount / Breath / NeedResched）仍保留；全局 IF=1 另择时机。 */
+ * PR-K-preempt-enter-5d ❌（NUC）：iretq 仍拖窗不跟手 + remove demopack 卡死。
+ * 回退 jmp rax（IF=0）。TaskPtrOk 保留。依赖 sd.="-" 误放行见 StoreDepends 5e。 */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */

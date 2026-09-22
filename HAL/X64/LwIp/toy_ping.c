@@ -9,6 +9,7 @@
 #include "toy_ip.h"
 #include "LwIp.h"
 #include "Hal.h"
+#include "Scheduler.h"
 #include "lwip/raw.h"
 #include "lwip/icmp.h"
 #include "lwip/inet_chksum.h"
@@ -103,19 +104,27 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
     pbuf_free(P);
 
     /*
-     * 超时必须不依赖 timer：内核 shell/gui 协作态 IF=0（见 SchedulerSleep），
-     * HalCpuTicks 不涨；HalCpuHalt 也醒不来。用循环预算 + Poll（I219 本就 irq=poll）。
+     * 超时不依赖 timer（协作态 IF=0 时 HalCpuTicks 不涨）。
+     * 旧 Budget=Ms*4000 过重：整段 IF=0 忙等 → 键鼠/USB 假死机。
+     * 改为更紧预算 + 周期性 SchedulerIoBreath（HalInputPoll + 可 CondResched）。
      */
     {
         UINT32 Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 3000u;
-        UINT32 Budget = Ms * 4000u;
+        UINT32 Budget = Ms * 200u;
+        UINT32 N = 0;
 
-        if (Budget < 100000u) {
-            Budget = 100000u;
+        if (Budget < 20000u) {
+            Budget = 20000u;
         }
+        HalIrqEnable();
         while (!gPingDone && Budget-- > 0) {
             LwIpService();
-            HalCpuRelax();
+            N++;
+            if ((N & 63u) == 0u) {
+                SchedulerIoBreath();
+            } else {
+                HalCpuRelax();
+            }
         }
     }
     raw_remove(Pcb);

@@ -267,12 +267,22 @@ int StoreGetDepends(const char *Id, char *Out, int OutMax) {
     if (!MakeDbKey(Key, (int)sizeof(Key), "sd.", Id)) {
         return FAT_OK;
     }
-    if (DbGet(Key, Val, sizeof(Val)) != DB_OK || Val[0] == 0) {
+    if (DbGet(Key, Val, sizeof(Val)) == DB_OK && Val[0] != 0 &&
+        !(Val[0] == '-' && Val[1] == 0)) {
+        for (i = 0; Val[i] && i < OutMax - 1; i++) {
+            Out[i] = Val[i];
+        }
+        Out[i] = 0;
         return FAT_OK;
     }
-    for (i = 0; Val[i] && i < OutMax - 1; i++) {
-        Out[i] = Val[i];
+    /* sd 缺失/"-"：回退 catalog+PKG（list 与 CollectDependents 一致） */
+    if (ResolveEntryDepends(Id, Out, OutMax) == FAT_OK && Out[0] != 0 &&
+        !(Out[0] == '-' && Out[1] == 0)) {
+        return FAT_OK;
     }
-    Out[i] = 0;
+    Out[0] = '-';
+    if (OutMax > 1) {
+        Out[1] = 0;
+    }
     return FAT_OK;
 }

@@ -100,7 +100,8 @@ int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
 void LoadDesktopIcons(void) {
     int i;
     static const char *const Tags[DESKTOP_ICON_COUNT] = {
-        "desktop: shell", "desktop: set", "desktop: files", "desktop: store"
+        "desktop: shell", "desktop: set", "desktop: files", "desktop: store",
+        "desktop: info", "desktop: game"
     };
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
