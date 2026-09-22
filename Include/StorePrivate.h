@@ -59,6 +59,17 @@ static inline int StrEqIgnoreCase(const char *A, const char *B) {
 int DirHasFileCI(const char *Dir, const char *File);
 int DirResolveFileCI(const char *Dir, const char *File, char *Out, int OutMax);
 
+/* StoreInstallCopy.c — PR-S-job-chunk */
+#define STORE_CHECK_NONE  0
+#define STORE_CHECK_ELF   1
+#define STORE_CHECK_TOYF  2
+int  StoreInstallCopyBegin(const char *Src, const char *Dst, int Check);
+int  StoreInstallCopyStep(void);   /* 1=还有 0=完 <0=错 */
+int  StoreInstallCopySync(const char *Src, const char *Dst, int Check);
+void StoreInstallCopyAbort(void);
+int  StoreInstallCopyBusy(void);
+void StoreInstallCopyProgress(UINTN *OutGot, UINTN *OutSize);
+
 /* Console 里已有同名全局，这里不能再导出。 */
 static inline int StrEq(const char *A, const char *B) {
     if (!A || !B) {

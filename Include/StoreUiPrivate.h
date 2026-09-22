@@ -90,4 +90,11 @@ void ClampScroll(void);
 /* ===== StoreUiPaint.c ===== */
 void StorePaintList(void);
 
+/* ===== StoreJobStatus.c ===== */
+void StoreJobStatusWithId(const char *Verb, const char *Id);
+void StoreJobStatusProgress(const char *Verb, const char *Id, int Cur, int Total);
+void StoreJobStatusCopy(const char *Id, UINTN Got, UINTN Size);
+void StoreJobBusyRepaint(void);
+void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN);
+
 #endif

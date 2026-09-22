@@ -1,6 +1,7 @@
 /*
  * StoreJob.c — Store UI 作业状态机（PR-S-job）
- * 序 3：Step 每相前进（Plan / 每包 / Font / Reload / Finish）。
+ * 序 4：PKG 相内 StoreInstallPump 按块返回（chunk）。
+ * 状态文案：StoreJobStatus.c。
  */
 #include "StoreUiPrivate.h"
 #include "StoreJob.h"
@@ -27,101 +28,6 @@ static int sPlanN;
 static int sPlanI;
 static int sErr;
 static int sBatch;
-
-static void StatusWithId(const char *Verb, const char *Id) {
-    char Buf[80];
-    int i = 0;
-    int j;
-
-    if (!Verb) {
-        Verb = "?";
-    }
-    while (Verb[i] && i < 20) {
-        Buf[i] = Verb[i];
-        i++;
-    }
-    if (Id && Id[0] && i < 76) {
-        Buf[i++] = ':';
-        Buf[i++] = ' ';
-        for (j = 0; Id[j] && i < 78; j++) {
-            Buf[i++] = Id[j];
-        }
-    }
-    Buf[i] = 0;
-    StoreSetStatus(Buf);
-}
-
-static void StatusProgress(const char *Verb, const char *Id, int Cur, int Total) {
-    char Buf[80];
-    int i = 0;
-    int j;
-    int n;
-
-    if (!Verb) {
-        Verb = "?";
-    }
-    while (Verb[i] && i < 16) {
-        Buf[i] = Verb[i];
-        i++;
-    }
-    if (Id && Id[0] && i < 60) {
-        Buf[i++] = ':';
-        Buf[i++] = ' ';
-        for (j = 0; Id[j] && i < 60; j++) {
-            Buf[i++] = Id[j];
-        }
-    }
-    if (Total > 0 && i < 70) {
-        Buf[i++] = ' ';
-        Buf[i++] = '(';
-        n = Cur;
-        if (n >= 10 && i < 76) {
-            Buf[i++] = (char)('0' + (n / 10) % 10);
-        }
-        if (i < 76) {
-            Buf[i++] = (char)('0' + n % 10);
-        }
-        Buf[i++] = '/';
-        n = Total;
-        if (n >= 10 && i < 76) {
-            Buf[i++] = (char)('0' + (n / 10) % 10);
-        }
-        if (i < 76) {
-            Buf[i++] = (char)('0' + n % 10);
-        }
-        Buf[i++] = ')';
-    }
-    Buf[i] = 0;
-    StoreSetStatus(Buf);
-}
-
-static void BusyRepaint(void) {
-    if (StoreUiIsFocused()) {
-        StoreUiRepaint();
-    }
-}
-
-static void FinishStatus(void) {
-    if (sErr == FAT_OK && sKind == STORE_JOB_INSTALL && sPlanN == 0) {
-        StoreSetStatus("already installed");
-        return;
-    }
-    if (sErr == FAT_OK) {
-        if (sKind == STORE_JOB_INSTALL) {
-            StoreSetStatus("installed");
-        } else if (sKind == STORE_JOB_REMOVE) {
-            StoreSetStatus("removed");
-        } else {
-            StoreSetStatus("sync ok");
-        }
-    } else if (sKind == STORE_JOB_INSTALL) {
-        StoreSetStatus("install fail");
-    } else if (sKind == STORE_JOB_REMOVE) {
-        StoreSetStatus("remove fail");
-    } else {
-        StoreSetStatus("sync fail (need repo)");
-    }
-}
 
 int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id) {
     int i;
@@ -174,15 +80,15 @@ int StoreJobStep(void) {
     case JP_PLAN:
         if (sKind == STORE_JOB_SYNC) {
             StoreSetStatus("sync: catalog");
-            BusyRepaint();
+            StoreJobBusyRepaint();
             sPhase = JP_PKG;
             sInStep = 0;
             return 0;
         }
         StoreComboBatchBegin();
         sBatch = 1;
-        StatusWithId("plan", sJobId);
-        BusyRepaint();
+        StoreJobStatusWithId("plan", sJobId);
+        StoreJobBusyRepaint();
         if (sKind == STORE_JOB_INSTALL) {
             Err = StoreComboPlanInstall(sJobId, sPlan, STORE_ENTRIES_MAX, &sPlanN);
         } else {
@@ -198,9 +104,8 @@ int StoreJobStep(void) {
         if (sPlanN > 0) {
             sPhase = JP_PKG;
         } else if (sKind == STORE_JOB_INSTALL) {
-            /* 已装（或无需拷贝）：提示后走 Reload，不跑装包相 */
             StoreSetStatus("already installed");
-            BusyRepaint();
+            StoreJobBusyRepaint();
             sPhase = JP_FONT;
         } else {
             sPhase = JP_FONT;
@@ -231,14 +136,30 @@ int StoreJobStep(void) {
             sInStep = 0;
             return 0;
         }
-        StatusProgress(sKind == STORE_JOB_INSTALL ? "install" : "remove",
-                       sPlan[sPlanI], sPlanI + 1, sPlanN);
-        /* 先做 IO，再 Repaint，避免 Present 路径重入 Step / 搅 vvfat */
+        StoreJobStatusProgress(sKind == STORE_JOB_INSTALL ? "install" : "remove",
+                               sPlan[sPlanI], sPlanI + 1, sPlanN);
         if (sKind == STORE_JOB_INSTALL) {
-            HalConsoleWriteSerial("store combo: +");
-            HalConsoleWriteSerial(sPlan[sPlanI]);
-            HalConsoleWriteSerial("\n");
-            Err = StoreInstall(sPlan[sPlanI]);
+            if (!StoreInstallPumpBusy()) {
+                HalConsoleWriteSerial("store combo: +");
+                HalConsoleWriteSerial(sPlan[sPlanI]);
+                HalConsoleWriteSerial("\n");
+                Err = StoreInstallPump(sPlan[sPlanI]);
+            } else {
+                Err = StoreInstallPump(0);
+            }
+            if (Err == 1) {
+                UINTN Got = 0;
+                UINTN Sz = 0;
+
+                StoreInstallPumpProgress(&Got, &Sz);
+                StoreJobStatusCopy(sPlan[sPlanI], Got, Sz);
+                StoreJobBusyRepaint();
+                sInStep = 0;
+                return 0;
+            }
+            if (Err != FAT_OK) {
+                StoreInstallPumpAbort();
+            }
         } else {
             HalConsoleWriteSerial("store uncombo: -");
             HalConsoleWriteSerial(sPlan[sPlanI]);
@@ -255,7 +176,7 @@ int StoreJobStep(void) {
         } else if (sPlanI >= sPlanN) {
             sPhase = JP_FONT;
         }
-        BusyRepaint();
+        StoreJobBusyRepaint();
         sInStep = 0;
         return 0;
 
@@ -265,7 +186,7 @@ int StoreJobStep(void) {
             StoreComboBatchEnd();
             sBatch = 0;
         }
-        BusyRepaint();
+        StoreJobBusyRepaint();
         sPhase = JP_RELOAD;
         sInStep = 0;
         return 0;
@@ -276,14 +197,14 @@ int StoreJobStep(void) {
         Reload();
         GuiPollMouseMotion();
         DesktopNotifyAppsChanged();
-        BusyRepaint();
+        StoreJobBusyRepaint();
         sPhase = JP_FINISH;
         sInStep = 0;
         return 0;
 
     case JP_FINISH:
-        FinishStatus();
-        BusyRepaint();
+        StoreJobFinishStatus(sKind, sErr, sPlanN);
+        StoreJobBusyRepaint();
         sRunning = 0;
         sPhase = JP_IDLE;
         sKind = STORE_JOB_NONE;
@@ -291,6 +212,7 @@ int StoreJobStep(void) {
         return 1;
 
     default:
+        StoreInstallPumpAbort();
         sRunning = 0;
         sPhase = JP_IDLE;
         sInStep = 0;

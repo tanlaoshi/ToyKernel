@@ -43,6 +43,14 @@ int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 
 /* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/；并记清单 */
 int StoreInstall(const char *Id);
+/*
+ * PR-S-job-chunk：可切片安装。Id 非空=开新包；Id 空=继续。
+ * 返回 1=还需 Step；0=本包完成；<0=失败（已回滚半截目标）。
+ */
+int StoreInstallPump(const char *Id);
+void StoreInstallPumpAbort(void);
+int StoreInstallPumpBusy(void);
+void StoreInstallPumpProgress(UINTN *OutGot, UINTN *OutSize);
 
 /* PR-M2：按依赖顺序装齐「功能」（缺依赖先装，再装 Id）；单包仍可用 StoreInstall */
 int StoreComboInstall(const char *Id);
