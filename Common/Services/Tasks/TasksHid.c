@@ -11,6 +11,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "EditUi.h"
+#include "StoreUi.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "LwIp.h"
@@ -113,6 +114,14 @@ void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
                 if (C != 0) {
                     EditUiOnChar(C);
                 }
+            }
+            continue;
+        }
+
+        /* Store：Esc 取消 Busy 作业 */
+        if (StoreUiIsFocused()) {
+            if (Key == HID_KEY_ESCAPE) {
+                StoreUiOnEscape();
             }
             continue;
         }

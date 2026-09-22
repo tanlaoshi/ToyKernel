@@ -1,7 +1,6 @@
 /*
  * StoreJob.c — Store UI 作业状态机（PR-S-job）
- * 序 4：PKG 相内 StoreInstallPump 按块返回（chunk）。
- * 状态文案：StoreJobStatus.c。
+ * 序 5：Cancel 在相位/chunk 边界生效。
  */
 #include "StoreUiPrivate.h"
 #include "StoreJob.h"
@@ -22,12 +21,24 @@ static STORE_JOB_KIND sKind;
 static STORE_JOB_PHASE sPhase;
 static int sRunning;
 static int sInStep;
+static int sCancel;
 static char sJobId[STORE_ID_MAX];
 static char sPlan[STORE_ENTRIES_MAX][STORE_ID_MAX];
 static int sPlanN;
 static int sPlanI;
 static int sErr;
 static int sBatch;
+
+static void JobApplyCancel(void) {
+    StoreInstallPumpAbort();
+    if (sBatch) {
+        StoreComboBatchEnd();
+        sBatch = 0;
+    }
+    sErr = STORE_JOB_ERR_CANCEL;
+    sCancel = 0;
+    sPhase = JP_RELOAD;
+}
 
 int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id) {
     int i;
@@ -50,6 +61,7 @@ int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id) {
         sJobId[i] = 0;
     }
     sPendingKind = Kind;
+    sCancel = 0;
     return 0;
 }
 
@@ -66,6 +78,14 @@ int StoreJobStep(void) {
             sInStep = 0;
             return 1;
         }
+        if (sCancel) {
+            sPendingKind = STORE_JOB_NONE;
+            sCancel = 0;
+            StoreSetStatus("cancelled");
+            StoreJobBusyRepaint();
+            sInStep = 0;
+            return 1;
+        }
         sKind = sPendingKind;
         sPendingKind = STORE_JOB_NONE;
         sRunning = 1;
@@ -74,6 +94,10 @@ int StoreJobStep(void) {
         sPlanN = 0;
         sPlanI = 0;
         sBatch = 0;
+    }
+
+    if (sCancel && sRunning) {
+        JobApplyCancel();
     }
 
     switch (sPhase) {
@@ -114,6 +138,11 @@ int StoreJobStep(void) {
         return 0;
 
     case JP_PKG:
+        if (sCancel) {
+            JobApplyCancel();
+            sInStep = 0;
+            return 0;
+        }
         if (sKind == STORE_JOB_SYNC) {
             Err = StoreSyncCatalog();
             if (Err != 0) {
@@ -151,6 +180,11 @@ int StoreJobStep(void) {
                 UINTN Got = 0;
                 UINTN Sz = 0;
 
+                if (sCancel) {
+                    JobApplyCancel();
+                    sInStep = 0;
+                    return 0;
+                }
                 StoreInstallPumpProgress(&Got, &Sz);
                 StoreJobStatusCopy(sPlan[sPlanI], Got, Sz);
                 StoreJobBusyRepaint();
@@ -208,6 +242,7 @@ int StoreJobStep(void) {
         sRunning = 0;
         sPhase = JP_IDLE;
         sKind = STORE_JOB_NONE;
+        sCancel = 0;
         sInStep = 0;
         return 1;
 
@@ -215,6 +250,7 @@ int StoreJobStep(void) {
         StoreInstallPumpAbort();
         sRunning = 0;
         sPhase = JP_IDLE;
+        sCancel = 0;
         sInStep = 0;
         return 1;
     }
@@ -241,5 +277,15 @@ void StoreJobGetStatus(char *Out, int OutMax) {
 }
 
 int StoreJobCancel(void) {
-    return -1;
+    if (!StoreJobIsBusy()) {
+        return -1;
+    }
+    sCancel = 1;
+    if (!sRunning && sPendingKind != STORE_JOB_NONE) {
+        sPendingKind = STORE_JOB_NONE;
+        sCancel = 0;
+        StoreSetStatus("cancelled");
+        return 0;
+    }
+    return 0;
 }

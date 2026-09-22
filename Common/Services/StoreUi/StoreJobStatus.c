@@ -112,6 +112,10 @@ void StoreJobBusyRepaint(void) {
 }
 
 void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
+    if (Err == STORE_JOB_ERR_CANCEL) {
+        StoreSetStatus("cancelled");
+        return;
+    }
     if (Err == FAT_OK && Kind == STORE_JOB_INSTALL && PlanN == 0) {
         StoreSetStatus("already installed");
         return;

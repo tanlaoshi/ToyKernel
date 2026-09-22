@@ -2,7 +2,7 @@
  * StoreJob.h — Store UI 后台作业（PR-S-job）
  *
  * 协作切片：Enqueue 入队，GuiPollMouse 末尾 StoreJobStep 推进。
- * 序 4：拷贝相 StoreInstallPump 每 4KiB 返回；写盘一次 WriteFile。
+ * 序 5：Cancel 在相位/chunk 边界生效；半截拷贝 Abort 不登记。
  * Shell 同步 Store* API 不变；本头供 StoreUi / 日后 Shell 互斥用。
  */
 #ifndef STORE_JOB_H
@@ -17,6 +17,9 @@ typedef enum {
     STORE_JOB_SYNC
 } STORE_JOB_KIND;
 
+/* FinishStatus：用户取消（非 FAT 错） */
+#define STORE_JOB_ERR_CANCEL  (-100)
+
 /* 成功 0；已有作业 -1；Kind/Id 非法 -1 */
 int StoreJobEnqueue(STORE_JOB_KIND Kind, const char *Id);
 /* 0=仍忙/前进；1=本轮结束或空闲（成败看 GetStatus / Store 状态行） */
@@ -26,7 +29,7 @@ int StoreJobIsBusy(void);
 /* 仅执行中（悬停禁重绘；排队阶段仍可悬停） */
 int StoreJobIsRunning(void);
 void StoreJobGetStatus(char *Out, int OutMax);
-/* 序 5 前：固定 -1 */
+/* Busy 时请求取消；0=已受理；-1=空闲无可取消 */
 int StoreJobCancel(void);
 
 #endif

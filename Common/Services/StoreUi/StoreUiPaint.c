@@ -12,8 +12,15 @@ static void DrawButtons(void) {
     for (i = 0; i < STORE_BTN_N; i++) {
         Bx = gBtnX0 + (UINT32)i * (gBtnW + STORE_BTN_GAP);
         if (Busy) {
-            UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], ThemeTextMuted(),
-                           ThemePanelSideBackground(), 0, 0);
+            if (i == 0) {
+                UINT32 Face = (gHoverBtn == 0) ? ThemeControlAccent() : ThemeControlFace();
+                UINT32 Fg = (gHoverBtn == 0) ? ThemeTextOnAccent() : ThemeText();
+                UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, "Cancel", Fg, Face,
+                               gHoverBtn == 0, gPressBtn == 0);
+            } else {
+                UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], ThemeTextMuted(),
+                               ThemePanelSideBackground(), 0, 0);
+            }
         } else {
             UINT32 Face = (gHoverBtn == i) ? ThemeControlAccent() : ThemeControlFace();
             UINT32 Fg = (gHoverBtn == i) ? ThemeTextOnAccent() : ThemeText();

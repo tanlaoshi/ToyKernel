@@ -65,3 +65,16 @@ void StoreUiOpen(void) {
 int StoreUiIsBusy(void) {
     return StoreJobIsBusy();
 }
+
+void StoreUiOnEscape(void) {
+    if (!StoreUiIsFocused()) {
+        return;
+    }
+    if (!StoreJobIsBusy()) {
+        return;
+    }
+    if (StoreJobCancel() == 0) {
+        StoreSetStatus("cancelling...");
+        StoreUiRepaint();
+    }
+}

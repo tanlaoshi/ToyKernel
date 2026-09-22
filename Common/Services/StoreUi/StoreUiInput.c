@@ -12,7 +12,15 @@ static void DoBtn(int Btn) {
     const char *Verb;
 
     if (StoreJobIsBusy()) {
-        StoreSetStatus("busy...");
+        if (Btn == 0) {
+            if (StoreJobCancel() == 0) {
+                StoreSetStatus("cancelling...");
+            } else {
+                StoreSetStatus("busy...");
+            }
+        } else {
+            StoreSetStatus("busy...");
+        }
         StoreUiRepaint();
         return;
     }
@@ -160,13 +168,9 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
     UINT32 Bx;
     int i;
     static UINT8 sPrevBtn;
+    int Running = StoreJobIsRunning();
 
-    /* 装卸中只挪光标（CursorMove 已做）；禁止整窗重绘抢 Present */
-    if (StoreJobIsRunning()) {
-        sPrevBtn = Buttons;
-        return;
-    }
-
+    /* 装卸中：只允许 Cancel 钮，禁列表悬停重绘 */
     if (!StoreUiIsFocused()) {
         if (gHoverSide >= 0 || gHoverRow >= 0 || gHoverBtn >= 0 || gPressBtn >= 0) {
             gHoverSide = -1;
@@ -182,7 +186,8 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
         return;
     }
 
-    if (gStoreUiSideW > 0 && X >= Cx && X < Cx + gStoreUiSideW && Y >= gStoreUiSideRow0) {
+    if (!Running && gStoreUiSideW > 0 && X >= Cx && X < Cx + gStoreUiSideW &&
+        Y >= gStoreUiSideRow0) {
         Side = (int)((Y - gStoreUiSideRow0) / gStoreUiSideLineH);
         if (Side < 0 || Side >= STORE_CAT_COUNT) {
             Side = -1;
@@ -195,8 +200,11 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
                 break;
             }
         }
-    } else if (!(gStoreUiPrevW > 0 && X >= gStoreUiPrevX) && Y >= gStoreUiListTop && Y < gBtnY &&
-               gFiltCount > 0) {
+        if (Running && Btn > 0) {
+            Btn = -1;
+        }
+    } else if (!Running && !(gStoreUiPrevW > 0 && X >= gStoreUiPrevX) &&
+               Y >= gStoreUiListTop && Y < gBtnY && gFiltCount > 0) {
         Row = UiListRowFromY(gStoreUiListTop, gStoreUiListLineH, gStoreUiListVisible, Y);
         if (Row >= 0) {
             int Fi = gStoreUiScroll + Row;
@@ -214,9 +222,9 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
         if (Btn >= 0) {
             gPressBtn = Btn;
             Need = 1;
-        } else if (Side >= 0) {
+        } else if (!Running && Side >= 0) {
             FireSide = Side;
-        } else if (Row >= 0) {
+        } else if (!Running && Row >= 0) {
             FireRow = Row;
         }
     } else if ((Buttons & 1u) && gPressBtn >= 0 && Btn != gPressBtn) {
