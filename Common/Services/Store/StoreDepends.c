@@ -169,10 +169,13 @@ int ResolveEntryDepends(const char *Id, char *OutDepends, int OutMax) {
     return FAT_ERR_NOENT;
 }
 
-/* 已装包中谁依赖 Id → OutIds；返回数量 */
+/* 已装包中谁依赖 Id → OutIds；返回数量。
+ * 与 StoreIsInstalled 对齐：镜像预置仅有盘上文件、无 si.* 时也算已装；
+ * sd.* 缺失/"-" 时回退 catalog/PKG（同 PlanRemove），否则 guidemo 预置
+ * 时 remove demopack 会误放行。 */
 int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max) {
-    STORE_INSTALLED Inst[STORE_INSTALLED_MAX];
-    int N = 0;
+    STORE_ENTRY *Tab = gStoreTab;
+    int Count = 0;
     int i;
     int OutN = 0;
     char Dep[STORE_DEPENDS_MAX];
@@ -180,17 +183,26 @@ int CollectDependents(const char *Id, char OutIds[][STORE_ID_MAX], int Max) {
     if (!Id || !OutIds || Max <= 0) {
         return 0;
     }
-    if (StoreListInstalled(Inst, STORE_INSTALLED_MAX, &N) != FAT_OK) {
+    /* StoreLoadCatalog 成功返回 Count（>0），失败 <0；勿与 FAT_OK 比 */
+    if (StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count) < 0 || Count <= 0) {
         return 0;
     }
-    for (i = 0; i < N && OutN < Max; i++) {
-        if (StrEq(Inst[i].Id, Id)) {
+    for (i = 0; i < Count && OutN < Max; i++) {
+        if (StrEq(Tab[i].Id, Id)) {
+            continue;
+        }
+        if (!StoreIsInstalled(Tab[i].Id)) {
             continue;
         }
         Dep[0] = 0;
-        (void)StoreGetDepends(Inst[i].Id, Dep, (int)sizeof(Dep));
+        (void)StoreGetDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
+        NormalizeDepends(Dep);
+        if (Dep[0] == 0) {
+            (void)ResolveEntryDepends(Tab[i].Id, Dep, (int)sizeof(Dep));
+            NormalizeDepends(Dep);
+        }
         if (DependsHasId(Dep, Id)) {
-            CopyStr(OutIds[OutN], STORE_ID_MAX, Inst[i].Id);
+            CopyStr(OutIds[OutN], STORE_ID_MAX, Tab[i].Id);
             OutN++;
         }
     }

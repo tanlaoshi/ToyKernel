@@ -36,10 +36,16 @@ int gNeedFontReload;
  * 但长 Store 拷贝/写盘期间 GuiTask 不走 YieldForPollInput，且真机 poll-USB 下
  * MSC/FAT 完成事件需 XchiDrainEvents 推进 → 此处自带 HalInputPoll 兜底。
  * 序 1「或等价」：drain 集中在 yield 路径 + IO 呼吸两处，GuiPollMouse 等只 dequeue。
+ *
+ * cli 守 drain：Shell 经 HalCpuHalt（sti;hlt）后常带 IF=1；HalInputPoll 调用链深，
+ * 若被 LAPIC timer 嵌套（InterruptDispatch→SchedulerOnTimer）会压坏 iret 帧 →
+ * #UD（见 InputTask scoped-sti 注释；QEMU smp=2 上 uncombo+combo guidemo 复现）。
  */
 void StoreIoBreath(void) {
+    UINT64 Flags = HalIrqSave();
     HalInputPoll();
     GuiPollMouseMotion();
+    HalIrqRestore(Flags);
 }
 
 void StoreFlushFontReload(void) {
