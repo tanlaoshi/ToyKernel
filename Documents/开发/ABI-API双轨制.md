@@ -43,7 +43,7 @@ ToyOS 未发布，syscall 号已按**段内双轨**重排（[`PR-U-syscall-abi`]
 | -- | ------ | -------- | ---- |
 | 1 `sched_yield` | 新 `sched.h`；`toy_yield` 改宏别名 | **TG**：`sched_yield` → `SYS_YIELD`（**150**）；`toy_yield` 为宏别名 | ✅ [`PR-U-sched-yield`](../路线图.md#pr-u-sched-yield) |
 | 2 `getpid` / `getppid` | 任务书写号 30/31 | **TG**：`SYS_GETPID=54` / `SYS_GETPPID=55`；`proc.c` | ✅ [`PR-U-getpid`](../路线图.md#pr-u-getpid) |
-| 3 `stat` / `fstat` | 样例把 `Attr` 原样写入 `st_mode` | `FileStat` → `SYS_FILE_STAT`（**400**）；`fstat` 规划 `SYS_FSTAT=451` | 排队 [`PR-U-stat`](../路线图.md#pr-u-stat) |
+| 3 `stat` / `fstat` | 样例把 `Attr` 原样写入 `st_mode` | `FileStat` → `SYS_FILE_STAT`（**400**）；`fstat` → `SYS_FSTAT=451`；`st_mode` 仅 `S_IFDIR`/`S_IFREG` | **TG** [`PR-U-stat`](../路线图.md#pr-u-stat) |
 | 4 目录别名 | 样例用进程级 `static struct dirent` | **已落地**。`opendir`/`closedir` 是宏；`readdir` 缓冲在每个 `DIR` 里 | 不排刀 |
 | 5 网络双轨 | `connect`→`ToyNetConnect`，POSIX `sockaddr` | **已落地**（ABI 2.0.1） | 不排刀 |
 

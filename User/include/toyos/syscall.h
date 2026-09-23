@@ -103,6 +103,10 @@ static inline long toy_file_stat(const char *path, void *out) {
     return toy_syscall(SYS_FILE_STAT, (long)path, (long)out, 0);
 }
 
+static inline long toy_fstat(long fd, void *out) {
+    return toy_syscall(SYS_FSTAT, fd, (long)out, 0);
+}
+
 static inline long toy_open_directory(const char *path) {
     return toy_syscall(SYS_OPEN_DIRECTORY, (long)path, 0, 0);
 }

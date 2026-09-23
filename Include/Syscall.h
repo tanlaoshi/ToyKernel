@@ -19,6 +19,7 @@
 /* SYS_POLL_INPUT：rdi=wid → 0 无事件 / 1 已关窗（或无 USER 窗）/ 100+id 按钮 / 300+HID 键 / 400+x+(y<<10) 客户区点击 */
 /* SYS_UI_BUTTON：rdi=wid rsi=button_id(0..3) rdx=label → 0；失败 -1（PR-G15） */
 /* SYS_FILE_STAT：rdi=path rsi=TOY_FILE_STAT* → 0；失败 -1（PR-F4） */
+/* SYS_FSTAT：rdi=fd rsi=TOY_FILE_STAT* → 0；socket/pipe/坏 fd -1（PR-U-stat） */
 /* SYS_OPEN_DIRECTORY：rdi=path → dirfd；失败 -1（PR-F4） */
 /* SYS_READ_DIRECTORY：rdi=dirfd rsi=TOY_DIR_ENT* → 1 有项 / 0 结束 / -1 失败 */
 /* SYS_MMAP：rdi=len rsi=prot rdx=flags → VA；匿名或文件私有（PR-U-mmap2）；失败 -1

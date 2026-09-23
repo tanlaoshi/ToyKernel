@@ -68,7 +68,7 @@
 | `opendir` / `closedir` | `<dirent.h>` | 宏 → `OpenDirectory` / `CloseDirectory`（syscall 500） |
 | `readdir(DIR *)` | `<dirent.h>` | 返回内部 `struct dirent *`（仅 `d_name[]`）；结束 / 失败均 `NULL`（失败设 `errno`）；读项 syscall 501 |
 | `getcwd` / `chdir` | `<unistd.h>` | 550 / 551；任务内相对路径；根为 `"/"`；`chdir` 目标须是目录 |
-| `stat` | — | **尚未提供**（缺口；勿与第 2 轨 `FileStat`/`SYS_FILE_STAT`400 抢名） |
+| `stat` / `fstat` | `<sys/stat.h>` | `stat`→`FileStat`/400；`fstat`→451；`st_mode` 仅 `S_IFDIR`/`S_IFREG` |
 
 ## 网络（POSIX 形参 · 第 1 轨）
 
@@ -131,9 +131,9 @@
 
 ## 已知缺口
 
-排队中：`stat`/`fstat`。Gfx 位图仍缺，保持第 2 轨现状。
+排队中：无本刀 POSIX 缺口。Gfx 位图仍缺，保持第 2 轨现状。
 
-下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid` / Syscall 段内双轨号（`SyscallABI.h`）。
+下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid` / `stat`/`fstat` / Syscall 段内双轨号（`SyscallABI.h`）。
 
 ## 商店（内核服务 · 非用户 API）
 

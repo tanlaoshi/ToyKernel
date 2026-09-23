@@ -127,6 +127,10 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         HalFrameSetReturn(Frame, (UINT64)(long)SysFileStat(
             HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
         break;
+    case SYS_FSTAT:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysFstat(
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
+        break;
     case SYS_OPEN_DIRECTORY:
         HalFrameSetReturn(Frame, (UINT64)(long)SysOpenDirectory(
             HalFrameGetArgument0(Frame)));

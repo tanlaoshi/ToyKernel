@@ -189,6 +189,28 @@ int SysFileStat(UINT64 UserPath, UINT64 UserOut) {
     return 0;
 }
 
+/* PR-U-stat：按 fd.Path 填 TOY_FILE_STAT；socket/pipe 失败 */
+int SysFstat(int Fd, UINT64 UserOut) {
+    TASK *T = SchedulerCurrent();
+    TASK_FD *F;
+    FAT_FILE_STAT St;
+
+    if (!T || !T->IsUser || UserOut == 0 || Fd < 0 || Fd >= MAX_FDS) {
+        return -1;
+    }
+    F = &T->Fds[Fd];
+    if (!F->Used || F->Kind == FD_KIND_SOCKET || F->Kind == FD_KIND_PIPE) {
+        return -1;
+    }
+    if (SchedulerFdFileStat(T, F->Path, &St) < 0) {
+        return -1;
+    }
+    if (VirtualMemoryCopyToUser(UserOut, &St, sizeof(St)) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
 int SysOpenDirectory(UINT64 UserPath) {
     char Path[PATH_MAX_LEN + 1];
     TASK *T = SchedulerCurrent();
