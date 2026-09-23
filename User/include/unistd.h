@@ -24,6 +24,8 @@ pid_t fork(void);
 pid_t wait(int *status);
 /* status 低 8 位为 0、高 8 位为 exit 码（与 POSIX WEXITSTATUS 一致） */
 #define WEXITSTATUS(s) (((s) >> 8) & 0xff)
+pid_t getpid(void);
+pid_t getppid(void);
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
 /* PR-P3：addr==0 查询；成功返回新/当前 break，失败 (void*)-1 */

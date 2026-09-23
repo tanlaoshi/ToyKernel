@@ -35,6 +35,8 @@ int SysDup(int Fd);
 int CwdResolve(TASK *T, char *Path, int Max);
 int SysGetcwd(UINT64 UserBuf, UINTN Len);
 int SysChdir(UINT64 UserPath);
+int SysGetPid(void);
+int SysGetPpid(void);
 
 /* SyscallProc.c */
 int SysExecve(HAL_INTERRUPT_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,

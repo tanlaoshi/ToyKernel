@@ -128,9 +128,9 @@
 
 ## 已知缺口
 
-排队中：`sched_yield`（现用 `toy_yield`）、`getpid`/`getppid`、`stat`。Gfx 位图仍缺，保持第 2 轨现状。
+排队中：`stat`。`sched_yield`（现用 `toy_yield`）、`getpid`/`getppid` 已落地。Gfx 位图仍缺，保持第 2 轨现状。
 
-下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS`。
+下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid`。
 
 ## 商店（内核服务 · 非用户 API）
 

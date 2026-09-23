@@ -9,46 +9,8 @@
 #include <toyos/version.h>
 #include <sched.h>
 
-#define SYS_EXIT    0
-#define SYS_WRITE   1
-#define SYS_OPEN    2
-#define SYS_READ    3
-#define SYS_CLOSE   4
-#define SYS_FORK    5
-#define SYS_WAIT    6
-#define SYS_YIELD   7
-#define SYS_SOCKET  8
-#define SYS_CONNECT 9
-#define SYS_BIND    10
-#define SYS_LISTEN  11
-#define SYS_ACCEPT  12
-#define SYS_EXECVE  13
-#define SYS_PIPE    14
-#define SYS_DUP     15
-#define SYS_BRK     16
-#define SYS_KILL    17
-#define SYS_CREATE_WINDOW 18
-#define SYS_DAMAGE        19
-#define SYS_POLL_INPUT    20
-#define SYS_UI_BUTTON     21
-#define SYS_FILE_STAT     22
-#define SYS_OPEN_DIRECTORY 23
-#define SYS_READ_DIRECTORY 24
-#define SYS_MMAP          25
-#define SYS_MUNMAP        26
-#define SYS_SIGNAL        27
-#define SYS_DAMAGE_RECT   28 /* PR-G-desk-3：用户窗像素矩形 blit */
-#define SYS_LSEEK         29 /* PR-A-libc：rdi=fd rsi=off rdx=whence */
-#define SYS_SLEEP         30 /* rdi=ms；阻塞约 Ms 节拍（≈ms） */
-#define SYS_CLOCK_MS      31 /* 返回 BSP tick（与 sleep 同尺） */
-#define SYS_GETCWD        32 /* rdi=buf rsi=len → 0 */
-#define SYS_CHDIR         33 /* rdi=path → 0 */
-
-#define WNOHANG 1
-
-#define SIGINT  2
-#define SIGKILL 9
-#define SIGTERM 15
+/* SYS_* 号段定义见 SyscallABI.h（段内双轨 + 预留区） */
+#include "../../../Include/SyscallABI.h"
 
 long toy_syscall(long n, long a, long b, long c);
 /* 与 toy_syscall 同一条指令；第二返回值在 rdx / x1 / a1（wait 退出码） */

@@ -157,6 +157,12 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     case SYS_CHDIR:
         HalFrameSetReturn(Frame, (UINT64)(long)SysChdir(HalFrameGetArgument0(Frame)));
         break;
+    case SYS_GETPID:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysGetPid());
+        break;
+    case SYS_GETPPID:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysGetPpid());
+        break;
     case SYS_CLOCK_MS:
         {
             UINT32 Tps = HalTicksPerSec();

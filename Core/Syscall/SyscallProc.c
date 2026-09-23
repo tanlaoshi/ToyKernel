@@ -143,3 +143,22 @@ int SysUiButton(int Wid, int ButtonId, UINT64 UserLabel) {
     return WindowAddButton(Wid, ButtonId, Label);
 }
 
+/* PR-U-getpid：getpid 返回 TASK.Id；getppid 返回 ParentId（-1 → 0） */
+int SysGetPid(void) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return (int)T->Id;
+}
+
+int SysGetPpid(void) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return (T->ParentId < 0) ? 0 : T->ParentId;
+}
+
