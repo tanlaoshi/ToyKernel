@@ -20,14 +20,43 @@ typedef enum {
 
 typedef struct TOY_DRIVER_INSTANCE TOY_DRIVER_INSTANCE;
 
+/*
+ * 驱动匹配表（阶段 2）。NULL = 旧行为（Probe 自扫 PCI/DTB）。
+ * 表以 DRIVER_MATCH_NONE 结尾；框架按 Type 过滤后把 DEVICE_NODE * 经 BusCtx 传入 Probe。
+ */
+typedef enum {
+    DRIVER_MATCH_NONE = 0,
+    DRIVER_MATCH_PCI,
+    DRIVER_MATCH_DTB,
+    DRIVER_MATCH_FIXED
+} DRIVER_MATCH_TYPE;
+
+typedef struct DRIVER_MATCH {
+    DRIVER_MATCH_TYPE Type;
+    union {
+        struct {
+            UINT16 Vendor;
+            UINT16 Device;
+            UINT16 VendorMask;
+            UINT16 DeviceMask;
+        } Pci;
+        struct {
+            char Compatible[64];
+        } Dtb;
+        struct {
+            UINT64 Base;
+        } Fixed;
+    } U;
+} DRIVER_MATCH;
+
 typedef struct TOY_DRIVER {
     const char *Name;
     TOY_DRIVER_CLASS Class;
-    /* 匹配表占位（PCI/virtio/DTB）；D2+ 使用，D1 可为 NULL */
-    const void *Match;
+    /* 匹配表（阶段 2 定型）；NULL = 旧行为，Probe 自扫 */
+    const DRIVER_MATCH *Match;
     /*
      * Probe：有设备则返回 0 并可选写入 *OutPrivate；无设备返回非 0。
-     * BusCtx 预留总线上下文（D2+）。
+     * BusCtx 预留总线上下文：Match!=NULL 时框架传入 DEVICE_NODE *。
      */
     int (*Probe)(const struct TOY_DRIVER *Self, void *BusCtx, void **OutPrivate);
     int (*Bind)(TOY_DRIVER_INSTANCE *Inst);
