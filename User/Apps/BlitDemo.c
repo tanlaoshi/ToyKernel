@@ -4,6 +4,7 @@
  */
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 #include <ToyGfx.h>
 #include <ToyUi.h>
 #include <toyos/syscall.h>
@@ -70,7 +71,7 @@ int main(void) {
         if (Event == TOY_UI_EVENT_CLOSE) {
             break;
         }
-        toy_yield();
+        sched_yield();
     }
     printf("blitdemo: closed ok\n");
     return 0;

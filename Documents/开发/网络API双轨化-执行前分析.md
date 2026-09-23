@@ -1,7 +1,8 @@
 # 网络 API 双轨化 · 执行前分析（C1 已定）
 
 > **决策已定**：`connect`/`bind` 归 POSIX；主机序便利版改名 `ToyNetConnect`/`ToyNetBind`。  
-> **本文**：对照仓库实况校正任务书 4 步；**确认后再做第 1 步**（只改名 + 迁移，不加 POSIX 原型）。
+> **进度**：任务书第 5 步（网-1 + POSIX `sockaddr`）**已落地**。下文 §1–§9 是动手前的实况，不要再按「没有 `sys/socket.h`」执行。  
+> **不在本次 POSIX 补充五步里**：`accept` 仍是 `accept(int fd)`；无 `inet_aton` / `inet_ntoa`。当前 ★ 是 [`PR-U-sched-yield`](../路线图.md#pr-u-sched-yield)，不是这两项。
 
 ---
 

@@ -128,7 +128,7 @@
 
 ## 已知缺口
 
-`getpid` / libc `yield()` / `stat` / Gfx 位图。
+排队中：`sched_yield`（现用 `toy_yield`）、`getpid`/`getppid`、`stat`。Gfx 位图仍缺，保持第 2 轨现状。
 
 下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS`。
 

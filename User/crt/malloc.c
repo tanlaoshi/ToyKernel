@@ -82,9 +82,3 @@ void free(void *p) {
     (void)p;
     /* bump：CRT 不回收；可 brk 收缩但教学省略 */
 }
-
-void exit(int status) {
-    toy_exit(status);
-    for (;;) {
-    }
-}

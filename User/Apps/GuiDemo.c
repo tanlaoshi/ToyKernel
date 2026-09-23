@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 #include <ToyUi.h>
 #include <toyos/syscall.h>
 
@@ -56,7 +57,7 @@ int main(void) {
             ToyUiSetLabel(WindowId, Line);
             printf("guidemo: %s\n", Line);
         } else {
-            toy_yield();
+            sched_yield();
         }
     }
     printf("guidemo: closed ok\n");

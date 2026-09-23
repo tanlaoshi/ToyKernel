@@ -1,8 +1,27 @@
 # ABI / API 双轨制整理（分析稿）
 
-> **状态**：网-1 / A / B / **C ✅ TG**（柱齐，可 GD）。  
-> **范围**：用户态 `User/include/` + CRT/lib；不改 syscall 号。  
+> **状态**：网-1 / A / B / **C ✅ TG**（2026-09-23）。正文 §1–§10 是当时的分析快照。  
+> **本次补充**：见下方「补充 POSIX」。★ [`PR-U-sched-yield`](../路线图.md#pr-u-sched-yield) → getpid → stat。目录别名与网络 `connect`/`bind` **已在代码里**。  
+> **范围**：用户态 `User/include/` + CRT/lib；已有 syscall 号不动，新号从 34 起。  
 > **对照**：本文件相对任务书，已按**仓库实况**校正。
+
+---
+
+## 补充 POSIX（2026-09-23 · 对照代码）
+
+第 1 轨补 POSIX 名。第 2 轨（含 `ToyGfx*`、`FileStat`、`OpenDirectory`、`ToyNetConnect`）签名不动。一次只做 ★ 那一刀。
+
+| 步 | 任务书 | 仓库实况 | 排刀 |
+| -- | ------ | -------- | ---- |
+| 1 `sched_yield` | 新 `sched.h`；`toy_yield` 改宏别名 | `toy_yield` 仍是 `syscall.h` 的 `static inline`，走 `SYS_YIELD`（**7**）。调用点在 Gui/Win/Blit/Sig demo、`Pkg/Gui`、SDK Examples | **★** [`PR-U-sched-yield`](../路线图.md#pr-u-sched-yield) |
+| 2 `getpid` / `getppid` | 任务书写号 **30 / 31** | **30 = `SYS_SLEEP`，31 = `SYS_CLOCK_MS`，32 = `SYS_GETCWD`，33 = `SYS_CHDIR`**。`TASK.Id` / `ParentId` 已有。`unistd.c` 已 288 行 | [`PR-U-getpid`](../路线图.md#pr-u-getpid)：号 **34 / 35**，实现放新 `proc.c` |
+| 3 `stat` / `fstat` | 样例把 `Attr` 原样写入 `st_mode`，`S_IFREG=0x80` | `FileStat` 已有（`SYS_FILE_STAT` 22）。目录位是 `0x10`；普通文件 Attr 不是 `0x80` | [`PR-U-stat`](../路线图.md#pr-u-stat)：按目录位映射 `S_IFDIR`/`S_IFREG`。`fstat` 新号 **36**，用 fd 上的 `Path` |
+| 4 目录别名 | 样例用进程级 `static struct dirent` | **已落地**。`opendir`/`closedir` 是宏；`readdir` 的缓冲在每个 `DIR` 里。样例的静态缓冲与 `ReadDirectory` 返回值判断都不要再照抄 | 不排刀 |
+| 5 网络双轨 | `connect`→`ToyNetConnect`，POSIX `sockaddr` | **已落地**（ABI 2.0.1）。`NetLibDemo` / `Pkg/Net` 已改名。详见 [`网络API双轨化-执行前分析.md`](网络API双轨化-执行前分析.md) | 不排刀 |
+
+`accept` 仍是一参数，也没有 `inet_aton` / `inet_ntoa`。这两项不在本次五步里，不占 ★。
+
+实现时：`sched_yield` 直接调 `toy_syscall(SYS_YIELD)`，不能再调用宏 `toy_yield()`。`getppid` 在 `ParentId==-1` 时返回 `0`。
 
 ---
 

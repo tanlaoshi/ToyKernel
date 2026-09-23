@@ -382,7 +382,7 @@ USER_LIB_FSUTIL_A = User/Library/FsUtil/libFsUtil.a
 USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
 USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 	User/crt/errno.o User/crt/unistd.o User/crt/sleep.o User/crt/stdlib.o User/crt/signal.o \
-	User/crt/dirent.o User/crt/stdio.o User/crt/socket.o User/crt/cwd.o
+	User/crt/dirent.o User/crt/stdio.o User/crt/socket.o User/crt/cwd.o User/crt/sched.o
 USER_LD = User/user.ld
 USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
@@ -431,7 +431,7 @@ USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 	$(USER_VIRT_DIR)/unistd.o $(USER_VIRT_DIR)/sleep.o $(USER_VIRT_DIR)/stdlib.o \
 	$(USER_VIRT_DIR)/signal.o $(USER_VIRT_DIR)/dirent.o \
 	$(USER_VIRT_DIR)/stdio.o $(USER_VIRT_DIR)/socket.o \
-	$(USER_VIRT_DIR)/cwd.o
+	$(USER_VIRT_DIR)/cwd.o $(USER_VIRT_DIR)/sched.o
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -852,6 +852,9 @@ $(USER_VIRT_DIR)/socket.o: User/crt/socket.c | $(USER_VIRT_DIR)
 
 $(USER_VIRT_DIR)/cwd.o: User/crt/cwd.c | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c User/crt/cwd.c -o $@
+
+$(USER_VIRT_DIR)/sched.o: User/crt/sched.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/sched.c -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)

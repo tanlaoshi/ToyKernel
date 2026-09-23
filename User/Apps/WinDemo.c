@@ -4,6 +4,7 @@
  */
 #include "stdio.h"
 #include "unistd.h"
+#include "sched.h"
 #include "ToySyscall.h"
 
 int main(void) {
@@ -29,7 +30,7 @@ int main(void) {
         if (Ev == 1) {
             break;
         }
-        toy_yield();
+        sched_yield();
     }
     printf("windemo: closed ok\n");
     return 0;

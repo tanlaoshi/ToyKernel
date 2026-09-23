@@ -1,9 +1,10 @@
 /*
- * stdlib.c — atoi / qsort / abs（PR-L2）；malloc 仍在 malloc.c
+ * stdlib.c — atoi / qsort / abs（PR-L2）；exit（自 malloc.c 迁入）；malloc 仍在 malloc.c
  */
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <toyos/syscall.h>
 
 int abs(int x) {
     return x < 0 ? -x : x;
@@ -68,5 +69,11 @@ void qsort(void *base, size_t nmemb, size_t size,
             }
             SwapBytes(left, right, size);
         }
+    }
+}
+
+void exit(int status) {
+    toy_exit(status);
+    for (;;) {
     }
 }

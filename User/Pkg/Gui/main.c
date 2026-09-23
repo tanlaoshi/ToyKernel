@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 #include <ToyUi.h>
 #include <toyos/syscall.h>
 
@@ -29,7 +30,7 @@ int main(void) {
         if (Ev == TOY_UI_BUTTON_EVENT(0)) {
             ToyUiSetLabel(Wid, "OK!");
         } else if (Ev == TOY_UI_EVENT_NONE) {
-            toy_yield();
+            sched_yield();
         }
     }
     return 0;

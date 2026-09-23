@@ -7,6 +7,7 @@
 
 #include <sys/types.h>
 #include <toyos/version.h>
+#include <sched.h>
 
 #define SYS_EXIT    0
 #define SYS_WRITE   1
@@ -81,9 +82,8 @@ static inline long toy_lseek(long fd, long offset, long whence) {
     return toy_syscall(SYS_LSEEK, fd, offset, whence);
 }
 
-static inline long toy_yield(void) {
-    return toy_syscall(SYS_YIELD, 0, 0, 0);
-}
+/* PR-U-sched-yield：实现迁至 User/crt/sched.c 的 sched_yield；保留旧名为宏别名 */
+#define toy_yield() sched_yield()
 
 static inline long toy_execve(const char *path, char *const argv[],
                               char *const envp[]) {

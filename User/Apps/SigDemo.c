@@ -5,6 +5,7 @@
 #include "stdlib.h"
 #include "unistd.h"
 #include "signal.h"
+#include <sched.h>
 #include <toyos/syscall.h>
 
 static volatile int gGot;
@@ -31,7 +32,7 @@ int main(void) {
             return 1;
         }
         for (;;) {
-            toy_yield();
+            sched_yield();
             if (gGot) {
                 break;
             }
@@ -41,7 +42,7 @@ int main(void) {
 
     printf("sigdemo: child pid=%d\n", (int)Pid);
     for (I = 0; I < 8; I++) {
-        toy_yield();
+        sched_yield();
     }
     if (kill(Pid, SIGTERM) != 0) {
         printf("sigdemo: kill fail\n");

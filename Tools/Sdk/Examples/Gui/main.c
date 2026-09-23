@@ -4,6 +4,7 @@
  */
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 #include <ToyUi.h>
 #include <toyos/syscall.h>
 
@@ -42,7 +43,7 @@ int main(void) {
         } else if (Ev == TOY_UI_TEXT_EVENT(0)) {
             ToyUiSetLabel(Wid, "field focus");
         } else if (Ev == TOY_UI_EVENT_NONE || Ev == TOY_UI_EVENT_CLICK) {
-            toy_yield();
+            sched_yield();
         }
     }
     return 0;
