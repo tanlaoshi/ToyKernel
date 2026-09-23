@@ -8,3 +8,6 @@ toy_syscall:
 	mv	a2, a3
 	ecall
 	ret
+
+	.global toy_syscall2
+	.set toy_syscall2, toy_syscall

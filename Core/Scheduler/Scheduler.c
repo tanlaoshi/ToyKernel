@@ -113,6 +113,7 @@ void SchedulerInitialize(void) {
         gTasks[i].BrkBase = 0;
         gTasks[i].Brk = 0;
         gTasks[i].MmapNext = 0;
+        gTasks[i].Cwd[0] = 0;
         TaskClearFds(&gTasks[i]);
     }
     gTaskCount = 0;
@@ -223,6 +224,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].BrkBase = BrkBase;
         gTasks[i].Brk = BrkBase;
         gTasks[i].MmapNext = USER_MMAP_BASE;
+        gTasks[i].Cwd[0] = 0;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;

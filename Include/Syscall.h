@@ -36,6 +36,8 @@
 #define SYS_LSEEK          29 /* PR-A-libc：rdi=fd rsi=off rdx=whence → 新偏移；失败 -errno */
 #define SYS_SLEEP          30 /* rdi=ms；阻塞约 Ms 个调度节拍（≈ms）；0=yield */
 #define SYS_CLOCK_MS       31 /* 墙钟毫秒：HalCpuTicks(0)*1000/HalTicksPerSec() */
+#define SYS_GETCWD         32 /* rdi=buf rsi=len → 0；失败 -1 */
+#define SYS_CHDIR          33 /* rdi=path → 0；失败 -1 */
 
 /* SYS_WAIT：rdi = options；WNOHANG 时无已退出子进程则返回 0（不阻塞） */
 #define WNOHANG 1

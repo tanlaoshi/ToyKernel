@@ -34,6 +34,9 @@ int SysExecve(HAL_INTERRUPT_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,
     if (Path[0] == 0) {
         return -1;
     }
+    if (CwdResolve(T, Path, (int)sizeof(Path)) != 0) {
+        return -1;
+    }
     return ProcessExecve(Frame, Path, UserArgv, UserEnvp);
 }
 

@@ -6,6 +6,7 @@
 
 #include "Syscall.h"
 #include "Hal.h"
+#include "Scheduler.h"
 
 #define COPY_BUF_MAX 256
 /* 与 TASK_FD.Path[64] 对齐，便于 CRT 打开子路径 */
@@ -30,6 +31,10 @@ int SysListen(int Fd, int Backlog);
 int SysAccept(int Fd);
 int SysPipe(UINT64 UserPtr);
 int SysDup(int Fd);
+/* 相对路径拼到 TASK.Cwd；绝对路径（/ 或 卷:）原样 */
+int CwdResolve(TASK *T, char *Path, int Max);
+int SysGetcwd(UINT64 UserBuf, UINTN Len);
+int SysChdir(UINT64 UserPath);
 
 /* SyscallProc.c */
 int SysExecve(HAL_INTERRUPT_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,

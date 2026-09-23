@@ -96,6 +96,12 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].BrkBase = Parent->BrkBase;
     gTasks[Child].Brk = Parent->Brk;
     gTasks[Child].MmapNext = Parent->MmapNext;
+    {
+        int k;
+        for (k = 0; k < (int)sizeof(Parent->Cwd); k++) {
+            gTasks[Child].Cwd[k] = Parent->Cwd[k];
+        }
+    }
     TaskCloneFds(&gTasks[Child], Parent);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;

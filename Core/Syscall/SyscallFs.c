@@ -100,6 +100,9 @@ int SysOpen(UINT64 UserPath) {
     if (Path[0] == 0) {
         return -1;
     }
+    if (CwdResolve(T, Path, (int)sizeof(Path)) != 0) {
+        return -1;
+    }
     return SchedulerFdOpen(T, Path);
 }
 
@@ -174,6 +177,9 @@ int SysFileStat(UINT64 UserPath, UINT64 UserOut) {
         }
     }
     Path[PATH_MAX_LEN] = 0;
+    if (CwdResolve(T, Path, (int)sizeof(Path)) != 0) {
+        return -1;
+    }
     if (SchedulerFdFileStat(T, Path, &St) < 0) {
         return -1;
     }
@@ -206,6 +212,9 @@ int SysOpenDirectory(UINT64 UserPath) {
             }
         }
         Path[PATH_MAX_LEN] = 0;
+    }
+    if (Path[0] && CwdResolve(T, Path, (int)sizeof(Path)) != 0) {
+        return -1;
     }
     return SchedulerFdOpenDirectory(T, Path);
 }

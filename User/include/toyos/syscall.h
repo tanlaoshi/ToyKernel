@@ -40,6 +40,8 @@
 #define SYS_LSEEK         29 /* PR-A-libc：rdi=fd rsi=off rdx=whence */
 #define SYS_SLEEP         30 /* rdi=ms；阻塞约 Ms 节拍（≈ms） */
 #define SYS_CLOCK_MS      31 /* 返回 BSP tick（与 sleep 同尺） */
+#define SYS_GETCWD        32 /* rdi=buf rsi=len → 0 */
+#define SYS_CHDIR         33 /* rdi=path → 0 */
 
 #define WNOHANG 1
 
@@ -48,6 +50,12 @@
 #define SIGTERM 15
 
 long toy_syscall(long n, long a, long b, long c);
+/* 与 toy_syscall 同一条指令；第二返回值在 rdx / x1 / a1（wait 退出码） */
+typedef struct {
+    long A;
+    long B;
+} TOY_RET2;
+TOY_RET2 toy_syscall2(long n, long a, long b, long c);
 
 static inline long toy_exit(long status) {
     return toy_syscall(SYS_EXIT, status, 0, 0);

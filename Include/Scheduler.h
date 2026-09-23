@@ -69,6 +69,7 @@ typedef struct TASK {
     UINT64                 Brk;        /* 当前 program break */
     UINT64                 MmapNext;   /* PR-U-mmap：下一匿名映射 VA */
     TASK_FD                Fds[MAX_FDS];
+    char                   Cwd[64]; /* 空=卷根；chdir 写入，fork 继承 */
 } TASK;
 
 #define SCHED_PRIORITY_DEFAULT  0

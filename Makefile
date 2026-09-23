@@ -339,6 +339,7 @@ USER_LIBCDEMO_ELF = $(USER_OUT)/libcdemo.elf
 USER_SLEEPDEMO_ELF = $(USER_OUT)/sleepdemo.elf
 USER_SNAKE_ELF = $(USER_OUT)/snake.elf
 USER_DIRDEMO_ELF = $(USER_OUT)/dirdemo.elf
+USER_CWDDEMO_ELF = $(USER_OUT)/cwddemo.elf
 USER_NETLIB_ELF = $(USER_OUT)/netlibdemo.elf
 USER_SOCKDEMO_ELF = $(USER_OUT)/sockdemo.elf
 USER_HELLO_OBJ = $(USER_OUT)/hello.o
@@ -366,6 +367,7 @@ USER_LIBCDEMO_OBJ = $(USER_OUT)/libcdemo.o
 USER_SLEEPDEMO_OBJ = $(USER_OUT)/sleepdemo.o
 USER_SNAKE_OBJ = $(USER_OUT)/snake.o
 USER_DIRDEMO_OBJ = $(USER_OUT)/dirdemo.o
+USER_CWDDEMO_OBJ = $(USER_OUT)/cwddemo.o
 USER_NETLIB_OBJ = $(USER_OUT)/netlibdemo.o
 USER_SOCKDEMO_OBJ = $(USER_OUT)/sockdemo.o
 USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
@@ -380,7 +382,7 @@ USER_LIB_FSUTIL_A = User/Library/FsUtil/libFsUtil.a
 USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
 USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 	User/crt/errno.o User/crt/unistd.o User/crt/sleep.o User/crt/stdlib.o User/crt/signal.o \
-	User/crt/dirent.o User/crt/stdio.o User/crt/socket.o
+	User/crt/dirent.o User/crt/stdio.o User/crt/socket.o User/crt/cwd.o
 USER_LD = User/user.ld
 USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
@@ -428,7 +430,8 @@ USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 	$(USER_VIRT_DIR)/malloc.o $(USER_VIRT_DIR)/errno.o \
 	$(USER_VIRT_DIR)/unistd.o $(USER_VIRT_DIR)/sleep.o $(USER_VIRT_DIR)/stdlib.o \
 	$(USER_VIRT_DIR)/signal.o $(USER_VIRT_DIR)/dirent.o \
-	$(USER_VIRT_DIR)/stdio.o $(USER_VIRT_DIR)/socket.o
+	$(USER_VIRT_DIR)/stdio.o $(USER_VIRT_DIR)/socket.o \
+	$(USER_VIRT_DIR)/cwd.o
 endif
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
@@ -471,7 +474,7 @@ all: $(USER_HELLO_ELF) $(USER_COUNT_ELF) $(USER_FORK_ELF) $(USER_WAITNH_ELF) \
 	$(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF) \
 	$(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_MMAPDEMO_ELF) $(USER_KILLDEMO_ELF) \
 	$(USER_SIGDEMO_ELF) \
-	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_BLITDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_SLEEPDEMO_ELF) $(USER_SNAKE_ELF) $(USER_DIRDEMO_ELF) \
+	$(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_BLITDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_SLEEPDEMO_ELF) $(USER_SNAKE_ELF) $(USER_DIRDEMO_ELF) $(USER_CWDDEMO_ELF) \
 	$(USER_NETLIB_ELF) $(USER_SOCKDEMO_ELF) $(USER_LIB_TOYOS_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_FSUTIL_A)
 endif
 else
@@ -707,6 +710,12 @@ $(USER_DIRDEMO_OBJ): User/Apps/DirDemo.c User/include/stdio.h User/include/diren
 $(USER_DIRDEMO_ELF): $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS)
 
+$(USER_CWDDEMO_OBJ): User/Apps/CwdDemo.c User/include/stdio.h User/include/stdlib.h User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c User/Apps/CwdDemo.c -o $@
+
+$(USER_CWDDEMO_ELF): $(USER_CWDDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_CWDDEMO_OBJ) $(USER_CRT_OBJS)
+
 $(USER_NETLIB_OBJ): User/Apps/NetLibDemo.c User/include/ToyNet.h User/include/stdio.h User/include/string.h User/include/unistd.h | $(USER_OUT)
 	$(CC) $(USER_CFLAGS) -c User/Apps/NetLibDemo.c -o $@
 
@@ -841,6 +850,9 @@ $(USER_VIRT_DIR)/stdio.o: User/crt/stdio.c | $(USER_VIRT_DIR)
 $(USER_VIRT_DIR)/socket.o: User/crt/socket.c | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c User/crt/socket.c -o $@
 
+$(USER_VIRT_DIR)/cwd.o: User/crt/cwd.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/cwd.c -o $@
+
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
 endif
@@ -860,7 +872,7 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_LIBTOY_OBJ) $(USER_DYNDEMO_OBJ) $(USER_CAT_OBJ) $(USER_WRITE_OBJ)
 	rm -f $(USER_NETDEMO_OBJ) $(USER_NETSRV_OBJ) $(USER_SYSHELLO_OBJ) $(USER_SYSFORK_OBJ)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_MMAPDEMO_OBJ) $(USER_KILLDEMO_OBJ) $(USER_SIGDEMO_OBJ)
-	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_BLITDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_SLEEPDEMO_OBJ) $(USER_SNAKE_OBJ) $(USER_DIRDEMO_OBJ)
+	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_BLITDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_SLEEPDEMO_OBJ) $(USER_SNAKE_OBJ) $(USER_DIRDEMO_OBJ) $(USER_CWDDEMO_OBJ)
 	rm -f $(USER_NETLIB_OBJ) $(USER_SOCKDEMO_OBJ)
 	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) \
 		$(USER_LIB_TOY_NET_OBJ) $(USER_LIB_FSUTIL_OBJ)
@@ -870,6 +882,6 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_LIBTOY_SO) $(USER_DYNDEMO_ELF) $(USER_CAT_ELF) $(USER_WRITE_ELF)
 	rm -f $(USER_NETDEMO_ELF) $(USER_NETSRV_ELF) $(USER_SYSHELLO_ELF) $(USER_SYSFORK_ELF)
 	rm -f $(USER_EXECDEMO_ELF) $(USER_PIPEDEMO_ELF) $(USER_BRKDEMO_ELF) $(USER_MMAPDEMO_ELF) $(USER_KILLDEMO_ELF) $(USER_SIGDEMO_ELF)
-	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_BLITDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_SLEEPDEMO_ELF) $(USER_SNAKE_ELF) $(USER_DIRDEMO_ELF)
+	rm -f $(USER_WINDEMO_ELF) $(USER_GUIDEMO_ELF) $(USER_BLITDEMO_ELF) $(USER_LIBCDEMO_ELF) $(USER_SLEEPDEMO_ELF) $(USER_SNAKE_ELF) $(USER_DIRDEMO_ELF) $(USER_CWDDEMO_ELF)
 	rm -f $(USER_NETLIB_ELF) $(USER_SOCKDEMO_ELF)
 endif

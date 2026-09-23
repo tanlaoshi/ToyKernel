@@ -8,3 +8,6 @@ toy_syscall:
 	mov	x2, x3
 	svc	#0
 	ret
+
+	.global toy_syscall2
+	.set toy_syscall2, toy_syscall

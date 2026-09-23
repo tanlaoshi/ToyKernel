@@ -139,15 +139,15 @@ pid_t fork(void) {
 }
 
 pid_t wait(int *status) {
-    long r = toy_wait(0);
-    if (r < 0) {
+    TOY_RET2 r = toy_syscall2(SYS_WAIT, 0, 0, 0);
+    if (r.A < 0) {
         errno = ECHILD;
         return -1;
     }
     if (status) {
-        *status = 0;
+        *status = ((int)r.B & 0xff) << 8;
     }
-    return (pid_t)r;
+    return (pid_t)r.A;
 }
 
 void *brk(void *addr) {

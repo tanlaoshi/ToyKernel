@@ -9,3 +9,6 @@ toy_syscall:
     mov rdx, rcx
     syscall
     ret
+
+    .global toy_syscall2
+    .set toy_syscall2, toy_syscall

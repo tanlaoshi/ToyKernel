@@ -150,6 +150,13 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     case SYS_SLEEP:
         Ret = SchedulerSleepMs(Frame, (UINT32)HalFrameGetArgument0(Frame));
         break;
+    case SYS_GETCWD:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysGetcwd(
+            HalFrameGetArgument0(Frame), (UINTN)HalFrameGetArgument1(Frame)));
+        break;
+    case SYS_CHDIR:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysChdir(HalFrameGetArgument0(Frame)));
+        break;
     case SYS_CLOCK_MS:
         {
             UINT32 Tps = HalTicksPerSec();
