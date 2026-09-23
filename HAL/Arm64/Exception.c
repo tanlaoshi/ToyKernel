@@ -157,7 +157,7 @@ void HalPagingSelfTest(void) {
 }
 
 /*
- * 内嵌极小用户程序（固定 VA = HalUserCodeVirt）：
+ * 内嵌极小用户程序（固定 VA = HalUserCodeVirt；号段重排后用 SYS_*）：
  *   write(1, "Hello EL0!\n", 11); exit(0);
  * ABI：x8=号，x0/x1/x2=参数（Linux aarch64 形）。
  */
@@ -171,10 +171,10 @@ static void BuildUserStub(UINT8 *Page, UINT64 CodeVa) {
      * +0  mov x0,#1
      * +4  mov x2,#11
      * +8  ldr x1, +32   (literal @ +32)
-     * +12 mov x8,#1
+     * +12 mov x8,#SYS_WRITE
      * +16 svc #0
      * +20 mov x0,#0
-     * +24 mov x8,#0
+     * +24 mov x8,#SYS_EXIT
      * +28 svc #0
      * +32 .quad MsgVa
      */
@@ -182,10 +182,10 @@ static void BuildUserStub(UINT8 *Page, UINT64 CodeVa) {
     I[1] = 0xD2800162u;
     /* imm19 = (32-8)/4 = 6 */
     I[2] = 0x58000000u | (6u << 5) | 1u;
-    I[3] = 0xD2800028u;
+    I[3] = 0xD2800000u | ((UINT32)SYS_WRITE << 5) | 8u; /* movz x8, SYS_WRITE */
     I[4] = 0xD4000001u;
     I[5] = 0xD2800000u;
-    I[6] = 0xD2800008u;
+    I[6] = 0xD2800000u | ((UINT32)SYS_EXIT << 5) | 8u;  /* movz x8, SYS_EXIT */
     I[7] = 0xD4000001u;
     *(UINT64 *)(void *)(Page + 32) = MsgVa;
 

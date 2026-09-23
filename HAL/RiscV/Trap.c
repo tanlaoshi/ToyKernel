@@ -185,9 +185,9 @@ void HalPagingSelfTest(void) {
 
 static void BuildUserStub(UINT8 *Page, UINT64 CodeVa) {
     /*
-     * 固定 VA 小程序（rv64i，无压缩）：
-     *   li a0,1; li a1,msg; li a2,12; li a7,1; ecall
-     *   li a0,0; li a7,0; ecall
+     * 固定 VA 小程序（rv64i，无压缩；号段重排后用 SYS_*）：
+     *   li a0,1; li a1,msg; li a2,14; li a7,SYS_WRITE; ecall
+     *   li a0,0; li a7,SYS_EXIT; ecall
      * msg @ +0x80: "Hello U-mode!\n"
      */
     UINT32 *I = (UINT32 *)(void *)Page;
@@ -205,10 +205,10 @@ static void BuildUserStub(UINT8 *Page, UINT64 CodeVa) {
     I[1] = (Hi << 12) | (11 << 7) | 0x37u;      /* lui a1, hi */
     I[2] = (Lo << 20) | (11 << 15) | (11 << 7) | 0x13u; /* addi a1,a1,lo */
     I[3] = 0x00e00613u;                         /* addi a2,x0,14 */
-    I[4] = 0x00100893u;                         /* addi a7,x0,1 */
+    I[4] = ((UINT32)SYS_WRITE << 20) | (17u << 7) | 0x13u; /* addi a7,x0,SYS_WRITE */
     I[5] = 0x00000073u;                         /* ecall */
     I[6] = 0x00000513u;                         /* addi a0,x0,0 */
-    I[7] = 0x00000893u;                         /* addi a7,x0,0 */
+    I[7] = ((UINT32)SYS_EXIT << 20) | (17u << 7) | 0x13u;  /* addi a7,x0,SYS_EXIT */
     I[8] = 0x00000073u;                         /* ecall */
 
     for (n = 0; Msg[n]; n++) {
