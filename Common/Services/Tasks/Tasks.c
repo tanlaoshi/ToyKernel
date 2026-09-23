@@ -75,6 +75,7 @@ void WorkerTask(void) {
         gWorkerCount++;
         if (StoreJobUiIsBusy()) {
             (void)StoreJobStep();
+            SchedulerIoBreath();
             continue;
         }
         HalCpuHalt();

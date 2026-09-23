@@ -4,6 +4,7 @@
 #include "StoreUiPrivate.h"
 #include "StoreJob.h"
 #include "Fat.h"
+#include "Console.h"
 
 void StoreJobStatusWithId(const char *Verb, const char *Id) {
     char Buf[80];
@@ -114,25 +115,36 @@ void StoreJobBusyRepaint(void) {
 void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
     if (Err == STORE_JOB_ERR_CANCEL) {
         StoreSetStatus("cancelled");
+        ConsoleWrite("store job: cancelled\n");
         return;
     }
     if (Err == FAT_OK && Kind == STORE_JOB_INSTALL && PlanN == 0) {
         StoreSetStatus("already installed");
+        ConsoleWrite("store job: already installed\n");
         return;
     }
     if (Err == FAT_OK) {
         if (Kind == STORE_JOB_INSTALL) {
             StoreSetStatus("installed");
+            ConsoleWrite("store job: installed\n");
         } else if (Kind == STORE_JOB_REMOVE) {
             StoreSetStatus("removed");
+            ConsoleWrite("store job: removed\n");
         } else {
             StoreSetStatus("sync ok");
+            ConsoleWrite("store job: sync ok\n");
         }
     } else if (Kind == STORE_JOB_INSTALL) {
         StoreSetStatus("install fail");
+        ConsoleWrite("store job: install fail\n");
     } else if (Kind == STORE_JOB_REMOVE) {
         StoreSetStatus("remove fail");
+        ConsoleWrite("store job: remove fail\n");
+        if (Err == FAT_ERR_INVAL) {
+            ConsoleWrite("hint: still required by dependents; remove app first\n");
+        }
     } else {
         StoreSetStatus("sync fail (need repo)");
+        ConsoleWrite("store job: sync fail\n");
     }
 }

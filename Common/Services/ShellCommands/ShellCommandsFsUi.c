@@ -23,13 +23,55 @@ static int ShellStoreLock(void) {
     return 0;
 }
 
-/* 窗/Shell 同一 StoreJob；0=已结束看 LastError；-1=忙 */
+/*
+ * Shell ↔ StoreJob：同一套 Job。0=已入队（Worker 执行）；-1=忙/失败。
+ * 完成态：store job；勿在此同步等 LastError（rm-exc-11 INTERFACE）。
+ */
 static int ShellStoreJob(STORE_JOB_KIND Kind, const char *Id) {
     if (StoreJobShellRun(Kind, Id) != 0) {
-        ConsoleWrite("store: Store UI busy (Cancel or wait)\n");
+        ConsoleWrite("store: busy (Cancel in Store UI, or store job)\n");
         return -1;
     }
     return 0;
+}
+
+static void ShellStoreQueued(const char *Verb, const char *Id) {
+    ConsoleWrite("store: queued ");
+    if (Verb && Verb[0]) {
+        ConsoleWrite(Verb);
+        ConsoleWrite(" ");
+    }
+    if (Id && Id[0]) {
+        ConsoleWrite(Id);
+    }
+    ConsoleWrite("\n");
+    ConsoleWrite("hint: worker runs it; store job — status / last error\n");
+}
+
+static void ShellStoreJobStatus(void) {
+    char Buf[96];
+    int Err;
+
+    if (StoreJobUiIsBusy()) {
+        StoreJobGetStatus(Buf, (int)sizeof(Buf));
+        ConsoleWrite("store job: busy");
+        if (Buf[0]) {
+            ConsoleWrite("  ");
+            ConsoleWrite(Buf);
+        }
+        ConsoleWrite("\n");
+        return;
+    }
+    Err = StoreJobLastError();
+    ConsoleWrite("store job: idle  last=");
+    if (Err == FAT_OK || Err == 0) {
+        ConsoleWrite("ok");
+    } else if (Err == STORE_JOB_ERR_CANCEL) {
+        ConsoleWrite("cancelled");
+    } else {
+        ConsoleWrite(FatStrError(Err));
+    }
+    ConsoleWrite("\n");
 }
 
 static void CommandShell(int Argc, char **Argv) {
@@ -105,7 +147,7 @@ static int StoreWordEq(const char *A, const char *B) {
 
 static void StorePrintUsage(void) {
     ConsoleWrite(
-        "usage: store <list|install|remove|combo|uncombo|installed|sync|fetch|repo> ...\n");
+        "usage: store <list|install|remove|combo|uncombo|installed|sync|fetch|repo|job> ...\n");
     ConsoleWrite(
         "  aliases: (none)→list, status→list, rm→remove, list-installed→installed\n");
 }
@@ -173,6 +215,9 @@ static void CommandStore(int Argc, char **Argv) {
         Sub = Argv[1];
         if (StoreWordEq(Sub, "status")) {
             Sub = "list";
+        } else if (StoreWordEq(Sub, "job")) {
+            ShellStoreJobStatus();
+            return;
         } else if (StoreWordEq(Sub, "rm")) {
             Sub = "remove";
         } else if (StoreWordEq(Sub, "list-installed")) {
@@ -203,26 +248,7 @@ static void CommandStore(int Argc, char **Argv) {
         if (ShellStoreJob(STORE_JOB_SYNC, 0) != 0) {
             return;
         }
-        Err = StoreJobLastError();
-        if (Err == -41 || Err == -2) {
-            ConsoleWrite("store sync: HTTP not 200 (host http.server + /catalog.txt?)\n");
-            return;
-        }
-        if (Err == -40) {
-            ConsoleWrite("store sync: net/tcp fail (repo up? store repo)\n");
-            return;
-        }
-        if (Err == -43) {
-            ConsoleWrite("store sync: out of memory\n");
-            return;
-        }
-        if (Err != FAT_OK && Err != 0) {
-            ConsoleWrite("store sync: ");
-            ConsoleWrite(FatStrError(Err));
-            ConsoleWrite("\n");
-            return;
-        }
-        ConsoleWrite("store: synced " STORE_CATALOG_ALT "\n");
+        ShellStoreQueued("sync", 0);
         return;
     }
 
@@ -273,61 +299,11 @@ static void CommandStore(int Argc, char **Argv) {
             }
             return;
         }
-        /* 与 Store 窗 Install 同 Job（PlanInstall含 depends；combo≡同路径） */
+        /* 与 Store 窗 Install 同 Job；只入队，Worker 执行（rm-exc-11） */
         if (ShellStoreJob(STORE_JOB_INSTALL, Argv[2]) != 0) {
             return;
         }
-        Err = StoreJobLastError();
-        if (Err != FAT_OK) {
-            ConsoleWrite(StoreWordEq(Sub, "combo") ? "store combo: " : "store install: ");
-            if (Err == STORE_JOB_ERR_CANCEL) {
-                ConsoleWrite("cancelled\n");
-            } else {
-                ConsoleWrite(FatStrError(Err));
-                ConsoleWrite("\n");
-                if (!StoreWordEq(Sub, "combo")) {
-                    ConsoleWrite("hint: store combo <id> installs depends first\n");
-                }
-            }
-            return;
-        }
-        if (StoreWordEq(Sub, "combo")) {
-            ConsoleWrite("store: combo installed ");
-            ConsoleWrite(Argv[2]);
-            ConsoleWrite(" (+depends)\n");
-            return;
-        }
-        {
-            STORE_ENTRY *Tab2 = StoreScratchTab();
-            int C2 = 0;
-            int j;
-            const char *Where = "Apps/";
-            (void)StoreLoadCatalog(Tab2, STORE_ENTRIES_MAX, &C2);
-            for (j = 0; j < C2; j++) {
-                int k = 0;
-                while (Argv[2][k] && Argv[2][k] == Tab2[j].Id[k]) {
-                    k++;
-                }
-                if (Argv[2][k] == 0 && Tab2[j].Id[k] == 0) {
-                    if (Tab2[j].Type[0] == 'f') {
-                        Where = "Assets/Fonts/";
-                    } else if (Tab2[j].Type[0] == 'a' && Tab2[j].Type[1] == 's') {
-                        Where = "Assets/Packs/";
-                    }
-                    break;
-                }
-            }
-            ConsoleWrite("store: installed to ");
-            ConsoleWrite(Where);
-            ConsoleWrite("\n");
-            if (Where[0] == 'A' && Where[7] == 'F') {
-                ConsoleWrite("hint: font / font reload — Settings 可选新字面\n");
-            } else if (Where[0] == 'A' && Where[7] == 'P') {
-                ConsoleWrite("hint: blob under Assets/Packs/ (driver reads path)\n");
-            } else {
-                ConsoleWrite("hint: exec Apps/<ELF> — HELLO prints one line then exits (正常)\n");
-            }
-        }
+        ShellStoreQueued(StoreWordEq(Sub, "combo") ? "combo" : "install", Argv[2]);
         return;
     }
 
@@ -369,40 +345,11 @@ static void CommandStore(int Argc, char **Argv) {
                              : "usage: store remove <id>\n");
             return;
         }
-        /* 与 Store 窗 Remove 同 Job（PlanRemove） */
+        /* 与 Store 窗 Remove 同 Job；只入队（rm-exc-11 INTERFACE） */
         if (ShellStoreJob(STORE_JOB_REMOVE, Argv[2]) != 0) {
             return;
         }
-        Err = StoreJobLastError();
-        if (Err != FAT_OK) {
-            ConsoleWrite(StoreWordEq(Sub, "uncombo") ? "store uncombo: " : "store remove: remove fail\n");
-            if (StoreWordEq(Sub, "uncombo")) {
-                if (Err == STORE_JOB_ERR_CANCEL) {
-                    ConsoleWrite("cancelled\n");
-                } else {
-                    ConsoleWrite(FatStrError(Err));
-                    ConsoleWrite("\n");
-                }
-            } else if (Err == FAT_ERR_INVAL) {
-                ConsoleWrite("hint: still required by dependents; remove app first, or store uncombo <leaf>\n");
-            } else if (Err == STORE_JOB_ERR_CANCEL) {
-                ConsoleWrite("hint: cancelled\n");
-            } else {
-                ConsoleWrite("hint: ");
-                ConsoleWrite(FatStrError(Err));
-                ConsoleWrite("\n");
-            }
-            return;
-        }
-        if (StoreWordEq(Sub, "uncombo")) {
-            ConsoleWrite("store: combo removed ");
-            ConsoleWrite(Argv[2]);
-            ConsoleWrite("\n");
-        } else {
-            ConsoleWrite("store: removed ");
-            ConsoleWrite(Argv[2]);
-            ConsoleWrite("\n");
-        }
+        ShellStoreQueued(StoreWordEq(Sub, "uncombo") ? "uncombo" : "remove", Argv[2]);
         return;
     }
 

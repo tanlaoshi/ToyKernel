@@ -98,8 +98,8 @@ void SchedulerStart(void) {
     }
 
     /*
-     * PR-S-ap：多核时 shell/gui 同钉 AP（逻辑 CPU1），BSP 留给 idle0 / 中断 / 偷任务；
-     * 单核仍钉 0。交互 Priority 偏高；worker Affinity=-1。
+     * PR-S-ap：多核时 shell/gui 同钉 AP（逻辑 CPU1），BSP 留给 idle0 / worker / 中断；
+     * 单核仍钉 0。交互 Priority 偏高；worker 钉 BSP（rm-exc-11 与 INTERFACE 分核）。
      * PR-S-input-pin 序 2：input 钉独立 CPU2（SMP≥3），与 shell/gui 分核，sti 不外溢。
      */
     {
@@ -126,6 +126,15 @@ void SchedulerStart(void) {
                 gTasks[i].HomeCpu = (INT32)InteractiveCpu;
                 gTasks[i].Priority = SCHED_PRIORITY_SHELL;
                 RunQueueEnqueue(InteractiveCpu, &gTasks[i]);
+                continue;
+            }
+            /* worker：钉 BSP（≠ shell/gui 的 AP），后台 Job 与 INTERFACE 分核 */
+            if (gTasks[i].Name[0] == 'w' && gTasks[i].Name[1] == 'o') {
+                RunQueueRemove(&gTasks[i]);
+                gTasks[i].Affinity = 0;
+                gTasks[i].HomeCpu = 0;
+                gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
+                RunQueueEnqueue(0, &gTasks[i]);
             }
         }
     }

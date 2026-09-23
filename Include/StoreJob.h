@@ -1,10 +1,9 @@
 /*
- * StoreJob.h — Store UI 后台作业（PR-S-job）
+ * StoreJob.h — Store 后台作业（窗/Shell 同队；Worker 泵）
  *
- * 协作切片：Enqueue 入队，GuiPollMouse 末尾 StoreJobStep 推进。
- * 序 5：Cancel 在相位/chunk 边界生效；半截拷贝 Abort 不登记。
- * Shell remove（及可选 install）可走 StoreJobShellRun：Enqueue 后浅等，
- * WorkerTask Step 执行 Store*（GuiTask 只泵鼠标）。
+ * INTERFACE：Enqueue 入队即返回；WorkerTask 调 StoreJobStep。
+ * Shell：StoreJobShellRun 只 Enqueue（rm-exc-11）；完成用 store job。
+ * 窗：Enqueue 后回 Gui 循环。Cancel 在相位/chunk 边界生效。
  */
 #ifndef STORE_JOB_H
 #define STORE_JOB_H
@@ -38,17 +37,16 @@ int StoreJobLastError(void);
 int StoreJobCancel(void);
 
 /*
- * Shell 同步路径互斥（PR-S-job-shell）：
- * Begin 失败 = UI 作业进行中；成功后 UI 见 IsBusy，勿与 UI Job 并行。
- * install/combo/… 仍可直接调 Store*；remove 优先 StoreJobShellRun。
+ * Shell 互斥（fetch 等仍同步调 Store* 时用 Begin/End）：
+ * Begin 失败 = UI 作业进行中。
  */
 int StoreJobShellBegin(void);
 void StoreJobShellEnd(void);
 int StoreJobShellIsBusy(void);
 
 /*
- * Shell 走与 Store 窗相同的 Job：Enqueue 后浅等（Pause PresentDefer 放行光标），
- * GuiTask Pump 推进。0=已结束（看 LastError）；-1=忙或入队失败。
+ * Shell INTERFACE：只 Enqueue，立即返回（0=已入队；-1=忙）。
+ * Worker 推进；结果：store job / LastError / Store 窗状态行。
  */
 int StoreJobShellRun(STORE_JOB_KIND Kind, const char *Id);
 

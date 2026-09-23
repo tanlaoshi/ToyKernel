@@ -1,51 +1,39 @@
-/*
- * StoreJobShell.c — Shell ↔ UI Job：同一套 StoreJob，Shell 只是 INTERFACE
- *
- * 窗：Enqueue → GuiPollMouse→Pump。
- * Shell：StoreJobShellRun → Enqueue + 浅等；WorkerTask Step；Gui 只泵鼠标。
- * 等期间 Pause PresentDefer。
- */
-#include "StoreJob.h"
-#include "Hal.h"
-#include "Gui.h"
-
-static int sShellBusy;
-
-int StoreJobShellBegin(void) {
-    if (StoreJobUiIsBusy()) {
-        return -1;
-    }
-    if (sShellBusy) {
-        return -1;
-    }
-    sShellBusy = 1;
-    return 0;
-}
-
-void StoreJobShellEnd(void) {
-    sShellBusy = 0;
-}
-
-int StoreJobShellIsBusy(void) {
-    return sShellBusy ? 1 : 0;
-}
-
-int StoreJobShellRun(STORE_JOB_KIND Kind, const char *Id) {
-    if (sShellBusy) {
-        return -1;
-    }
-    if (StoreJobEnqueue(Kind, Id) != 0) {
-        return -1;
-    }
-    /*
-     * 与 Store 窗同一 Job：本核不 Step（Worker 推进）。
-     * Pause Defer：ConsoleOnEnter 的 Push 否则全局禁 Present → Shell 等 Job 时光标假死。
-     */
-    GuiPresentDeferPause();
-    while (StoreJobUiIsBusy()) {
-        HalIrqEnable();
-        HalCpuHalt();
-    }
-    GuiPresentDeferResume();
-    return 0;
-}
+/*
+ * StoreJobShell.c — Shell ↔ StoreJob：Shell 只做 INTERFACE（rm-exc-11）
+ *
+ * 窗：Enqueue → 立即回 Gui 循环；WorkerTask Step。
+ * Shell：Enqueue → 立即回提示符（勿 hlt 死等）；Worker 推进；查 store job。
+ * 旧路径 Shell hlt 等 Job：Worker 一挂提示符永不通，与窗行为不一致。
+ */
+#include "StoreJob.h"
+#include "Hal.h"
+
+static int sShellBusy;
+
+int StoreJobShellBegin(void) {
+    if (StoreJobUiIsBusy()) {
+        return -1;
+    }
+    if (sShellBusy) {
+        return -1;
+    }
+    sShellBusy = 1;
+    return 0;
+}
+
+void StoreJobShellEnd(void) {
+    sShellBusy = 0;
+}
+
+int StoreJobShellIsBusy(void) {
+    return sShellBusy ? 1 : 0;
+}
+
+int StoreJobShellRun(STORE_JOB_KIND Kind, const char *Id) {
+    if (sShellBusy) {
+        return -1;
+    }
+    /* 只入队；完成看 StoreJobUiIsBusy / LastError / store job */
+    return StoreJobEnqueue(Kind, Id);
+}
+
