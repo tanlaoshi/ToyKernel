@@ -172,7 +172,7 @@ int ThemeIsGradientEnabled(void) {
 }
 
 int ThemeIsFontSmoothEnabled(void) {
-    return (gEffectLevel >= THEME_EFFECT_LOW) ? 1 : 0;
+    return (gEffectLevel >= THEME_EFFECT_MEDIUM) ? 1 : 0;
 }
 
 static void SyncFontSmooth(void) {

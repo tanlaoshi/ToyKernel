@@ -76,8 +76,8 @@ void ThemeSetWindowFadeSteps(UINT32 Steps);
  */
 typedef enum {
     THEME_EFFECT_MINIMAL = 0, /* 无美化（边框三态仍开） */
-    THEME_EFFECT_LOW = 1,     /* 同 minimal：只保留边框 */
-    THEME_EFFECT_MEDIUM = 2,  /* + 半透明 + 标题渐变 */
+    THEME_EFFECT_LOW = 1,     /* 同 minimal：只保留边框（硬边字体） */
+    THEME_EFFECT_MEDIUM = 2,  /* + 半透明 + 标题渐变 + 点阵灰度边 */
     THEME_EFFECT_HIGH = 3     /* + 阴影 + 淡入淡出 */
 } THEME_EFFECT_LEVEL;
 
@@ -87,7 +87,7 @@ int ThemeIsShadowEnabled(void);
 int ThemeIsFadeEnabled(void);
 int ThemeIsAlphaEnabled(void);
 int ThemeIsGradientEnabled(void);
-/* PR-GUI-l2-font：low 及以上开点阵灰度边；minimal 保持硬边 */
+/* PR-GUI-l2-font：medium 及以上开点阵灰度边；minimal/low 硬边 */
 int ThemeIsFontSmoothEnabled(void);
 /* 供 DB/Shell/CFG；未知级别回 "high" */
 const char *ThemeEffectLevelName(THEME_EFFECT_LEVEL Level);
