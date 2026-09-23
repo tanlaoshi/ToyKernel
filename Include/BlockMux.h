@@ -13,5 +13,7 @@
 
 /* 安装/更新 MSC 后端：保留当前 Primary，注册 Mux */
 void BlockMuxInstallMsc(const BLOCK_BACKEND *Msc);
+/* 1=该槽是 USB MSC（慢）；0=主后端 NVMe/AHCI/ATA/virtio 或未挂 Mux */
+int BlockDriveIsMsc(UINT32 Drive);
 
 #endif

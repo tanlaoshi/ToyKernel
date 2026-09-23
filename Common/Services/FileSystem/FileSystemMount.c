@@ -5,6 +5,7 @@
 #include "Store.h"
 #include "ShellCommands.h"
 #include "Block.h"
+#include "BlockMux.h"
 #include "Gpt.h"
 #include "Vfs.h"
 #include "Debug.h"
@@ -103,9 +104,30 @@ int MountAllVolumes(void) {
             V->Name[1] = 0;
 
             if (HasId) {
+                int Msc = BlockDriveIsMsc(d);
+                int Take = 0;
+
                 V->HasToyId = 1;
-                CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
-                ToyVol = Idx;
+                /*
+                 * 多份 TOYOS.ID：默认卷跟内置盘（NVMe/AHCI），Store 装卸不落 U 盘。
+                 * 仅 U 盘有标记时仍名 TOYOS。U 盘那份改名 USB:。
+                 */
+                if (ToyVol < 0) {
+                    Take = 1;
+                } else if (!Msc && BlockDriveIsMsc(gVols[ToyVol].Drive)) {
+                    CopyName(gVols[ToyVol].Name, FS_VOL_NAME_MAX, "USB");
+                    Take = 1;
+                    ToyLogFs("Fs: Prefer Internal TOYOS Over USB\n");
+                } else if (Msc && !BlockDriveIsMsc(gVols[ToyVol].Drive)) {
+                    CopyName(V->Name, FS_VOL_NAME_MAX, "USB");
+                    ToyLogFs("Fs: USB TOYOS Kept As USB:\n");
+                } else {
+                    Take = 1;
+                }
+                if (Take) {
+                    CopyName(V->Name, FS_VOL_NAME_MAX, "TOYOS");
+                    ToyVol = Idx;
+                }
             } else if (IsEsp) {
                 /* 多 ESP 时第二块起名 ESP2…，避免 Resolve(ESP:) 撞名 */
                 int EspN = 0;

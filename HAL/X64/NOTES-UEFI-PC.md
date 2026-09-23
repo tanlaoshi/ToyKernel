@@ -115,6 +115,7 @@ cd ../ToyImage && ./smoke-boot.sh    # 串口 ToyOS ready
 - PCI class `01.08.02`；Admin + 单 IO 队列；同步轮询；512B LBA；单页 PRP bounce
 - 课堂：`TOY_DISK=nvme ./smoke-boot.sh`（串口 `boot: nvme drives=`；双盘=2）
 - 真机：PCIe NVMe 上 FAT（含 `TOYOS.ID`）可 `ls` / `exec`；**4KiB LBA / 多 NS / MSI 本刀不做**
+- **Store 主盘**：内置盘与 U 盘都有 `TOYOS.ID` 时，默认卷是内置（`default=TOYOS`），U 盘改名 `USB:`。课堂单盘：`TOY_DISK=nvme` 或 `ahci` 即可，Store 写在该盘上，比 MSC 快。仅 U 盘有 `TOYOS.ID` 时默认仍是 U 盘。
 - Common FAT/VFS 无改动；注册在 AHCI 之后，有 NVMe 时覆盖后端
 
 ### H-msc：USB MSC（分 PR）

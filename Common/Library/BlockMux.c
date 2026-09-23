@@ -92,6 +92,13 @@ static int MuxFlush(UINT32 Drive) {
     return 1;
 }
 
+int BlockDriveIsMsc(UINT32 Drive) {
+    if (Drive >= BLOCK_MAX_DRIVES) {
+        return 0;
+    }
+    return gKind[Drive] == KIND_MSC ? 1 : 0;
+}
+
 void BlockMuxInstallMsc(const BLOCK_BACKEND *Msc) {
     if (!Msc || !Msc->Probe || !Msc->ReadSectors || !Msc->WriteSectors) {
         DebugWrite("block-mux: bad msc\n");
