@@ -86,5 +86,10 @@ void DeviceListDump(void);
  * 本函数不依赖具体硬件。
  */
 void DeviceEnumerateAll(void);
+/*
+ * PR-DEV-enum 策略 A：已绑定 ToyDriverInstance 按名认领一台 PCI 设备，
+ * 回填 State / Bound / Driver。实例表无 BDF，同名多台只认第一台。
+ */
+void DeviceSyncBound(void);
 
 #endif

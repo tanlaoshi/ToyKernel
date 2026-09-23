@@ -5,6 +5,7 @@
  */
 #include "Device.h"
 #include "PCIe.h"
+#include "PciNames.h"
 #include "Hal.h"
 #include "Debug.h"
 
@@ -107,6 +108,7 @@ void HalDeviceEnumerate(void) {
                 UINT32 IrqDw;
                 DEVICE_NODE Node;
                 const char *Name;
+                const char *Friendly;
 
                 VidDid = PciReadConfig((UINT8)Bus, (UINT8)Dev, (UINT8)Func, 0x00);
                 Vendor = (UINT16)(VidDid & 0xFFFFu);
@@ -136,6 +138,18 @@ void HalDeviceEnumerate(void) {
 
                 Name = PciClassName(Class, Subclass, ProgIf);
                 CopyName(Node.Name, sizeof(Node.Name), Name);
+                /* PR-DEV-enum：类码入库；友好名 设备表 → 类名 → 短键。不写 Command、不探 BAR size */
+                Node.Class = Class;
+                Node.Subclass = Subclass;
+                Node.ProgIf = ProgIf;
+                Friendly = PciGetDeviceName(Vendor, DeviceId);
+                if (!Friendly) {
+                    Friendly = PciGetClassName(Class, Subclass, ProgIf);
+                }
+                if (!Friendly) {
+                    Friendly = Name;
+                }
+                CopyName(Node.FriendlyName, sizeof(Node.FriendlyName), Friendly);
 
                 if (DeviceAdd(&Node) >= 0) {
                     Added++;

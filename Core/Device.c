@@ -4,6 +4,7 @@
  * 不 include Hal.h；HalDeviceEnumerate 仅前向声明，定义在各 Arch DeviceEnum.c。
  */
 #include "Device.h"
+#include "Driver.h"
 #include "PciNames.h"
 
 #define DEVICE_MAX 128
@@ -181,4 +182,80 @@ void DeviceUnbind(DEVICE_NODE *Dev) {
 
 void DeviceEnumerateAll(void) {
     HalDeviceEnumerate();
+}
+
+static int StartsWith(const char *S, const char *Prefix) {
+    if (!S || !Prefix) {
+        return 0;
+    }
+    while (*Prefix) {
+        if (*S != *Prefix) {
+            return 0;
+        }
+        S++;
+        Prefix++;
+    }
+    return 1;
+}
+
+/* 驱动名 ↔ 枚举短键。实例没有 PCI 位，一台驱动只认第一台未绑定设备。 */
+static int InstanceClaims(const TOY_DRIVER *Drv, const DEVICE_NODE *Node) {
+    const char *Name;
+
+    if (!Drv || !Drv->Name || !Node || Node->Bus != DEVICE_BUS_PCI) {
+        return 0;
+    }
+    Name = Drv->Name;
+    if (StrEq(Name, Node->Name)) {
+        return 1;
+    }
+    if (StrEq(Node->Name, "xhci") && StartsWith(Name, "xhci")) {
+        return 1;
+    }
+    if (StrEq(Node->Name, "net") &&
+        (StartsWith(Name, "e1000") || StartsWith(Name, "virtio-net"))) {
+        return 1;
+    }
+    if (StrEq(Node->Name, "storage") &&
+        (StrEq(Name, "virtio-blk") || StrEq(Name, "ata-pio"))) {
+        return 1;
+    }
+    return 0;
+}
+
+void DeviceSyncBound(void) {
+    int i;
+    UINTN k;
+
+    for (i = 0; i < gDeviceCount; i++) {
+        if (gDevices[i].Bus != DEVICE_BUS_PCI) {
+            continue;
+        }
+        gDevices[i].State = DEVICE_STATE_UNBOUND;
+        gDevices[i].Bound = 0;
+        gDevices[i].Driver = 0;
+        gDevices[i].Instance = 0;
+    }
+    for (k = 0; k < ToyDriverInstanceCount(); k++) {
+        const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(k);
+
+        if (!Inst || !Inst->Bound || !Inst->Driver) {
+            continue;
+        }
+        for (i = 0; i < gDeviceCount; i++) {
+            DEVICE_NODE *Node = &gDevices[i];
+
+            if (Node->State == DEVICE_STATE_BOUND) {
+                continue;
+            }
+            if (!InstanceClaims(Inst->Driver, Node)) {
+                continue;
+            }
+            Node->State = DEVICE_STATE_BOUND;
+            Node->Bound = 1;
+            Node->Driver = Inst->Driver;
+            Node->Instance = (struct TOY_DRIVER_INSTANCE *)Inst;
+            break;
+        }
+    }
 }

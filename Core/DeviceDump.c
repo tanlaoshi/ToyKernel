@@ -32,7 +32,10 @@ static void WriteHex4(UINT32 V) {
 
 void DeviceListDump(void) {
     int i;
-    int N = DeviceCount();
+    int N;
+
+    DeviceSyncBound();
+    N = DeviceCount();
 
     ConsoleWrite("=== Devices (");
     ConsoleWriteHex32((UINT32)N);
