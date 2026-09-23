@@ -6,6 +6,8 @@
 #define DRIVER_H
 
 #include "BootTypes.h"
+/* DEVICE_NODE 用于 DriverMatchesDevice 声明；Device.h 不回 include 本头，无环。 */
+#include "Device.h"
 
 #define TOY_DRIVER_MAX_DRIVERS  16
 #define TOY_DRIVER_MAX_INSTANCES 16
@@ -75,6 +77,9 @@ int ToyDriverProbeAll(void);
 /* PR-D2：只 Probe 指定类；已有该驱动实例则跳过 */
 int ToyDriverProbeClass(TOY_DRIVER_CLASS Class);
 void ToyDriverRemoveAll(void);
+
+/* PR-DRV-match-logic：有表驱动按 DRIVER_MATCH 过滤设备；命中返回 1。 */
+int DriverMatchesDevice(const TOY_DRIVER *Drv, const DEVICE_NODE *Dev);
 
 UINTN ToyDriverRegisteredCount(void);
 const TOY_DRIVER *ToyDriverRegisteredGet(UINTN Index);

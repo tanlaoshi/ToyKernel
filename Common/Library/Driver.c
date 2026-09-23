@@ -2,6 +2,7 @@
  * Driver.c — 驱动注册表与 Probe/Bind/Remove 生命周期（PR-D1）
  */
 #include "Driver.h"
+#include "Device.h"
 #include "Hal.h"
 #include "ToySerialLog.h"
 #include "Debug.h"
@@ -41,7 +42,44 @@ static int DriverAlreadyBound(const TOY_DRIVER *D) {
 /*
  * Class == TOY_DRIVER_CLASS_NONE：Probe 全部（D1 行为）。
  * 其它：只 Probe 该类；已绑定的驱动跳过（供 HalBlockInit 在 VMM 后再试 virtio-blk）。
+ *
+ * PR-DRV-match-logic：
+ *   Match==NULL → 旧路径 Probe(Self, 0, …)（驱动自扫 PCI/DTB）。
+ *   Match!=NULL → 遍历未绑定设备，DriverMatchesDevice 命中则
+ *                 Probe(Self, (void *)Dev, …)，成功必须 DeviceBindDriver。
+ *                 一驱动一实例：命中即 break。
  */
+static TOY_DRIVER_INSTANCE *DriverAdoptInstance(const TOY_DRIVER *D, void *Private) {
+    TOY_DRIVER_INSTANCE *Inst;
+
+    if (gInstanceCount >= TOY_DRIVER_MAX_INSTANCES) {
+        ToyLogDrv("driver: instance full\n");
+        if (D->Remove) {
+            TOY_DRIVER_INSTANCE Tmp;
+            Tmp.Driver = D;
+            Tmp.Private = Private;
+            Tmp.Bound = 0;
+            D->Remove(&Tmp);
+        }
+        return 0;
+    }
+    Inst = &gInstances[gInstanceCount];
+    Inst->Driver = D;
+    Inst->Private = Private;
+    Inst->Bound = 0;
+    if (D->Bind && D->Bind(Inst) != 0) {
+        if (D->Remove) {
+            D->Remove(Inst);
+        }
+        Inst->Driver = 0;
+        Inst->Private = 0;
+        return 0;
+    }
+    Inst->Bound = 1;
+    gInstanceCount++;
+    return Inst;
+}
+
 int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
     UINTN i;
     int Bound = 0;
@@ -57,37 +95,34 @@ int ToyDriverProbeClass(TOY_DRIVER_CLASS Class) {
         if (DriverAlreadyBound(D)) {
             continue;
         }
-        if (D->Probe(D, 0, &Private) != 0) {
-            continue;
-        }
-        if (gInstanceCount >= TOY_DRIVER_MAX_INSTANCES) {
-            ToyLogDrv("driver: instance full\n");
-            if (D->Remove) {
-                TOY_DRIVER_INSTANCE Tmp;
-                Tmp.Driver = D;
-                Tmp.Private = Private;
-                Tmp.Bound = 0;
-                D->Remove(&Tmp);
-            }
-            break;
-        }
-        Inst = &gInstances[gInstanceCount];
-        Inst->Driver = D;
-        Inst->Private = Private;
-        Inst->Bound = 0;
-        if (D->Bind) {
-            if (D->Bind(Inst) != 0) {
-                if (D->Remove) {
-                    D->Remove(Inst);
-                }
-                Inst->Driver = 0;
-                Inst->Private = 0;
+        if (D->Match == NULL) {
+            if (D->Probe(D, 0, &Private) != 0) {
                 continue;
             }
+            if (DriverAdoptInstance(D, Private)) {
+                Bound++;
+            }
+        } else {
+            int Idx;
+            for (Idx = 0; Idx < DeviceCount(); Idx++) {
+                DEVICE_NODE *Dev = DeviceGet(Idx);
+                if (!Dev || Dev->Bound) {
+                    continue;
+                }
+                if (!DriverMatchesDevice(D, Dev)) {
+                    continue;
+                }
+                if (D->Probe(D, (void *)Dev, &Private) != 0) {
+                    continue;
+                }
+                Inst = DriverAdoptInstance(D, Private);
+                if (Inst) {
+                    DeviceBindDriver(Dev, D, Inst);
+                    Bound++;
+                }
+                break; /* 一驱动一实例 */
+            }
         }
-        Inst->Bound = 1;
-        gInstanceCount++;
-        Bound++;
     }
 #if TOY_KERNEL_DEBUG
     ToyLogDrv("driver: registered=");
