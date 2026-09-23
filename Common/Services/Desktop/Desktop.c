@@ -212,17 +212,28 @@ void DesktopRefreshLabels(void) {
 }
 
 void DesktopTickClock(void) {
-    static UINT32 Skip;
+    static UINT64 LastCheckTick;
+    UINT64 Now;
+    UINT32 Tps;
     UINT8 Hour = 0;
     UINT8 Minute = 0;
     int Ok;
     int NeedPaint;
 
-    /* 勿每帧读 CMOS；约几十次 Poll 再查一次 */
-    if (++Skip < 45u) {
+    /*
+     * 墙钟节流（勿用 Poll 计数）：Gui+Shell 双路径轮询时 Skip=45 几乎每帧
+     * 撞 CMOS。UIP 约 1Hz；旧逻辑读失败还 NeedPaint→整条任务栏 Present，
+     * 鼠标滑动时体感「约 1 秒顿一次」（全系统顿挫，非仅光标采样）。
+     */
+    Now = HalCpuTicks(0);
+    Tps = HalTicksPerSec();
+    if (Tps == 0) {
+        Tps = 250;
+    }
+    if (LastCheckTick != 0 && (Now - LastCheckTick) < (UINT64)(Tps / 2u)) {
         return;
     }
-    Skip = 0;
+    LastCheckTick = Now;
 
     NeedPaint = 0;
     Ok = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
@@ -230,9 +241,8 @@ void DesktopTickClock(void) {
         if (!(gClockValid && Hour == gClockHour && Minute == gClockMinute)) {
             NeedPaint = 1;
         }
-    } else if (gClockValid) {
-        NeedPaint = 1;
     }
+    /* 瞬时读失败：保留上次 HH:MM，勿刷 --:-- / 勿整栏 Present */
     if (DesktopNetTrayLabelChanged()) {
         NeedPaint = 1;
     }

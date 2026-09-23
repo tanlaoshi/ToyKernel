@@ -41,32 +41,41 @@ int HalRtcGetTime(UINT16 *Year, UINT8 *Month, UINT8 *Day,
                   UINT8 *Hour, UINT8 *Minute, UINT8 *Second) {
     UINT8 Sec, Min, Hr, Dom, Mon, Yr, Cent;
     UINT8 StatusB;
+    int Attempt;
     int i;
 
-    for (i = 0; i < 1000; i++) {
-        if ((CmosRead(0x0A) & 0x80) == 0) {
+    /* UIP 约 1Hz；读失败再等 UIP 清后重试，避免秒边界脏值 */
+    for (Attempt = 0; Attempt < 3; Attempt++) {
+        for (i = 0; i < 1000; i++) {
+            if ((CmosRead(0x0A) & 0x80) == 0) {
+                break;
+            }
+        }
+        Sec = CmosRead(0x00);
+        Min = CmosRead(0x02);
+        Hr = CmosRead(0x04);
+        Dom = CmosRead(0x07);
+        Mon = CmosRead(0x08);
+        Yr = CmosRead(0x09);
+        Cent = CmosRead(0x32);
+        StatusB = CmosRead(0x0B);
+
+        if ((StatusB & 0x04) == 0) {
+            Sec = BcdToBin(Sec);
+            Min = BcdToBin(Min);
+            Hr = BcdToBin(Hr & 0x7F);
+            Dom = BcdToBin(Dom);
+            Mon = BcdToBin(Mon);
+            Yr = BcdToBin(Yr);
+            Cent = BcdToBin(Cent);
+        } else {
+            Hr = (UINT8)(Hr & 0x7F);
+        }
+        if (Sec <= 59 && Min <= 59 && Hr <= 23 && Mon >= 1 && Mon <= 12 &&
+            Dom >= 1 && Dom <= 31) {
             break;
         }
-    }
-    Sec = CmosRead(0x00);
-    Min = CmosRead(0x02);
-    Hr = CmosRead(0x04);
-    Dom = CmosRead(0x07);
-    Mon = CmosRead(0x08);
-    Yr = CmosRead(0x09);
-    Cent = CmosRead(0x32);
-    StatusB = CmosRead(0x0B);
-
-    if ((StatusB & 0x04) == 0) {
-        Sec = BcdToBin(Sec);
-        Min = BcdToBin(Min);
-        Hr = BcdToBin(Hr & 0x7F);
-        Dom = BcdToBin(Dom);
-        Mon = BcdToBin(Mon);
-        Yr = BcdToBin(Yr);
-        Cent = BcdToBin(Cent);
-    } else {
-        Hr = (UINT8)(Hr & 0x7F);
+        Sec = 0xFF; /* 标记本轮无效，逼 Attempt 继续或最终失败 */
     }
     if (Sec > 59 || Min > 59 || Hr > 23 || Mon < 1 || Mon > 12 || Dom < 1 || Dom > 31) {
         return -1;
