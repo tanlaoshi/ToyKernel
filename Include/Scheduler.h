@@ -132,7 +132,8 @@ int  SchedulerPreemptCount(void);
 
 /* PR-K-preempt-breath：长 IO 统一呼吸（drain + 鼠标） */
 void SchedulerIoBreath(void);
-/* PR-K-preempt-needresched：NeedResched 则让步；返回是否切过 */
+/* PR-K-preempt-needresched：禁切段置位；安全点 CondResched 浅让 */
+void SchedulerSetNeedResched(void);
 int  SchedulerCondResched(void);
 
 TASK *SchedulerCurrent(void);

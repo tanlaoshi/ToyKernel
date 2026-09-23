@@ -12,8 +12,8 @@ void SchedulerIoBreath(void) {
     UINT64 Flags;
 
     /*
-     * 长 IO 期间 GuiTask 常不走 YieldForPollInput；真机 MSC/FAT 完成事件
-     * 需 XchiDrainEvents → 此处始终 HalInputPoll（与稳态 SMP≥3 单主人不同）。
+     * 长 IO 在 Worker 上跑时 GuiTask 可自由 Poll；此处仍 drain + 光标位移，
+     * 并置 NeedResched，让 CondResched 浅让出拍给 Gui（装卸期鼠标跟手）。
      */
     SchedulerPreemptDisable();
     Flags = HalIrqSave();
@@ -21,5 +21,6 @@ void SchedulerIoBreath(void) {
     GuiPollMouseMotion();
     HalIrqRestore(Flags);
     SchedulerPreemptEnable();
+    SchedulerSetNeedResched();
     (void)SchedulerCondResched();
 }

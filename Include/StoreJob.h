@@ -4,7 +4,7 @@
  * 协作切片：Enqueue 入队，GuiPollMouse 末尾 StoreJobStep 推进。
  * 序 5：Cancel 在相位/chunk 边界生效；半截拷贝 Abort 不登记。
  * Shell remove（及可选 install）可走 StoreJobShellRun：Enqueue 后浅等，
- * 由 GuiTask Pump 执行 StoreRemove（避 ConsoleOnEnter 深栈）。
+ * WorkerTask Step 执行 Store*（GuiTask 只泵鼠标）。
  */
 #ifndef STORE_JOB_H
 #define STORE_JOB_H

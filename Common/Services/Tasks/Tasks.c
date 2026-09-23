@@ -18,6 +18,7 @@
 #include "ShellCommands.h"
 #include "ToySerialLog.h"
 #include "Scheduler.h"
+#include "StoreJob.h"
 
 static volatile UINT32 gWorkerCount;
 
@@ -65,10 +66,16 @@ void GuiTask(void) {
     }
 }
 
+/*
+ * StoreJob 后台泵：窗/Shell 只 Enqueue；本任务 Step。
+ * 勿再在 GuiPollMouse→StoreUiPump 里 Step，否则 Gui 被 StoreRemove 堵住，装卸期鼠标必卡。
+ */
 void WorkerTask(void) {
     for (;;) {
         gWorkerCount++;
-        for (volatile int i = 0; i < 5000; i++) {
+        if (StoreJobUiIsBusy()) {
+            (void)StoreJobStep();
+            continue;
         }
         HalCpuHalt();
         (void)SchedulerCondResched();

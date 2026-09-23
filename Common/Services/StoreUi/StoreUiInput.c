@@ -87,14 +87,10 @@ static void DoBtn(int Btn) {
 }
 
 void StoreUiPump(void) {
-    static int sPump;
-
-    if (sPump) {
-        return;
-    }
-    sPump = 1;
-    (void)StoreJobStep();
-    sPump = 0;
+    /*
+     * Job 由 WorkerTask 推进（后台）。此处刻意不 Step：
+     * 旧路径 GuiPollMouse→Pump→StoreRemove 会占死 Gui，装卸期鼠标必卡。
+     */
 }
 
 void StoreUiOnClick(UINT32 X, UINT32 Y) {
