@@ -37,6 +37,19 @@ static int DrawLine(UINT32 X, UINT32 *Ty, UINT32 MaxY, const char *S, UINT32 Fg)
     return 1;
 }
 
+static const char *DevTitle(const DEVICE_NODE *Dev) {
+    if (!Dev) {
+        return "pci";
+    }
+    if (Dev->FriendlyName[0]) {
+        return Dev->FriendlyName;
+    }
+    if (Dev->Name[0]) {
+        return Dev->Name;
+    }
+    return "pci";
+}
+
 static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
     DEVICE_NODE *Dev;
     char Line[80];
@@ -68,7 +81,7 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
     DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
     DevicesUiFormatIds(Dev, Line, sizeof(Line));
     DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
-    DrawLine(Dx + 10, &Ty, MaxY, Dev->Name[0] ? Dev->Name : "pci", ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, DevTitle(Dev), ThemeText());
     Bound = (Dev->Bound && Dev->Driver && Dev->Driver->Name) ? Dev->Driver->Name
                                                              : "-";
     DrawLine(Dx + 10, &Ty, MaxY, Bound, ThemeText());
@@ -232,7 +245,7 @@ void DevicesUiPaint(void) {
             if (N + 1 < sizeof(Line)) {
                 Line[N++] = ' ';
             }
-            Nm = Dev->Name[0] ? Dev->Name : "pci";
+            Nm = DevTitle(Dev);
             for (k = 0; Nm[k] && N + 1 < sizeof(Line); k++) {
                 Line[N++] = Nm[k];
             }

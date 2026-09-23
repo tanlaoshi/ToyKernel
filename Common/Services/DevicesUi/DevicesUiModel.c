@@ -112,6 +112,7 @@ void DevicesUiRebuildFilt(void) {
 }
 
 void DevicesUiReload(void) {
+    DeviceSyncBound();
     gDevUiCount = DeviceCount();
     if (gDevUiSel >= gDevUiCount) {
         gDevUiSel = gDevUiCount > 0 ? gDevUiCount - 1 : 0;

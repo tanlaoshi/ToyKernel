@@ -80,6 +80,8 @@ void DeviceBindDriver(DEVICE_NODE *Dev, const struct TOY_DRIVER *Drv,
                       struct TOY_DRIVER_INSTANCE *Inst);
 void DeviceUnbind(DEVICE_NODE *Dev);
 void DeviceListDump(void);
+/* PR-DEV-lsdev：解析 -v / -b / -u / -c。0=已打印，-1=用法错误 */
+int DeviceListDumpArgs(int Argc, char **Argv);
 
 /*
  * 由启动路径调用（PR-DEV-3）；内部调 HalDeviceEnumerate。

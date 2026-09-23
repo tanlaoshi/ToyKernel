@@ -25,6 +25,24 @@ static const char *PciClassName(UINT8 Class, UINT8 Subclass, UINT8 ProgIf) {
     if (Class == 0x03) {
         return "display";
     }
+    if (Class == 0x04) {
+        return "audio";
+    }
+    if (Class == 0x05) {
+        return "mem";
+    }
+    if (Class == 0x06) {
+        return "bridge";
+    }
+    if (Class == 0x07) {
+        return "serial";
+    }
+    if (Class == 0x08) {
+        return "periph";
+    }
+    if (Class == 0x09) {
+        return "input";
+    }
     if (Class == 0x0C) {
         if (Subclass == 0x03) {
             if (ProgIf == 0x30) {
@@ -35,8 +53,12 @@ static const char *PciClassName(UINT8 Class, UINT8 Subclass, UINT8 ProgIf) {
             }
             return "usb";
         }
+        if (Subclass == 0x05) {
+            return "smbus";
+        }
+        return "serialbus";
     }
-    return "pci";
+    return "misc";
 }
 
 static void ZeroBytes(void *Ptr, UINTN Bytes) {

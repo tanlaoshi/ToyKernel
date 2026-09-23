@@ -284,10 +284,10 @@ static const char *DriverClassName(TOY_DRIVER_CLASS Class) {
 static void CommandLsdev(int Argc, char **Argv) {
     UINTN i;
     UINTN Bound = 0;
-    (void)Argc;
-    (void)Argv;
 
-    DeviceListDump();
+    if (DeviceListDumpArgs(Argc, Argv) != 0) {
+        return;
+    }
 
     for (i = 0; i < ToyDriverInstanceCount(); i++) {
         const TOY_DRIVER_INSTANCE *Inst = ToyDriverInstanceGet(i);
