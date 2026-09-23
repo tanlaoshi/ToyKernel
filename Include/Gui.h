@@ -55,6 +55,10 @@ void GuiPresentDeferPause(void);
 void GuiPresentDeferResume(void);
 /* PR-G-shell-present：下一次 GfxPresent 可合并（打字回显）；ShellTask 轮询末再刷 */
 void GuiPresentShellEchoMark(void);
+/* 拖帧或主题合成中：其它核勿 Present、勿再开一帧 */
+int GuiPresentBlocked(void);
+/* 标题栏拖移或改大小进行中 */
+int GuiDragActive(void);
 void GuiCursorHide(void);
 void GuiCursorShow(void);
 void GuiOnMouse(const GUI_MOUSE_STATE *Mouse);

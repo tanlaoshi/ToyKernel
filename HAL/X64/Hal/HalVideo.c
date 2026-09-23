@@ -318,6 +318,10 @@ void HalVideoSetPresentChunkRows(UINT32 Rows) {
     VideoSetPresentChunkRows(Rows);
 }
 
+void HalVideoSetGlyphSmooth(int On) {
+    VideoSetGlyphSmooth(On);
+}
+
 void HalVideoDrawBeginFront(void) {
     VideoDrawBeginFront();
 }

@@ -170,6 +170,12 @@ void SmpApEntry(void) {
     while (!SchedulerIsOnline()) {
         __asm__ volatile ("pause");
     }
+    /*
+     * 上面 5000000 只为启动等待少挨 IRQ。周期定时器会一直重装这个初值。
+     * 若留着：NUC 上 AP 约 2～1Hz，CondResched 的 hlt 要等一整拍，
+     * 拖窗约 1 秒顿一次。进调度前改回与 BSP 相同的 50000。
+     */
+    *(volatile UINT32 *)(UINTN)(LAPIC_BASE + 0x380) = 50000u;
     /* 首入 idle 前关 IF；细节见 SchedulerApStart 注释（防 OnTimer 砸 Frame） */
     __asm__ volatile ("cli" ::: "memory");
     SchedulerApStart();

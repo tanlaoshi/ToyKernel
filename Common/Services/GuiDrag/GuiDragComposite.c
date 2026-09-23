@@ -143,12 +143,9 @@ void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
             }
         }
         /* Present：短临界区写后缓冲再提交到 GOP（PR-G9） */
-        GfxIrqEnter();
         HalVideoWriteRect(DuX, DuY, DuW, DuH, gDragDirty);
-        HalVideoSetPresentChunkRows(0xFFFFFFFFu);
+        GuiDragFrameAccount();
         HalVideoPresent();
-        HalVideoSetPresentChunkRows(0);
-        GfxIrqLeave();
         return;
     }
     /* 离屏缓冲不足：按 DRAG_ROW_MAX 横向分块写，禁止静默截断右侧 */
@@ -174,11 +171,8 @@ void CompositeDragDirtyRegion(int DragIdx, UINT32 OldX, UINT32 OldY,
                 HalVideoWriteRect(DuX + Col0, Py, ChunkW, 1, gDragRowBuf);
             }
         }
-        GfxIrqEnter();
-        HalVideoSetPresentChunkRows(0xFFFFFFFFu);
+        GuiDragFrameAccount();
         HalVideoPresent();
-        HalVideoSetPresentChunkRows(0);
-        GfxIrqLeave();
     }
 }
 
@@ -288,11 +282,8 @@ void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY) {
     } else {
         DrawWindowAt(DragIdx);
     }
-    GfxIrqEnter();
-    /* 左右拖时脏区又高又宽；默认 64 行条带会在两侧「方块刷」——整块一次 Present */
-    HalVideoSetPresentChunkRows(0xFFFFFFFFu);
+    /* 条带间开中断；勿整脏区一次 cli（与 Slide 相同） */
+    GuiDragFrameAccount();
     HalVideoPresent();
-    HalVideoSetPresentChunkRows(0);
-    GfxIrqLeave();
 }
 

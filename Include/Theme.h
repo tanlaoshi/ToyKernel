@@ -87,6 +87,8 @@ int ThemeIsShadowEnabled(void);
 int ThemeIsFadeEnabled(void);
 int ThemeIsAlphaEnabled(void);
 int ThemeIsGradientEnabled(void);
+/* PR-GUI-l2-font：low 及以上开点阵灰度边；minimal 保持硬边 */
+int ThemeIsFontSmoothEnabled(void);
 /* 供 DB/Shell/CFG；未知级别回 "high" */
 const char *ThemeEffectLevelName(THEME_EFFECT_LEVEL Level);
 

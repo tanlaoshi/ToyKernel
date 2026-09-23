@@ -152,11 +152,8 @@ void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY) {
         } else {
             PaintAllWindowsDraw(Idx);
         }
-        GfxIrqEnter();
-        HalVideoSetPresentChunkRows(0xFFFFFFFFu);
+        GuiDragFrameAccount();
         HalVideoPresent();
-        HalVideoSetPresentChunkRows(0);
-        GfxIrqLeave();
     } else {
         UINT32 Fx = Ox;
         UINT32 Fy = Oy;
@@ -209,21 +206,31 @@ void GuiDragUpdate(UINT32 X, UINT32 Y) {
     if ((UINT32)Dx < DRAG_MIN_STEP && (UINT32)Dy < DRAG_MIN_STEP) {
         return;
     }
+    if (!GuiDragFrameTry()) {
+        return;
+    }
     if (gDragArmed) {
         StartDragBackups(gDragWin);
         gDragArmed = 0;
         if (gDragWin < 0 || !gDragHasBackup) {
+            GuiDragFrameLeave();
             return;
         }
     }
     MoveWindowTo(gDragWin, (UINT32)Nx, (UINT32)Ny);
+    GuiDragFrameLeave();
 }
 
 
 void GuiDragEnd(void) {
-    int DragIdx = gDragWin;
-    int DidDrag = gDragHasBackup;
+    int DragIdx;
+    int DidDrag;
 
+    while (!GuiDragFrameTry()) {
+        HalCpuRelax();
+    }
+    DragIdx = gDragWin;
+    DidDrag = gDragHasBackup;
     gDragWin = -1;
     gDragArmed = 0;
     /* 与 GuiDragUpdate 一致：-1 哨兵 + 上界，避免 -Warray-bounds */
@@ -283,6 +290,10 @@ void GuiDragEnd(void) {
     }
     if (!AnyWindowsOverlap()) {
         ResetDragState();
+    }
+    GuiDragFrameLeave();
+    if (DidDrag) {
+        GuiDragFrameLog();
     }
 }
 

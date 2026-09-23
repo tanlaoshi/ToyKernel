@@ -4,6 +4,9 @@
  */
 #include "Theme.h"
 #include "ThemePrivate.h"
+#include "HalVideo.h"
+
+static void SyncFontSmooth(void);
 
 UINT32 gDesktopBg = COLOR_DARK_GRAY;
 UINT32 gShellClientBg = COLOR_LIGHT_GRAY;
@@ -45,6 +48,7 @@ void ThemeInitialize(void) {
     } else {
         (void)FontSetById(gFontId);
     }
+    SyncFontSmooth();
 }
 
 UINT32 ThemeDesktopBackground(void) {
@@ -147,6 +151,7 @@ void ThemeSetEffectLevel(THEME_EFFECT_LEVEL Level) {
         Level = THEME_EFFECT_HIGH;
     }
     gEffectLevel = Level;
+    SyncFontSmooth();
 }
 
 int ThemeIsShadowEnabled(void) {
@@ -164,6 +169,14 @@ int ThemeIsAlphaEnabled(void) {
 
 int ThemeIsGradientEnabled(void) {
     return (gEffectLevel >= THEME_EFFECT_MEDIUM) ? 1 : 0;
+}
+
+int ThemeIsFontSmoothEnabled(void) {
+    return (gEffectLevel >= THEME_EFFECT_LOW) ? 1 : 0;
+}
+
+static void SyncFontSmooth(void) {
+    HalVideoSetGlyphSmooth(ThemeIsFontSmoothEnabled());
 }
 
 const char *ThemeEffectLevelName(THEME_EFFECT_LEVEL Level) {
@@ -270,6 +283,7 @@ void ThemeApply(void) {
         gFontId = 0;
         (void)FontSetById(0);
     }
+    SyncFontSmooth();
     GuiApplyThemeColors();
     /* PR-G8：属性已更新 → 一次自下而上合成 → 备份；勿 GuiRedraw+Raise 多遍 */
     GuiComposeThemeScene();

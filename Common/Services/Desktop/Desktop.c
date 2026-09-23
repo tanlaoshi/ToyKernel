@@ -225,6 +225,11 @@ void DesktopTickClock(void) {
      * 撞 CMOS。UIP 约 1Hz；旧逻辑读失败还 NeedPaint→整条任务栏 Present，
      * 鼠标滑动时体感「约 1 秒顿一次」（全系统顿挫，非仅光标采样）。
      */
+    /* 拖窗/改大小时不读 CMOS、不重画任务栏，避免这一拍把鼠标卡住 */
+    if (GuiDragActive() || DesktopIconDragActive()) {
+        return;
+    }
+
     Now = HalCpuTicks(0);
     Tps = HalTicksPerSec();
     if (Tps == 0) {

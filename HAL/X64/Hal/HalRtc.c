@@ -44,12 +44,18 @@ int HalRtcGetTime(UINT16 *Year, UINT8 *Month, UINT8 *Day,
     int Attempt;
     int i;
 
-    /* UIP 约 1Hz；读失败再等 UIP 清后重试，避免秒边界脏值 */
-    for (Attempt = 0; Attempt < 3; Attempt++) {
-        for (i = 0; i < 1000; i++) {
+    /*
+     * UIP 约 1Hz。旧逻辑空转 1000 次端口：真机 CMOS 访问可能进 SMM，
+     * 鼠标路径上会顿一下。UIP 仍在就放弃，调用方保留上次时间。
+     */
+    for (Attempt = 0; Attempt < 2; Attempt++) {
+        for (i = 0; i < 8; i++) {
             if ((CmosRead(0x0A) & 0x80) == 0) {
                 break;
             }
+        }
+        if ((CmosRead(0x0A) & 0x80) != 0) {
+            return -1;
         }
         Sec = CmosRead(0x00);
         Min = CmosRead(0x02);

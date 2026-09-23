@@ -57,7 +57,10 @@ void ShellTask(void) {
          * PR-G-shell-present：打字回显经 EchoMark 跳过逐键 Present，
          * 本处合并提交脏区（亦续传上次半途 gDirty）。virt/真机同路径。
          */
-        HalVideoPresent();
+        /* 拖帧合成中后缓冲是半成品；这一刷会整块再贴，闪且卡 */
+        if (!GuiPresentBlocked()) {
+            HalVideoPresent();
+        }
 
         /*
          * COM1 RX → Shell（CoolTerm 遥控打字）；TX 仍是调试旁路。

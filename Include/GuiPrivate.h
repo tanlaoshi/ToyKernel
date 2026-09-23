@@ -241,6 +241,13 @@ void PaintAllWindowsDraw(int DragIdx);
 void RedrawDragFrame(int DragIdx, UINT32 OldX, UINT32 OldY);
 /* CopyRect 平移 + 只擦露出条（减左右拖频闪） */
 void RedrawDragFrameSlide(int DragIdx, UINT32 OldX, UINT32 OldY);
+void GuiPollHoldDrain(UINT32 Sw, UINT32 Sh);
+void GuiPollHoldApply(UINT32 *LastX, UINT32 *LastY, UINT8 *LastBtn,
+                      INT8 *WheelSum, int *Any, int *NeedMove);
+int GuiDragFrameTry(void);
+void GuiDragFrameLeave(void);
+void GuiDragFrameAccount(void);
+void GuiDragFrameLog(void);
 void ClampWindowPos(const GUI_WINDOW *W, INT32 *X, INT32 *Y);
 void MoveWindowTo(int Idx, UINT32 NewX, UINT32 NewY);
 void GuiDragUpdate(UINT32 X, UINT32 Y);

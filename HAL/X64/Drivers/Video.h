@@ -36,6 +36,8 @@ int VideoBochsAvailable(void);
 UINT64 VideoFrameBufferBase(void);
 UINT64 VideoFrameBufferSize(void);
 /* 直写 scanout（boot 进度，勿与 Present 混用长路径） */
+/* PR-GUI-l2-font：1=点阵边缘灰度；0=硬 1bpp */
+void VideoSetGlyphSmooth(int On);
 void VideoDrawBeginFront(void);
 void VideoDrawEndFront(void);
 void VideoGetSize(UINT32 *Width, UINT32 *Height);

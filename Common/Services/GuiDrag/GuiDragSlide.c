@@ -6,6 +6,41 @@
 #include "HalVideo.h"
 #include "Hal.h"
 #include "Theme.h"
+#include "Debug.h"
+
+/* 一帧只许一个核改后缓冲并 Present；另一核见忙则排空鼠标 */
+static volatile UINT32 gDragFrame;
+static UINT32 gDragFrames;
+
+int GuiDragFrameTry(void) {
+    return __sync_lock_test_and_set(&gDragFrame, 1u) == 0;
+}
+
+void GuiDragFrameLeave(void) {
+    __sync_lock_release(&gDragFrame);
+}
+
+int GuiPresentBlocked(void) {
+    return gDragFrame != 0 || gComposeBusy != 0;
+}
+
+int GuiDragActive(void) {
+    return gDragWin >= 0 || gResizeWin >= 0;
+}
+
+void GuiDragFrameAccount(void) {
+    gDragFrames++;
+}
+
+void GuiDragFrameLog(void) {
+    if (gDragFrames == 0) {
+        return;
+    }
+    DebugWrite("Gui: drag frames ");
+    DebugHex32(gDragFrames);
+    DebugWrite("\n");
+    gDragFrames = 0;
+}
 
 /*
  * 露出条勿 ExpandRectByWindowShadow：影向右下扩，会吃进已 CopyRect 的新窗左边 → 花块。
@@ -64,9 +99,11 @@ void RedrawDragFrameSlide(int DragIdx, UINT32 OldX, UINT32 OldY) {
     }
     DrawWindowShadowAt(DragIdx);
 
-    GfxIrqEnter();
-    HalVideoSetPresentChunkRows(0xFFFFFFFFu);
+    /*
+     * 后缓冲已是这一帧终稿。勿 GfxIrqEnter：它会把 Present 整段关中断，
+     * 64 行条带间的开中断失效，大窗一次 cli 就是拖窗顿挫。
+     * 也不要把条带抬成整脏区：左右条和窗体分块刷，避免两侧整块闪。
+     */
+    GuiDragFrameAccount();
     HalVideoPresent();
-    HalVideoSetPresentChunkRows(0);
-    GfxIrqLeave();
 }

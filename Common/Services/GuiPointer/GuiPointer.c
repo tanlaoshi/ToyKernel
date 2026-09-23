@@ -77,6 +77,12 @@ void GuiPollMouse(void) {
         return;
     }
 
+    /* 另一核正在写后缓冲：只留最后一包，勿再合成、勿 Present */
+    if (GuiPresentBlocked()) {
+        GuiPollHoldDrain(Sw, Sh);
+        return;
+    }
+
     /*
      * 真机：队列里常积几十份报告。逐条 CursorMove+Present → 光标极卡。
      * Defer Present，并合并位移；按键边沿/滚轮仍按每份报告处理。
@@ -87,6 +93,7 @@ void GuiPollMouse(void) {
     WheelSum = 0;
     Any = 0;
     NeedMove = 0;
+    GuiPollHoldApply(&LastX, &LastY, &LastBtn, &WheelSum, &Any, &NeedMove);
     GuiPresentDeferPush();
     while (HalMouseDequeue(&Raw)) {
         UINT32 X;
@@ -215,6 +222,10 @@ void GuiPollMouseMotion(void) {
     }
     if (Sh == 0) {
         Sh = gScreenHeight ? gScreenHeight : 768;
+    }
+    if (GuiPresentBlocked()) {
+        GuiPollHoldDrain(Sw, Sh);
+        return;
     }
 
     /* PR-S-input-drain：drain 由 YieldForPollInput（稳态）+ StoreIoBreath（长 IO）负责；此处只 dequeue */

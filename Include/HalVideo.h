@@ -14,6 +14,8 @@ void HalVideoPresent(void);
 void HalVideoPresentFlush(void);
 /* 拖窗：Rows 极大 → 整脏区一次 blit，减轻左右条带频闪；0=恢复默认 64 */
 void HalVideoSetPresentChunkRows(UINT32 Rows);
+/* PR-GUI-l2-font：1=点阵边缘灰度；0=硬 1bpp */
+void HalVideoSetGlyphSmooth(int On);
 void HalVideoDrawBeginFront(void);
 void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);
