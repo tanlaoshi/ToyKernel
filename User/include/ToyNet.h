@@ -1,26 +1,19 @@
 /*
- * ToyNet.h — 用户态 libToyNet / libnet（PR-L4 / PR-A-net-dns / 网络双轨 C1）
+ * ToyNet.h — 用户态 libToyNet（PR-L4 / 网络双轨 C1 / 刀 C）
  *
- * 第 2 轨（ToyOS 便利）：ToyNetConnect / ToyNetBind — (fd, ip, port) **主机序**。
- * 第 1 轨（POSIX）：connect / bind + sockaddr → 见 <sys/socket.h>（后续添加）。
- *
- * 2.0.0：原 connect/bind(fd,ip,port) 改名为 ToyNetConnect / ToyNetBind。
- * 破坏性变更升 TOY_NET_ABI_VERSION_MAJOR。
+ * 第 2 轨：ToyNetConnect / ToyNetBind — (fd, ip, port) **主机序**。
+ * 第 1 轨：POSIX connect / bind + sockaddr → <sys/socket.h>（CRT socket.c）。
  */
 #ifndef TOY_NET_H
 #define TOY_NET_H
 
 #include <sys/types.h>
+#include <sys/socket.h>
 
 #define TOY_NET_ABI_VERSION_MAJOR 2
 #define TOY_NET_ABI_VERSION_MINOR 0
-#define TOY_NET_ABI_VERSION_PATCH 0
-#define TOY_NET_ABI_VERSION_STRING "2.0.0"
-
-/* 与 Include/Socket.h 一致 */
-#define AF_INET     2
-#define SOCK_STREAM 1
-#define INADDR_ANY  0
+#define TOY_NET_ABI_VERSION_PATCH 1
+#define TOY_NET_ABI_VERSION_STRING "2.0.1"
 
 /* SYS_SOCKET 的 type：域名查询；应用请用 ToyNetResolve，不要直接 socket 此类型 */
 #define TOY_NET_SOCK_RESOLVE 0x100
@@ -46,15 +39,9 @@ static inline unsigned ToyNetIpv4(unsigned A, unsigned B, unsigned C, unsigned D
     return ((A & 0xffu) << 24) | ((B & 0xffu) << 16) | ((C & 0xffu) << 8) | (D & 0xffu);
 }
 
-int socket(int domain, int type, int protocol);
-/* 主机序便利版（第 2 轨）；POSIX connect/bind 见后续 sys/socket.h */
+/* 主机序便利版（第 2 轨）；POSIX 形参见 <sys/socket.h> */
 int ToyNetConnect(int fd, unsigned ip, unsigned short port);
 int ToyNetBind(int fd, unsigned ip, unsigned short port);
-int listen(int fd, int backlog);
-int accept(int fd);
-/* send/recv：socket fd 上即 write/read */
-ssize_t send(int fd, const void *buf, size_t len, int flags);
-ssize_t recv(int fd, void *buf, size_t len, int flags);
 
 void ToyNetAddrIn(ToySockAddrIn *Sa, unsigned Ip, unsigned Port);
 int ToyNetConnectIn(int Fd, const ToySockAddrIn *Sa);

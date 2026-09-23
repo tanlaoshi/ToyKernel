@@ -66,13 +66,13 @@
 | `readdir(DIR *)` | `<dirent.h>` | 返回内部 `struct dirent *`（仅 `d_name[]`）；结束 / 失败均 `NULL`（失败设 `errno`） |
 | `stat` / `getcwd` / `chdir` | — | **尚未提供**（缺口；勿与第 2 轨 `FileStat` 抢名） |
 
-## 网络（POSIX 形参 · 目标）
+## 网络（POSIX 形参 · 第 1 轨）
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `socket` / `listen` / `accept` / `send` / `recv` | `<ToyNet.h>`（暂） | 名可用；`accept` **无**对端地址出参；`send`/`recv` 即 `write`/`read` |
-| `connect` / `bind`（`sockaddr`） | — | **尚未提供**；刀 **C** 进 `sys/socket.h`（网络序）。课上主机序请用第 2 轨 `ToyNetConnect` / `ToyNetBind` |
-| `htons` / `htonl` … | — | 随刀 C |
+| `socket` / `listen` / `accept` / `send` / `recv` | `<sys/socket.h>` | 实现在 `libToyNet`；`accept` **无**对端地址出参 |
+| `connect` / `bind`（`sockaddr`） | `<sys/socket.h>` | **网络序**；CRT 转主机序后调 `ToyNetConnect`/`ToyNetBind` |
+| `htons` / `ntohs` / `htonl` / `ntohl` | `<sys/socket.h>` | |
 
 ---
 
@@ -94,7 +94,7 @@
 | `ToyGfxDrawPixel` / `DrawLine` / `FillRect` / `DrawRect` | `<ToyGfx.h>` | |
 | 位图 / 滚动条 API | — | **缺口** |
 
-## 网络便利（`libToyNet` **2.0.0**；内核 `LWIP=1`；Guest `lwip on`）
+## 网络便利（`libToyNet` **2.0.1**；内核 `LWIP=1`；Guest `lwip on`）
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
@@ -127,9 +127,9 @@
 
 ## 已知缺口
 
-`getpid` / libc `yield()` / `getcwd` / `chdir` / `wait` 真实退出码 / POSIX `connect`/`bind`+`sockaddr`（刀 C）/ Gfx 位图 / 滚动条。
+`getpid` / libc `yield()` / `getcwd` / `chdir` / `wait` 真实退出码 / Gfx 位图 / 滚动条。
 
-下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir`。
+下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr`。
 
 ## 商店（内核服务 · 非用户 API）
 
