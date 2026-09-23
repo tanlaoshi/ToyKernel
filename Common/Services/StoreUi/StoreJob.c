@@ -27,6 +27,7 @@ static char sPlan[STORE_ENTRIES_MAX][STORE_ID_MAX];
 static int sPlanN;
 static int sPlanI;
 static int sErr;
+static int sLastErr;
 static int sBatch;
 
 static void JobApplyCancel(void) {
@@ -237,6 +238,7 @@ int StoreJobStep(void) {
         return 0;
 
     case JP_FINISH:
+        sLastErr = sErr;
         StoreJobFinishStatus(sKind, sErr, sPlanN);
         StoreJobBusyRepaint();
         sRunning = 0;
@@ -278,6 +280,10 @@ void StoreJobGetStatus(char *Out, int OutMax) {
         Out[i] = gStoreUiStatus[i];
     }
     Out[i] = 0;
+}
+
+int StoreJobLastError(void) {
+    return sLastErr;
 }
 
 int StoreJobCancel(void) {

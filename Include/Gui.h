@@ -50,6 +50,9 @@ void GuiFrameBufferEnd(void);
 /* 批量输出时推迟 Present（真机 4K 级 GOP 逐行 Present 极卡） */
 void GuiPresentDeferPush(void);
 void GuiPresentDeferPop(void);
+/* Shell 等 Job 时暂停 Defer，否则全局禁 Present → 光标假死（窗装卸仍可动） */
+void GuiPresentDeferPause(void);
+void GuiPresentDeferResume(void);
 /* PR-G-shell-present：下一次 GfxPresent 可合并（打字回显）；ShellTask 轮询末再刷 */
 void GuiPresentShellEchoMark(void);
 void GuiCursorHide(void);

@@ -23,6 +23,15 @@ static int ShellStoreLock(void) {
     return 0;
 }
 
+/* 窗/Shell 同一 StoreJob；0=已结束看 LastError；-1=忙 */
+static int ShellStoreJob(STORE_JOB_KIND Kind, const char *Id) {
+    if (StoreJobShellRun(Kind, Id) != 0) {
+        ConsoleWrite("store: Store UI busy (Cancel or wait)\n");
+        return -1;
+    }
+    return 0;
+}
+
 static void CommandShell(int Argc, char **Argv) {
     int Idx;
 
@@ -191,11 +200,10 @@ static void CommandStore(int Argc, char **Argv) {
     }
 
     if (StoreWordEq(Sub, "sync")) {
-        if (ShellStoreLock() != 0) {
+        if (ShellStoreJob(STORE_JOB_SYNC, 0) != 0) {
             return;
         }
-        Err = StoreSyncCatalog();
-        StoreJobShellEnd();
+        Err = StoreJobLastError();
         if (Err == -41 || Err == -2) {
             ConsoleWrite("store sync: HTTP not 200 (host http.server + /catalog.txt?)\n");
             return;
@@ -208,7 +216,7 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("store sync: out of memory\n");
             return;
         }
-        if (Err != 0) {
+        if (Err != FAT_OK && Err != 0) {
             ConsoleWrite("store sync: ");
             ConsoleWrite(FatStrError(Err));
             ConsoleWrite("\n");
@@ -255,21 +263,38 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    if (StoreWordEq(Sub, "install")) {
+    if (StoreWordEq(Sub, "install") || StoreWordEq(Sub, "combo")) {
         if (Argc < 3) {
-            ConsoleWrite("usage: store install <id>\n");
+            if (StoreWordEq(Sub, "combo")) {
+                ConsoleWrite("usage: store combo <id>\n");
+                ConsoleWrite("hint: e.g. store combo guidemo  (demopack+sun8 then app)\n");
+            } else {
+                ConsoleWrite("usage: store install <id>\n");
+            }
             return;
         }
-        if (ShellStoreLock() != 0) {
+        /* 与 Store 窗 Install 同 Job（PlanInstall含 depends；combo≡同路径） */
+        if (ShellStoreJob(STORE_JOB_INSTALL, Argv[2]) != 0) {
             return;
         }
-        Err = StoreInstall(Argv[2]);
-        StoreJobShellEnd();
+        Err = StoreJobLastError();
         if (Err != FAT_OK) {
-            ConsoleWrite("store install: ");
-            ConsoleWrite(FatStrError(Err));
-            ConsoleWrite("\n");
-            ConsoleWrite("hint: store combo <id> installs depends first\n");
+            ConsoleWrite(StoreWordEq(Sub, "combo") ? "store combo: " : "store install: ");
+            if (Err == STORE_JOB_ERR_CANCEL) {
+                ConsoleWrite("cancelled\n");
+            } else {
+                ConsoleWrite(FatStrError(Err));
+                ConsoleWrite("\n");
+                if (!StoreWordEq(Sub, "combo")) {
+                    ConsoleWrite("hint: store combo <id> installs depends first\n");
+                }
+            }
+            return;
+        }
+        if (StoreWordEq(Sub, "combo")) {
+            ConsoleWrite("store: combo installed ");
+            ConsoleWrite(Argv[2]);
+            ConsoleWrite(" (+depends)\n");
             return;
         }
         {
@@ -303,7 +328,6 @@ static void CommandStore(int Argc, char **Argv) {
                 ConsoleWrite("hint: exec Apps/<ELF> — HELLO prints one line then exits (正常)\n");
             }
         }
-        DesktopNotifyAppsChanged();
         return;
     }
 
@@ -338,21 +362,31 @@ static void CommandStore(int Argc, char **Argv) {
         return;
     }
 
-    if (StoreWordEq(Sub, "remove")) {
+    if (StoreWordEq(Sub, "remove") || StoreWordEq(Sub, "uncombo")) {
         if (Argc < 3) {
-            ConsoleWrite("usage: store remove <id>\n");
+            ConsoleWrite(StoreWordEq(Sub, "uncombo")
+                             ? "usage: store uncombo <id>\n"
+                             : "usage: store remove <id>\n");
             return;
         }
-        if (ShellStoreLock() != 0) {
+        /* 与 Store 窗 Remove 同 Job（PlanRemove） */
+        if (ShellStoreJob(STORE_JOB_REMOVE, Argv[2]) != 0) {
             return;
         }
-        Err = StoreRemove(Argv[2]);
-        StoreJobShellEnd();
+        Err = StoreJobLastError();
         if (Err != FAT_OK) {
-            /* 与 Store UI「remove fail」对齐（含仍被 app 依赖 → FAT_ERR_INVAL） */
-            ConsoleWrite("store remove: remove fail\n");
-            if (Err == FAT_ERR_INVAL) {
+            ConsoleWrite(StoreWordEq(Sub, "uncombo") ? "store uncombo: " : "store remove: remove fail\n");
+            if (StoreWordEq(Sub, "uncombo")) {
+                if (Err == STORE_JOB_ERR_CANCEL) {
+                    ConsoleWrite("cancelled\n");
+                } else {
+                    ConsoleWrite(FatStrError(Err));
+                    ConsoleWrite("\n");
+                }
+            } else if (Err == FAT_ERR_INVAL) {
                 ConsoleWrite("hint: still required by dependents; remove app first, or store uncombo <leaf>\n");
+            } else if (Err == STORE_JOB_ERR_CANCEL) {
+                ConsoleWrite("hint: cancelled\n");
             } else {
                 ConsoleWrite("hint: ");
                 ConsoleWrite(FatStrError(Err));
@@ -360,57 +394,15 @@ static void CommandStore(int Argc, char **Argv) {
             }
             return;
         }
-        ConsoleWrite("store: removed ");
-        ConsoleWrite(Argv[2]);
-        ConsoleWrite("\n");
-        DesktopNotifyAppsChanged();
-        return;
-    }
-
-    if (StoreWordEq(Sub, "combo")) {
-        if (Argc < 3) {
-            ConsoleWrite("usage: store combo <id>\n");
-            ConsoleWrite("hint: e.g. store combo guidemo  (demopack+sun8 then app)\n");
-            return;
-        }
-        if (ShellStoreLock() != 0) {
-            return;
-        }
-        Err = StoreComboInstall(Argv[2]);
-        StoreJobShellEnd();
-        if (Err != FAT_OK) {
-            ConsoleWrite("store combo: ");
-            ConsoleWrite(FatStrError(Err));
+        if (StoreWordEq(Sub, "uncombo")) {
+            ConsoleWrite("store: combo removed ");
+            ConsoleWrite(Argv[2]);
             ConsoleWrite("\n");
-            return;
-        }
-        ConsoleWrite("store: combo installed ");
-        ConsoleWrite(Argv[2]);
-        ConsoleWrite(" (+depends)\n");
-        DesktopNotifyAppsChanged();
-        return;
-    }
-
-    if (StoreWordEq(Sub, "uncombo")) {
-        if (Argc < 3) {
-            ConsoleWrite("usage: store uncombo <id>\n");
-            return;
-        }
-        if (ShellStoreLock() != 0) {
-            return;
-        }
-        Err = StoreComboRemove(Argv[2]);
-        StoreJobShellEnd();
-        if (Err != FAT_OK) {
-            ConsoleWrite("store uncombo: ");
-            ConsoleWrite(FatStrError(Err));
+        } else {
+            ConsoleWrite("store: removed ");
+            ConsoleWrite(Argv[2]);
             ConsoleWrite("\n");
-            return;
         }
-        ConsoleWrite("store: combo removed ");
-        ConsoleWrite(Argv[2]);
-        ConsoleWrite("\n");
-        DesktopNotifyAppsChanged();
         return;
     }
 

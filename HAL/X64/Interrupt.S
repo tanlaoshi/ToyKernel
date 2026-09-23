@@ -142,8 +142,8 @@ IsrCommon:
 
 /* 内核任务首次进入：rdi=HAL_INTERRUPT_FRAME*；iretq 开 IF=1
  *
- * 5l ✅（NUC）：入栈 RSP=StackTop-8 伪返回（同旧 jmp push）+ gIdleSlot。
- * remove 不卡；install/remove 期鼠标不顿。 */
+ * 5l ✅：RSP=StackTop-8 伪返回 + gIdleSlot。
+ * rm-exc-10：Create 帧须在 [Top-184, Top-8) 红区之下（见 SchedulerCreate）。 */
 .global KernelEnter
 KernelEnter:
     mov rax, [rdi + 136]    /* InstructionPointer */

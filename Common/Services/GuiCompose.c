@@ -90,6 +90,25 @@ void GuiPresentDeferPop(void) {
     }
 }
 
+/* 可嵌套：仅最外层把计数清零；Resume 还原。供 Shell 等 StoreJob 时放行光标 Present */
+static int gDeferPauseDepth;
+static int gDeferSaved;
+
+void GuiPresentDeferPause(void) {
+    if (gDeferPauseDepth++ == 0) {
+        gDeferSaved = gDeferPresent;
+        gDeferPresent = 0;
+        gShellEchoCoalesce = 0;
+    }
+}
+
+void GuiPresentDeferResume(void) {
+    if (gDeferPauseDepth > 0 && --gDeferPauseDepth == 0) {
+        gDeferPresent = gDeferSaved;
+        gDeferSaved = 0;
+    }
+}
+
 
 void GuiRedraw(void) {
     int i;
