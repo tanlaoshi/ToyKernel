@@ -31,7 +31,7 @@ int socket(int domain, int type, int protocol) {
     return (int)r;
 }
 
-int connect(int fd, unsigned ip, unsigned port) {
+int ToyNetConnect(int fd, unsigned ip, unsigned short port) {
     long r;
     if (fd < 0) {
         errno = EBADF;
@@ -45,7 +45,7 @@ int connect(int fd, unsigned ip, unsigned port) {
     return 0;
 }
 
-int bind(int fd, unsigned ip, unsigned port) {
+int ToyNetBind(int fd, unsigned ip, unsigned short port) {
     long r;
     if (fd < 0) {
         errno = EBADF;
@@ -111,7 +111,7 @@ int ToyNetConnectIn(int Fd, const ToySockAddrIn *Sa) {
         errno = EINVAL;
         return -1;
     }
-    return connect(Fd, Sa->Addr, Sa->Port);
+    return ToyNetConnect(Fd, Sa->Addr, (unsigned short)Sa->Port);
 }
 
 int ToyNetBindIn(int Fd, const ToySockAddrIn *Sa) {
@@ -119,7 +119,7 @@ int ToyNetBindIn(int Fd, const ToySockAddrIn *Sa) {
         errno = EINVAL;
         return -1;
     }
-    return bind(Fd, Sa->Addr, Sa->Port);
+    return ToyNetBind(Fd, Sa->Addr, (unsigned short)Sa->Port);
 }
 
 int ToyNetGetAddrIn(ToySockAddrIn *Sa, const char *Name, unsigned Port) {

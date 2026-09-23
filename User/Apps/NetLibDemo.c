@@ -21,7 +21,7 @@ int main(void) {
         printf("netlib: socket fail (need LWIP=1?)\n");
         return 1;
     }
-    if (connect(Fd, ToyNetIpv4(10, 0, 2, 2), 8888) != 0) {
+    if (ToyNetConnect(Fd, ToyNetIpv4(10, 0, 2, 2), 8888) != 0) {
         printf("netlib: connect fail\n");
         close(Fd);
         return 1;

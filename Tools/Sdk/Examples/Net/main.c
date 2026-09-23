@@ -1,7 +1,7 @@
 /*
  * Examples/Net — libToyNet TCP 客户端（PR-A-net-dns）
  * 产物：MYNET.ELF。Guest 先 lwip on；宿主机 nc -l -p 8888。
- * connect(fd, ip, port) 仍可用；本例走 ToySockAddrIn + ToyNetResolve。
+ * ToyNetConnectIn + ToyNetResolve（主机序）；勿用已删除的 connect(fd,ip,port)。
  */
 #include <stdio.h>
 #include <unistd.h>

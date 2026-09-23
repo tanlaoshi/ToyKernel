@@ -12,7 +12,7 @@ int main(void) {
         printf("mynet: socket fail\n");
         return 1;
     }
-    if (connect(Fd, ToyNetIpv4(10, 0, 2, 2), 8888) != 0) {
+    if (ToyNetConnect(Fd, ToyNetIpv4(10, 0, 2, 2), 8888) != 0) {
         printf("mynet: connect fail\n");
         close(Fd);
         return 1;

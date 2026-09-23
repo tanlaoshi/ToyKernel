@@ -1,10 +1,10 @@
 /*
- * ToyNet.h — 用户态 libToyNet / libnet（PR-L4 / PR-A-net-dns）
+ * ToyNet.h — 用户态 libToyNet / libnet（PR-L4 / PR-A-net-dns / 网络双轨 C1）
  *
- * BSD 风格薄封装。connect/bind 仍是 (fd, ip, port) 主机序，与 1.1.0 相同。
- * 1.2.0：+ ToySockAddrIn 封装；ToyNetResolve 可查域名（内核 lwIP DNS）。
- * 默认内核已 LWIP=1（关栈用 LWIP=0）；首次 socket() 会触发内核 LwIpInit。
+ * 第 2 轨（ToyOS 便利）：ToyNetConnect / ToyNetBind — (fd, ip, port) **主机序**。
+ * 第 1 轨（POSIX）：connect / bind + sockaddr → 见 <sys/socket.h>（后续添加）。
  *
+ * 2.0.0：原 connect/bind(fd,ip,port) 改名为 ToyNetConnect / ToyNetBind。
  * 破坏性变更升 TOY_NET_ABI_VERSION_MAJOR。
  */
 #ifndef TOY_NET_H
@@ -12,10 +12,10 @@
 
 #include <sys/types.h>
 
-#define TOY_NET_ABI_VERSION_MAJOR 1
-#define TOY_NET_ABI_VERSION_MINOR 2
+#define TOY_NET_ABI_VERSION_MAJOR 2
+#define TOY_NET_ABI_VERSION_MINOR 0
 #define TOY_NET_ABI_VERSION_PATCH 0
-#define TOY_NET_ABI_VERSION_STRING "1.2.0"
+#define TOY_NET_ABI_VERSION_STRING "2.0.0"
 
 /* 与 Include/Socket.h 一致 */
 #define AF_INET     2
@@ -32,7 +32,7 @@ typedef struct {
 } ToyNetDnsQuery;
 
 /*
- * ToySockAddrIn — 主机序 sockaddr（与 connect(fd, ip, port) 同一约定）。
+ * ToySockAddrIn — 主机序地址（与 ToyNetConnect(fd, ip, port) 同一约定）。
  * 不是 POSIX 网络序 sockaddr_in。
  */
 typedef struct {
@@ -47,8 +47,9 @@ static inline unsigned ToyNetIpv4(unsigned A, unsigned B, unsigned C, unsigned D
 }
 
 int socket(int domain, int type, int protocol);
-int connect(int fd, unsigned ip, unsigned port);
-int bind(int fd, unsigned ip, unsigned port);
+/* 主机序便利版（第 2 轨）；POSIX connect/bind 见后续 sys/socket.h */
+int ToyNetConnect(int fd, unsigned ip, unsigned short port);
+int ToyNetBind(int fd, unsigned ip, unsigned short port);
 int listen(int fd, int backlog);
 int accept(int fd);
 /* send/recv：socket fd 上即 write/read */

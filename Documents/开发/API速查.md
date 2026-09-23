@@ -49,12 +49,14 @@
 
 Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / `240+` 输入框 / **`300+HID` 键**（焦点在本窗）/ `400+` 客户区点。窗槽最多 6。libToyUi **1.2.0**。
 
-## 网络（`libToyNet` 1.2.0；内核 `LWIP=1`；Guest `lwip on`）
+## 网络（`libToyNet` 2.0.0；内核 `LWIP=1`；Guest `lwip on`）
+
+> **注意**：主机序便利版用 `ToyNetConnect` / `ToyNetBind`；POSIX `connect` / `bind`（`sockaddr`）见 `sys/socket.h`（后续添加）。
 
 | 函数 | 注意 |
 |------|------|
-| `socket` / `bind` / `listen` / `accept` | `<ToyNet.h>` |
-| `connect(fd, ip, port)` | **主机序** `unsigned`，不是 POSIX `sockaddr` |
+| `socket` / `listen` / `accept` | `<ToyNet.h>`（暂；POSIX 头后续） |
+| `ToyNetConnect(fd, ip, port)` / `ToyNetBind` | **主机序**；原 `connect`/`bind`(ip,port) 已改名（ABI 2.0） |
 | `ToySockAddrIn` + `ToyNetConnectIn` / `BindIn` / `GetAddrIn` | 同样主机序 |
 | `send` / `recv` | socket fd 上即 `write` / `read` |
 | `ToyNetIpv4(a,b,c,d)` | **函数** |
