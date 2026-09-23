@@ -8,6 +8,7 @@
 #include "Udp.h"
 #include "NetConfig.h"
 #include "LwIpPrivate.h"
+#include "SpinLock.h"
 
 #ifdef TOY_LWIP
 
@@ -24,6 +25,7 @@
 
 static int gLwIpReady;
 static u32_t gLwIpMs;
+static SPIN_LOCK gLwIpLock;
 
 static volatile int gDnsDone;
 static volatile err_t gDnsErr;
@@ -31,6 +33,14 @@ static ip_addr_t gDnsAddr;
 
 u32_t sys_now(void) {
     return gLwIpMs;
+}
+
+void LwIpLock(void) {
+    SpinLockAcquire(&gLwIpLock);
+}
+
+void LwIpUnlock(void) {
+    SpinLockRelease(&gLwIpLock);
 }
 
 static void LwIpDnsFound(const char *Name, const ip_addr_t *Addr, void *Arg) {
@@ -46,52 +56,50 @@ static void LwIpDnsFound(const char *Name, const ip_addr_t *Addr, void *Arg) {
 }
 
 int LwIpInit(void) {
-    UINT64 IrqFlags;
-
     if (!HalNetReady()) {
         return -1;
     }
     NetConfigEnsure();
     HalNetSetIpAddress(NetConfigGetIp());
-    IrqFlags = HalIrqSave();
+    SpinLockInit(&gLwIpLock);
+    SpinLockAcquire(&gLwIpLock);
     TcpInit();
     UdpInit();
     lwip_init();
     if (LwIpConfigBindNetif() != 0) {
-        HalIrqRestore(IrqFlags);
+        SpinLockRelease(&gLwIpLock);
         return -1;
     }
     LwIpConfigPushDns();
     HalNetSetLwipReceive(1);
     gLwIpReady = 1;
-    HalIrqRestore(IrqFlags);
+    SpinLockRelease(&gLwIpLock);
     LwIpConfigLogDns();
     return 0;
 }
 
 void LwIpPoll(void) {
-    UINT64 IrqFlags;
-
     if (!gLwIpReady) {
         return;
     }
-    IrqFlags = HalIrqSave();
+    SpinLockAcquire(&gLwIpLock);
     gLwIpMs++;
     sys_check_timeouts();
-    HalIrqRestore(IrqFlags);
+    SpinLockRelease(&gLwIpLock);
 }
 
-/* 一次关中断内完成收发包 + lwIP 定时器，避免 NO_SYS 重入打坏 pbuf */
+/*
+ * NO_SYS 非 SMP 安全：Shell(AP) 与 Worker(BSP) 都会调本函数。
+ * 大锁串行化；SpinLock 已 cli，勿在持锁时 HalCpuHalt。
+ */
 void LwIpService(void) {
-    UINT64 IrqFlags;
-
-    IrqFlags = HalIrqSave();
+    SpinLockAcquire(&gLwIpLock);
     HalNetPoll();
     if (gLwIpReady) {
         gLwIpMs++;
         sys_check_timeouts();
     }
-    HalIrqRestore(IrqFlags);
+    SpinLockRelease(&gLwIpLock);
 }
 
 int LwIpActive(void) {
@@ -201,6 +209,12 @@ void LwIpPoll(void) {
 
 void LwIpService(void) {
     HalNetPoll();
+}
+
+void LwIpLock(void) {
+}
+
+void LwIpUnlock(void) {
 }
 
 int LwIpActive(void) {

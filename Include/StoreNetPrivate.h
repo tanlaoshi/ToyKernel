@@ -36,5 +36,8 @@ int HashOk(const char *Expect, const UINT8 *Data, UINTN Len);
 /* ===== StoreNetHttp.c ===== */
 int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
             UINT8 **OutBody, UINTN *OutLen, UINT32 *OutPages);
+/* ===== StoreNetHttpLwip.c ===== */
+int HttpGetLwIp(UINT32 Ip, UINT16 Port, const char *Path,
+                UINT8 *Resp, UINTN Cap, UINTN *OutGot);
 
 #endif

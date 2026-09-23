@@ -113,14 +113,20 @@ void StoreJobBusyRepaint(void) {
 }
 
 void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
+    /* Worker 异步结束：先离开当前 toyos> 行，末尾再画提示符 */
+    if (!ConsolePromptSuspended()) {
+        ConsoleWrite("\n");
+    }
     if (Err == STORE_JOB_ERR_CANCEL) {
         StoreSetStatus("cancelled");
         ConsoleWrite("store job: cancelled\n");
+        ConsoleShowPrompt();
         return;
     }
     if (Err == FAT_OK && Kind == STORE_JOB_INSTALL && PlanN == 0) {
         StoreSetStatus("already installed");
         ConsoleWrite("store job: already installed\n");
+        ConsoleShowPrompt();
         return;
     }
     if (Err == FAT_OK) {
@@ -130,6 +136,10 @@ void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
         } else if (Kind == STORE_JOB_REMOVE) {
             StoreSetStatus("removed");
             ConsoleWrite("store job: removed\n");
+        } else if (Kind == STORE_JOB_FETCH) {
+            StoreSetStatus("fetched");
+            ConsoleWrite("store job: fetched\n");
+            ConsoleWrite("hint: store install <id>\n");
         } else {
             StoreSetStatus("sync ok");
             ConsoleWrite("store job: sync ok\n");
@@ -143,8 +153,21 @@ void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
         if (Err == FAT_ERR_INVAL) {
             ConsoleWrite("hint: still required by dependents; remove app first\n");
         }
+    } else if (Kind == STORE_JOB_FETCH) {
+        StoreSetStatus("fetch fail");
+        ConsoleWrite("store job: fetch fail\n");
+        if (Err == -41 || Err == -2) {
+            ConsoleWrite("hint: HTTP not 200\n");
+        } else if (Err == -42 || Err == -3) {
+            ConsoleWrite("hint: hash mismatch\n");
+        } else if (Err == -40) {
+            ConsoleWrite("hint: net/tcp fail\n");
+        } else if (Err == -43) {
+            ConsoleWrite("hint: out of memory\n");
+        }
     } else {
         StoreSetStatus("sync fail (need repo)");
         ConsoleWrite("store job: sync fail\n");
     }
+    ConsoleShowPrompt();
 }

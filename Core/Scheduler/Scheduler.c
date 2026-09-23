@@ -278,12 +278,26 @@ int SchedulerSetPriority(INT32 Pid, INT32 Priority) {
 
 UINT64 SchedulerResumeFrame(TASK *T) {
     UINT64 Frame = (UINT64)(UINTN)T->Frame;
+    UINT64 Sp;
 
     if (Frame == 0) {
         return 0;
     }
     if (T->Started) {
         return Frame;
+    }
+    /* 首入 KernelEnter：StackPointer 须为 Create 栈顶；损坏则就地修复 */
+    Sp = HalFrameGetStackPointer(T->Frame);
+    if (Sp < 0x10000ULL) {
+        UINT8 *Top = T->Stack + sizeof(T->Stack);
+        UINT64 Ip = HalFrameGetInstructionPointer(T->Frame);
+
+        if (Ip == 0) {
+            ToyLogSmp("sched: bad StackPointer no ip\n");
+            return 0;
+        }
+        HalFrameSetKernelEntry(T->Frame, Ip, (UINT64)(UINTN)Top);
+        ToyLogSmp("sched: repaired StackPointer\n");
     }
     T->Started = 1;
     if (T->IsUser) {

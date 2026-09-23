@@ -43,7 +43,7 @@ int SchedulerIsOnline(void) {
 void SchedulerApStart(void) {
     UINT32 Cpu;
     TASK *Idle;
-    UINT64 Ret;
+    HAL_INTERRUPT_FRAME *Frame;
 
     Cpu = HalGetCpuId();
     while (!gSchedulerOnline) {
@@ -58,9 +58,25 @@ void SchedulerApStart(void) {
             HalCpuPark();
         }
     }
+    /*
+     * SmpBoot 在进本函数前已 sti。若此处仍 IF=1：OnTimer 会把 Idle->Frame
+     * 改成 IRQ 栈帧，随后 HalSchedulerEnter 读到 SP=0 → #PF cr2=-8。
+     * 首入前 cli，并用本地 Frame*（勿在解锁后再读 Idle->Frame）。
+     */
+    HalIrqDisable();
+    Frame = Idle->Frame;
+    if (!Frame || HalFrameGetStackPointer(Frame) < 0x10000ULL) {
+        UINT8 *Top = Idle->Stack + sizeof(Idle->Stack);
+        UINT8 *IrqCeil = Top - 8;
+        UINT8 *IrqFloor = IrqCeil - sizeof(HAL_INTERRUPT_FRAME);
+        Frame = (HAL_INTERRUPT_FRAME *)(IrqFloor - sizeof(HAL_INTERRUPT_FRAME));
+        HalFrameSetKernelEntry(Frame, (UINT64)(UINTN)IdleTask,
+                               (UINT64)(UINTN)Top);
+        Idle->Frame = Frame;
+        ToyLogSmp("sched: AP repaired idle frame\n");
+    }
     ActivateTask(Idle);
     Idle->Started = 1;
-    Ret = (UINT64)(UINTN)Idle->Frame;
     SpinLockRelease(&gSchedulerLock);
     /* 8 AP 并发写 COM1 会把欢迎语打成乱码；只留一条样例给冒烟 */
     if (Cpu == 1) {
@@ -68,8 +84,7 @@ void SchedulerApStart(void) {
         ToyLogSmpHex32(Cpu);
         ToyLogSmp("\n");
     }
-    HalSchedulerEnter(Idle->Frame);
-    (void)Ret;
+    HalSchedulerEnter(Frame);
     for (;;) {
         HalCpuPark();
     }
@@ -173,10 +188,14 @@ void SchedulerStart(void) {
     ActivateTask(First);
     First->Started = 1;
     gSchedulerOnline = 1;
-    SpinLockRelease(&gSchedulerLock);
-    HalTimerStart();
-    DebugWrite("sched: online, entering tasks\n");
-    HalSchedulerEnter(First->Frame);
+    {
+        HAL_INTERRUPT_FRAME *Frame = First->Frame;
+
+        SpinLockRelease(&gSchedulerLock);
+        HalTimerStart();
+        DebugWrite("sched: online, entering tasks\n");
+        HalSchedulerEnter(Frame);
+    }
 }
 
 TASK *SchedulerCurrent(void) {

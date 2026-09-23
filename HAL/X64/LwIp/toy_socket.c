@@ -15,7 +15,10 @@
 #include "lwip/tcp.h"
 #include "lwip/pbuf.h"
 
-#define SOCK_RX_MAX 2048
+#define SOCK_RX_MAX 32768 /* ≥ 课用 HTTP 包；免拆 pbuf 丢段 */
+
+
+
 
 /* PR-N-dns：lwIP err_t → -(POSIX errno)；供 CRT 置 errno */
 static int SockNegErrno(err_t Err) {
@@ -127,17 +130,23 @@ static err_t SockRecvCb(void *Arg, struct tcp_pcb *Pcb, struct pbuf *P, err_t Er
         return ERR_OK;
     }
     Space = SOCK_RX_MAX - S->RxLen;
+    if (Space == 0) {
+        return ERR_MEM;
+    }
     Copy = P->tot_len;
     if (Copy > Space) {
         Copy = Space;
     }
-    if (Copy > 0) {
-        pbuf_copy_partial(P, S->Rx + S->RxLen, (u16_t)Copy, 0);
-        S->RxLen += Copy;
-        tcp_recved(Pcb, (u16_t)Copy);
-    }
-    if (P->tot_len > Copy) {
-        tcp_recved(Pcb, (u16_t)(P->tot_len - Copy));
+    pbuf_copy_partial(P, S->Rx + S->RxLen, (u16_t)Copy, 0);
+    S->RxLen += Copy;
+    tcp_recved(Pcb, (u16_t)Copy);
+    if ((UINTN)P->tot_len > Copy) {
+        /* 削掉已拷前缀，ERR_MEM 让 lwIP 带着剩余再投（勿 free） */
+        if (pbuf_remove_header(P, (u16_t)Copy) != 0) {
+            pbuf_free(P);
+            return ERR_OK;
+        }
+        return ERR_MEM;
     }
     pbuf_free(P);
     return ERR_OK;
@@ -310,12 +319,12 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
         return -TOY_EINVAL;
     }
     {
-        UINT64 IrqFlags = HalIrqSave();
+        LwIpLock();
 
         if (S->Pcb == NULL) {
             Pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
             if (Pcb == NULL) {
-                HalIrqRestore(IrqFlags);
+                LwIpUnlock();
                 return -TOY_ENOMEM;
             }
             S->Pcb = Pcb;
@@ -328,7 +337,7 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
         tcp_err(Pcb, SockErrCb);
         ToyHostIpToLwIp(DstIp, &Remote);
         Err = tcp_connect(Pcb, ip_2_ip4(&Remote), DstPort, SockConnectedCb);
-        HalIrqRestore(IrqFlags);
+        LwIpUnlock();
     }
     if (Err != ERR_OK) {
         SockAbortPcb(S);
@@ -372,18 +381,24 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
     if (S == NULL || Data == NULL) {
         return -TOY_EINVAL;
     }
-    if (S->Phase != 1 || S->Pcb == NULL) {
-        return -TOY_ENOTCONN;
-    }
     while (Sent < Len && Tries-- > 0) {
-        UINTN Chunk = Len - Sent;
-        u16_t Avail = tcp_sndbuf(S->Pcb);
+        UINTN Chunk;
+        u16_t Avail;
+        int Phase;
 
+        LwIpLock();
+        if (S->Phase != 1 || S->Pcb == NULL) {
+            LwIpUnlock();
+            return Sent > 0 ? (int)Sent : -TOY_ENOTCONN;
+        }
+        Avail = tcp_sndbuf(S->Pcb);
         if (Avail == 0) {
+            LwIpUnlock();
             LwIpService();
             HalCpuHalt();
             continue;
         }
+        Chunk = Len - Sent;
         if (Chunk > Avail) {
             Chunk = Avail;
         }
@@ -393,26 +408,33 @@ int ToySocketSend(int Sock, const void *Data, UINTN Len) {
         Err = tcp_write(S->Pcb, (const UINT8 *)Data + Sent, (u16_t)Chunk,
                         TCP_WRITE_FLAG_COPY);
         if (Err == ERR_MEM) {
+            LwIpUnlock();
             LwIpService();
             HalCpuHalt();
             continue;
         }
         if (Err != ERR_OK) {
+            LwIpUnlock();
             return Sent > 0 ? (int)Sent : SockNegErrno(Err);
         }
         (void)tcp_output(S->Pcb);
         Sent += Chunk;
+        Phase = S->Phase;
+        LwIpUnlock();
         LwIpService();
-        if (S->Phase != 1) {
+        if (Phase != 1) {
             break;
         }
     }
     if (Sent > 0) {
         return (int)Sent;
     }
+    LwIpLock();
     if (S->Phase != 1) {
+        LwIpUnlock();
         return -TOY_EPIPE;
     }
+    LwIpUnlock();
     return -TOY_EAGAIN;
 }
 
@@ -426,31 +448,42 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
         return -TOY_EINVAL;
     }
     Tries = TimeoutMs > 0 ? TimeoutMs : 1;
-    while (S->RxLen == 0 && S->Phase == 1 && Tries-- > 0) {
+    while (Tries-- > 0) {
+        LwIpLock();
+        if (S->RxLen > 0) {
+            N = S->RxLen;
+            if (N > Len) {
+                N = Len;
+            }
+            for (i = 0; i < N; i++) {
+                ((UINT8 *)Buf)[i] = S->Rx[i];
+            }
+            for (i = N; i < S->RxLen; i++) {
+                S->Rx[i - N] = S->Rx[i];
+            }
+            S->RxLen -= N;
+            LwIpUnlock();
+            return (int)N;
+        }
+        if (S->Phase == 2) {
+            LwIpUnlock();
+            return -2;
+        }
+        if (S->Phase < 0) {
+            int Neg = SockNegErrno(S->Err == ERR_OK ? ERR_CLSD : S->Err);
+
+            LwIpUnlock();
+            return Neg;
+        }
+        if (S->Phase != 1) {
+            LwIpUnlock();
+            return 0;
+        }
+        LwIpUnlock();
         LwIpService();
         HalCpuHalt();
     }
-    if (S->RxLen == 0) {
-        if (S->Phase == 2) {
-            return -2; /* EOF：调度层 → 0 */
-        }
-        if (S->Phase < 0) {
-            return SockNegErrno(S->Err == ERR_OK ? ERR_CLSD : S->Err);
-        }
-        return 0;
-    }
-    N = S->RxLen;
-    if (N > Len) {
-        N = Len;
-    }
-    for (i = 0; i < N; i++) {
-        ((UINT8 *)Buf)[i] = S->Rx[i];
-    }
-    for (i = N; i < S->RxLen; i++) {
-        S->Rx[i - N] = S->Rx[i];
-    }
-    S->RxLen -= N;
-    return (int)N;
+    return 0;
 }
 
 int ToySocketClose(int Sock) {
@@ -462,15 +495,18 @@ int ToySocketClose(int Sock) {
     if (S == NULL) {
         return -1;
     }
+    LwIpLock();
     if (S->IsListen) {
         Count = S->PendingCount;
         for (i = 0; i < Count; i++) {
             Pending[i] = S->Pending[i];
         }
         S->PendingCount = 0;
+        LwIpUnlock();
         for (i = 0; i < Count; i++) {
             ToySocketClose(Pending[i]);
         }
+        LwIpLock();
         if (S->Pcb != NULL) {
             tcp_arg(S->Pcb, NULL);
             tcp_accept(S->Pcb, NULL);
@@ -490,6 +526,7 @@ int ToySocketClose(int Sock) {
     S->Phase = 0;
     S->RxLen = 0;
     S->IsListen = 0;
+    LwIpUnlock();
     return 0;
 }
 

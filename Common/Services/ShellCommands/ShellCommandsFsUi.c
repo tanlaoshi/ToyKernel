@@ -14,14 +14,7 @@
 #include "Desktop.h"
 #include "Fat.h"
 #include "Hal.h"
-
-static int ShellStoreLock(void) {
-    if (StoreJobShellBegin() != 0) {
-        ConsoleWrite("store: Store UI busy (Cancel or wait)\n");
-        return -1;
-    }
-    return 0;
-}
+#include "LwIp.h"
 
 /*
  * Shell ↔ StoreJob：同一套 Job。0=已入队（Worker 执行）；-1=忙/失败。
@@ -46,6 +39,35 @@ static void ShellStoreQueued(const char *Verb, const char *Id) {
     }
     ConsoleWrite("\n");
     ConsoleWrite("hint: worker runs it; store job — status / last error\n");
+}
+
+/*
+ * lwip on 时 HTTP 须与 Shell 同核泵栈；Enqueue→Worker 易 busy 挂死。
+ * Shell 同步跑 fetch/sync，输出自然在下一行 toyos> 之前。
+ */
+static void ShellStoreNetDone(const char *Verb, int Err) {
+    if (Err == 0) {
+        ConsoleWrite("store: ");
+        ConsoleWrite(Verb);
+        ConsoleWrite(" ok\n");
+        if (Verb[0] == 'f') {
+            ConsoleWrite("hint: store install <id>\n");
+        }
+        return;
+    }
+    ConsoleWrite("store: ");
+    ConsoleWrite(Verb);
+    ConsoleWrite(" fail\n");
+    /* STORE_ERR_*：net=-40 http=-41 hash=-42 alloc=-43 */
+    if (Err == -41) {
+        ConsoleWrite("hint: HTTP not 200\n");
+    } else if (Err == -42) {
+        ConsoleWrite("hint: hash mismatch\n");
+    } else if (Err == -40) {
+        ConsoleWrite("hint: net/tcp fail\n");
+    } else if (Err == -43) {
+        ConsoleWrite("hint: out of memory\n");
+    }
 }
 
 static void ShellStoreJobStatus(void) {
@@ -245,6 +267,20 @@ static void CommandStore(int Argc, char **Argv) {
     }
 
     if (StoreWordEq(Sub, "sync")) {
+        /* lwIP：Shell 同步泵；否则仍可走 Worker Job */
+        if (LwIpActive()) {
+            int Err;
+
+            if (StoreJobShellBegin() != 0) {
+                ConsoleWrite("store: busy (Cancel in Store UI, or store job)\n");
+                return;
+            }
+            ConsoleWrite("store: syncing catalog...\n");
+            Err = StoreSyncCatalog();
+            StoreJobShellEnd();
+            ShellStoreNetDone("sync", Err);
+            return;
+        }
         if (ShellStoreJob(STORE_JOB_SYNC, 0) != 0) {
             return;
         }
@@ -257,35 +293,25 @@ static void CommandStore(int Argc, char **Argv) {
             ConsoleWrite("usage: store fetch <id>\n");
             return;
         }
-        if (ShellStoreLock() != 0) {
+        if (LwIpActive()) {
+            int Err;
+
+            if (StoreJobShellBegin() != 0) {
+                ConsoleWrite("store: busy (Cancel in Store UI, or store job)\n");
+                return;
+            }
+            ConsoleWrite("store: fetching ");
+            ConsoleWrite(Argv[2]);
+            ConsoleWrite("...\n");
+            Err = StoreFetchId(Argv[2]);
+            StoreJobShellEnd();
+            ShellStoreNetDone("fetch", Err);
             return;
         }
-        Err = StoreFetchId(Argv[2]);
-        StoreJobShellEnd();
-        if (Err == -41 || Err == -2) {
-            ConsoleWrite("store fetch: HTTP not 200\n");
+        if (ShellStoreJob(STORE_JOB_FETCH, Argv[2]) != 0) {
             return;
         }
-        if (Err == -42 || Err == -3) {
-            ConsoleWrite("store fetch: hash mismatch\n");
-            return;
-        }
-        if (Err == -40) {
-            ConsoleWrite("store fetch: net/tcp fail\n");
-            return;
-        }
-        if (Err == -43) {
-            ConsoleWrite("store fetch: out of memory\n");
-            return;
-        }
-        if (Err != 0) {
-            ConsoleWrite("store fetch: ");
-            ConsoleWrite(FatStrError(Err));
-            ConsoleWrite("\n");
-            return;
-        }
-        ConsoleWrite("store: fetched to " STORE_CACHE_DIR "/\n");
-        ConsoleWrite("hint: store install <id>\n");
+        ShellStoreQueued("fetch", Argv[2]);
         return;
     }
 

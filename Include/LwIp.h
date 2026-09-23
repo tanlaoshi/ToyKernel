@@ -17,6 +17,9 @@ int  LwIpDhcpRunning(void);
 void LwIpPoll(void);
 /* 关中断下 HalNetPoll + lwIP timers（NO_SYS 防重入） */
 void LwIpService(void);
+/* SMP：与 LwIpService 同一把锁；持锁期间禁止 Halt */
+void LwIpLock(void);
+void LwIpUnlock(void);
 int  LwIpActive(void);
 int  LwIpPing(UINT32 DstIp, int TimeoutMs);
 int  LwIpTcpListen(UINT16 Port);

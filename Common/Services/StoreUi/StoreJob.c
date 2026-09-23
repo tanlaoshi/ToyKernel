@@ -110,6 +110,13 @@ int StoreJobStep(void) {
             sInStep = 0;
             return 0;
         }
+        if (sKind == STORE_JOB_FETCH) {
+            StoreJobStatusWithId("fetch", sJobId);
+            StoreJobBusyRepaint();
+            sPhase = JP_PKG;
+            sInStep = 0;
+            return 0;
+        }
         StoreComboBatchBegin();
         sBatch = 1;
         StoreJobStatusWithId("plan", sJobId);
@@ -150,6 +157,16 @@ int StoreJobStep(void) {
                 sErr = Err;
             }
             sPhase = JP_RELOAD;
+            sInStep = 0;
+            return 0;
+        }
+        if (sKind == STORE_JOB_FETCH) {
+            Err = StoreFetchId(sJobId);
+            if (Err != 0) {
+                sErr = Err;
+            }
+            /* 仅写缓存，不必 font/reload */
+            sPhase = JP_FINISH;
             sInStep = 0;
             return 0;
         }

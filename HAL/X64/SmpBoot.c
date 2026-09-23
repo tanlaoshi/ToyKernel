@@ -170,6 +170,8 @@ void SmpApEntry(void) {
     while (!SchedulerIsOnline()) {
         __asm__ volatile ("pause");
     }
+    /* 首入 idle 前关 IF；细节见 SchedulerApStart 注释（防 OnTimer 砸 Frame） */
+    __asm__ volatile ("cli" ::: "memory");
     SchedulerApStart();
     for (;;) {
         __asm__ volatile ("hlt");

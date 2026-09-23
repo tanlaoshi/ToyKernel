@@ -116,6 +116,10 @@ void ShellTask(void) {
             }
         }
 #ifdef TOY_LWIP
+        /*
+         * NO_SYS：Shell@AP 与 Worker@BSP 均可 LwIpService；gLwIpLock 串行。
+         * 勿在 Job busy 时停泵——窗/Worker 上的 HttpGet 仍依赖 Shell 侧轮询 RX。
+         */
         if (LwIpActive()) {
             LwIpService();
         } else {

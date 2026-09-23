@@ -5,6 +5,8 @@
  */
 #include "StoreNetPrivate.h"
 #include "Scheduler.h"
+#include "LwIp.h"
+#include "Console.h"
 
 static char gHttpReq[256]; /* 避免 HttpGet 再占任务栈 */
 
@@ -14,9 +16,12 @@ static void PollNet(void) {
 }
 
 static void HttpBreath(void) {
-    /* 紧循环补路：同步装/sync 时仍可拖鼠（可残影） */
     SchedulerIoBreath();
-    PollNet();
+    if (LwIpActive()) {
+        LwIpService();
+    } else {
+        PollNet();
+    }
 }
 
 static int WaitEstablished(int Tries) {
@@ -68,6 +73,19 @@ int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
     if (!Resp) {
         HalConsoleWriteSerial("store: alloc fail\n");
         return STORE_ERR_ALLOC;
+    }
+
+    /* lwip on：自研 Tcp 的 NetSendIp 恒失败；改走 LwIpSocket */
+    if (LwIpActive()) {
+        UINTN LwGot = 0;
+
+        Rc = HttpGetLwIp(Ip, Port, Path, Resp, STORE_HTTP_MAX, &LwGot);
+        if (Rc != 0) {
+            PhysicalMemoryFreePages(Resp, Pages);
+            return Rc;
+        }
+        Got = LwGot;
+        goto ParseHttp;
     }
 
     if (TcpGetState() != TCP_CLOSED) {
@@ -164,6 +182,7 @@ int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
     }
     TcpClose();
 
+ParseHttp:
     Rc = FindBody(Resp, Got, &BodyOff, &BodyLen, &HaveLen);
     if (Rc != 0 && Got > 0) {
         UINTN i;
@@ -252,7 +271,8 @@ int HttpGet(UINT32 Ip, UINT16 Port, const char *Path,
             }
             Msg[n++] = '\n';
             Msg[n] = 0;
-            HalConsoleWriteSerial(Msg);
+            /* Worker 异步：ConsoleNotify 先换行离开 toyos>，勿用裸串口插在提示符后 */
+            ConsoleNotify(Msg);
             PhysicalMemoryFreePages(Resp, Pages);
             return STORE_ERR_NET;
         }
