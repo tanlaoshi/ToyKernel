@@ -262,7 +262,8 @@ static const MODULE gModulesFull[] = {
     { "Console", InitializeConsole },
 };
 
-/* PR-A8 / B1：HalConsoleOnly — 串口子集（无 FB / 命令行靶） */
+/* PR-A8 / B1：HalConsoleOnly — 串口子集（无 FB / 命令行靶）
+ * 仍挂 FileSystem：virt --serial 有 virtio-blk，供 PR-A12 exec HELLO.ELF */
 static const MODULE gModulesVirt[] = {
     { "Serial",  InitializeSerial },
     { "Memory",     InitializePhysicalMemory },
@@ -270,6 +271,7 @@ static const MODULE gModulesVirt[] = {
     { "VirtualMemory",     InitializeVirtualMemory },
     { "Cpu",     InitializeCpu },
     { "Smp",     InitializeSmp },
+    { "FileSystem",      InitializeFileSystem },
     { "Scheduler",   InitializeScheduler },
     { "Console", InitializeConsole },
 };

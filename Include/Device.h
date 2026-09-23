@@ -23,15 +23,30 @@ typedef enum {
     DEVICE_BUS_FIXED
 } DEVICE_BUS;
 
+/* 绑定观察态（PR-DEV-node；策略 A 填充归 enum 刀） */
+typedef enum {
+    DEVICE_STATE_UNBOUND = 0,
+    DEVICE_STATE_BOUND,
+    DEVICE_STATE_DISABLED, /* 预留 */
+    DEVICE_STATE_ERROR     /* 预留 */
+} DEVICE_STATE;
+
 /* 设备节点 */
 typedef struct DEVICE_NODE {
     char Name[32];
+    char FriendlyName[64]; /* 人类标题；空则回退 Name */
     DEVICE_BUS Bus;
+    DEVICE_STATE State;
 
     /* 匹配信息 */
     UINT16 Vendor;
     UINT16 Device;
     char Compatible[64];
+
+    /* PCI 类码（非 PCI 填 0；PR-DEV-node） */
+    UINT8 Class;
+    UINT8 Subclass;
+    UINT8 ProgIf;
 
     /* PCI 位置（非 PCI 填 0；供 lsdev [bus:dev.fn]） */
     UINT8 PciBus;

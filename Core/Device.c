@@ -4,6 +4,7 @@
  * 不 include Hal.h；HalDeviceEnumerate 仅前向声明，定义在各 Arch DeviceEnum.c。
  */
 #include "Device.h"
+#include "PciNames.h"
 
 #define DEVICE_MAX 128
 
@@ -77,10 +78,15 @@ int DeviceAdd(const DEVICE_NODE *Dev) {
     Slot = &gDevices[gDeviceCount];
     ZeroNode(Slot);
     CopyStr(Slot->Name, sizeof(Slot->Name), Dev->Name);
+    CopyStr(Slot->FriendlyName, sizeof(Slot->FriendlyName), Dev->FriendlyName);
     Slot->Bus = Dev->Bus;
+    Slot->State = Dev->State;
     Slot->Vendor = Dev->Vendor;
     Slot->Device = Dev->Device;
     CopyStr(Slot->Compatible, sizeof(Slot->Compatible), Dev->Compatible);
+    Slot->Class = Dev->Class;
+    Slot->Subclass = Dev->Subclass;
+    Slot->ProgIf = Dev->ProgIf;
     Slot->PciBus = Dev->PciBus;
     Slot->PciDev = Dev->PciDev;
     Slot->PciFn = Dev->PciFn;
@@ -92,6 +98,14 @@ int DeviceAdd(const DEVICE_NODE *Dev) {
     Slot->Driver = Dev->Driver;
     Slot->Instance = Dev->Instance;
     Slot->Bound = Dev->Bound ? 1 : 0;
+    /* PCI 且调用方未填友好名：用课用表回填 */
+    if (Slot->Bus == DEVICE_BUS_PCI && Slot->FriendlyName[0] == 0) {
+        const char *Fn = PciGetDeviceName(Slot->Vendor, Slot->Device);
+
+        if (Fn) {
+            CopyStr(Slot->FriendlyName, sizeof(Slot->FriendlyName), Fn);
+        }
+    }
     gDeviceCount++;
     return gDeviceCount - 1;
 }

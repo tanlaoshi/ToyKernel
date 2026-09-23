@@ -213,6 +213,12 @@ HalUserSelfTestEnter:
     .global HalUserSelfTestReturn
     .type HalUserSelfTestReturn, @function
 HalUserSelfTestReturn:
+    /*
+     * Coop/selftest exit 经此返回宿主，不走 sret。
+     * 若不把 sscratch 清成 0，下一趟 S 态 trap 会把残留 U-sp 当成
+     * 「来自 U」的内核栈（TrapVec 入口 csrrw），往已拆用户栈 sd → cause=15。
+     */
+    csrw    sscratch, zero
     la      t0, gUserSelfRet
     ld      sp, 0(t0)
     ld      ra, 8(t0)

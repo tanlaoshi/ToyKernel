@@ -116,10 +116,16 @@ void SchedulerStart(void) {
      * PR-S-ap：多核时 shell/gui 同钉 AP（逻辑 CPU1），BSP 留给 idle0 / worker / 中断；
      * 单核仍钉 0。交互 Priority 偏高；worker 钉 BSP（rm-exc-11 与 INTERFACE 分核）。
      * PR-S-input-pin 序 2：input 钉独立 CPU2（SMP≥3），与 shell/gui 分核，sti 不外溢。
+     * 串口 ConsoleOnly：shell 必须钉 BSP——virt RiscV/Arm64 定时器在 BSP，钉 AP 会永 WFI。
      */
     {
         UINT32 InteractiveCpu = (Cpus > 1) ? 1u : 0u;
         UINT32 InputCpu = (Cpus > 2) ? 2u : InteractiveCpu;
+
+        if (HalConsoleOnly()) {
+            InteractiveCpu = 0;
+            InputCpu = 0;
+        }
 
         for (i = 0; i < MAX_TASKS; i++) {
             if (gTasks[i].State == TASK_UNUSED) {
