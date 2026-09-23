@@ -62,6 +62,29 @@ int main(void) {
         return 1;
     }
 
+    /* 刀 B：POSIX 名轨冒烟（与上同根目录） */
+    {
+        DIR *D;
+        struct dirent *De;
+        int Saw = 0;
+
+        D = opendir("");
+        if (!D) {
+            printf("dirdemo: FAIL opendir\n");
+            return 1;
+        }
+        while ((De = readdir(D)) != 0) {
+            if (strcmp(De->d_name, "HELLO.ELF") == 0) {
+                Saw = 1;
+            }
+        }
+        closedir(D);
+        if (!Saw) {
+            printf("dirdemo: FAIL readdir HELLO\n");
+            return 1;
+        }
+    }
+
     Dir = OpenDirectory("RES:");
     if (!Dir) {
         printf("dirdemo: FAIL OpenDirectory RES:\n");

@@ -1,13 +1,15 @@
 /*
- * dirent.c — OpenDirectory / ReadDirectory / FileStat（PR-F4）
+ * dirent.c — OpenDirectory / ReadDirectory / FileStat + readdir（刀 B）
  */
 #include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 #include <toyos/syscall.h>
 
 struct ToyDirectory {
     int Fd;
+    struct dirent Ent; /* 每 DIR 一份；供 readdir 返回（非进程级静态） */
 };
 
 TOY_DIR *OpenDirectory(const char *path) {
@@ -26,6 +28,7 @@ TOY_DIR *OpenDirectory(const char *path) {
         return 0;
     }
     Dir->Fd = (int)Fd;
+    Dir->Ent.d_name[0] = 0;
     return Dir;
 }
 
@@ -73,4 +76,29 @@ int FileStat(const char *path, TOY_FILE_STAT *out) {
         return -1;
     }
     return 0;
+}
+
+struct dirent *readdir(DIR *dir) {
+    TOY_DIR_ENT Ent;
+    int Rc;
+    size_t N;
+
+    if (!dir) {
+        errno = EINVAL;
+        return 0;
+    }
+    Rc = ReadDirectory(dir, &Ent);
+    if (Rc < 0) {
+        return 0;
+    }
+    if (Rc == 0) {
+        return 0;
+    }
+    N = strlen(Ent.Name);
+    if (N >= TOY_ENT_NAME_MAX) {
+        N = TOY_ENT_NAME_MAX - 1;
+    }
+    memcpy(dir->Ent.d_name, Ent.Name, N);
+    dir->Ent.d_name[N] = 0;
+    return &dir->Ent;
 }

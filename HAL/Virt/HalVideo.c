@@ -100,6 +100,11 @@ void HalVideoPresentFlush(void) {
     VideoPresentFlush();
 }
 
+/* 拖窗条带：Virt/arm64/riscv Present 无分块；空实现满足链接 */
+void HalVideoSetPresentChunkRows(UINT32 Rows) {
+    (void)Rows;
+}
+
 void HalVideoDrawBeginFront(void) {
 }
 

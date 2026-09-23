@@ -1,6 +1,6 @@
 # ABI / API 双轨制整理（分析稿）
 
-> **状态**：网-1 ✅；**部分 A ✅ TG**（`API速查.md` 双轨）；B/C 待开。  
+> **状态**：网-1 / A / **B ✅ TG**；CI Virt PresentChunk 桩已合；**刀 C 待开**。  
 > **范围**：用户态 `User/include/` + CRT/lib；不改 syscall 号。  
 > **对照**：本文件相对任务书，已按**仓库实况**校正。
 

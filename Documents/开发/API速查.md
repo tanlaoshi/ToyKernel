@@ -62,7 +62,8 @@
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `opendir` / `readdir` / `closedir` | — | **尚未提供**；见第 2 轨 `OpenDirectory` / `ReadDirectory` / `CloseDirectory`（刀 **B** 将加宏 + `readdir`） |
+| `opendir` / `closedir` | `<dirent.h>` | 宏 → `OpenDirectory` / `CloseDirectory` |
+| `readdir(DIR *)` | `<dirent.h>` | 返回内部 `struct dirent *`（仅 `d_name[]`）；结束 / 失败均 `NULL`（失败设 `errno`） |
 | `stat` / `getcwd` / `chdir` | — | **尚未提供**（缺口；勿与第 2 轨 `FileStat` 抢名） |
 
 ## 网络（POSIX 形参 · 目标）
@@ -126,9 +127,9 @@
 
 ## 已知缺口
 
-`getpid` / libc `yield()` / `getcwd` / `chdir` / `wait` 真实退出码 / POSIX 目录名（刀 B）/ POSIX `connect`/`bind`+`sockaddr`（刀 C）/ Gfx 位图 / 滚动条。
+`getpid` / libc `yield()` / `getcwd` / `chdir` / `wait` 真实退出码 / POSIX `connect`/`bind`+`sockaddr`（刀 C）/ Gfx 位图 / 滚动条。
 
-下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect`。
+下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir`。
 
 ## 商店（内核服务 · 非用户 API）
 
