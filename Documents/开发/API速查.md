@@ -4,8 +4,10 @@
 >
 > | 轨 | 含义 | 头文件习惯 |
 > | -- | ---- | ---------- |
-> | **第 1 轨** | POSIX / C 习惯名；语义尽量接近，差异写在「注意」 | `unistd.h` `stdio.h` `fcntl.h` …；网络 POSIX 目标头 `sys/socket.h`（刀 C） |
+> | **第 1 轨** | POSIX / C 习惯名；语义尽量接近，差异写在「注意」 | `unistd.h` `stdio.h` `fcntl.h` …；网络 POSIX 目标头 `sys/socket.h` |
 > | **第 2 轨** | Toy 命名规范 | `ToyUi.h` `ToyGfx.h` `ToyNet.h` `FsUtil.h` `dirent.h` `toyos/` |
+>
+> **Syscall 号**：权威 [`SyscallABI.h`](../../Include/SyscallABI.h)（段内双轨）。用户 `toyos/syscall.h` 与汇编 demo 只用 `SYS_*`。速查表见 [`路线图 · PR-U-syscall-abi`](../路线图.md#pr-u-syscall-abi)。
 
 ---
 
@@ -15,23 +17,24 @@
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `exit(int status)` | `<stdlib.h>` | |
-| `fork()` | `<unistd.h>` | 返回值当 pid（槽位+1） |
-| `wait(int *status)` | `<unistd.h>` | **无 pid 参数**；`*status` 为 `(exit & 0xff) << 8`；`WEXITSTATUS` |
-| `execve(path, argv, envp)` | `<unistd.h>` | |
-| `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM |
-| `signal(sig, handler)` | `<signal.h>` | 教学级；无 `sigaction` |
-| `sleep` / `usleep` / `msleep` | `<unistd.h>` | 按调度节拍阻塞（课堂 ≈ms；**非墙钟**） |
-| `clock_ms()` | `<unistd.h>` | 与 sleep 同尺；稳节拍用 |
-| `getpid` | — | **尚未提供**（缺口） |
+| `exit(int status)` | `<stdlib.h>` | → `SYS_EXIT`（50） |
+| `fork()` | `<unistd.h>` | 返回值当 pid（槽位+1）；`SYS_FORK`（51） |
+| `wait(int *status)` | `<unistd.h>` | **无 pid 参数**；`*status` 为 `(exit & 0xff) << 8`；`WEXITSTATUS`；`SYS_WAIT`（52） |
+| `execve(path, argv, envp)` | `<unistd.h>` | `SYS_EXECVE`（53） |
+| `getpid` / `getppid` | `<unistd.h>` | `SYS_GETPID`（54）/ `SYS_GETPPID`（55）；无父时 ppid=0 |
+| `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM；`SYS_KILL`（151） |
+| `signal(sig, handler)` | `<signal.h>` | 教学级；无 `sigaction`；`SYS_SIGNAL`（152） |
+| `sched_yield()` / `toy_yield()` | `<sched.h>` / 宏别名 | `SYS_YIELD`（150） |
+| `sleep` / `usleep` / `msleep` | `<unistd.h>` | 按调度节拍阻塞（课堂 ≈ms；**非墙钟**）；`SYS_SLEEP`（750） |
+| `clock_ms()` | `<unistd.h>` | 与 sleep 同尺；`SYS_CLOCK_MS`（700） |
 
 ## 文件
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `open(path, flags)` | `<fcntl.h>` | 内核**忽略** flags |
-| `read` / `write` / `close` | `<unistd.h>` | |
-| `lseek(fd, off, whence)` | `<unistd.h>` | `SEEK_SET/CUR/END`；管道/套接字 `ESPIPE` |
+| `open(path, flags)` | `<fcntl.h>` | 内核**忽略** flags；`SYS_OPEN`（350） |
+| `read` / `write` / `close` | `<unistd.h>` | 351 / 352 / 353 |
+| `lseek(fd, off, whence)` | `<unistd.h>` | `SEEK_SET/CUR/END`；管道/套接字 `ESPIPE`；354 |
 | `truncate` / `ftruncate` | — | **尚未提供** |
 
 ## 标准 I/O
@@ -46,9 +49,9 @@
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
 | `malloc` / `calloc` / `realloc` / `free` | `<stdlib.h>` | |
-| `brk(addr)` | `<unistd.h>` | |
-| `mmap` / `munmap` | `<sys/mman.h>` | |
-| `pipe(fds)` / `dup(fd)` | `<unistd.h>` | `dup2`：**尚未提供**（缺口） |
+| `brk(addr)` | `<unistd.h>` | `SYS_BRK`（250） |
+| `mmap` / `munmap` | `<sys/mman.h>` | 251 / 252 |
+| `pipe(fds)` / `dup(fd)` | `<unistd.h>` | 650 / 651；`dup2`：**尚未提供**（缺口） |
 
 ## 字符串 / 其它 C
 
@@ -62,16 +65,16 @@
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `opendir` / `closedir` | `<dirent.h>` | 宏 → `OpenDirectory` / `CloseDirectory` |
-| `readdir(DIR *)` | `<dirent.h>` | 返回内部 `struct dirent *`（仅 `d_name[]`）；结束 / 失败均 `NULL`（失败设 `errno`） |
-| `getcwd` / `chdir` | `<unistd.h>` | 任务内相对路径；根为 `"/"`；`chdir` 目标须是目录 |
-| `stat` | — | **尚未提供**（缺口；勿与第 2 轨 `FileStat` 抢名） |
+| `opendir` / `closedir` | `<dirent.h>` | 宏 → `OpenDirectory` / `CloseDirectory`（syscall 500） |
+| `readdir(DIR *)` | `<dirent.h>` | 返回内部 `struct dirent *`（仅 `d_name[]`）；结束 / 失败均 `NULL`（失败设 `errno`）；读项 syscall 501 |
+| `getcwd` / `chdir` | `<unistd.h>` | 550 / 551；任务内相对路径；根为 `"/"`；`chdir` 目标须是目录 |
+| `stat` | — | **尚未提供**（缺口；勿与第 2 轨 `FileStat`/`SYS_FILE_STAT`400 抢名） |
 
 ## 网络（POSIX 形参 · 第 1 轨）
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `socket` / `listen` / `accept` / `send` / `recv` | `<sys/socket.h>` | 实现在 `libToyNet`；`accept` **无**对端地址出参 |
+| `socket` / `listen` / `accept` / `send` / `recv` | `<sys/socket.h>` | 实现在 `libToyNet`；底层 850–854；`accept` **无**对端地址出参 |
 | `connect` / `bind`（`sockaddr`） | `<sys/socket.h>` | **网络序**；CRT 转主机序后调 `ToyNetConnect`/`ToyNetBind` |
 | `htons` / `ntohs` / `htonl` / `ntohl` | `<sys/socket.h>` | |
 
@@ -117,8 +120,8 @@
 
 | 符号 | 头文件 | 注意 |
 |------|--------|------|
-| `toy_yield()` | `<toyos/syscall.h>` | **没有** libc `yield()` |
-| 其它 `toy_*` | `<toyos/syscall.h>` | 内联包装；号见同头 |
+| `toy_yield()` | `<toyos/syscall.h>` | 宏 → `sched_yield()`；`SYS_YIELD`（150） |
+| 其它 `toy_*` | `<toyos/syscall.h>` | 内联包装；号见 `SyscallABI.h` / 同头 |
 | `TOYOS_CRT_VERSION_*` | `<toyos/version.h>` | |
 | `TOY_NET_ABI_VERSION_*` 等 | 各 `Toy*.h` / `FsUtil.h` | 破坏性改名升 MAJOR |
 
@@ -128,9 +131,9 @@
 
 ## 已知缺口
 
-排队中：`stat`。`sched_yield`（现用 `toy_yield`）、`getpid`/`getppid` 已落地。Gfx 位图仍缺，保持第 2 轨现状。
+排队中：`stat`/`fstat`。Gfx 位图仍缺，保持第 2 轨现状。
 
-下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid`。
+下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid` / Syscall 段内双轨号（`SyscallABI.h`）。
 
 ## 商店（内核服务 · 非用户 API）
 

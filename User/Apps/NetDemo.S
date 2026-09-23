@@ -1,3 +1,4 @@
+#include <toyos/syscall.h>
 /* user/NetDemo.S — socket/connect/write/read/close via syscalls (needs LWIP=1) */
     .intel_syntax noprefix
     .section .text
@@ -6,7 +7,7 @@ _start:
     sub rsp, 80                 /* recv buffer on stack */
 
     /* socket(AF_INET=2, SOCK_STREAM=1, 0) */
-    mov rax, 8
+    mov rax, SYS_SOCKET
     mov rdi, 2
     mov rsi, 1
     xor rdx, rdx
@@ -16,7 +17,7 @@ _start:
     mov rbx, rax                /* fd */
 
     /* connect(fd, 10.0.2.2, 8888) */
-    mov rax, 9
+    mov rax, SYS_CONNECT
     mov rdi, rbx
     mov rsi, 0x0A000202         /* 10.0.2.2 host-order */
     mov rdx, 8888
@@ -25,7 +26,7 @@ _start:
     jl .Lfail
 
     /* write(fd, msg, len) */
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, rbx
     lea rsi, [rip + msg]
     mov rdx, 12
@@ -34,7 +35,7 @@ _start:
     jle .Lfail
 
     /* read(fd, buf, 64) — optional reply from host nc */
-    mov rax, 3
+    mov rax, SYS_READ
     mov rdi, rbx
     mov rsi, rsp
     mov rdx, 64
@@ -42,12 +43,12 @@ _start:
     mov rcx, rax                /* nbytes (may be 0) */
 
     /* close(fd) */
-    mov rax, 4
+    mov rax, SYS_CLOSE
     mov rdi, rbx
     int 0x80
 
     /* stdout: ok\n */
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + ok]
     mov rdx, 3
@@ -56,24 +57,24 @@ _start:
     /* if read got data, echo it */
     cmp rcx, 0
     jle .Lexit
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     mov rsi, rsp
     mov rdx, rcx
     int 0x80
 
 .Lexit:
-    mov rax, 0
+    mov rax, SYS_EXIT
     xor rdi, rdi
     int 0x80
 
 .Lfail:
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + err]
     mov rdx, 4
     int 0x80
-    mov rax, 0
+    mov rax, SYS_EXIT
     mov rdi, 1
     int 0x80
 

@@ -387,7 +387,8 @@ USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 USER_LD = User/user.ld
 USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
-	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include
+	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include -IInclude
+USER_ASFLAGS = -IUser/include -IInclude
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
 else
 EXTRA_OBJS = $(HALDIR)/Startup_asm.o
@@ -423,7 +424,7 @@ USER_SYSCALL_SRC = User/crt/syscall_riscv.S
 USER_LDFLAGS = -m elf64lriscv -z noexecstack
 endif
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
-	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include
+	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include -IInclude
 USER_HELLO_ELF = $(USER_VIRT_DIR)/hello.elf
 USER_HELLO_OBJ = $(USER_VIRT_DIR)/hello.o
 USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
@@ -583,10 +584,10 @@ User/crt/%.o: User/crt/%.c
 	$(CC) $(USER_CFLAGS) -c $< -o $@
 
 User/crt/%.o: User/crt/%.S
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_COUNT_OBJ): User/Apps/Count.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
@@ -735,16 +736,16 @@ $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
 
 $(USER_FORK_OBJ): User/Apps/Fork.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_WAITNH_OBJ): User/Apps/WaitNoHang.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_LIBTOY_OBJ): User/Apps/LibToy.S | $(USER_OUT)
-	$(CC) -fPIC -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -fPIC -c $< -o $@
 
 $(USER_DYNDEMO_OBJ): User/Apps/DynDemo.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_CAT_OBJ): User/Apps/Cat.c User/include/unistd.h User/include/fcntl.h User/include/errno.h User/include/stdio.h | $(USER_OUT)
 	$(CC) $(USER_CFLAGS) -c User/Apps/Cat.c -o $@
@@ -753,16 +754,16 @@ $(USER_WRITE_OBJ): User/Apps/WriteFile.c User/include/unistd.h User/include/fcnt
 	$(CC) $(USER_CFLAGS) -c User/Apps/WriteFile.c -o $@
 
 $(USER_NETDEMO_OBJ): User/Apps/NetDemo.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_NETSRV_OBJ): User/Apps/NetServer.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_SYSHELLO_OBJ): User/Apps/SysHello.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_SYSFORK_OBJ): User/Apps/SysFork.S | $(USER_OUT)
-	$(CC) -c $< -o $@
+	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_FORK_ELF): $(USER_FORK_OBJ) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_FORK_OBJ)

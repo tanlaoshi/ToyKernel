@@ -1,16 +1,19 @@
 /*
  * toyos/syscall.h — 系统调用号与薄封装（PR-L1；原 toy_syscall.h）
  * 与内核 Include/Syscall.h 编号一致；用户程序勿包含内核头。
+ * 汇编（User/Apps 下 .S）可 include 本头只取 SYS_*（见 __ASSEMBLER__）。
  */
 #ifndef TOYOS_SYSCALL_H
 #define TOYOS_SYSCALL_H
 
+/* SYS_* 号段定义见 SyscallABI.h（段内双轨 + 预留区） */
+#include "../../../Include/SyscallABI.h"
+
+#ifndef __ASSEMBLER__
+
 #include <sys/types.h>
 #include <toyos/version.h>
 #include <sched.h>
-
-/* SYS_* 号段定义见 SyscallABI.h（段内双轨 + 预留区） */
-#include "../../../Include/SyscallABI.h"
 
 long toy_syscall(long n, long a, long b, long c);
 /* 与 toy_syscall 同一条指令；第二返回值在 rdx / x1 / a1（wait 退出码） */
@@ -148,4 +151,6 @@ static inline long toy_accept(long fd) {
     return toy_syscall(SYS_ACCEPT, fd, 0, 0);
 }
 
-#endif
+#endif /* !__ASSEMBLER__ */
+
+#endif /* TOYOS_SYSCALL_H */

@@ -1,3 +1,4 @@
+#include <toyos/syscall.h>
 /* user/LibToy.S — 共享库：导出 toy_hello，打印 from.so */
     .intel_syntax noprefix
     .section .rodata
@@ -6,7 +7,7 @@ toy_msg:
     .section .text
     .global toy_hello
 toy_hello:
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + toy_msg]
     mov rdx, 8

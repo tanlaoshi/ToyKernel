@@ -1,53 +1,54 @@
+#include <toyos/syscall.h>
 /* user/Fork.S — fork + 阻塞 wait：父打印 P，子打印 C，父 wait 后再 done */
     .intel_syntax noprefix
     .section .text
     .global _start
 _start:
-    mov rax, 5          /* SYS_FORK */
+    mov rax, SYS_FORK          /* SYS_FORK */
     int 0x80
     cmp rax, 0
     je .Lchild
     jl .Lfail
 
     /* parent: print "P\n" then blocking wait */
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + msg_p]
     mov rdx, 2
     int 0x80
 
-    mov rax, 6          /* SYS_WAIT — blocks until child exits */
+    mov rax, SYS_WAIT          /* SYS_WAIT — blocks until child exits */
     xor rdi, rdi        /* options = 0（阻塞；勿沿用上一 syscall 的 rdi） */
     int 0x80
     cmp rax, 0
     jl .Lfail
 
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + msg_done]
     mov rdx, 5
     int 0x80
-    mov rax, 0
+    mov rax, SYS_EXIT
     xor rdi, rdi
     int 0x80
 
 .Lchild:
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + msg_c]
     mov rdx, 2
     int 0x80
-    mov rax, 0
+    mov rax, SYS_EXIT
     mov rdi, 42
     int 0x80
 
 .Lfail:
-    mov rax, 1
+    mov rax, SYS_WRITE
     mov rdi, 1
     lea rsi, [rip + msg_fail]
     mov rdx, 5
     int 0x80
-    mov rax, 0
+    mov rax, SYS_EXIT
     mov rdi, 1
     int 0x80
 
