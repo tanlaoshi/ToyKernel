@@ -44,6 +44,8 @@ void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *T
  */
 void UiDrawButtonEx(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text,
                     UINT32 TextColor, UINT32 BgColor, int Hovered, int Pressed);
+/* PR-GUI-btn-widget：禁用态。muted 色 + 不偏移，由 widget 层调用。 */
+void UiDrawButtonDisabled(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text);
 void UiDrawProgressBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Progress, UINT32 MaxProgress, UINT32 Color, UINT32 BgColor);
 void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text,
                    int Selected, int Hovered);

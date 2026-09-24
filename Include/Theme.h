@@ -51,6 +51,20 @@ UINT32 ThemeControlFace(void);
 UINT32 ThemeControlBorder(void);
 UINT32 ThemeControlAccent(void);
 UINT32 ThemeClientPadding(void);
+/*
+ * PR-GUI-btn-widget：按钮 4 态色（只追加 getter；不进 CFG/DB）。
+ * Normal/Hover/Pressed/Disabled 各 Face/Border/Text。Hover/Pressed 现由控件层选用。
+ */
+UINT32 ThemeButtonFaceNormal(void);
+UINT32 ThemeButtonFaceHover(void);
+UINT32 ThemeButtonFacePressed(void);
+UINT32 ThemeButtonFaceDisabled(void);
+UINT32 ThemeButtonBorderNormal(void);
+UINT32 ThemeButtonBorderHover(void);
+UINT32 ThemeButtonBorderPressed(void);
+UINT32 ThemeButtonBorderDisabled(void);
+UINT32 ThemeButtonTextNormal(void);
+UINT32 ThemeButtonTextDisabled(void);
 /* PR-GUI-alpha：半透明面板不透明度（0..255）；暂不进 THEME.CFG */
 UINT8 ThemeTaskbarAlpha(void);
 UINT8 ThemeMenuPanelAlpha(void);

@@ -322,6 +322,43 @@ void UiDrawButton(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *T
     UiDrawButtonEx(X, Y, Width, Height, Text, TextColor, BgColor, 0, 0);
 }
 
+/* PR-GUI-btn-widget：禁用态。muted face + 灰边 + 灰文字，无偏移、无 blend。 */
+void UiDrawButtonDisabled(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *Text) {
+    UINT32 TextLen = 0;
+    UINT32 CellW;
+    UINT32 CellH;
+    UINT32 TextW;
+    UINT32 TextX;
+    UINT32 TextY;
+    UINT32 Face = ThemeButtonFaceDisabled();
+    UINT32 BorderOuter = ThemeButtonBorderDisabled();
+    UINT32 TextColor = ThemeButtonTextDisabled();
+
+    if (!Text) {
+        Text = "";
+    }
+    UiFillRoundRectangle(X, Y, Width, Height, 5, Face);
+    UiDrawRoundRectangle(X, Y, Width, Height, 5, BorderOuter);
+    while (Text[TextLen]) {
+        TextLen++;
+    }
+    CellW = FontCellW();
+    CellH = FontCellH();
+    if (CellW == 0) {
+        CellW = 8;
+    }
+    if (CellH == 0) {
+        CellH = 16;
+    }
+    TextW = TextLen * CellW;
+    TextX = X + 8;
+    if (TextW + 16 < Width) {
+        TextX = X + (Width - TextW) / 2;
+    }
+    TextY = Y + (Height > CellH ? (Height - CellH) / 2 : 0);
+    HalVideoDrawStringAt(TextX, TextY, Text, TextColor);
+}
+
 /* 绘制水平进度条 */
 void UiDrawProgressBar(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Progress, UINT32 MaxProgress, UINT32 Color, UINT32 BgColor) {
     UiFillRoundRectangle(X, Y, Width, Height, 3, BgColor);

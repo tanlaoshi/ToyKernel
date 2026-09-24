@@ -24,6 +24,15 @@
 #define TECH_CTRL_BORDER    0x00304050u
 #define TECH_CTRL_ACCENT    0x0000D0FFu
 #define TECH_SHADOW         0x00000810u
+/* PR-GUI-btn-widget：按钮 4 态色（tech 板） */
+#define TECH_BTN_FACE       0x00202830u
+#define TECH_BTN_FACE_HOVER 0x002C3848u
+#define TECH_BTN_FACE_PRESS 0x00141C24u
+#define TECH_BTN_FACE_DIS   0x00282C30u
+#define TECH_BTN_BORDER     0x00304050u
+#define TECH_BTN_BORDER_HP  0x0000D0FFu
+#define TECH_BTN_BORDER_DIS 0x00404850u
+#define TECH_BTN_TEXT_DIS   0x00607080u
 
 void ThemeTechApplyDefaults(void) {
     ThemeTechApplyColors();
@@ -172,6 +181,48 @@ UINT32 ThemeControlAccent(void) {
         return TECH_CTRL_ACCENT;
     }
     return COLOR_BLUE;
+}
+
+/* PR-GUI-btn-widget：按钮 4 态色。tech 用上宏；classic 用灰/蓝。 */
+UINT32 ThemeButtonFaceNormal(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE;
+    return COLOR_LIGHT_GRAY;
+}
+UINT32 ThemeButtonFaceHover(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE_HOVER;
+    return 0x00D8DCE0u;
+}
+UINT32 ThemeButtonFacePressed(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE_PRESS;
+    return 0x00A0A4A8u;
+}
+UINT32 ThemeButtonFaceDisabled(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE_DIS;
+    return 0x00B0B4B8u;
+}
+UINT32 ThemeButtonBorderNormal(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER;
+    return COLOR_DARK_GRAY;
+}
+UINT32 ThemeButtonBorderHover(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER_HP;
+    return COLOR_BLUE;
+}
+UINT32 ThemeButtonBorderPressed(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER_HP;
+    return COLOR_BLUE;
+}
+UINT32 ThemeButtonBorderDisabled(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER_DIS;
+    return COLOR_GRAY;
+}
+UINT32 ThemeButtonTextNormal(void) {
+    /* 复用通用文字色（tech/classic 各自） */
+    return ThemeText();
+}
+UINT32 ThemeButtonTextDisabled(void) {
+    if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_TEXT_DIS;
+    return COLOR_GRAY;
 }
 
 UINT32 ThemeWindowShadowColor(void) {
