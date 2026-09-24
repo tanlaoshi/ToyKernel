@@ -180,8 +180,8 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
     return Count;
 }
 
-/* 在配置空间能力链中查找指定 Cap ID，返回偏移或 0 */
-static int PciFindCap(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Id) {
+/* 在配置空间能力链中查找指定 Cap ID，返回偏移或 0（PR-DEV-irq-mode：导出供枚举记录能力） */
+int PciFindCap(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Id) {
     UINT32 Status = PciReadConfig(Bus, Device, Function, 0x04);
     if (!((Status >> 16) & 0x10)) {
         return 0;

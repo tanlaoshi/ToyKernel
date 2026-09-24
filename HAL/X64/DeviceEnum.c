@@ -189,6 +189,14 @@ void HalDeviceEnumerate(void) {
                 Node.Irq = (UINT8)(IrqDw & 0xFFu);
                 FillBars((UINT8)Bus, (UINT8)Dev, (UINT8)Func, Node.Bar);
                 FillBarSizes((UINT8)Bus, (UINT8)Dev, (UINT8)Func, Node.BarSize);
+                /* PR-DEV-irq-mode：记录中断能力（只读 Cap，不改路由） */
+                if (PciFindCap((UINT8)Bus, (UINT8)Dev, (UINT8)Func, 0x11)) {
+                    Node.IrqMode = 2; /* MSI-X */
+                } else if (PciFindCap((UINT8)Bus, (UINT8)Dev, (UINT8)Func, 0x05)) {
+                    Node.IrqMode = 1; /* MSI */
+                } else {
+                    Node.IrqMode = 0; /* INTx */
+                }
 
                 Name = PciClassName(Class, Subclass, ProgIf);
                 CopyName(Node.Name, sizeof(Node.Name), Name);

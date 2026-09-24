@@ -57,6 +57,7 @@ typedef struct DEVICE_NODE {
     UINT64 Bar[6];
     UINT64 BarSize[6]; /* PR-DEV-bar-size：每 BAR 探测出的尺寸；高 dword 槽=0 */
     UINT8 Irq;
+    UINT8 IrqMode; /* PR-DEV-irq-mode：0=INTx, 1=MSI, 2=MSI-X（能力存在，非已启用） */
 
     /* 父设备（指向表内其它节点，可为 NULL） */
     struct DEVICE_NODE *Parent;

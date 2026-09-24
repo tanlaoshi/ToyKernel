@@ -70,8 +70,11 @@ static void PrintNode(DEVICE_NODE *Dev, int Depth, int Verbose) {
         WriteHex2(Dev->ProgIf);
         ConsoleWrite("  BAR0=");
         ConsoleWriteHex64(Dev->Bar[0]);
+        ConsoleWrite("/");
+        ConsoleWriteHex64(Dev->BarSize[0]);
         ConsoleWrite("  IRQ=");
         WriteHex2(Dev->Irq);
+        ConsoleWrite(Dev->IrqMode == 2 ? " mode=msix" : Dev->IrqMode == 1 ? " mode=msi" : " mode=intx");
         ConsoleWrite("\n");
     }
 }

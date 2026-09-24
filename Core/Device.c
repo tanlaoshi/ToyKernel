@@ -96,6 +96,7 @@ int DeviceAdd(const DEVICE_NODE *Dev) {
         Slot->BarSize[b] = Dev->BarSize[b];
     }
     Slot->Irq = Dev->Irq;
+    Slot->IrqMode = Dev->IrqMode;
     Slot->Parent = Dev->Parent;
     Slot->Driver = Dev->Driver;
     Slot->Instance = Dev->Instance;

@@ -70,12 +70,8 @@ static int StrEq(const char *A, const char *B) {
 }
 
 static const char *TitleOf(const DEVICE_NODE *Dev) {
-    if (Dev->FriendlyName[0]) {
-        return Dev->FriendlyName;
-    }
-    if (Dev->Name[0]) {
-        return Dev->Name;
-    }
+    if (Dev->FriendlyName[0]) return Dev->FriendlyName;
+    if (Dev->Name[0]) return Dev->Name;
     return "pci";
 }
 
@@ -157,8 +153,11 @@ static void WriteVerbose(const DEVICE_NODE *Dev) {
     WriteHex2(Dev->ProgIf);
     ConsoleWrite("  BAR0=");
     ConsoleWriteHex64(Dev->Bar[0]);
+    ConsoleWrite("/");
+    ConsoleWriteHex64(Dev->BarSize[0]);
     ConsoleWrite("  IRQ=");
     WriteHex2(Dev->Irq);
+    ConsoleWrite(Dev->IrqMode == 2 ? " mode=msix" : Dev->IrqMode == 1 ? " mode=msi" : " mode=intx");
     ConsoleWrite("\n");
 }
 
