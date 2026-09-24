@@ -90,13 +90,14 @@
 | `ToyUiAddCheckBox` / `AddList` / `AddTextField` | `<ToyUi.h>` | |
 | `create_window` / `damage` / `poll_input` / `ui_button` | `<unistd.h>` | **遗留**裸 syscall 名；**课用 `ToyUi*`**，勿新写 |
 
-## 图形（`libToyGfx`）
+## 图形（`libToyGfx` **1.3.0**）
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `ToyGfxDamageText` / `DamageRect` | `<ToyGfx.h>` | 单次 `DamageRect` ≤64×64 |
+| `ToyGfxInitialize` / `ToyGfxSystemFontRoot` | `<ToyGfx.h>` | 系统字根 `Assets/Fonts`；Initialize 恒 0 |
+| `ToyGfxDamageText` / `DamageRect` | `<ToyGfx.h>` | 文字**不**写字体路径；单次 `DamageRect` ≤64×64 |
 | `ToyGfxDrawPixel` / `DrawLine` / `FillRect` / `DrawRect` | `<ToyGfx.h>` | |
-| 位图 / 滚动条 API | — | **缺口** |
+| 位图 / 滚动条 / 私有 `.fnt` | — | **缺口**（私有字另刀） |
 
 ## 网络便利（`libToyNet` **2.0.1**；内核 `LWIP=1`；Guest `lwip on`）
 

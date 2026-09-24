@@ -25,6 +25,10 @@ int main(void) {
         printf("blitdemo: create fail\n");
         return 1;
     }
+    if (ToyGfxInitialize() != 0) {
+        printf("blitdemo: gfx init fail\n");
+        return 1;
+    }
     if (ToyGfxDamageText(WindowId, "pixel blit (close window to exit)") != 0) {
         printf("blitdemo: text fail\n");
         return 1;

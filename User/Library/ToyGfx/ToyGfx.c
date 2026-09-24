@@ -12,6 +12,18 @@ static int AbsI(int V) {
     return (V < 0) ? -V : V;
 }
 
+int ToyGfxInitialize(void) {
+    /*
+     * 系统字体由内核 FontLoadAssets 扫 TOY_GFX_SYSTEM_FONT_ROOT。
+     * 应用只声明约定；私有 .fnt 加载另刀，本函数不读盘。
+     */
+    return 0;
+}
+
+const char *ToyGfxSystemFontRoot(void) {
+    return TOY_GFX_SYSTEM_FONT_ROOT;
+}
+
 int ToyGfxDamageText(int WindowId, const char *Text) {
     if (WindowId < 0 || !Text) {
         return -1;
