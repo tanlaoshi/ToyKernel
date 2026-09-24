@@ -283,7 +283,6 @@ SERVICES_SRCS += $(wildcard Common/Services/Tasks/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/ShellCommands/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/Tcp/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
-LIB_SRCS      += $(wildcard Common/Library/Fat/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Gpt/*.c)
 FONT_SRCS     := $(wildcard Common/Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
@@ -461,7 +460,20 @@ $(error Unknown MEMORY: $(MEMORY))
 endif
 MEMORY_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(MEMORY_SRCS))
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(MEMORY_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
+FS ?= fat
+ifeq ($(FS),fat)
+FS_SRCS := Common/Modules/FileSystemFat/FatFsOps.c \
+           $(wildcard Common/Modules/FileSystemFat/Fat/*.c) \
+           Common/Modules/FileSystemFat/FatIo.c \
+           Common/Modules/FileSystemFat/FatFormat.c
+else ifeq ($(FS),ram)
+FS_SRCS := Student/FileSystemRam/FileSystemRam.c
+else
+$(error Unknown FS: $(FS))
+endif
+FS_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(FS_SRCS))
+
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(MEMORY_OBJS) $(FS_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
@@ -560,79 +572,62 @@ ifneq ($(ARCH),x86_64)
 endif
 
 $(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Modules/%.o: Common/Modules/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Student/%.o: Student/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Fonts/%.o: Common/Fonts/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(HALDIR)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 # 先于通用 HAL/%.o：依赖 DEMO_STAMP，换 TOY_DEMO_DRIVER=0/1 会触发重编+重链
 $(HALDIR)/Hal/HalDevices.o: HAL/$(HAL_ARCH)/Hal/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifneq ($(ARCH),x86_64)
 $(HALDIR)/Drivers/Video/%.o: HAL/X64/Drivers/Video/%.c | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 $(HALDIR)/Virt/%.o: HAL/Virt/%.c | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 # PR-B2：HAL/<Arch>/Board/<board>/*.c
 $(HALDIR)/Board/%.o: $(BOARD_DIR)/%.c | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
 
 $(HALDIR)/%.o: HAL/$(HAL_ARCH)/%.c | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 $(HALDIR)/LwIp/%.o: HAL/$(HAL_ARCH)/LwIp/%.c | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(LWIP),1)
 $(BUILDDIR)/ThirdParty/lwip/src/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
 
 $(HALDIR)/%.o: HAL/$(HAL_ARCH)/%.S | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 # PR-A6：Startup.S 与 Startup.c 同名冲突，汇编产出 Startup_asm.o
 $(HALDIR)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(HALDIR)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS_HAL) -c $< -o $@
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
 $(HALDIR)/SmpTramp.bin: HAL/X64/SmpTrampoline.S HAL/X64/SmpTrampoline.ld | $(HALDIR)
