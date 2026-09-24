@@ -5,6 +5,7 @@
  * PR-D3：经 Driver Input 类注册，HalDevices 只见 HalInput*。
  */
 #include "VirtioInput.h"
+#include "VirtioInputDiag.h"
 #include "VirtioMmio.h"
 #include "HalSerial.h"
 #include "HalVideo.h"
@@ -148,6 +149,7 @@ static void KbdPush(void) {
     }
     gKbdQ[gKbdHead] = gKbdCur;
     gKbdHead = N;
+    VirtioInputDiagNoteKeyboardPush();
 }
 
 static void MousePush(void) {
@@ -186,6 +188,7 @@ static void MousePush(void) {
     }
     gMouseQ[gMouseHead] = R;
     gMouseHead = N;
+    VirtioInputDiagNoteMousePush();
 }
 
 static void ApplyKey(UINT16 Code, INT32 Value) {
@@ -248,11 +251,12 @@ static void RefillQueue(VIRTIO_MMIO_DEV *Dev, VIRTIO_INPUT_EVENT *Buf, UINT16 Co
     VirtioMmioNotify(Dev);
 }
 
-static void DrainDev(VIRTIO_MMIO_DEV *Dev, VIRTIO_INPUT_EVENT *Buf, int IsTab) {
+static UINT16 DrainDev(VIRTIO_MMIO_DEV *Dev, VIRTIO_INPUT_EVENT *Buf, int IsTab) {
     UINT16 Used;
+    UINT16 Events = 0;
 
     if (!Dev || !Dev->Base) {
-        return;
+        return 0;
     }
     Used = *Dev->UsedIdx;
     while (Dev->LastUsed != Used) {
@@ -260,6 +264,7 @@ static void DrainDev(VIRTIO_MMIO_DEV *Dev, VIRTIO_INPUT_EVENT *Buf, int IsTab) {
         VIRTIO_INPUT_EVENT Ev = Buf[Id];
         UINT16 A;
 
+        Events++;
         if (Ev.Type == EV_KEY) {
             if (!IsTab) {
                 ApplyKey(Ev.Code, Ev.Value);
@@ -307,6 +312,7 @@ static void DrainDev(VIRTIO_MMIO_DEV *Dev, VIRTIO_INPUT_EVENT *Buf, int IsTab) {
     }
     VirtioMmioAckInterrupt(Dev);
     VirtioMmioNotify(Dev);
+    return Events;
 }
 
 static void ReadAbsInfo(UINT64 Base, UINT8 Axis, INT32 *Min, INT32 *Max) {
@@ -377,12 +383,16 @@ static void InScanCb(UINT64 Base, UINT32 DeviceId, void *Ctx) {
 }
 
 static void VirtioInputPoll(void) {
+    UINT16 KeyboardEvents = 0;
+    UINT16 TabletEvents = 0;
+
     if (gKbdOn) {
-        DrainDev(&gKbd, gKbdEvBuf, 0);
+        KeyboardEvents = DrainDev(&gKbd, gKbdEvBuf, 0);
     }
     if (gTabOn) {
-        DrainDev(&gTab, gTabEvBuf, 1);
+        TabletEvents = DrainDev(&gTab, gTabEvBuf, 1);
     }
+    VirtioInputDiagNotePoll(KeyboardEvents, TabletEvents);
 }
 
 static int VirtioInputKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
@@ -391,6 +401,7 @@ static int VirtioInputKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     }
     *Report = gKbdQ[gKbdTail];
     gKbdTail = (gKbdTail + 1) % KBD_Q_SIZE;
+    VirtioInputDiagNoteKeyboardDequeue();
     return 1;
 }
 
@@ -404,6 +415,7 @@ static int VirtioInputMouseDequeue(HAL_MOUSE_REPORT *Report) {
     }
     *Report = gMouseQ[gMouseTail];
     gMouseTail = (gMouseTail + 1) % MOUSE_Q_SIZE;
+    VirtioInputDiagNoteMouseDequeue();
     return 1;
 }
 
@@ -458,6 +470,7 @@ static int VirtioInputDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **O
     if (!(gKbdOn || gTabOn)) {
         return -1;
     }
+    VirtioInputDiagSetPresent(gKbdOn, gTabOn);
     if (OutPrivate) {
         *OutPrivate = 0;
     }

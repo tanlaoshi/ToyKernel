@@ -9,6 +9,7 @@
 #include "DriverNet.h"
 #include "VirtioBlock.h"
 #include "VirtioInput.h"
+#include "VirtioInputDiag.h"
 #include "VirtioNet.h"
 
 void HalDriverRegister(void) {
@@ -85,9 +86,7 @@ void HalInputPoll(void) {
 }
 
 void HalInputDiagFormat(char *Buf, int Max) {
-    if (Buf && Max > 0) {
-        Buf[0] = 0;
-    }
+    VirtioInputDiagFormat(Buf, Max);
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

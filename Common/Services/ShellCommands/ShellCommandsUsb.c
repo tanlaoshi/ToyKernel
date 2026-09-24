@@ -8,9 +8,21 @@
 #include "Hal.h"
 #include "FileSystem.h"
 
-/* PR-H-xhci-stat：Shell 可查 mode= + t/i/k/m…（与 PHOTO 同行格式） */
+/* PR-H-xhci-stat / PR-V-input-diag：Shell 可查 mode= 或 virtio 计数 */
+static void CommandInputDiag(int Argc, char **Argv) {
+    char Diag[160];
+
+    (void)Argc;
+    (void)Argv;
+    Diag[0] = 0;
+    HalInputDiagFormat(Diag, (int)sizeof(Diag));
+    ConsoleWrite("input ");
+    ConsoleWrite(Diag[0] ? Diag : "(no stats)");
+    ConsoleWrite("\n");
+}
+
 static void CommandXhci(int Argc, char **Argv) {
-    char Diag[144];
+    char Diag[160];
 
     (void)Argc;
     (void)Argv;
@@ -129,8 +141,10 @@ static void CommandMsc(int Argc, char **Argv) {
 
 void ShellCommandsUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + counters", CommandXhci);
+    ConsoleRegister2("show", "input", "input counters (xhci or virtio)", CommandInputDiag);
     ConsoleRegister("msc",
                     "USB MSC: scan|claim|capacity|mount; boot auto (msc-7b)",
                     CommandMsc);
     ConsoleRegisterAliasLine("xhci", "show", "xhci");
+    ConsoleRegisterAliasLine("input", "show", "input");
 }

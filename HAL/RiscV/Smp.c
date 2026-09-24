@@ -115,6 +115,11 @@ void HalCpuIncrementTicks(void) {
     if (Id < HAL_MAX_CPUS) {
         gCpuTicks[Id]++;
     }
+    /* PR-V-input-diag：BSP 定时采样（无 framebuffer 板包上也无害：计数为 0） */
+    {
+        void VirtioInputDiagOnTimer(void);
+        VirtioInputDiagOnTimer();
+    }
 }
 
 UINT64 HalCpuTicks(UINT32 Cpu) {
