@@ -189,7 +189,8 @@ static void CommandMkdir(int Argc, char **Argv) {
         ConsoleWrite("usage: mkdir <dir>\n");
         return;
     }
-    Err = FileSystemMakeDirectory(Argv[1]);
+    /* PR-S-bundle-fs：mkdir 走 MakePath，支持 Apps/id/Assets 多级 */
+    Err = FileSystemMakePath(Argv[1]);
     if (Err != FAT_OK) {
         FatReport("mkdir", Err);
         return;
@@ -201,10 +202,14 @@ static void CommandRmdir(int Argc, char **Argv) {
     int Err;
 
     if (Argc < 2) {
-        ConsoleWrite("usage: rmdir <dir>\n");
+        ConsoleWrite("usage: rmdir <dir> | rmdir -r <dir>\n");
         return;
     }
-    Err = FileSystemRemoveDirectory(Argv[1]);
+    if (Argc >= 3 && Argv[1][0] == '-' && Argv[1][1] == 'r' && Argv[1][2] == 0) {
+        Err = FileSystemRemoveTree(Argv[2]);
+    } else {
+        Err = FileSystemRemoveDirectory(Argv[1]);
+    }
     if (Err != FAT_OK) {
         FatReport("rmdir", Err);
         return;

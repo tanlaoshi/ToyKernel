@@ -45,6 +45,10 @@ int FileSystemWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UI
 int FileSystemDeleteFile(const char *Path);
 int FileSystemMakeDirectory(const char *Path);
 int FileSystemRemoveDirectory(const char *Path);
+/* PR-S-bundle-fs：逐级建目录；已存在目录视为成功；中间为文件 → NOTDIR */
+int FileSystemMakePath(const char *Path);
+/* PR-S-bundle-fs：递归删文件或目录树（空/非空目录均可）；托管载荷 → STORE */
+int FileSystemRemoveTree(const char *Path);
 int FileSystemRename(const char *OldPath, const char *NewPath);
 /* PR-F2：文件状态查询 / 落盘同步（名称写全，勿用孤立 stat/fsync） */
 int FileSystemFileStat(const char *Path, FAT_FILE_STAT *Out);
