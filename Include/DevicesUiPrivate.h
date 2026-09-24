@@ -48,4 +48,26 @@ void DevicesUiFormatPci(const DEVICE_NODE *Dev, char *Out, UINTN Max);
 void DevicesUiFormatIds(const DEVICE_NODE *Dev, char *Out, UINTN Max);
 void DevicesUiPaint(void);
 
+/*
+ * PR-DEV-ui-summary-data：系统摘要只读数据模型。
+ * 填充走 Hal* / PhysicalMemory* / Block* / BootInfo / Device 公共 API；
+ * UI 不读 HAL 私有头。第 2 刀由 Paint 据本结构绘制 About 页。
+ */
+typedef struct {
+    const char *OsVersion;   /* TOY_OS_VERSION_STRING */
+    const char *Arch;         /* HalArchName()；可为 NULL */
+    const char *CpuInfo;      /* HalCpuInfo() */
+    int         CpuCount;     /* HalCpuCount() */
+    int         Hypervisor;   /* HalCpuIsHypervisor() */
+    UINT64      MemTotalMiB;  /* PhysicalMemoryTotalPages() / 256 */
+    UINT64      MemFreeMiB;   /* PhysicalMemoryFreePageCount() / 256 */
+    char        Disk[64];      /* 「N ready」或「-」 */
+    char        Display[32];   /* 「WxH」或「-」 */
+    int         PciCount;     /* DeviceCount() */
+} DEVICES_UI_SUMMARY;
+
+void DevicesUiFillSummary(DEVICES_UI_SUMMARY *Out);
+/* DEBUG 自检：填结构体并串口打一行；release 编译为空调用 */
+void DevicesUiSummarySelfCheck(void);
+
 #endif

@@ -2,6 +2,7 @@
  * DevicesUi.c — 设备管理器开窗 / 焦点 / 点击（PR-DEV-6）
  */
 #include "DevicesUiPrivate.h"
+#include "Debug.h"
 
 int gDevUiSel;
 int gDevUiScroll;
@@ -45,6 +46,10 @@ void DevicesUiOpen(void) {
     gDevUiFilt = DEVUI_FILT_ALL;
     DevicesUiReload();
     DevicesUiPaint();
+#if TOY_KERNEL_DEBUG
+    /* PR-DEV-ui-summary-data：开窗时串口自检摘要字段非空 */
+    DevicesUiSummarySelfCheck();
+#endif
 }
 
 void DevicesUiOnClick(UINT32 X, UINT32 Y) {
