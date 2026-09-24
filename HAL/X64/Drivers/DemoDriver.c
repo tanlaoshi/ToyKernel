@@ -1,21 +1,44 @@
 /*
- * DemoDriver.c — 课堂 Demo（PR-D-tpl-2）
+ * DemoDriver.c — 课堂 Demo（PR-D-tpl-2 / PR-DRV-match-demo）
  *
- * 证明 Register → Probe → Bind → lsdev 路径；不摸硬件、不抢 Input Backend。
+ * 证明 Register → Match → Probe(BusCtx) → Bind → lsdev 路径；
+ * 不摸硬件、不抢 Input Backend。
  * 关闭：编译加 -DTOY_DEMO_DRIVER=0（见 HalDevices.c）。
  */
 #include "Driver.h"
+#include "Device.h"
 #include "Hal.h"
 #include "Debug.h"
 
+/*
+ * PR-DRV-match-demo：填一张可重复命中的 PCI 表。
+ * 匹配任意 Intel PCI 设备（Vendor=0x8086 精确，Device 通配）；
+ * 枚举序首张即宿主桥（QEMU 0x8086:0x1237 / NUC），无人认领，作 demo 命中靶。
+ * 表以 DRIVER_MATCH_NONE 结尾。
+ */
+static const DRIVER_MATCH gDemoMatches[] = {
+    { .Type = DRIVER_MATCH_PCI,
+      .U.Pci = { .Vendor = 0x8086, .Device = 0,
+                 .VendorMask = 0xFFFF, .DeviceMask = 0 } },
+    { .Type = DRIVER_MATCH_NONE }
+};
+
 static int DemoProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
-    (void)BusCtx;
     if (OutPrivate) {
         *OutPrivate = 0;
     }
-    DebugWrite("demo: probe called\n");
-    return 0; /* 恒匹配，课堂证明路径 */
+    if (BusCtx) {
+        const DEVICE_NODE *Dev = (const DEVICE_NODE *)BusCtx;
+        DebugWrite("demo: probe BusCtx=");
+        DebugHex32((UINT32)(UINTN)BusCtx);
+        DebugWrite(" vid:did=");
+        DebugHex32(((UINT32)Dev->Device << 16) | Dev->Vendor);
+        DebugWrite("\n");
+    } else {
+        DebugWrite("demo: probe BusCtx=NULL\n");
+    }
+    return 0; /* 命中即绑；课堂证明 Match→BusCtx→Bind */
 }
 
 static int DemoBind(TOY_DRIVER_INSTANCE *Inst) {
@@ -35,7 +58,7 @@ static void DemoRemove(TOY_DRIVER_INSTANCE *Inst) {
 static const TOY_DRIVER gDemoDriver = {
     .Name = "demo-driver",
     .Class = TOY_DRIVER_CLASS_INPUT,
-    .Match = 0,
+    .Match = gDemoMatches,
     .Probe = DemoProbe,
     .Bind = DemoBind,
     .Remove = DemoRemove,
