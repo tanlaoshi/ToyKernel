@@ -2,6 +2,7 @@
  * SchedulerSignal.c — 定时器与信号投递（PR-S-sched-1）
  */
 #include "Scheduler.h"
+#include "SchedulerOps.h"
 #include "SchedulerPrivate.h"
 #include "TaskFd.h"
 #include "Syscall.h"
@@ -14,7 +15,7 @@
 #include "ToySerialLog.h"
 
 TASK *FindRunnable(UINT32 Cpu) {
-    return PickNext(Cpu);
+    return SchedulerOpsGet()->PickNext(Cpu);
 }
 
 int SignalDefaultTerminates(INT32 Sig) {
@@ -203,7 +204,7 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
     }
 
     /* PR-S-runq：普通抢占只持每核 runq 锁，两核可并行 PickNext */
-    Next = PickNext(Cpu);
+    Next = SchedulerOpsGet()->PickNext(Cpu);
     if (Next == Cur || Next == 0) {
         return 0;
     }

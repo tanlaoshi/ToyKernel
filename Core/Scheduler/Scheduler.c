@@ -3,6 +3,7 @@
  * 信号：SchedulerSignal.c；fork/kill：SchedulerUser.c；启动：SchedulerBoot.c
  */
 #include "Scheduler.h"
+#include "SchedulerOps.h"
 #include "SchedulerPrivate.h"
 #include "TaskFd.h"
 #include "Syscall.h"
@@ -83,7 +84,8 @@ void SchedulerInitialize(void) {
 
     SpinLockInit(&gSchedulerLock);
     gSchedulerOnline = 0;
-    RunQueueInitialize();
+    SchedulerOpsRegister(SchedulerRoundRobinOps());
+    SchedulerOpsGet()->Init();
     for (c = 0; c < HAL_MAX_CPUS; c++) {
         gCurrentCpu[c] = 0;
         gIdleSlot[c] = -1;
@@ -216,8 +218,8 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         }
         gTaskCount++;
         {
-            UINT32 Home = PickHomeCpu(&gTasks[i]);
-            RunQueueEnqueue(Home, &gTasks[i]);
+            UINT32 Home = SchedulerOpsGet()->PickHome(&gTasks[i]);
+            SchedulerOpsGet()->Enqueue(Home, &gTasks[i]);
         }
         SpinLockRelease(&gSchedulerLock);
         return i;
@@ -277,8 +279,8 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         CopyName(&gTasks[i], Name);
         gTaskCount++;
         {
-            UINT32 Home = PickHomeCpu(&gTasks[i]);
-            RunQueueEnqueue(Home, &gTasks[i]);
+            UINT32 Home = SchedulerOpsGet()->PickHome(&gTasks[i]);
+            SchedulerOpsGet()->Enqueue(Home, &gTasks[i]);
         }
         SpinLockRelease(&gSchedulerLock);
         return i;
@@ -318,9 +320,9 @@ int SchedulerSetPriority(INT32 Pid, INT32 Priority) {
     T->Priority = Priority;
     /* 已在 READY 队列：重插以按新优先级排序 */
     if (T->State == TASK_READY && T->InRunQueue) {
-        UINT32 Home = (T->HomeCpu >= 0) ? (UINT32)T->HomeCpu : PickHomeCpu(T);
-        RunQueueRemove(T);
-        RunQueueEnqueue(Home, T);
+        UINT32 Home = (T->HomeCpu >= 0) ? (UINT32)T->HomeCpu : SchedulerOpsGet()->PickHome(T);
+        SchedulerOpsGet()->Remove(T);
+        SchedulerOpsGet()->Enqueue(Home, T);
     }
     SpinLockRelease(&gSchedulerLock);
     return 0;
@@ -365,10 +367,10 @@ void ActivateTask(TASK *T) {
         Prev->State = TASK_READY;
         Prev->OnCpu = -1;
         if (!IsIdleTask(Prev)) {
-            RunQueueEnqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
+            SchedulerOpsGet()->Enqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
         }
     }
-    RunQueueRemove(T);
+    SchedulerOpsGet()->Remove(T);
     SetCurrentTask(T);
     T->State = TASK_RUNNING;
     T->OnCpu = (INT32)Cpu;

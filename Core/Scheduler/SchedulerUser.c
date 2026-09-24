@@ -2,6 +2,7 @@
  * SchedulerUser.c — fork / kill / yield（PR-S-sched-1）
  */
 #include "Scheduler.h"
+#include "SchedulerOps.h"
 #include "SchedulerPrivate.h"
 #include "TaskFd.h"
 #include "Syscall.h"
@@ -105,7 +106,7 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     TaskCloneFds(&gTasks[Child], Parent);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;
-    RunQueueEnqueue(PickHomeCpu(&gTasks[Child]), &gTasks[Child]);
+    SchedulerOpsGet()->Enqueue(SchedulerOpsGet()->PickHome(&gTasks[Child]), &gTasks[Child]);
 
     HalFrameSetReturn(Frame, (UINT64)(UINT32)(Child + 1));
     Parent->Frame = Frame;
@@ -282,7 +283,7 @@ UINT64 SchedulerYield(HAL_INTERRUPT_FRAME *Frame) {
     Cur->Frame = Frame;
     Cpu = HalGetCpuId();
     /* PR-S-runq：yield 与 timer 同形，不持任务大锁 */
-    Next = PickNext(Cpu);
+    Next = SchedulerOpsGet()->PickNext(Cpu);
     if (Next == Cur || Next == 0) {
         return 0;
     }

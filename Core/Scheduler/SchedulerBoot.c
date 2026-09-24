@@ -2,6 +2,7 @@
  * SchedulerBoot.c — idle、AP 与 SchedulerStart（PR-S-sched-1）
  */
 #include "Scheduler.h"
+#include "SchedulerOps.h"
 #include "SchedulerPrivate.h"
 #include "TaskFd.h"
 #include "Syscall.h"
@@ -31,7 +32,7 @@ static int CreateIdleForCpu(UINT32 Cpu) {
     SpinLockAcquire(&gSchedulerLock);
     gIdleSlot[Cpu] = Id;
     gTasks[Id].Priority = SCHED_PRIORITY_IDLE;
-    RunQueueRemove(&gTasks[Id]);
+    SchedulerOpsGet()->Remove(&gTasks[Id]);
     SpinLockRelease(&gSchedulerLock);
     return Id;
 }
@@ -133,29 +134,29 @@ void SchedulerStart(void) {
             }
             if (gTasks[i].Name[0] == 'i' && gTasks[i].Name[1] == 'n') {
                 /* input：钉专核，默认优先级（>idle -0x80，独占该核 drain） */
-                RunQueueRemove(&gTasks[i]);
+                SchedulerOpsGet()->Remove(&gTasks[i]);
                 gTasks[i].Affinity = (INT32)InputCpu;
                 gTasks[i].HomeCpu = (INT32)InputCpu;
                 gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
-                RunQueueEnqueue(InputCpu, &gTasks[i]);
+                SchedulerOpsGet()->Enqueue(InputCpu, &gTasks[i]);
                 continue;
             }
             if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||
                 (gTasks[i].Name[0] == 'g' && gTasks[i].Name[1] == 'u')) {
-                RunQueueRemove(&gTasks[i]);
+                SchedulerOpsGet()->Remove(&gTasks[i]);
                 gTasks[i].Affinity = (INT32)InteractiveCpu;
                 gTasks[i].HomeCpu = (INT32)InteractiveCpu;
                 gTasks[i].Priority = SCHED_PRIORITY_SHELL;
-                RunQueueEnqueue(InteractiveCpu, &gTasks[i]);
+                SchedulerOpsGet()->Enqueue(InteractiveCpu, &gTasks[i]);
                 continue;
             }
             /* worker：钉 BSP（≠ shell/gui 的 AP），后台 Job 与 INTERFACE 分核 */
             if (gTasks[i].Name[0] == 'w' && gTasks[i].Name[1] == 'o') {
-                RunQueueRemove(&gTasks[i]);
+                SchedulerOpsGet()->Remove(&gTasks[i]);
                 gTasks[i].Affinity = 0;
                 gTasks[i].HomeCpu = 0;
                 gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
-                RunQueueEnqueue(0, &gTasks[i]);
+                SchedulerOpsGet()->Enqueue(0, &gTasks[i]);
             }
         }
     }

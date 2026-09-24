@@ -6,6 +6,7 @@
  * OnTimer 见 SchedulerSignal.c：SleepWakeTick≠0 且未到期则不抢占。
  */
 #include "SchedulerPrivate.h"
+#include "SchedulerOps.h"
 #include "Hal.h"
 
 #define SLEEP_MS_MAX 60000u
@@ -35,7 +36,7 @@ void SchedulerWakeSleepers(void) {
         if (T->Frame) {
             HalFrameSetReturn(T->Frame, 0);
         }
-        RunQueueEnqueue(PickHomeCpu(T), T);
+        SchedulerOpsGet()->Enqueue(SchedulerOpsGet()->PickHome(T), T);
     }
     SpinLockRelease(&gSchedulerLock);
 }

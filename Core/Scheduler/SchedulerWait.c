@@ -5,6 +5,7 @@
  * SchedulerDestroyDetached（见 SchedulerPrivate.h）。
  */
 #include "SchedulerPrivate.h"
+#include "SchedulerOps.h"
 #include "TaskFd.h"
 #include "Syscall.h"
 #include "Hal.h"
@@ -14,7 +15,7 @@
 #include "VirtualMemory.h"
 
 static void ReapZombie(TASK *Z) {
-    RunQueueRemove(Z);
+    SchedulerOpsGet()->Remove(Z);
     SchedulerFdCloseAll(Z);
     if (Z->UserSpace) {
         VirtualMemorySpaceDestroy(Z->UserSpace);
@@ -86,7 +87,7 @@ static int WakeWaitingParent(TASK *Zombie) {
     }
     P->Waiting = 0;
     P->State = TASK_READY;
-    RunQueueEnqueue(PickHomeCpu(P), P);
+    SchedulerOpsGet()->Enqueue(SchedulerOpsGet()->PickHome(P), P);
     ReapZombie(Zombie);
     return 1;
 }
@@ -122,7 +123,7 @@ int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
     Exiting->SleepWakeTick = 0;
     Exiting->PendingKill = 0;
     Exiting->OnCpu = -1;
-    RunQueueRemove(Exiting);
+    SchedulerOpsGet()->Remove(Exiting);
 
     if (ParentIsUserWaiter(Exiting->ParentId)) {
         Exiting->State = TASK_ZOMBIE;
@@ -204,7 +205,7 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     }
 
     Cpu = HalGetCpuId();
-    Next = PickNext(Cpu);
+    Next = SchedulerOpsGet()->PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
         ConsoleWrite("sched: no runnable task after exit\n");
@@ -278,7 +279,7 @@ UINT64 SchedulerWait(HAL_INTERRUPT_FRAME *Frame) {
     Self->OnCpu = -1;
 
     Cpu = HalGetCpuId();
-    Next = PickNext(Cpu);
+    Next = SchedulerOpsGet()->PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
         ConsoleWrite("sched: wait with no runnable task\n");
