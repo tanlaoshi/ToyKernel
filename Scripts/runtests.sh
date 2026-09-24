@@ -10,6 +10,7 @@ scheduler)
     ;;
 memory)
     make runtests-memory
+    make runtests-memory MEMORY=bestfit
     ;;
 *)
     echo "usage: runtests.sh scheduler|memory" >&2

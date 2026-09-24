@@ -57,5 +57,6 @@ typedef struct {
 void MemoryOpsRegister(const MEMORY_OPS *Ops);
 const MEMORY_OPS *MemoryOpsGet(void);
 const MEMORY_OPS *MemoryBitmapOps(void);
+const MEMORY_OPS *MemoryBestFitOps(void);
 
 #endif

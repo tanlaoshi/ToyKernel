@@ -455,6 +455,7 @@ ifeq ($(MEMORY),bitmap)
 MEMORY_SRCS := Common/Modules/PhysicalMemoryBitmap/PhysicalMemoryBitmap.c
 else ifeq ($(MEMORY),bestfit)
 MEMORY_SRCS := Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c
+CFLAGS_COMMON += -DTOY_MEM_BESTFIT
 else
 $(error Unknown MEMORY: $(MEMORY))
 endif
@@ -488,6 +489,9 @@ TEST_CFLAGS += -DTOY_SCHED_PRIORITY
 endif
 
 MEM_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_MEM_HOST -I Tests/Stub -I Include
+ifeq ($(MEMORY),bestfit)
+MEM_TEST_CFLAGS += -DTOY_MEM_BESTFIT
+endif
 
 scheduler: runtests
 

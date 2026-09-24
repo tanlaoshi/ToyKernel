@@ -95,7 +95,11 @@ static void TestRetainErrors(const MEMORY_OPS *Ops)
 
 int main(void)
 {
+#ifdef TOY_MEM_BESTFIT
+    const MEMORY_OPS *Ops = MemoryBestFitOps();
+#else
     const MEMORY_OPS *Ops = MemoryBitmapOps();
+#endif
 
     MemoryOpsRegister(Ops);
     TestAllocFree(Ops);
@@ -106,6 +110,10 @@ int main(void)
     if (gFail) {
         return 1;
     }
+#ifdef TOY_MEM_BESTFIT
+    printf("memory bestfit: ok\n");
+#else
     printf("memory: ok\n");
+#endif
     return 0;
 }
