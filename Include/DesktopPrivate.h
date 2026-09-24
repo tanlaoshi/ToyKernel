@@ -24,7 +24,9 @@
 #include "ToySerialLog.h"
 
 /* ===== 宏（从 Desktop.c 搬入；值不变） ===== */
-#define DESKTOP_ICON_COUNT    6
+#define DESKTOP_SYS_ICON_COUNT 6
+#define DESKTOP_APP_ICON_MAX   8
+#define DESKTOP_ICON_COUNT     (DESKTOP_SYS_ICON_COUNT + DESKTOP_APP_ICON_MAX)
 #define DESKTOP_ICON_SIZE     48
 #define DESKTOP_ICON_GAP      28
 #define DESKTOP_ORIGIN_X      36
@@ -70,6 +72,11 @@ typedef struct {
     int             BmpReady;
     UINT32          X;
     UINT32          Y;
+    int             Present; /* PR-S-bundle-desktop：0=空槽不画 */
+    char            AppId[STORE_ID_MAX];
+    char            LabelBuf[MENU_LABEL_MAX];
+    char            BmpPathBuf[MENU_PATH_MAX];
+    char            ExecPathBuf[MENU_PATH_MAX];
 } DESKTOP_ICON;
 
 /* ===== 全局变量 extern（定义在 Desktop.c） ===== */
@@ -166,6 +173,8 @@ int DesktopNetTrayLabelChanged(void);
 int PathHasVolPrefix(const char *Path);
 int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax, const char *Tag);
 void LoadDesktopIcons(void);
+/* PR-S-bundle-desktop：扫已装 app desktop=yes 填动态槽 */
+void DesktopLoadAppIcons(void);
 UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,
                        UINT32 Dw, UINT32 Dh);
 void BlitBmpScaledRaw(UINT32 X, UINT32 Y, UINT32 Dw, UINT32 Dh,

@@ -1,7 +1,6 @@
 /*
  * DesktopMenu.c — 开始菜单重建（PR-S-desktop-split-3）
- *
- * 系统项 + Apps 一级；已装 ELF / INST 灰显进二级 flyout。
+ * 系统项 + Apps；ELF / INST（PKG 须 taskbar=yes）进二级。
  */
 #include "DesktopPrivate.h"
 
@@ -244,10 +243,12 @@ void RebuildStartMenu(void) {
         }
     }
 
-    /* INST app 但 Apps/ 无文件 → 灰显（可看见、不可开） */
+    /* INST：有 PKG 须 taskbar=yes；无 PKG 旧扁平仍列 */
     if (StoreListInstalled(gMenuInstScratch, STORE_INSTALLED_MAX, &InstN) == 0) {
         for (i = 0; i < InstN && AppN < AppCap; i++) {
             STORE_INSTALLED *In = &gMenuInstScratch[i];
+            STORE_APP_DESKTOP_META Meta;
+            int HavePkg;
 
             if (!(In->Type[0] == 'a' && In->Type[1] == 'p' &&
                   In->Type[2] == 'p' && In->Type[3] == 0)) {
@@ -256,13 +257,21 @@ void RebuildStartMenu(void) {
             if (!In->File[0]) {
                 continue;
             }
+            HavePkg = (StoreReadAppDesktopMeta(In->Id, &Meta) == FAT_OK);
+            if (HavePkg && !Meta.TaskbarYes) {
+                continue;
+            }
             if (StoreResolveAppPath(In->Id, In->File, Path, (int)sizeof(Path)) ==
                 FAT_OK) {
                 if (MenuAlreadyHasAppPath(Path)) {
                     continue;
                 }
                 MenuLabelFromElf(In->File, Label, sizeof(Label));
-                MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+                if (HavePkg && Meta.Title[0]) {
+                    MenuCopyStr(Label, sizeof(Label), Meta.Title);
+                } else {
+                    MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+                }
                 MenuAddAppRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
                 AppN++;
                 continue;
@@ -271,7 +280,11 @@ void RebuildStartMenu(void) {
                 continue;
             }
             MenuLabelFromElf(In->File, Label, sizeof(Label));
-            MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+            if (HavePkg && Meta.Title[0]) {
+                MenuCopyStr(Label, sizeof(Label), Meta.Title);
+            } else {
+                MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+            }
             if (!Label[0]) {
                 MenuCopyStr(Label, sizeof(Label), In->Id);
             }

@@ -99,19 +99,25 @@ int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax,
 
 void LoadDesktopIcons(void) {
     int i;
-    static const char *const Tags[DESKTOP_ICON_COUNT] = {
+    static const char *const SysTags[DESKTOP_SYS_ICON_COUNT] = {
         "desktop: shell", "desktop: set", "desktop: files", "desktop: store",
         "desktop: info", "desktop: game"
     };
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        const char *Tag;
+
         gIcons[i].BmpReady = 0;
-        if (!gIcons[i].BmpPath) {
+        if (!gIcons[i].Present || !gIcons[i].BmpPath) {
             continue;
         }
-        /* 失败则 BmpReady=0 → BlitIconFace* 画 IconColor 纯色 */
+        if (i < DESKTOP_SYS_ICON_COUNT) {
+            Tag = SysTags[i];
+        } else {
+            Tag = "desktop: app";
+        }
         gIcons[i].BmpReady = LoadBmpPath(gIcons[i].BmpPath, &gIcons[i].Bmp,
-                                         ICON_FILE_MAX, Tags[i]);
+                                         ICON_FILE_MAX, Tag);
     }
     gStartBmpReady = LoadBmpPath("Assets/Icons/bmp48/START.BMP", &gStartBmp,
                                  ICON_FILE_MAX, "desktop: start");

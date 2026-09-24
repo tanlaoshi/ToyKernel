@@ -5,7 +5,7 @@
 #include "DesktopPrivate.h"
 
 void RedrawIconIndex(int Idx) {
-    if (Idx < 0 || Idx >= DESKTOP_ICON_COUNT) {
+    if (Idx < 0 || Idx >= DESKTOP_ICON_COUNT || !gIcons[Idx].Present) {
         return;
     }
     DrawOneIconOccluded(&gIcons[Idx], Idx == gDeskSelected);
@@ -252,6 +252,9 @@ int DesktopHandleClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
 
     Hit = -1;
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        if (!gIcons[i].Present) {
+            continue;
+        }
         if (PointInIcon(&gIcons[i], X, Y)) {
             Hit = i;
             break;

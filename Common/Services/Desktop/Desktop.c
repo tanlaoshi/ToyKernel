@@ -99,6 +99,9 @@ void DesktopDraw(void) {
     int i;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        if (!gIcons[i].Present) {
+            continue;
+        }
         DrawOneIconRaw(&gIcons[i], i == gDeskSelected);
     }
     DrawTaskbarRaw();
@@ -146,10 +149,13 @@ void DesktopNotifyAppsChanged(void) {
     gMenuGameCount = 0;
     gMenuAppsOpen = 0;
     gMenuGameOpen = 0;
+    DesktopLoadAppIcons();
+    LoadIconLayout();
+    LoadDesktopIcons();
     if (gMenuOpen) {
         RebuildStartMenu();
-        RequestRefresh();
     }
+    RequestRefresh();
 }
 
 void DesktopInit(void) {
@@ -160,6 +166,7 @@ void DesktopInit(void) {
     gDesktopBusy = 1;
 
     PlaceDesktopIcons();
+    DesktopLoadAppIcons();
     LoadIconLayout();
 
     gDeskSelected = -1;

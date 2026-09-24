@@ -105,17 +105,46 @@ static const char *IconLayoutKey(int Idx) {
     }
 }
 
+static void AppLayoutKey(const char *Id, char *Out, int Max) {
+    int i = 0;
+    const char *P = "ix.";
+
+    if (!Out || Max <= 0) {
+        return;
+    }
+    Out[0] = 0;
+    if (!Id || !Id[0]) {
+        return;
+    }
+    while (*P && i + 1 < Max) {
+        Out[i++] = *P++;
+    }
+    while (*Id && i + 1 < Max) {
+        Out[i++] = *Id++;
+    }
+    Out[i] = 0;
+}
+
 /* PR-G-desk-1：从 TOYOS.DB 覆盖默认坐标 */
 void LoadIconLayout(void) {
     int i;
     int Any = 0;
     char Val[DB_VAL_MAX];
+    char AppKey[DB_KEY_MAX];
     UINT32 X;
     UINT32 Y;
     const char *Key;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        Key = IconLayoutKey(i);
+        if (!gIcons[i].Present) {
+            continue;
+        }
+        if (i < DESKTOP_SYS_ICON_COUNT) {
+            Key = IconLayoutKey(i);
+        } else {
+            AppLayoutKey(gIcons[i].AppId, AppKey, (int)sizeof(AppKey));
+            Key = AppKey[0] ? AppKey : 0;
+        }
         if (!Key) {
             continue;
         }
@@ -138,12 +167,21 @@ void LoadIconLayout(void) {
 void SaveIconLayout(void) {
     int i;
     char Val[DB_VAL_MAX];
+    char AppKey[DB_KEY_MAX];
     const char *Key;
     int Ok = 1;
 
     DbBeginBatch();
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
-        Key = IconLayoutKey(i);
+        if (!gIcons[i].Present) {
+            continue;
+        }
+        if (i < DESKTOP_SYS_ICON_COUNT) {
+            Key = IconLayoutKey(i);
+        } else {
+            AppLayoutKey(gIcons[i].AppId, AppKey, (int)sizeof(AppKey));
+            Key = AppKey[0] ? AppKey : 0;
+        }
         if (!Key) {
             continue;
         }
@@ -165,6 +203,12 @@ void SaveIconLayout(void) {
 void PlaceDesktopIcons(void) {
     UINT32 RowH = DESKTOP_ICON_SIZE + DESKTOP_LABEL_PAD + FontCellH() +
                   DESKTOP_ICON_GAP;
+    int i;
+
+    for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        gIcons[i].Present = 0;
+        gIcons[i].AppId[0] = 0;
+    }
 
     gIcons[0].Action = DESKTOP_ACTION_SHELL;
     gIcons[0].ExecPath = 0;
@@ -172,24 +216,28 @@ void PlaceDesktopIcons(void) {
     gIcons[0].BmpPath = "Assets/Icons/bmp48/SHELL.BMP";
     gIcons[0].X = DESKTOP_ORIGIN_X;
     gIcons[0].Y = DESKTOP_ORIGIN_Y;
+    gIcons[0].Present = 1;
 
     gIcons[1].Action = DESKTOP_ACTION_SETTINGS;
     gIcons[1].IconColor = 0x00606080;
     gIcons[1].BmpPath = "Assets/Icons/bmp48/SET.BMP";
     gIcons[1].X = DESKTOP_ORIGIN_X;
     gIcons[1].Y = DESKTOP_ORIGIN_Y + RowH;
+    gIcons[1].Present = 1;
 
     gIcons[2].Action = DESKTOP_ACTION_FILES;
     gIcons[2].IconColor = 0x00208040;
     gIcons[2].BmpPath = "Assets/Icons/bmp48/FILES.BMP";
     gIcons[2].X = DESKTOP_ORIGIN_X;
     gIcons[2].Y = DESKTOP_ORIGIN_Y + RowH * 2;
+    gIcons[2].Present = 1;
 
     gIcons[3].Action = DESKTOP_ACTION_STORE;
     gIcons[3].IconColor = 0x002080C0;
     gIcons[3].BmpPath = "Assets/Icons/bmp48/STORE.BMP";
     gIcons[3].X = DESKTOP_ORIGIN_X;
     gIcons[3].Y = DESKTOP_ORIGIN_Y + RowH * 3;
+    gIcons[3].Present = 1;
 
     gIcons[4].Action = DESKTOP_ACTION_DEVICES;
     gIcons[4].ExecPath = 0;
@@ -197,6 +245,7 @@ void PlaceDesktopIcons(void) {
     gIcons[4].BmpPath = "Assets/Icons/bmp48/INFO.BMP";
     gIcons[4].X = DESKTOP_ORIGIN_X;
     gIcons[4].Y = DESKTOP_ORIGIN_Y + RowH * 4;
+    gIcons[4].Present = 1;
 
     gIcons[5].Action = DESKTOP_ACTION_EXEC;
     gIcons[5].ExecPath = "SNAKE.ELF";
@@ -204,6 +253,7 @@ void PlaceDesktopIcons(void) {
     gIcons[5].BmpPath = "Assets/Icons/bmp48/GAME.BMP";
     gIcons[5].X = DESKTOP_ORIGIN_X;
     gIcons[5].Y = DESKTOP_ORIGIN_Y + RowH * 5;
+    gIcons[5].Present = 1;
 
     DesktopRefreshLabels();
 }

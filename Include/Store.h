@@ -19,6 +19,7 @@
 #define STORE_DEPENDS_MAX    64 /* 与 DB_VAL_MAX 对齐；逗号分隔 id */
 #define STORE_ENTRIES_MAX    32
 #define STORE_INSTALLED_MAX  24
+#define STORE_ICON_REL_MAX   64
 
 typedef struct STORE_ENTRY {
     char Id[STORE_ID_MAX];
@@ -37,6 +38,14 @@ typedef struct STORE_INSTALLED {
     char Type[12];
     char File[STORE_FILE_MAX];
 } STORE_INSTALLED;
+
+/* PR-S-bundle-desktop：Apps/<id>/PKG.TXT 桌面键（缺省均为 no / 空） */
+typedef struct STORE_APP_DESKTOP_META {
+    int DesktopYes;
+    int TaskbarYes;
+    char Title[STORE_TITLE_MAX];
+    char IconRel[STORE_ICON_REL_MAX];
+} STORE_APP_DESKTOP_META;
 
 /* 加载 catalog；优先 StoreCache/（S2 同步后），再 Assets/；成功返回条目数 */
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
@@ -76,6 +85,9 @@ int StoreGetDepends(const char *Id, char *Out, int OutMax);
 
 /* PR-S-bundle-install：解析 app ELF 路径（Apps/<id>/file 或扁平 Apps/file） */
 int StoreResolveAppPath(const char *Id, const char *File, char *Out, int OutMax);
+
+/* PR-S-bundle-desktop：读已装 app 的 PKG 桌面元数据；无 PKG 返回非 0 */
+int StoreReadAppDesktopMeta(const char *Id, STORE_APP_DESKTOP_META *Out);
 
 /*
  * 商店托管载荷：Apps 下 catalog/si 登记的 .ELF，或 Fonts/Packs 中已登记项。

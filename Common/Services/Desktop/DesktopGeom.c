@@ -148,7 +148,11 @@ void ClampAllIcons(void) {
     int i;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        if (!gIcons[i].Present) {
+            continue;
+        }
         SnapIconToGrid(&gIcons[i].X, &gIcons[i].Y);
+        ClampIconPos(&gIcons[i].X, &gIcons[i].Y);
     }
 }
 

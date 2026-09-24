@@ -6,3 +6,6 @@ sha256=-
 arch=x86_64
 title=GUI Demo
 depends=demopack,sun8
+desktop=yes
+taskbar=yes
+icon=Assets/icon.bmp

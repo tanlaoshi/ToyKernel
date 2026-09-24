@@ -19,6 +19,9 @@ void DesktopDrawRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 Mh;
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {
+        if (!gIcons[i].Present) {
+            continue;
+        }
         IconBounds(&gIcons[i], &Ix, &Iy, &Iw, &Ih);
         if (RectsOverlap(X, Y, W, H, Ix, Iy, Iw, Ih)) {
             DrawOneIconOccluded(&gIcons[i], i == gDeskSelected);
@@ -121,6 +124,9 @@ int DesktopSamplePixel(UINT32 X, UINT32 Y, UINT32 *Out) {
         UINT32 Iw;
         UINT32 Ih;
 
+        if (!Icon->Present) {
+            continue;
+        }
         IconBounds(Icon, &Ix, &Iy, &Iw, &Ih);
         if (X < Ix || Y < Iy || X >= Ix + Iw || Y >= Iy + Ih) {
             continue;
