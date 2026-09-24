@@ -7,8 +7,15 @@
 
 static SPIN_LOCK gPhysLock;
 
-/* 与 VirtualMemory.c 的 IDENTITY_MB 一致：返回的页必须能当指针用。 */
+/*
+ * 返回的页必须落在恒等映射里，才能当指针用。
+ * x86 恒等 512MB；arm64/riscv 的 HalPageKernelSetup 恒等 0..4GiB。
+ */
+#if defined(__x86_64__)
 #define PMM_DIRECT_BYTES (512ull << 20)
+#else
+#define PMM_DIRECT_BYTES (4ull << 30)
+#endif
 
 void PmmPhysLockInit(void)
 {

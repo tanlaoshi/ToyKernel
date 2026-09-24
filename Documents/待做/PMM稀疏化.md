@@ -1,9 +1,9 @@
 # ToyOS PMM 稀疏化（内存上限 256GB）
 
-> **状态**：第 2/3 刀已落地（2026-09-24）。★ = `PR-PMM-count`。分配只返回 512MB 恒等窗口内的页。  
+> **状态**：已落地（2026-09-24）。256 段 × 1GB。分配只返回恒等窗口内的页：x86 512MB，arm64/riscv 4GB。  
 > **前置**：cap = `PHYSICAL_MEMORY_MAX_PAGES` 256K 页 = 1 GiB。  
 > **目标**：分段稀疏位图，跟踪上限 256GB。静态 BSS 增量约 552KB（段表 8KB + 段 0 位图 32KB + 段 0 refcount 512KB）。  
-> **相关**：`Core/PhysicalMemory.c`（约 260 行）· `Include/PhysicalMemory.h` · `Include/BootInfo.h`  
+> **相关**：`Core/PhysicalMemory.c` · `Core/PhysicalMemorySeg.c` · `Core/PhysicalMemoryAlloc.c` · `Include/PhysicalMemory.h` · `Include/PhysicalMemoryPrivate.h`  
 > **命名**：PascalCase；新 `.c` ≤300；三架构可编。文件留在 `Core/`，不迁到 `Common/Core/`。
 
 ---
