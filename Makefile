@@ -305,6 +305,8 @@ ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/St
 CORE_OBJS     := $(patsubst Core/%.c,$(BUILDDIR)/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
+KT_SRCS       := $(wildcard Common/Core/*.c)
+KT_OBJS       := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(KT_SRCS))
 FONT_OBJS     := $(patsubst Common/Fonts/%.c,$(BUILDDIR)/Common/Fonts/%.o,$(FONT_SRCS))
 DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
 ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(HALDIR)/%.o,$(ARCH_SRCS))
@@ -437,7 +439,7 @@ USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 	$(USER_VIRT_DIR)/stat.o
 endif
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
@@ -513,6 +515,10 @@ $(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+
+$(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 

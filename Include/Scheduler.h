@@ -78,6 +78,8 @@ typedef struct TASK {
 
 void SchedulerInitialize(void);
 int SchedulerCreate(const char *Name, void (*Entry)(void));
+/* PR-GUI-kerneltask：entry 收 void*；旧 SchedulerCreate 保留 */
+int SchedulerCreateKernel(const char *Name, void (*Fn)(void *), void *Ctx);
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);

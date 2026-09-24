@@ -134,8 +134,43 @@ void IdleTask(void) {
     }
 }
 
+/* PR-GUI-kerneltask：CreateKernel 的入口。Fn/Ctx 在入队前写入槽位。 */
+static void (*gKernFn[MAX_TASKS])(void *);
+static void *gKernCtx[MAX_TASKS];
+static void (*gPendFn)(void *);
+static void *gPendCtx;
+
+static void KernelCtxEntry(void) {
+    TASK *T = CurrentTask();
+    int Id = (int)(T - gTasks);
+    void (*Fn)(void *) = 0;
+    void *Ctx = 0;
+
+    if (Id >= 0 && Id < MAX_TASKS) {
+        Fn = gKernFn[Id];
+        Ctx = gKernCtx[Id];
+    }
+    if (Fn) {
+        Fn(Ctx);
+    }
+    for (;;) {
+        HalCpuHalt();
+    }
+}
+
 int SchedulerCreate(const char *Name, void (*Entry)(void)) {
+    void (*Use)(void) = Entry;
+    void (*PendFn)(void *) = 0;
+    void *PendCtx = 0;
+
     SpinLockAcquire(&gSchedulerLock);
+    if (gPendFn) {
+        PendFn = gPendFn;
+        PendCtx = gPendCtx;
+        gPendFn = 0;
+        gPendCtx = 0;
+        Use = KernelCtxEntry;
+    }
     for (int i = 0; i < MAX_TASKS; i++) {
         if (gTasks[i].State != TASK_UNUSED) {
             continue;
@@ -152,7 +187,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
             UINT8 *IrqFloor = IrqCeil - sizeof(HAL_INTERRUPT_FRAME);
             HAL_INTERRUPT_FRAME *F =
                 (HAL_INTERRUPT_FRAME *)(IrqFloor - sizeof(HAL_INTERRUPT_FRAME));
-            HalFrameSetKernelEntry(F, (UINT64)(UINTN)Entry, (UINT64)(UINTN)Top);
+            HalFrameSetKernelEntry(F, (UINT64)(UINTN)Use, (UINT64)(UINTN)Top);
             gTasks[i].Frame = F;
         }
         gTasks[i].State = TASK_READY;
@@ -175,6 +210,10 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].InRunQueue = 0;
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
+        if (PendFn) {
+            gKernFn[i] = PendFn;
+            gKernCtx[i] = PendCtx;
+        }
         gTaskCount++;
         {
             UINT32 Home = PickHomeCpu(&gTasks[i]);
@@ -185,6 +224,15 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
     }
     SpinLockRelease(&gSchedulerLock);
     return -1;
+}
+
+int SchedulerCreateKernel(const char *Name, void (*Fn)(void *), void *Ctx) {
+    if (!Name || !Fn) {
+        return -1;
+    }
+    gPendFn = Fn;
+    gPendCtx = Ctx;
+    return SchedulerCreate(Name, KernelCtxEntry);
 }
 
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
