@@ -182,6 +182,7 @@ void DeviceUnbind(DEVICE_NODE *Dev) {
 
 void DeviceEnumerateAll(void) {
     HalDeviceEnumerate();
+    DeviceTreeSelfTest();
 }
 
 static int StartsWith(const char *S, const char *Prefix) {

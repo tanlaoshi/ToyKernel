@@ -76,6 +76,16 @@ DEVICE_NODE *DeviceGet(int Idx);
 DEVICE_NODE *DeviceFindByName(const char *Name);
 DEVICE_NODE *DeviceFindByPci(UINT16 Vendor, UINT16 Device);
 DEVICE_NODE *DeviceFindByCompatible(const char *Compatible);
+/* PR-DEV-tree-api：父子拓扑 API（策略 A：只存 Parent，扫表取 Children）。 */
+/* 设 Child->Parent = Parent。两指针必须落在 gDevices[] 表内（NULL 表示摘下，允许）。
+ * 沿 Parent 链做环检测：若 Parent 链上已出现 Child 则拒绝返回 -1。成功返回 0。 */
+int DeviceSetParent(DEVICE_NODE *Child, DEVICE_NODE *Parent);
+/* 返回 Dev->Parent（Dev 为 NULL 时返回 NULL）。 */
+DEVICE_NODE *DeviceGetParent(DEVICE_NODE *Dev);
+/* 扫 gDevices[]：Parent==Me 的填入 Out[0..Max)；返回命中个数。Max 满则截断。 */
+int DeviceGetChildren(DEVICE_NODE *Parent, DEVICE_NODE **Out, int Max);
+/* PR-DEV-tree-api：DEBUG 自检（release 下空实现）。枚举后由 DeviceEnumerateAll 调用。 */
+void DeviceTreeSelfTest(void);
 void DeviceBindDriver(DEVICE_NODE *Dev, const struct TOY_DRIVER *Drv,
                       struct TOY_DRIVER_INSTANCE *Inst);
 void DeviceUnbind(DEVICE_NODE *Dev);
