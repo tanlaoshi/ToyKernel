@@ -1,6 +1,6 @@
 # ToyOS PMM 稀疏化（内存上限 256GB）
 
-> **状态**：第 1 刀已落地（2026-09-24）。★ = `PR-PMM-alloc`。  
+> **状态**：第 2/3 刀已落地（2026-09-24）。★ = `PR-PMM-count`。分配只返回 512MB 恒等窗口内的页。  
 > **前置**：cap = `PHYSICAL_MEMORY_MAX_PAGES` 256K 页 = 1 GiB。  
 > **目标**：分段稀疏位图，跟踪上限 256GB。静态 BSS 增量约 552KB（段表 8KB + 段 0 位图 32KB + 段 0 refcount 512KB）。  
 > **相关**：`Core/PhysicalMemory.c`（约 260 行）· `Include/PhysicalMemory.h` · `Include/BootInfo.h`  
@@ -19,7 +19,7 @@
 | 5 | refcount | UINT16，饱和 `0xFFFF`。每段 512KB，段 0 静态，段 1+ 懒分配 |
 | 6 | 段内 RAM | 位图初值全 1（已用），`Free=1` 区间逐页清位。不假设连续 |
 | 7 | 连续分配 | 只在同一段内。跨段请求失败 |
-| 8 | 鸡生蛋 | 段 0 静态；段 1+ 从 `KernelEnd` bump。分出的页在**清完 Free 位之后**再标已用 |
+| 8 | 鸡生蛋 | 静态位图挂在**内核所在段**（x86 为段 0，arm64 virt 为段 1）。其余段从 `KernelEnd` 在该段内 bump。分出的页在清完 Free 位之后再标已用 |
 | 9 | 旧全局 | `gPhysBase` / `gMaxPage` 在第 2 刀退场。`gFreePages` 留到第 4 刀，第 2 刀起改为各段 `FreePages` 之和的镜像 |
 | 10 | 第 1 刀 | 只填段表。不删 `gBitmap` / `gRefCount`，不改 Alloc/Free/Retain/Release |
 

@@ -1,30 +1,38 @@
 /*
- * PhysicalMemorySeg.c — 分段位图表（第 1 刀）。
- * Alloc/Free/Retain/Release 仍走 PhysicalMemory.c 的扁平位图。
+ * PhysicalMemorySeg.c — 分段位图。静态位图挂在内核所在段。
  */
-#include "PhysicalMemory.h"
-#include "BootInfo.h"
+#include "PhysicalMemoryPrivate.h"
 #include "Debug.h"
-
-#define PMM_SEGMENT_SHIFT     30
-#define PMM_SEGMENT_SIZE      (1ULL << PMM_SEGMENT_SHIFT)
-#define PMM_SEGMENT_COUNT     256
-#define PMM_PAGES_PER_SEGMENT (PMM_SEGMENT_SIZE / PAGE_SIZE)
-#define PMM_BITMAP_BYTES      (PMM_PAGES_PER_SEGMENT / 8)
-
-typedef struct {
-    UINT64  BasePhys;
-    UINT32  PageCount;
-    UINT32  FreePages;
-    UINT8  *Bitmap;
-    UINT16 *RefCount;
-} PMM_SEGMENT;
+#define PMM_BITMAP_BYTES (PMM_PAGES_PER_SEGMENT / 8)
 
 static PMM_SEGMENT gSegments[PMM_SEGMENT_COUNT];
 static UINT8       gSegment0Bitmap[PMM_BITMAP_BYTES];
 static UINT16      gSegment0RefCount[PMM_PAGES_PER_SEGMENT];
 static UINT64      gBootAllocBase;
 static UINT64      gBootAllocNext;
+static UINT64      gFreePages;
+
+PMM_SEGMENT *PmmSegment(UINT32 Index)
+{
+    if (Index >= PMM_SEGMENT_COUNT) {
+        return 0;
+    }
+    return &gSegments[Index];
+}
+
+UINT64 PmmTrackedFreePages(void)
+{
+    return gFreePages;
+}
+
+void PmmAdjustFreePages(INT64 Delta)
+{
+    if (Delta < 0 && gFreePages < (UINT64)(-Delta)) {
+        gFreePages = 0;
+        return;
+    }
+    gFreePages = (UINT64)((INT64)gFreePages + Delta);
+}
 
 static void *BootAllocate(UINTN Size)
 {
@@ -33,10 +41,12 @@ static void *BootAllocate(UINTN Size)
     void *Ptr;
 
     Aligned = (Size + PAGE_SIZE - 1) & ~((UINT64)PAGE_SIZE - 1);
-    if (gBootAllocNext >= PMM_SEGMENT_SIZE ||
-        Aligned > PMM_SEGMENT_SIZE - gBootAllocNext) {
-        DebugWrite("pmm: boot alloc overflow segment 0\n");
-        return 0;
+    {
+        UINT64 SegEnd = (gBootAllocNext & ~(PMM_SEGMENT_SIZE - 1)) + PMM_SEGMENT_SIZE;
+        if (gBootAllocNext >= SegEnd || Aligned > SegEnd - gBootAllocNext) {
+            DebugWrite("pmm: boot alloc overflow\n");
+            return 0;
+        }
     }
     Next = gBootAllocNext;
     gBootAllocNext = Next + Aligned;
@@ -89,7 +99,7 @@ static void NoteSpan(UINT64 Start, UINT64 End)
     }
 }
 
-static void ClearFree(UINT64 Start, UINT64 End)
+static void PaintRange(UINT64 Start, UINT64 End, int MarkUsed)
 {
     while (Start < End) {
         UINT32 Seg = (UINT32)(Start >> PMM_SEGMENT_SHIFT);
@@ -119,13 +129,24 @@ static void ClearFree(UINT64 Start, UINT64 End)
         while (Page < PageEnd) {
             UINT32 Idx = (UINT32)((Page - Base) >> PAGE_SHIFT);
             UINT8 Mask;
+            int WasFree;
 
             if (Idx >= S->PageCount) {
                 break;
             }
             Mask = (UINT8)(1u << (Idx % 8));
-            S->Bitmap[Idx / 8] &= (UINT8)~Mask;
-            S->FreePages++;
+            WasFree = (S->Bitmap[Idx / 8] & Mask) == 0;
+            if (MarkUsed) {
+                if (WasFree) {
+                    S->Bitmap[Idx / 8] |= Mask;
+                    if (S->FreePages > 0) {
+                        S->FreePages--;
+                    }
+                }
+            } else if (!WasFree) {
+                S->Bitmap[Idx / 8] &= (UINT8)~Mask;
+                S->FreePages++;
+            }
             Page += PAGE_SIZE;
         }
         Start = ChunkEnd;
@@ -137,17 +158,27 @@ static void MarkBootUsed(void)
     UINT64 Phys;
 
     for (Phys = gBootAllocBase; Phys < gBootAllocNext; Phys += PAGE_SIZE) {
-        UINT32 Idx = (UINT32)(Phys >> PAGE_SHIFT);
+        UINT32 Seg = (UINT32)(Phys >> PMM_SEGMENT_SHIFT);
+        PMM_SEGMENT *S;
+        UINT32 Idx;
         UINT8 Mask;
 
+        if (Seg >= PMM_SEGMENT_COUNT) {
+            break;
+        }
+        S = &gSegments[Seg];
+        if (S->Bitmap == 0) {
+            break;
+        }
+        Idx = (UINT32)((Phys - S->BasePhys) >> PAGE_SHIFT);
         if (Idx >= PMM_PAGES_PER_SEGMENT) {
             break;
         }
         Mask = (UINT8)(1u << (Idx % 8));
-        if ((gSegment0Bitmap[Idx / 8] & Mask) == 0) {
-            gSegment0Bitmap[Idx / 8] |= Mask;
-            if (gSegments[0].FreePages > 0) {
-                gSegments[0].FreePages--;
+        if ((S->Bitmap[Idx / 8] & Mask) == 0) {
+            S->Bitmap[Idx / 8] |= Mask;
+            if (S->FreePages > 0) {
+                S->FreePages--;
             }
         }
     }
@@ -213,10 +244,15 @@ void PmmSegmentInit(const BOOT_INFO *Info)
     }
     gBootAllocNext = (Info->KernelEnd + PAGE_SIZE - 1) & ~((UINT64)PAGE_SIZE - 1);
     gBootAllocBase = gBootAllocNext;
-
-    gSegments[0].BasePhys = 0;
-    gSegments[0].Bitmap = gSegment0Bitmap;
-    gSegments[0].RefCount = gSegment0RefCount;
+    {
+        UINT32 Home = (UINT32)(gBootAllocNext >> PMM_SEGMENT_SHIFT);
+        if (Home >= PMM_SEGMENT_COUNT) {
+            Home = 0;
+        }
+        gSegments[Home].BasePhys = (UINT64)Home << PMM_SEGMENT_SHIFT;
+        gSegments[Home].Bitmap = gSegment0Bitmap;
+        gSegments[Home].RefCount = gSegment0RefCount;
+    }
     FillUsed(gSegment0Bitmap, PMM_BITMAP_BYTES);
     for (n = 0; n < PMM_PAGES_PER_SEGMENT; n++) {
         gSegment0RefCount[n] = 0;
@@ -233,27 +269,30 @@ void PmmSegmentInit(const BOOT_INFO *Info)
     }
 
     for (i = 1; i < PMM_SEGMENT_COUNT; i++) {
-        if (gSegments[i].PageCount == 0) {
+        if (gSegments[i].PageCount == 0 || gSegments[i].Bitmap != 0) {
             continue;
         }
         AllocSegmentMaps(i);
     }
 
-    for (i = 0; i < Info->RegionCount; i++) {
-        UINT64 Start;
-        UINT64 Size;
+    for (i = 0; i < 2; i++) {
+        UINT32 r;
 
-        if (Info->Regions[i].Free == 0) {
-            continue;
+        for (r = 0; r < Info->RegionCount; r++) {
+            UINT64 Start = Info->Regions[r].Phys;
+            UINT64 Size = Info->Regions[r].Size;
+
+            if (Size == 0 || (Info->Regions[r].Free != 0) != (i == 0)) {
+                continue;
+            }
+            PaintRange(Start, Start + Size, i);
         }
-        Start = Info->Regions[i].Phys;
-        Size = Info->Regions[i].Size;
-        if (Size == 0) {
-            continue;
-        }
-        ClearFree(Start, Start + Size);
     }
     MarkBootUsed();
+    gFreePages = 0;
+    for (i = 0; i < PMM_SEGMENT_COUNT; i++) {
+        gFreePages += gSegments[i].FreePages;
+    }
 
 #if TOY_KERNEL_DEBUG
     PmmDebugDump();
