@@ -450,7 +450,17 @@ $(error unknown SCHEDULER=$(SCHEDULER))
 endif
 SCHED_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(SCHED_SRCS))
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
+MEMORY ?= bitmap
+ifeq ($(MEMORY),bitmap)
+MEMORY_SRCS := Common/Modules/PhysicalMemoryBitmap/PhysicalMemoryBitmap.c
+else ifeq ($(MEMORY),bestfit)
+MEMORY_SRCS := Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c
+else
+$(error Unknown MEMORY: $(MEMORY))
+endif
+MEMORY_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(MEMORY_SRCS))
+
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(MEMORY_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
