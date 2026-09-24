@@ -23,6 +23,9 @@ char* Uint64ToHex(UINT64 Value);
 
 UINT32 PciReadConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset);
 void PciWriteConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset, UINT32 Value);
+/* PR-DEV-bar-size：探测指定 BAR 槽的尺寸（写 0xFFFFFFFF 读掩码后写回原值）。
+ * 64-bit BAR 由本函数内部探测高 dword 并合成；高槽本身由调用方置 0。 */
+UINT64 PciBarSize(UINT8 Bus, UINT8 Device, UINT8 Function, int Bar);
 int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers);
 int PciEnableMsi(USB_CONTROLLER *Device, UINT8 Vector, UINT8 DestLogicalCpu);
 /* PR-H-ioapic：MSI 失败后清 INTx Disable，经 IOAPIC 投 Vector */

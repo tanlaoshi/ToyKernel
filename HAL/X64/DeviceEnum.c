@@ -111,6 +111,37 @@ static void FillBars(UINT8 Bus, UINT8 Dev, UINT8 Func, UINT64 OutBar[6]) {
     }
 }
 
+/* PR-DEV-bar-size：填 BarSize[6]。与 FillBars 同序推进 64-bit；
+ * 高 dword 槽 Size=0。空槽/未实现槽 PciBarSize 自行返回 0。 */
+static void FillBarSizes(UINT8 Bus, UINT8 Dev, UINT8 Func, UINT64 OutSize[6]) {
+    int B;
+
+    for (B = 0; B < 6; B++) {
+        OutSize[B] = 0;
+    }
+    for (B = 0; B < 6; ) {
+        UINT32 Raw = PciReadConfig(Bus, Dev, Func, (UINT8)(0x10 + B * 4));
+
+        if (Raw == 0 || Raw == 0xFFFFFFFFu) {
+            B++;
+            continue;
+        }
+        if (Raw & 1u) {
+            OutSize[B] = PciBarSize(Bus, Dev, Func, B);
+            B++;
+            continue;
+        }
+        if ((Raw & 6u) == 4 && B + 1 < 6) {
+            OutSize[B] = PciBarSize(Bus, Dev, Func, B);
+            OutSize[B + 1] = 0;
+            B += 2;
+        } else {
+            OutSize[B] = PciBarSize(Bus, Dev, Func, B);
+            B++;
+        }
+    }
+}
+
 void HalDeviceEnumerate(void) {
     int Bus;
     int Dev;
@@ -157,6 +188,7 @@ void HalDeviceEnumerate(void) {
                 Node.PciFn = (UINT8)Func;
                 Node.Irq = (UINT8)(IrqDw & 0xFFu);
                 FillBars((UINT8)Bus, (UINT8)Dev, (UINT8)Func, Node.Bar);
+                FillBarSizes((UINT8)Bus, (UINT8)Dev, (UINT8)Func, Node.BarSize);
 
                 Name = PciClassName(Class, Subclass, ProgIf);
                 CopyName(Node.Name, sizeof(Node.Name), Name);

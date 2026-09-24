@@ -93,6 +93,7 @@ int DeviceAdd(const DEVICE_NODE *Dev) {
     Slot->PciFn = Dev->PciFn;
     for (b = 0; b < 6; b++) {
         Slot->Bar[b] = Dev->Bar[b];
+        Slot->BarSize[b] = Dev->BarSize[b];
     }
     Slot->Irq = Dev->Irq;
     Slot->Parent = Dev->Parent;
