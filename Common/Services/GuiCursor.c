@@ -133,6 +133,8 @@ void GuiPointerMove(UINT32 X, UINT32 Y) {
         if (!StoreUiIsBusy()) {
             StoreUiOnPointer(X, Y, gCursorBtn);
         }
+    } else if (GuiFocusKind() == GUI_WIN_EDIT) {
+        EditUiOnPointer(X, Y, gCursorBtn);
     }
 }
 

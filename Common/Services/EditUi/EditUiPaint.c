@@ -55,15 +55,17 @@ static void Paint(void) {
              gEditDirty ? "* dirty   Esc=hint  Ctrl+S=save" : "  clean   Esc=hint  Ctrl+S=save",
              ThemeTextMuted());
 
-    gSaveButtonWidth = 72;
-    gSaveButtonHeight = LineH + 8;
-    gEditSaveX = X + W - gSaveButtonWidth - 12;
-    gEditSaveY = Y + 4;
-    if (gEditSaveX > X + 8) {
-        UiDrawButton(gEditSaveX, gEditSaveY, gSaveButtonWidth, gSaveButtonHeight, "Save", ThemeText(), COLOR_WHITE);
-        gSaveButtonHit = 1;
+    gEditSave.Button.W = 72;
+    gEditSave.Button.H = LineH + 8;
+    gEditSave.Button.X = X + W - gEditSave.Button.W - 12;
+    gEditSave.Button.Y = Y + 4;
+    gEditSave.Button.Text = "Save";
+    gEditSave.Button.Enabled = (gPath[0] != 0);
+    if (gEditSave.Button.X > X + 8) {
+        gEditSave.Button.Visible = 1;
+        UiButtonDraw(&gEditSave.Button);
     } else {
-        gSaveButtonHit = 0;
+        gEditSave.Button.Visible = 0;
     }
 
     TextTop = Y + 6 + LineH * 2 + 4;

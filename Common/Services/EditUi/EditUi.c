@@ -12,11 +12,27 @@ int gScrollLine;
 int gEditDirty;
 char gEditStatus[EDIT_STATUS_MAX];
 
-UINT32 gEditSaveX;
-UINT32 gEditSaveY;
-UINT32 gSaveButtonWidth;
-UINT32 gSaveButtonHeight;
-int gSaveButtonHit;
+/* PR-GUI-migrate-edit：Save 钮（SYNC → EditUiSave） */
+UI_BUTTON_ACTION gEditSave;
+
+static void EditSaveAction(void *Ctx) {
+    (void)Ctx;
+    EditUiSave();
+}
+
+static void EditSaveInit(void) {
+    gEditSave.Button.X = 0;
+    gEditSave.Button.Y = 0;
+    gEditSave.Button.W = 72;
+    gEditSave.Button.H = 24;
+    gEditSave.Button.Text = "Save";
+    gEditSave.Button.Enabled = 0;
+    gEditSave.Button.Visible = 0;
+    gEditSave.Button.m_State = UI_BUTTON_STATE_NORMAL;
+    gEditSave.Kind = UI_ACTION_SYNC;
+    gEditSave.Fn = EditSaveAction;
+    gEditSave.Ctx = 0;
+}
 
 void EditSetStatus(const char *S) {
     CopyStr(gEditStatus, sizeof(gEditStatus), S ? S : "");
@@ -116,6 +132,7 @@ void EditUiOpen(const char *Path) {
     UINTN N = 0;
     int Err;
 
+    EditSaveInit();
     gEditLen = 0;
     gCursor = 0;
     gScrollLine = 0;

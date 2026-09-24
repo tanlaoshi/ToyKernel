@@ -148,6 +148,8 @@ void GuiPollMouse(void) {
                 SettingsUiOnPointer(X, Y, Raw.Buttons);
             } else if (GuiFocusKind() == GUI_WIN_STORE) {
                 StoreUiOnPointer(X, Y, Raw.Buttons);
+            } else if (GuiFocusKind() == GUI_WIN_EDIT) {
+                EditUiOnPointer(X, Y, Raw.Buttons);
             }
         }
         LastBtn = Raw.Buttons;

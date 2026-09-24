@@ -14,6 +14,7 @@
 #include "Fat.h"
 #include "Font.h"
 #include "UI.h"
+#include "UiAction.h"
 #include "Hal.h"
 #include "Theme.h"
 
@@ -31,11 +32,8 @@ extern int gScrollLine;
 extern int gEditDirty; /* 与 Video 的 gDirty 区分 */
 extern char gEditStatus[EDIT_STATUS_MAX]; /* 与 FilesUi 的 gStatus 区分 */
 
-extern UINT32 gEditSaveX; /* 与 GuiWm 的 gSaveX 区分 */
-extern UINT32 gEditSaveY;
-extern UINT32 gSaveButtonWidth;
-extern UINT32 gSaveButtonHeight;
-extern int gSaveButtonHit;
+/* PR-GUI-migrate-edit：Save 走 UI_BUTTON_ACTION（SYNC） */
+extern UI_BUTTON_ACTION gEditSave;
 
 /* FilesUi 的 CopyStr 已是全局，签名虽同也不能再导出。 */
 static inline void CopyStr(char *Dst, int Max, const char *Src) {

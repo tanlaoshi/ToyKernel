@@ -1,17 +1,58 @@
 /*
  * EditUiInput.c — 点击与按键
  * 核心：EditUi.c
+ * PR-GUI-migrate-edit：Save 经 UiActionDispatch（press→release）；OnClick 不再触发 Save。
  */
 #include "EditUiPrivate.h"
 
 void EditUiOnClick(UINT32 X, UINT32 Y) {
-    if (!EditUiIsFocused()) {
+    (void)X;
+    (void)Y;
+    /* Save 改走 OnPointer 抬起；保留入口以免 Gui 旧路径空调用炸 */
+}
+
+void EditUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
+    static UINT8 sPrevBtn;
+    int Hit;
+    int Need = 0;
+    UI_BUTTON_STATE Want;
+
+    if (!EditUiIsFocused() || !gEditSave.Button.Visible) {
+        sPrevBtn = Buttons;
         return;
     }
-    if (gSaveButtonHit &&
-        X >= gEditSaveX && X < gEditSaveX + gSaveButtonWidth &&
-        Y >= gEditSaveY && Y < gEditSaveY + gSaveButtonHeight) {
-        EditUiSave();
+
+    Hit = UiButtonHit(&gEditSave.Button, X, Y);
+
+    /* 非按下时维护 HOVER（UiButtonOnClick 不设 HOVER） */
+    if (!(Buttons & 1u) &&
+        gEditSave.Button.m_State != UI_BUTTON_STATE_PRESSED &&
+        gEditSave.Button.Enabled) {
+        Want = Hit ? UI_BUTTON_STATE_HOVER : UI_BUTTON_STATE_NORMAL;
+        if (gEditSave.Button.m_State != Want) {
+            gEditSave.Button.m_State = Want;
+            Need = 1;
+        }
+    }
+
+    if ((Buttons & 1u) && !(sPrevBtn & 1u)) {
+        (void)UiActionDispatch(&gEditSave, 1, Hit);
+        Need = 1;
+    } else if (!(Buttons & 1u) && (sPrevBtn & 1u)) {
+        if (UiActionDispatch(&gEditSave, 0, Hit)) {
+            /* EditUiSave 已 Repaint；若仍命中补 HOVER 再刷一次 */
+            if (Hit && gEditSave.Button.Enabled) {
+                gEditSave.Button.m_State = UI_BUTTON_STATE_HOVER;
+                Need = 1;
+            }
+        } else {
+            Need = 1;
+        }
+    }
+
+    sPrevBtn = Buttons;
+    if (Need) {
+        EditUiRepaint();
     }
 }
 

@@ -193,9 +193,8 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 GuiFrameBufferBegin();
                 DrawWindowChromeAt(gFocusWin);
                 GuiFrameBufferEnd();
-            } else {
-                EditUiOnClick(X, Y);
             }
+            /* 客户区：悬停/按下由 OnPointer；抬起触发 Save（PR-GUI-migrate-edit） */
         } else if (GuiFocusKind() == GUI_WIN_SHELL) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 if (!gWinBackupValid[gFocusWin]) {

@@ -13,6 +13,8 @@ void EditUiOpen(const char *Path);
 void EditUiRepaint(void);
 void EditUiPaintFocused(void);
 void EditUiOnClick(UINT32 X, UINT32 Y);
+/* PR-GUI-migrate-edit：悬停/按下高亮，抬起触发 Save（SYNC） */
+void EditUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons);
 void EditUiOnEscape(void);
 void EditUiOnEnter(void);
 void EditUiOnArrow(int Down);
