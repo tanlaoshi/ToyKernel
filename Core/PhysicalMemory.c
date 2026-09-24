@@ -18,6 +18,8 @@ static UINT64 gFreePages;
 static UINT64 gPhysBase; /* 页对齐；PFN 0 对应此物理地址（x86 常为 0） */
 static SPIN_LOCK gPhysLock;
 
+void PmmSegmentInit(const BOOT_INFO *Info);
+
 static UINT32 PhysToPfn(UINT64 Phys) {
     if (Phys < gPhysBase) {
         return gMaxPage;
@@ -149,6 +151,7 @@ int PhysicalMemoryInitialize(void) {
     DebugWrite(" (");
     DebugHex32((UINT32)gFreePages);
     DebugWrite(" pages)\n");
+    PmmSegmentInit(Info);
     return 0;
 }
 
