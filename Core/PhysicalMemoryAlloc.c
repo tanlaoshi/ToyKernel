@@ -1,7 +1,8 @@
 /*
- * PhysicalMemoryAlloc.c — 段内分配与引用计数。
+ * PhysicalMemoryAlloc.c — 段内分配；Bitmap 政策暂留（PR-MEM-ops）。
  */
 #include "PhysicalMemoryPrivate.h"
+#include "MemoryOps.h"
 #include "Debug.h"
 #include "SpinLock.h"
 
@@ -67,20 +68,19 @@ static PMM_SEGMENT *Lookup(UINT64 Phys, UINT32 *Idx)
     return Seg;
 }
 
-void *PhysicalMemoryAllocatePages(UINT32 Count)
+static void BitmapInit(void) { }
+
+static void *BitmapAllocPagesLocked(UINT32 Count)
 {
     UINT32 s;
-    void *Ret = 0;
 
     if (Count == 0) {
         return 0;
     }
-    SpinLockAcquire(&gPhysLock);
     for (s = 0; s < PMM_SEGMENT_COUNT; s++) {
         PMM_SEGMENT *Seg = PmmSegment(s);
         UINT32 Idx;
         UINT32 p;
-
         UINT32 LimitPages;
         UINT64 Room;
 
@@ -108,24 +108,12 @@ void *PhysicalMemoryAllocatePages(UINT32 Count)
             Seg->RefCount[i] = 1;
         }
         Seg->FreePages -= Count;
-        Ret = (void *)(UINTN)(Seg->BasePhys + ((UINT64)Idx << PAGE_SHIFT));
-        break;
+        return (void *)(UINTN)(Seg->BasePhys + ((UINT64)Idx << PAGE_SHIFT));
     }
-    SpinLockRelease(&gPhysLock);
-    if (Ret == 0) {
-        DebugWrite("pmm: alloc fail count=");
-        DebugHex32(Count);
-        DebugWrite("\n");
-    }
-    return Ret;
+    return 0;
 }
 
-void *PhysicalMemoryAllocatePage(void)
-{
-    return PhysicalMemoryAllocatePages(1);
-}
-
-void PhysicalMemoryFreePages(void *Page, UINT32 Count)
+static void BitmapFreePagesLocked(void *Page, UINT32 Count)
 {
     UINT64 Phys;
     UINT32 Idx;
@@ -136,14 +124,9 @@ void PhysicalMemoryFreePages(void *Page, UINT32 Count)
         return;
     }
     Phys = (UINT64)(UINTN)Page;
-    if ((Phys & (PAGE_SIZE - 1)) != 0) {
-        return;
-    }
-    SpinLockAcquire(&gPhysLock);
     Seg = Lookup(Phys, &Idx);
     if (Seg == 0 || Idx + Count > Seg->PageCount) {
         DebugWrite("pmm: free out of segment\n");
-        SpinLockRelease(&gPhysLock);
         return;
     }
     for (p = 0; p < Count; p++) {
@@ -162,45 +145,35 @@ void PhysicalMemoryFreePages(void *Page, UINT32 Count)
         Seg->RefCount[i] = 0;
         Seg->FreePages++;
     }
-    SpinLockRelease(&gPhysLock);
 }
 
-void PhysicalMemoryFreePage(void *Page)
-{
-    PhysicalMemoryFreePages(Page, 1);
-}
-
-int PhysicalMemoryRetainPage(void *Page)
+static int BitmapRetainPageLocked(void *Page)
 {
     UINT64 Phys;
     UINT32 Idx;
     PMM_SEGMENT *Seg;
-    int Ok = -1;
 
     if (Page == 0) {
         return -1;
     }
     Phys = (UINT64)(UINTN)Page;
-    if ((Phys & (PAGE_SIZE - 1)) != 0) {
-        return -1;
-    }
-    SpinLockAcquire(&gPhysLock);
     Seg = Lookup(Phys, &Idx);
     if (Seg == 0) {
         DebugWrite("pmm: retain no segment\n");
-    } else if (Seg->RefCount[Idx] == 0) {
-        DebugWrite("pmm: retain free page\n");
-    } else if (Seg->RefCount[Idx] < 0xFFFF) {
-        Seg->RefCount[Idx]++;
-        Ok = 0;
-    } else {
-        Ok = 0;
+        return -1;
     }
-    SpinLockRelease(&gPhysLock);
-    return Ok;
+    if (Seg->RefCount[Idx] == 0) {
+        DebugWrite("pmm: retain free page\n");
+        return -1;
+    }
+    if (Seg->RefCount[Idx] >= 0xFFFF) {
+        return -1;
+    }
+    Seg->RefCount[Idx]++;
+    return 0;
 }
 
-void PhysicalMemoryReleasePage(void *Page)
+static void BitmapReleasePageLocked(void *Page)
 {
     UINT64 Phys;
     UINT32 Idx;
@@ -210,19 +183,13 @@ void PhysicalMemoryReleasePage(void *Page)
         return;
     }
     Phys = (UINT64)(UINTN)Page;
-    if ((Phys & (PAGE_SIZE - 1)) != 0) {
-        return;
-    }
-    SpinLockAcquire(&gPhysLock);
     Seg = Lookup(Phys, &Idx);
     if (Seg == 0) {
         DebugWrite("pmm: release no segment\n");
-        SpinLockRelease(&gPhysLock);
         return;
     }
     if (Seg->RefCount[Idx] == 0) {
         DebugWrite("pmm: release free page\n");
-        SpinLockRelease(&gPhysLock);
         return;
     }
     Seg->RefCount[Idx]--;
@@ -230,6 +197,69 @@ void PhysicalMemoryReleasePage(void *Page)
         Seg->Bitmap[Idx / 8] &= (UINT8)~(1u << (Idx % 8));
         Seg->FreePages++;
     }
+}
+
+const MEMORY_OPS *MemoryBitmapOps(void)
+{
+    static const MEMORY_OPS Ops = {
+        BitmapInit,
+        BitmapAllocPagesLocked,
+        BitmapFreePagesLocked,
+        BitmapRetainPageLocked,
+        BitmapReleasePageLocked,
+    };
+    return &Ops;
+}
+
+void *PhysicalMemoryAllocatePages(UINT32 Count)
+{
+    void *Ret;
+
+    SpinLockAcquire(&gPhysLock);
+    Ret = MemoryOpsGet()->AllocPagesLocked(Count);
+    SpinLockRelease(&gPhysLock);
+    if (Ret == 0 && Count != 0) {
+        DebugWrite("pmm: alloc fail count=");
+        DebugHex32(Count);
+        DebugWrite("\n");
+    }
+    return Ret;
+}
+
+void *PhysicalMemoryAllocatePage(void) { return PhysicalMemoryAllocatePages(1); }
+
+void PhysicalMemoryFreePages(void *Page, UINT32 Count)
+{
+    if (Page == 0 || Count == 0 || ((UINT64)(UINTN)Page & (PAGE_SIZE - 1)) != 0) {
+        return;
+    }
+    SpinLockAcquire(&gPhysLock);
+    MemoryOpsGet()->FreePagesLocked(Page, Count);
+    SpinLockRelease(&gPhysLock);
+}
+
+void PhysicalMemoryFreePage(void *Page) { PhysicalMemoryFreePages(Page, 1); }
+
+int PhysicalMemoryRetainPage(void *Page)
+{
+    int Ok;
+
+    if (Page == 0 || ((UINT64)(UINTN)Page & (PAGE_SIZE - 1)) != 0) {
+        return -1;
+    }
+    SpinLockAcquire(&gPhysLock);
+    Ok = MemoryOpsGet()->RetainPageLocked(Page);
+    SpinLockRelease(&gPhysLock);
+    return Ok;
+}
+
+void PhysicalMemoryReleasePage(void *Page)
+{
+    if (Page == 0 || ((UINT64)(UINTN)Page & (PAGE_SIZE - 1)) != 0) {
+        return;
+    }
+    SpinLockAcquire(&gPhysLock);
+    MemoryOpsGet()->ReleasePageLocked(Page);
     SpinLockRelease(&gPhysLock);
 }
 
@@ -237,7 +267,6 @@ UINT64 PhysicalMemoryTotalPages(void)
 {
     UINT64 Total = 0;
     UINT32 i;
-
     for (i = 0; i < PMM_SEGMENT_COUNT; i++) {
         Total += PmmSegment(i)->PageCount;
     }
@@ -248,7 +277,6 @@ UINT64 PhysicalMemoryFreePageCount(void)
 {
     UINT64 Total = 0;
     UINT32 i;
-
     for (i = 0; i < PMM_SEGMENT_COUNT; i++) {
         Total += PmmSegment(i)->FreePages;
     }
