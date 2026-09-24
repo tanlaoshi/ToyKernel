@@ -29,6 +29,52 @@ const char *const gBtnLabel[STORE_BTN_N] = {
     "Install", "Remove", "Sync"
 };
 
+/* PR-GUI-migrate-store：底栏三钮 ASYNC，Fn 仍走 StoreJobEnqueue */
+UI_BUTTON_ACTION gStoreAct[STORE_BTN_N];
+
+static void ActInstall(void *Ctx) { (void)Ctx; StoreUiDoButton(0); }
+static void ActRemove(void *Ctx)  { (void)Ctx; StoreUiDoButton(1); }
+static void ActSync(void *Ctx)    { (void)Ctx; StoreUiDoButton(2); }
+
+void StoreUiActInit(void) {
+    static UI_ACTION_FN const Fns[STORE_BTN_N] = {
+        ActInstall, ActRemove, ActSync
+    };
+    int i;
+
+    for (i = 0; i < STORE_BTN_N; i++) {
+        gStoreAct[i].Button.X = 0;
+        gStoreAct[i].Button.Y = 0;
+        gStoreAct[i].Button.W = 0;
+        gStoreAct[i].Button.H = STORE_BTN_H;
+        gStoreAct[i].Button.Text = gBtnLabel[i];
+        gStoreAct[i].Button.Enabled = 1;
+        gStoreAct[i].Button.Visible = 1;
+        gStoreAct[i].Button.m_State = UI_BUTTON_STATE_NORMAL;
+        gStoreAct[i].Kind = UI_ACTION_ASYNC;
+        gStoreAct[i].Fn = Fns[i];
+        gStoreAct[i].Ctx = 0;
+    }
+}
+
+int StoreUiActDispatch(int Btn, int Pressed, int Hit) {
+    int i;
+
+    if (Btn < 0 || Btn >= STORE_BTN_N) {
+        return 0;
+    }
+    for (i = 0; i < STORE_BTN_N; i++) {
+        gStoreAct[i].Button.X = gBtnX0 + (UINT32)i * (gBtnW + STORE_BTN_GAP);
+        gStoreAct[i].Button.Y = gBtnY;
+        gStoreAct[i].Button.W = gBtnW;
+        gStoreAct[i].Button.H = STORE_BTN_H;
+        gStoreAct[i].Button.Text = gBtnLabel[i];
+        gStoreAct[i].Button.Visible = 1;
+        gStoreAct[i].Button.Enabled = 1;
+    }
+    return UiActionDispatch(&gStoreAct[Btn], Pressed, Hit);
+}
+
 int StoreUiIsFocused(void) {
     return GuiFocusKind() == GUI_WIN_STORE;
 }
@@ -56,6 +102,7 @@ void StoreUiOpen(void) {
     gHoverRow = -1;
     gHoverBtn = -1;
     gPressBtn = -1;
+    StoreUiActInit();
     Reload();
     StoreSetStatus(gFiltCount > 0 ? "select / Install|Remove|Sync" : "no catalog");
     StorePaintList();

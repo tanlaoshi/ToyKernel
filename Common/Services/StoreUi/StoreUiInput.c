@@ -4,7 +4,7 @@
  */
 #include "StoreUiPrivate.h"
 
-static void DoBtn(int Btn) {
+void StoreUiDoButton(int Btn) {
     STORE_ENTRY *E;
     char Buf[80];
     int i;
@@ -128,7 +128,8 @@ void StoreUiOnClick(UINT32 X, UINT32 Y) {
         for (i = 0; i < STORE_BTN_N; i++) {
             Bx = gBtnX0 + (UINT32)i * (gBtnW + STORE_BTN_GAP);
             if (X >= Bx && X < Bx + gBtnW) {
-                DoBtn(i);
+                (void)StoreUiActDispatch(i, 1, 1);
+                (void)StoreUiActDispatch(i, 0, 1);
                 return;
             }
         }
@@ -222,6 +223,7 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
     if ((Buttons & 1u) && !(sPrevBtn & 1u)) {
         if (Btn >= 0) {
             gPressBtn = Btn;
+            (void)StoreUiActDispatch(Btn, 1, 1);
             Need = 1;
         } else if (!Running && Side >= 0) {
             FireSide = Side;
@@ -229,11 +231,14 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
             FireRow = Row;
         }
     } else if ((Buttons & 1u) && gPressBtn >= 0 && Btn != gPressBtn) {
+        (void)StoreUiActDispatch(gPressBtn, 0, 0);
         gPressBtn = -1;
         Need = 1;
     } else if (!(Buttons & 1u) && (sPrevBtn & 1u) && gPressBtn >= 0) {
         if (Btn == gPressBtn) {
             FireBtn = gPressBtn;
+        } else {
+            (void)StoreUiActDispatch(gPressBtn, 0, 0);
         }
         gPressBtn = -1;
         Need = 1;
@@ -252,6 +257,6 @@ void StoreUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
         gSel = FireRow;
         StoreUiRepaint();
     } else if (FireBtn >= 0) {
-        DoBtn(FireBtn);
+        (void)StoreUiActDispatch(FireBtn, 0, 1);
     }
 }

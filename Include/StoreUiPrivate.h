@@ -20,6 +20,7 @@
 #include "Theme.h"
 #include "Debug.h"
 #include "UI.h"
+#include "UiAction.h"
 
 /* ===== 宏（从 StoreUi.c 搬入；值不变） ===== */
 #define STORE_SIDE_W    128u
@@ -64,6 +65,7 @@ extern int gHoverBtn;
 extern int gPressBtn;
 
 extern const char *const gBtnLabel[STORE_BTN_N];
+extern UI_BUTTON_ACTION gStoreAct[STORE_BTN_N];
 
 /* Console / Store 已有同名符号，这里不能再导出。 */
 static inline int StrEq(const char *A, const char *B) {
@@ -86,6 +88,13 @@ void Reload(void);
 STORE_ENTRY *SelectedEntry(void);
 void StoreBtnGeom(UINT32 ListX, UINT32 ListW);
 void ClampScroll(void);
+
+/* ===== StoreUi.c ===== */
+void StoreUiActInit(void);
+int StoreUiActDispatch(int Btn, int Pressed, int Hit);
+
+/* ===== StoreUiInput.c ===== */
+void StoreUiDoButton(int Btn);
 
 /* ===== StoreUiPaint.c ===== */
 void StorePaintList(void);
