@@ -1,5 +1,7 @@
 /*
  * PhysicalMemory.c — 物理页分配器（位图；PR-A7：PhysBase 支持高位 RAM）
+ * PMM 跟踪上限 = PHYSICAL_MEMORY_MAX_PAGES（256K 页 = 1 GiB），匹配 QEMU 默认 -m 1024M；
+ * 再大需改稀疏分配器（扁平位图 BSS 随 cap 线性增长）。
  */
 #include "PhysicalMemory.h"
 #include "BootInfo.h"
@@ -7,7 +9,7 @@
 #include "Debug.h"
 #include "SpinLock.h"
 
-#define PHYSICAL_MEMORY_MAX_PAGES (128u * 1024u)
+#define PHYSICAL_MEMORY_MAX_PAGES (256u * 1024u)
 
 static UINT8  gBitmap[PHYSICAL_MEMORY_MAX_PAGES / 8];
 static UINT16 gRefCount[PHYSICAL_MEMORY_MAX_PAGES];

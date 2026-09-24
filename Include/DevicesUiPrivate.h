@@ -28,6 +28,7 @@ extern int gDevUiSel;
 extern int gDevUiScroll;
 extern int gDevUiCount;
 extern int gDevUiFilt;
+extern int gDevUiSummary;     /* PR-DEV-ui-summary-paint：1=摘要页，0=设备列表 */
 extern int gDevUiMap[DEVUI_MAP_MAX];
 extern int gDevUiFiltCount;
 extern UINT32 gDevUiListX;
@@ -69,5 +70,7 @@ typedef struct {
 void DevicesUiFillSummary(DEVICES_UI_SUMMARY *Out);
 /* DEBUG 自检：填结构体并串口打一行；release 编译为空调用 */
 void DevicesUiSummarySelfCheck(void);
+/* PR-DEV-ui-summary-paint：在内容区绘制 About 页（侧栏另画） */
+void DevicesUiPaintSummary(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 
 #endif

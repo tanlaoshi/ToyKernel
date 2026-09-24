@@ -85,6 +85,16 @@ static const char *const gMsgKeys[MSG_COUNT] = {
     "MSG_LANG_BAD",
     "MSG_DEV_EMPTY",
     "MSG_DEV_DETAIL",
+    "MSG_DEV_SUMMARY",
+    "MSG_DEV_ABOUT",
+    "MSG_DEV_OS",
+    "MSG_DEV_CPU",
+    "MSG_DEV_MEMORY",
+    "MSG_DEV_DISKS",
+    "MSG_DEV_DISPLAY",
+    "MSG_DEV_HYPERVISOR",
+    "MSG_DEV_PCI_COUNT",
+    "MSG_DEV_READY",
 };
 
 static const char *const gEnFallback[MSG_COUNT] = {
@@ -153,6 +163,16 @@ static const char *const gEnFallback[MSG_COUNT] = {
     "lang: bad value (use en|zh|reload)\n",
     "No devices enumerated",
     "Detail",
+    "Summary",
+    "About this computer",
+    "Operating system",
+    "Processor",
+    "Memory",
+    "Disks",
+    "Display",
+    "Virtualization",
+    "PCI devices",
+    "ready",
 };
 
 static const char *const gZhFallback[MSG_COUNT] = {
@@ -220,7 +240,17 @@ static const char *const gZhFallback[MSG_COUNT] = {
     "语言已切换\n",
     "语言: 无效（用 en|zh|reload）\n",
     "无已枚举设备",
-    "详情"
+    "详情",
+    "摘要",
+    "关于本机",
+    "操作系统",
+    "处理器",
+    "内存",
+    "硬盘",
+    "显示器",
+    "虚拟化",
+    "PCI 设备",
+    "就绪"
 };
 
 static char gEn[MSG_COUNT][LOCALE_STR_MAX];

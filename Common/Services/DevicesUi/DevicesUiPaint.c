@@ -186,10 +186,29 @@ void DevicesUiPaint(void) {
             HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, ThemePanelSeparator());
         }
         HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_APP_DEVICES), ThemeText());
-        for (i = 0; i < DEVUI_FILT_N; i++) {
+        for (i = 0; i < DEVUI_FILT_N + 1; i++) {
+            const char *Lbl;
+            int Sel;
+
+            if (i == 0) {
+                Lbl = LocStr(MSG_DEV_SUMMARY);
+                Sel = gDevUiSummary;
+            } else {
+                Lbl = FiltLabel(i - 1);
+                Sel = !gDevUiSummary && (i - 1) == gDevUiFilt;
+            }
             UiDrawListRow(Cx + 4, gDevUiSideRow0 + (UINT32)i * LineH, RowW, LineH,
-                          FiltLabel(i), i == gDevUiFilt, 0);
+                          Lbl, Sel, 0);
         }
+    }
+
+    /* PR-DEV-ui-summary-paint：摘要页取代列表+详情 */
+    if (gDevUiSummary) {
+        DevicesUiPaintSummary(ContentX, Cy, ContentW, Ch);
+        GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+        HalVideoClearClip();
+        GuiFrameBufferEnd();
+        return;
     }
 
     gDevUiListX = ContentX + DEVUI_PAD;

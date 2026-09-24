@@ -8,6 +8,7 @@ int gDevUiSel;
 int gDevUiScroll;
 int gDevUiCount;
 int gDevUiFilt;
+int gDevUiSummary;
 int gDevUiMap[DEVUI_MAP_MAX];
 int gDevUiFiltCount;
 UINT32 gDevUiListX;
@@ -44,6 +45,7 @@ void DevicesUiOpen(void) {
     gDevUiSel = 0;
     gDevUiScroll = 0;
     gDevUiFilt = DEVUI_FILT_ALL;
+    gDevUiSummary = 1;
     DevicesUiReload();
     DevicesUiPaint();
 #if TOY_KERNEL_DEBUG
@@ -66,14 +68,28 @@ void DevicesUiOnClick(UINT32 X, UINT32 Y) {
         X < gDevUiSideX + gDevUiSideW && Y >= gDevUiSideRow0) {
         LineH = gDevUiSideLineH ? gDevUiSideLineH : DEVUI_ROW_H;
         Row = (int)((Y - gDevUiSideRow0) / LineH);
-        if (Row >= 0 && Row < DEVUI_FILT_N) {
-            if (gDevUiFilt != Row) {
-                gDevUiFilt = Row;
+        if (Row == 0) {
+            /* 摘要页（置顶项；非筛选器） */
+            if (!gDevUiSummary) {
+                gDevUiSummary = 1;
+                DevicesUiRepaint();
+            }
+        } else if (Row >= 1 && Row < DEVUI_FILT_N + 1) {
+            /* 筛选行 1..N → FILT 0..N-1 */
+            int NewFilt = Row - 1;
+            if (gDevUiSummary || gDevUiFilt != NewFilt) {
+                gDevUiSummary = 0;
+                gDevUiFilt = NewFilt;
                 gDevUiScroll = 0;
                 DevicesUiRebuildFilt();
                 DevicesUiRepaint();
             }
         }
+        return;
+    }
+
+    /* 摘要页只读：内容区点击不选设备 */
+    if (gDevUiSummary) {
         return;
     }
 

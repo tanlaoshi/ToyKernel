@@ -104,7 +104,8 @@ void DevicesUiFillSummary(DEVICES_UI_SUMMARY *Out) {
     BufInit(&Disk, Out->Disk, sizeof(Out->Disk));
     if (Ready > 0) {
         BufDec64(&Disk, (UINT64)Ready);
-        BufStr(&Disk, " ready");
+        BufCh(&Disk, ' ');
+        BufStr(&Disk, LocStr(MSG_DEV_READY));
     } else {
         BufCh(&Disk, '-');
     }
@@ -154,4 +155,137 @@ void DevicesUiSummarySelfCheck(void) {
     BufCh(&L, '\n');
     BufFin(&L);
     DebugWrite(Line);
+}
+
+/* ---- About 页绘制（PR-DEV-ui-summary-paint） ---- */
+
+static void SumDrawRow(UINT32 LblX, UINT32 ValX, UINT32 *Ty, UINT32 MaxY,
+                       UINT32 LineH, const char *Lbl, const char *Val) {
+    if (*Ty + LineH > MaxY) {
+        return;
+    }
+    if (Lbl) {
+        HalVideoDrawStringAt(LblX, *Ty, Lbl, ThemeTextMuted());
+    }
+    if (Val) {
+        HalVideoDrawStringAt(ValX, *Ty, Val, ThemeText());
+    }
+    *Ty += LineH + 2;
+}
+
+static void SumComposeOs(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
+    BUF B;
+
+    BufInit(&B, Out, Max);
+    BufStr(&B, S->OsVersion ? S->OsVersion : "-");
+    if (S->Arch && S->Arch[0]) {
+        BufCh(&B, ' ');
+        BufCh(&B, '(');
+        BufStr(&B, S->Arch);
+        BufCh(&B, ')');
+    }
+    BufFin(&B);
+}
+
+static void SumComposeCpu(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
+    BUF B;
+
+    BufInit(&B, Out, Max);
+    BufStr(&B, S->CpuInfo ? S->CpuInfo : "-");
+    BufStr(&B, " x");
+    BufDec64(&B, (UINT64)(S->CpuCount > 0 ? S->CpuCount : 1));
+    BufFin(&B);
+}
+
+static void SumComposeMem(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
+    BUF B;
+
+    BufInit(&B, Out, Max);
+    BufDec64(&B, S->MemFreeMiB);
+    BufCh(&B, '/');
+    BufDec64(&B, S->MemTotalMiB);
+    BufStr(&B, " MiB");
+    BufFin(&B);
+}
+
+static void SumComposeHyper(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
+    BUF B;
+    int Zh = (LocaleGet() == LOC_LANG_ZH);
+
+    BufInit(&B, Out, Max);
+    BufStr(&B, S->Hypervisor ? (Zh ? "是" : "Yes") : (Zh ? "否" : "No"));
+    BufFin(&B);
+}
+
+static void SumComposePci(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
+    BUF B;
+
+    BufInit(&B, Out, Max);
+    BufDec64(&B, (UINT64)S->PciCount);
+    BufFin(&B);
+}
+
+static UINT32 SumMax(UINT32 A, UINT32 B) {
+    return A > B ? A : B;
+}
+
+void DevicesUiPaintSummary(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    DEVICES_UI_SUMMARY S;
+    UINT32 Ty;
+    UINT32 MaxY;
+    UINT32 LblX;
+    UINT32 ValX;
+    UINT32 LineH;
+    UINT32 MaxLblW;
+    char Val[96];
+
+    if (W < 40 || H < 60) {
+        return;
+    }
+    DevicesUiFillSummary(&S);
+
+    HalVideoFillRect(X, Y, W, H, ThemePanelDetailBackground());
+    if (W > 3) {
+        HalVideoFillRect(X, Y, 3, H, ThemePanelSeparator());
+    }
+
+    LineH = FontAdvanceY();
+    if (LineH < 16) {
+        LineH = 16;
+    }
+    LblX = X + 14;
+    /* 测量最长标签，值列起点跟着走，避免标签/值重叠 */
+    MaxLblW = 0;
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_OS)));
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_CPU)));
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_MEMORY)));
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_DISKS)));
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_DISPLAY)));
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_HYPERVISOR)));
+    MaxLblW = SumMax(MaxLblW, FontStringWidth(LocStr(MSG_DEV_PCI_COUNT)));
+    ValX = LblX + MaxLblW + 12;
+    if (ValX > X + W - 60) {
+        ValX = X + W - 60;
+    }
+    Ty = Y + 12;
+    MaxY = Y + H - 4;
+
+    /* 标题 */
+    if (Ty + LineH <= MaxY) {
+        HalVideoDrawStringAt(LblX, Ty, LocStr(MSG_DEV_ABOUT), ThemeTextAccent());
+        Ty += LineH + 6;
+    }
+
+    SumComposeOs(Val, sizeof(Val), &S);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_OS), Val);
+    SumComposeCpu(Val, sizeof(Val), &S);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_CPU), Val);
+    SumComposeMem(Val, sizeof(Val), &S);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_MEMORY), Val);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_DISKS), S.Disk);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_DISPLAY), S.Display);
+    SumComposeHyper(Val, sizeof(Val), &S);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_HYPERVISOR), Val);
+    SumComposePci(Val, sizeof(Val), &S);
+    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_PCI_COUNT), Val);
 }
