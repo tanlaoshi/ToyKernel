@@ -478,7 +478,7 @@ endif
 # 汇编用同一 TOY_BRINGUP（Startup.S 无条件调 StartupMain）
 ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
-.PHONY: all clean boards kernel-bin runtests scheduler
+.PHONY: all clean boards kernel-bin runtests runtests-memory scheduler
 .DEFAULT_GOAL := all
 
 HOSTCC ?= gcc
@@ -486,6 +486,8 @@ TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_SCHED_HOST -I Tests/Stub -I Include
 ifeq ($(SCHEDULER),priority)
 TEST_CFLAGS += -DTOY_SCHED_PRIORITY
 endif
+
+MEM_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_MEM_HOST -I Tests/Stub -I Include
 
 scheduler: runtests
 
@@ -497,6 +499,15 @@ runtests:
 	$(HOSTCC) $(TEST_CFLAGS) -c Tests/TestScheduler.c -o Build/Tests/test.o
 	$(HOSTCC) -o Build/Tests/TestScheduler Build/Tests/policy.o Build/Tests/ops.o Build/Tests/stub.o Build/Tests/test.o
 	./Build/Tests/TestScheduler
+
+runtests-memory:
+	@mkdir -p Build/Tests
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c $(MEMORY_SRCS) -o Build/Tests/mem_policy.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Core/PhysicalMemoryOps.c -o Build/Tests/mem_ops.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tests/Stub/MemoryStub.c -o Build/Tests/mem_stub.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tests/TestMemory.c -o Build/Tests/mem_test.o
+	$(HOSTCC) -o Build/Tests/TestMemory Build/Tests/mem_policy.o Build/Tests/mem_ops.o Build/Tests/mem_stub.o Build/Tests/mem_test.o
+	./Build/Tests/TestMemory
 
 all: $(TARGET)
 ifneq ($(ARCH),x86_64)
