@@ -140,6 +140,7 @@ static int CopyDirTree(const char *SrcDir, const char *DstDir, int Depth) {
     int Pass;
     int Progress;
 
+    (void)St;
     if (Depth > 8) {
         return FAT_ERR_INVAL;
     }
@@ -147,7 +148,7 @@ static int CopyDirTree(const char *SrcDir, const char *DstDir, int Depth) {
     if (Err != FAT_OK) {
         return Err;
     }
-    for (Pass = 0; Pass < FAT_LIST_MAX + 2; Pass++) {
+    for (Pass = 0; Pass < FAT_LIST_MAX * 8 + 4; Pass++) {
         N = 0;
         Err = FileSystemListEntries(SrcDir, Ents, FAT_LIST_MAX, &N);
         if (Err != FAT_OK) {
@@ -156,6 +157,7 @@ static int CopyDirTree(const char *SrcDir, const char *DstDir, int Depth) {
         Progress = 0;
         for (i = 0; i < N; i++) {
             const char *Name = Ents[i].Name;
+            int IsDir = (Ents[i].Attr & FAT_ATTR_DIR) ? 1 : 0;
 
             if (!Name[0] || (Name[0] == '.' && Name[1] == 0) ||
                 (Name[0] == '.' && Name[1] == '.' && Name[2] == 0)) {
@@ -163,7 +165,7 @@ static int CopyDirTree(const char *SrcDir, const char *DstDir, int Depth) {
             }
             JoinPath(SrcChild, (int)sizeof(SrcChild), SrcDir, Name);
             JoinPath(DstChild, (int)sizeof(DstChild), DstDir, Name);
-            if (Ents[i].Attr & FAT_ATTR_DIR) {
+            if (IsDir) {
                 Err = CopyDirTree(SrcChild, DstChild, Depth + 1);
             } else {
                 Err = CopyOneFile(SrcChild, DstChild);
@@ -172,10 +174,9 @@ static int CopyDirTree(const char *SrcDir, const char *DstDir, int Depth) {
                 return Err;
             }
             Progress = 1;
-            (void)St;
+            break; /* 递归覆写 static Ents；一项后重扫 */
         }
-        /* 一趟列全 FAT_LIST_MAX 以内即完；超限多趟意义有限，停 */
-        if (N < FAT_LIST_MAX || !Progress) {
+        if (!Progress) {
             break;
         }
     }

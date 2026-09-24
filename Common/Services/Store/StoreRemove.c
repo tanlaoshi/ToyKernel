@@ -29,6 +29,13 @@ int StoreRemoveAppPayload(const char *Id, const char *File) {
             if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
                 return Err;
             }
+            /* 确认目录已消失（vvfat/递归缓冲曾导致“成功”但残留） */
+            if (FileSystemFileStat(Bundle, &St) == FAT_OK) {
+                HalConsoleWriteSerial("store: remove tree incomplete ");
+                HalConsoleWriteSerial(Bundle);
+                HalConsoleWriteSerial("\n");
+                return FAT_ERR_IO;
+            }
             return FAT_OK;
         }
         StoreAppElfPath(Bundle, (int)sizeof(Bundle), Id, File);
@@ -140,6 +147,7 @@ int StoreRemove(const char *Id) {
                     return FAT_ERR_INVAL;
                 }
                 Err = StoreRemoveAppPayload(Id, Tab[i].File);
+                StoreClearAppDesktopKeys(Id);
                 StoreIoBreath();
                 return Err;
             } else {
@@ -220,6 +228,7 @@ int StoreRemove(const char *Id) {
         if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
             (void)DbDelete(DepKey);
         }
+        StoreClearAppDesktopKeys(Id);
         return FAT_OK;
     } else {
         Dir = STORE_APPS_DIR;
@@ -229,6 +238,9 @@ int StoreRemove(const char *Id) {
         (void)DbDelete(Key);
         if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
             (void)DbDelete(DepKey);
+        }
+        if (Kind == STORE_KIND_APP) {
+            StoreClearAppDesktopKeys(Id);
         }
         return FAT_OK;
     }
@@ -241,6 +253,9 @@ int StoreRemove(const char *Id) {
     (void)DbDelete(Key);
     if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
         (void)DbDelete(DepKey);
+    }
+    if (Kind == STORE_KIND_APP) {
+        StoreClearAppDesktopKeys(Id);
     }
     if (Kind == STORE_KIND_FONT) {
         gNeedFontReload = 1;

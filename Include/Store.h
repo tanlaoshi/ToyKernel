@@ -99,6 +99,8 @@ int StoreIsManagedPayload(const char *Path);
 int StoreDeleteManagedFile(const char *Path);
 /* PR-S-bundle-install：绕过托管保护的删树（Apps/<id>/） */
 int StoreDeleteManagedTree(const char *Path);
+/* PR-S-bundle-remove：清 ix./sx./sy.<id> */
+void StoreClearAppDesktopKeys(const char *Id);
 /* 仅清清单（文件已由卸载程序删掉）；成功 FAT_OK */
 int StoreUnregister(const char *Id);
 /* FileSystem 删/改名前查询：1=允许绕过托管保护（Store 内部） */

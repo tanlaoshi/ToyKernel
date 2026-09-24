@@ -178,8 +178,8 @@ static int RemoveTreeRec(const char *Path, int Depth) {
         return FileSystemDeleteFile(Path);
     }
 
-    /* 多趟：目录项可能 > FAT_LIST_MAX */
-    for (Pass = 0; Pass < FAT_LIST_MAX + 4; Pass++) {
+    /* 多趟；每删一项即重新 List（禁止 static+递归共用缓冲） */
+    for (Pass = 0; Pass < FAT_LIST_MAX * FS_TREE_DEPTH_MAX + 8; Pass++) {
         N = 0;
         Err = FileSystemListEntries(Path, Ents, FAT_LIST_MAX, &N);
         if (Err != FAT_OK) {
@@ -203,6 +203,7 @@ static int RemoveTreeRec(const char *Path, int Depth) {
                 return Err;
             }
             Progress = 1;
+            break; /* 子递归会覆写 Ents；删一项后重扫 */
         }
         if (!Progress) {
             break;

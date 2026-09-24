@@ -36,6 +36,24 @@ int StoreDeleteManagedTree(const char *Path) {
     return Err;
 }
 
+/* PR-S-bundle-remove：清桌面布局/注册键，避免卸后死坐标 */
+void StoreClearAppDesktopKeys(const char *Id) {
+    char Key[DB_KEY_MAX];
+
+    if (!Id || !Id[0]) {
+        return;
+    }
+    if (MakeDbKey(Key, (int)sizeof(Key), "ix.", Id)) {
+        (void)DbDelete(Key);
+    }
+    if (MakeDbKey(Key, (int)sizeof(Key), "sx.", Id)) {
+        (void)DbDelete(Key);
+    }
+    if (MakeDbKey(Key, (int)sizeof(Key), "sy.", Id)) {
+        (void)DbDelete(Key);
+    }
+}
+
 int StoreUnregister(const char *Id) {
     char Key[DB_KEY_MAX];
     char DepKey[DB_KEY_MAX];
@@ -50,6 +68,7 @@ int StoreUnregister(const char *Id) {
     if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
         (void)DbDelete(DepKey);
     }
+    StoreClearAppDesktopKeys(Id);
     return FAT_OK;
 }
 
