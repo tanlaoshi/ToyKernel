@@ -14,6 +14,7 @@ memory)
     ;;
 fs)
     make runtests-fs
+    make runtests-fs FS=ram
     ;;
 *)
     echo "usage: runtests.sh scheduler|memory|fs" >&2

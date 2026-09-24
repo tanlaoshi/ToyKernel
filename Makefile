@@ -467,7 +467,9 @@ FS_SRCS := Common/Modules/FileSystemFat/FatFsOps.c \
            Common/Modules/FileSystemFat/FatIo.c \
            Common/Modules/FileSystemFat/FatFormat.c
 else ifeq ($(FS),ram)
-FS_SRCS := Student/FileSystemRam/FileSystemRam.c
+FS_SRCS := Student/FileSystemRam/FileSystemRam.c \
+           Student/FileSystemRam/FileSystemRamCompat.c
+CFLAGS_COMMON += -DTOY_FS_RAM
 else
 $(error Unknown FS: $(FS))
 endif
@@ -506,6 +508,12 @@ MEM_TEST_CFLAGS += -DTOY_MEM_BESTFIT
 endif
 
 FS_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_FS_HOST -I Tests/Stub -I Include
+ifeq ($(FS),ram)
+FS_TEST_CFLAGS += -DTOY_FS_RAM
+FS_TEST_POLICY := Student/FileSystemRam/FileSystemRam.c
+else
+FS_TEST_POLICY := Tests/Stub/FsStub.c
+endif
 
 scheduler: runtests
 
@@ -530,9 +538,9 @@ runtests-memory:
 runtests-fs:
 	@mkdir -p Build/Tests
 	$(HOSTCC) $(FS_TEST_CFLAGS) -c Common/Library/Vfs.c -o Build/Tests/fs_vfs.o
-	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tests/Stub/FsStub.c -o Build/Tests/fs_stub.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c $(FS_TEST_POLICY) -o Build/Tests/fs_policy.o
 	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tests/TestFs.c -o Build/Tests/fs_test.o
-	$(HOSTCC) -o Build/Tests/TestFs Build/Tests/fs_vfs.o Build/Tests/fs_stub.o Build/Tests/fs_test.o
+	$(HOSTCC) -o Build/Tests/TestFs Build/Tests/fs_vfs.o Build/Tests/fs_policy.o Build/Tests/fs_test.o
 	./Build/Tests/TestFs
 
 all: $(TARGET)
