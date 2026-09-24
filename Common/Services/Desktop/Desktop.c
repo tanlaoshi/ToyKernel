@@ -8,6 +8,7 @@
  */
 #include "DesktopPrivate.h"
 #include "Gui.h" /* GuiCursorHide/Show：时钟重绘任务栏勿穿光标 */
+#include "UiAction.h" /* PR-GUI-btn-action：DEBUG 桩 */
 
 /* 全局定义集中在宿主；其它 TU 经 DesktopPrivate.h extern */
 MENU_ROW gMenuRows[MENU_ROWS_MAX];
@@ -178,6 +179,10 @@ void DesktopInit(void) {
     LoadDesktopIcons();
     ToyLogGui("Boot: Desktop Ready\n");
     DebugWrite("desktop: icons+taskbar ready (TOYOS Assets or solid)\n");
+#if TOY_KERNEL_DEBUG
+    /* PR-GUI-btn-action：桌面就绪后串口自检 SYNC/ASYNC 分发命中 */
+    UiActionSelfCheck();
+#endif
     gDesktopBusy = 0;
 }
 
