@@ -491,7 +491,7 @@ endif
 # 汇编用同一 TOY_BRINGUP（Startup.S 无条件调 StartupMain）
 ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
-.PHONY: all clean boards kernel-bin runtests runtests-memory scheduler
+.PHONY: all clean boards kernel-bin runtests runtests-memory runtests-fs scheduler
 .DEFAULT_GOAL := all
 
 HOSTCC ?= gcc
@@ -504,6 +504,8 @@ MEM_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_MEM_HOST -I Tests/Stub -I Include
 ifeq ($(MEMORY),bestfit)
 MEM_TEST_CFLAGS += -DTOY_MEM_BESTFIT
 endif
+
+FS_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_FS_HOST -I Tests/Stub -I Include
 
 scheduler: runtests
 
@@ -524,6 +526,14 @@ runtests-memory:
 	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tests/TestMemory.c -o Build/Tests/mem_test.o
 	$(HOSTCC) -o Build/Tests/TestMemory Build/Tests/mem_policy.o Build/Tests/mem_ops.o Build/Tests/mem_stub.o Build/Tests/mem_test.o
 	./Build/Tests/TestMemory
+
+runtests-fs:
+	@mkdir -p Build/Tests
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c Common/Library/Vfs.c -o Build/Tests/fs_vfs.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tests/Stub/FsStub.c -o Build/Tests/fs_stub.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tests/TestFs.c -o Build/Tests/fs_test.o
+	$(HOSTCC) -o Build/Tests/TestFs Build/Tests/fs_vfs.o Build/Tests/fs_stub.o Build/Tests/fs_test.o
+	./Build/Tests/TestFs
 
 all: $(TARGET)
 ifneq ($(ARCH),x86_64)
