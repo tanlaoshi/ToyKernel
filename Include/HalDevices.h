@@ -92,5 +92,8 @@ void HalNetSetLwipReceive(int Enable);
 
 /* 平台设备枚举：扫总线并对每个设备 DeviceAdd；由 DeviceEnumerateAll 调用 */
 void HalDeviceEnumerate(void);
+/* PR-DEV-tree-pci：扁平枚举后按 PCI 桥建父子边（最近桥 + Host 浅挂）。
+ * x86 实现；arm64/riscv 无 PCI 不调用。只读配置空间。 */
+void HalDeviceLinkPciTree(void);
 
 #endif

@@ -191,4 +191,7 @@ void HalDeviceEnumerate(void) {
     DebugWrite("DeviceEnum: found ");
     DebugHex32((UINT32)Added);
     DebugWrite(" PCI devices\n");
+
+    /* PR-DEV-tree-pci：扁平枚举后按桥建父子边 */
+    HalDeviceLinkPciTree();
 }
