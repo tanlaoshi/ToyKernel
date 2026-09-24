@@ -101,7 +101,6 @@ void *PhysicalMemoryAllocatePages(UINT32 Count)
             Seg->RefCount[i] = 1;
         }
         Seg->FreePages -= Count;
-        PmmAdjustFreePages(-(INT64)Count);
         Ret = (void *)(UINTN)(Seg->BasePhys + ((UINT64)Idx << PAGE_SHIFT));
         break;
     }
@@ -155,7 +154,6 @@ void PhysicalMemoryFreePages(void *Page, UINT32 Count)
         Seg->Bitmap[i / 8] &= (UINT8)~(1u << (i % 8));
         Seg->RefCount[i] = 0;
         Seg->FreePages++;
-        PmmAdjustFreePages(1);
     }
     SpinLockRelease(&gPhysLock);
 }
@@ -224,7 +222,6 @@ void PhysicalMemoryReleasePage(void *Page)
     if (Seg->RefCount[Idx] == 0) {
         Seg->Bitmap[Idx / 8] &= (UINT8)~(1u << (Idx % 8));
         Seg->FreePages++;
-        PmmAdjustFreePages(1);
     }
     SpinLockRelease(&gPhysLock);
 }
@@ -242,5 +239,11 @@ UINT64 PhysicalMemoryTotalPages(void)
 
 UINT64 PhysicalMemoryFreePageCount(void)
 {
-    return PmmTrackedFreePages();
+    UINT64 Total = 0;
+    UINT32 i;
+
+    for (i = 0; i < PMM_SEGMENT_COUNT; i++) {
+        Total += PmmSegment(i)->FreePages;
+    }
+    return Total;
 }

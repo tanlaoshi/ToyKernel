@@ -186,10 +186,8 @@ static void SumComposeOs(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
     }
     BufFin(&B);
 }
-
 static void SumComposeCpu(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
     BUF B;
-
     BufInit(&B, Out, Max);
     BufStr(&B, S->CpuInfo ? S->CpuInfo : "-");
     BufStr(&B, " x");
@@ -197,14 +195,25 @@ static void SumComposeCpu(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
     BufFin(&B);
 }
 
+static void BufMemNum(BUF *B, UINT64 MiB, int AsGib) {
+    if (!AsGib) {
+        BufDec64(B, MiB);
+        return;
+    }
+    BufDec64(B, MiB / 1024u);
+    BufCh(B, '.');
+    BufCh(B, (char)('0' + (MiB % 1024u) * 10u / 1024u));
+}
+
 static void SumComposeMem(char *Out, UINTN Max, const DEVICES_UI_SUMMARY *S) {
     BUF B;
-
+    int AsGib = S->MemTotalMiB > 1024u;
     BufInit(&B, Out, Max);
-    BufDec64(&B, S->MemFreeMiB);
+    BufMemNum(&B, S->MemFreeMiB, AsGib);
     BufCh(&B, '/');
-    BufDec64(&B, S->MemTotalMiB);
-    BufStr(&B, " MiB");
+    BufMemNum(&B, S->MemTotalMiB, AsGib);
+    BufCh(&B, ' ');
+    BufStr(&B, AsGib ? "GiB" : "MiB");
     BufFin(&B);
 }
 

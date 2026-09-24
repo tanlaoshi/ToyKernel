@@ -18,7 +18,7 @@ int PhysicalMemoryInitialize(void)
     PmmPhysLockInit();
     PmmSegmentInit(Info);
     DebugWrite("PMM: free=");
-    DebugHex64(PmmTrackedFreePages() << PAGE_SHIFT);
+    DebugHex64(PhysicalMemoryFreePageCount() << PAGE_SHIFT);
     DebugWrite(" / tracked=");
     DebugHex64(PhysicalMemoryTotalPages() << PAGE_SHIFT);
     DebugWrite("\n");

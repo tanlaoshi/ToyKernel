@@ -22,7 +22,5 @@ typedef struct {
 
 void PmmSegmentInit(const BOOT_INFO *Info);
 PMM_SEGMENT *PmmSegment(UINT32 Index);
-UINT64 PmmTrackedFreePages(void);
-void PmmAdjustFreePages(INT64 Delta);
 
 #endif

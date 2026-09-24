@@ -10,7 +10,6 @@ static UINT8       gSegment0Bitmap[PMM_BITMAP_BYTES];
 static UINT16      gSegment0RefCount[PMM_PAGES_PER_SEGMENT];
 static UINT64      gBootAllocBase;
 static UINT64      gBootAllocNext;
-static UINT64      gFreePages;
 
 PMM_SEGMENT *PmmSegment(UINT32 Index)
 {
@@ -18,20 +17,6 @@ PMM_SEGMENT *PmmSegment(UINT32 Index)
         return 0;
     }
     return &gSegments[Index];
-}
-
-UINT64 PmmTrackedFreePages(void)
-{
-    return gFreePages;
-}
-
-void PmmAdjustFreePages(INT64 Delta)
-{
-    if (Delta < 0 && gFreePages < (UINT64)(-Delta)) {
-        gFreePages = 0;
-        return;
-    }
-    gFreePages = (UINT64)((INT64)gFreePages + Delta);
 }
 
 static void *BootAllocate(UINTN Size)
@@ -289,10 +274,6 @@ void PmmSegmentInit(const BOOT_INFO *Info)
         }
     }
     MarkBootUsed();
-    gFreePages = 0;
-    for (i = 0; i < PMM_SEGMENT_COUNT; i++) {
-        gFreePages += gSegments[i].FreePages;
-    }
 
 #if TOY_KERNEL_DEBUG
     PmmDebugDump();
