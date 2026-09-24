@@ -92,6 +92,8 @@ void DeviceUnbind(DEVICE_NODE *Dev);
 void DeviceListDump(void);
 /* PR-DEV-lsdev：解析 -v / -b / -u / -c。0=已打印，-1=用法错误 */
 int DeviceListDumpArgs(int Argc, char **Argv);
+/* PR-DEV-tree-lsdev：lsdev -t 树状打印（根=Parent==NULL，缩进 2 空格×深度，深度≥16 停）。 */
+void DeviceListDumpTree(int Verbose);
 
 /*
  * 由启动路径调用（PR-DEV-3）；内部调 HalDeviceEnumerate。

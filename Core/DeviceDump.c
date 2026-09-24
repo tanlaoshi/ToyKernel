@@ -14,6 +14,7 @@ typedef struct {
     int HasClass;
     int ClassOk;
     UINT8 Class;
+    int TreeMode;
     char NameKey[32];
 } LIST_OPTS;
 
@@ -44,23 +45,16 @@ static void WriteHex4(UINT32 V) {
 
 static void WriteDec(UINT32 V) {
     char Buf[12];
-    int N = 0;
-    int i;
+    int N = 0, i;
 
-    if (V == 0) {
-        ConsoleWrite("0");
-        return;
-    }
+    if (V == 0) { ConsoleWrite("0"); return; }
     while (V > 0 && N < 11) {
         Buf[N++] = (char)('0' + (V % 10));
         V /= 10;
     }
     for (i = N - 1; i >= 0; i--) {
         char One[2];
-
-        One[0] = Buf[i];
-        One[1] = 0;
-        ConsoleWrite(One);
+        One[0] = Buf[i]; One[1] = 0; ConsoleWrite(One);
     }
 }
 
@@ -236,6 +230,7 @@ void DeviceListDump(void) {
     Opt.HasClass = 0;
     Opt.ClassOk = 0;
     Opt.Class = 0;
+    Opt.TreeMode = 0;
     Opt.NameKey[0] = 0;
     Dump(&Opt);
 }
@@ -250,6 +245,7 @@ int DeviceListDumpArgs(int Argc, char **Argv) {
     Opt.HasClass = 0;
     Opt.ClassOk = 0;
     Opt.Class = 0;
+    Opt.TreeMode = 0;
     Opt.NameKey[0] = 0;
 
     for (i = 0; i < Argc; i++) {
@@ -260,6 +256,10 @@ int DeviceListDumpArgs(int Argc, char **Argv) {
         }
         if (StrEq(A, "-v")) {
             Opt.Verbose = 1;
+            continue;
+        }
+        if (StrEq(A, "-t")) {
+            Opt.TreeMode = 1;
             continue;
         }
         if (StrEq(A, "-b")) {
@@ -274,7 +274,7 @@ int DeviceListDumpArgs(int Argc, char **Argv) {
             const char *Key;
 
             if (i + 1 >= Argc || !Argv[i + 1]) {
-                ConsoleWrite("usage: list devices [-v] [-b|-u] [-c class]\n");
+                ConsoleWrite("usage: list devices [-v] [-t] [-b|-u] [-c class]\n");
                 return -1;
             }
             Key = Argv[++i];
@@ -283,12 +283,16 @@ int DeviceListDumpArgs(int Argc, char **Argv) {
             Opt.ClassOk = ParseClassByte(Key, &Opt.Class);
             continue;
         }
-        ConsoleWrite("usage: list devices [-v] [-b|-u] [-c class]\n");
+        ConsoleWrite("usage: list devices [-v] [-t] [-b|-u] [-c class]\n");
         return -1;
     }
     if (Opt.BoundOnly && Opt.UnboundOnly) {
-        ConsoleWrite("usage: list devices [-v] [-b|-u] [-c class]\n");
+        ConsoleWrite("usage: list devices [-v] [-t] [-b|-u] [-c class]\n");
         return -1;
+    }
+    if (Opt.TreeMode) {
+        DeviceListDumpTree(Opt.Verbose);
+        return 0;
     }
     Dump(&Opt);
     return 0;
