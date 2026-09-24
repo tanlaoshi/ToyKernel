@@ -110,11 +110,11 @@ int StoreInstallPump(const char *Id) {
                 return Err;
             }
             if (sPump.Kind == STORE_KIND_APP) {
-                Err = EnsureAppsDir();
+                Err = StoreInstallBundlePrepare(Tab[i].Id, Tab[i].File, sPump.Dst,
+                                               (int)sizeof(sPump.Dst));
                 if (Err != FAT_OK) {
                     return Err;
                 }
-                JoinPath(sPump.Dst, (int)sizeof(sPump.Dst), STORE_APPS_DIR, Tab[i].File);
                 sPump.Check = STORE_CHECK_ELF;
             } else if (sPump.Kind == STORE_KIND_FONT) {
                 Err = EnsureFontsDir();
@@ -161,6 +161,15 @@ int StoreInstallPump(const char *Id) {
             HalConsoleWriteSerial("store: install copy failed\n");
             StoreInstallPumpAbort();
             return Err;
+        }
+        if (sPump.Kind == STORE_KIND_APP) {
+            Err = StoreInstallBundleExtras(sPump.Id);
+            if (Err != FAT_OK) {
+                HalConsoleWriteSerial("store: bundle extras failed\n");
+                (void)StoreRemoveAppPayload(sPump.Id, sPump.File);
+                StoreInstallPumpAbort();
+                return Err;
+            }
         }
         sPump.Phase = PUMP_MARK;
         /* fall through same Step：登记很快 */

@@ -12,6 +12,35 @@
 #include "Hal.h"
 #include "Db.h"
 
+static int StoreUnlinkPayload(const char *Dir, const char *Want);
+
+int StoreRemoveAppPayload(const char *Id, const char *File) {
+    char Bundle[96];
+    FAT_FILE_STAT St;
+    int Err;
+
+    if (!File || !File[0]) {
+        return FAT_ERR_INVAL;
+    }
+    if (Id && Id[0]) {
+        StoreAppBundleDir(Bundle, (int)sizeof(Bundle), Id);
+        if (FileSystemFileStat(Bundle, &St) == FAT_OK && (St.Attr & FAT_ATTR_DIR)) {
+            Err = StoreDeleteManagedTree(Bundle);
+            if (Err != FAT_OK && Err != FAT_ERR_NOENT) {
+                return Err;
+            }
+            return FAT_OK;
+        }
+        StoreAppElfPath(Bundle, (int)sizeof(Bundle), Id, File);
+        if (FileSystemFileStat(Bundle, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
+            Err = StoreDeleteManagedFile(Bundle);
+            (void)FileSystemFileSync("");
+            return (Err == FAT_OK || Err == FAT_ERR_NOENT) ? FAT_OK : Err;
+        }
+    }
+    return StoreUnlinkPayload(STORE_APPS_DIR, File);
+}
+
 /* 删托管载荷并刷盘；已 Resolve 存在时，勿把 NOENT 当成功。
  * 同名多目录项时循环摘除，直到 Dir 扫不到。 */
 static int StoreUnlinkPayload(const char *Dir, const char *Want) {
@@ -105,7 +134,14 @@ int StoreRemove(const char *Id) {
             } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
                 Dir = STORE_PACKS_DIR;
             } else if (Kind == STORE_KIND_APP) {
-                Dir = STORE_APPS_DIR;
+                UserN = CollectDependents(Id, Users, STORE_INSTALLED_MAX);
+                if (UserN > 0) {
+                    HalConsoleWriteSerial("store: still required by dependents\n");
+                    return FAT_ERR_INVAL;
+                }
+                Err = StoreRemoveAppPayload(Id, Tab[i].File);
+                StoreIoBreath();
+                return Err;
             } else {
                 return FAT_ERR_INVAL;
             }
@@ -174,6 +210,17 @@ int StoreRemove(const char *Id) {
         Dir = STORE_FONTS_DIR;
     } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
         Dir = STORE_PACKS_DIR;
+    } else if (Kind == STORE_KIND_APP) {
+        Err = StoreRemoveAppPayload(Id, File);
+        StoreIoBreath();
+        if (Err != FAT_OK) {
+            return Err;
+        }
+        (void)DbDelete(Key);
+        if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+            (void)DbDelete(DepKey);
+        }
+        return FAT_OK;
     } else {
         Dir = STORE_APPS_DIR;
     }

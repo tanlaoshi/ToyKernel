@@ -44,13 +44,21 @@ static int PlanInstallRec(const char *Id, int Depth,
         return FAT_ERR_INVAL;
     }
     if (StoreIsInstalled(Id)) {
-        if (!StoreHasSi(Id)) {
-            Err = StoreAdoptInstalled(Id);
-            if (Err != FAT_OK) {
-                return Err;
+        /*
+         * PR-S-bundle-install：扁平 Apps/<file> 算已装，但仍无 Apps/<id>/
+         * 时继续排入计划，迁移到目录包。
+         */
+        if (LookupPackageKind(Id) == STORE_KIND_APP && !StoreAppBundleReady(Id)) {
+            /* fall through：排入 Out */
+        } else {
+            if (!StoreHasSi(Id)) {
+                Err = StoreAdoptInstalled(Id);
+                if (Err != FAT_OK) {
+                    return Err;
+                }
             }
+            return FAT_OK;
         }
-        return FAT_OK;
     }
     if (PlanHasId(Out, *OutN, Id)) {
         return FAT_OK;

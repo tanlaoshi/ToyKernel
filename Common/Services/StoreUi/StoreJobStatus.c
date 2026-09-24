@@ -120,13 +120,21 @@ void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
     if (Err == STORE_JOB_ERR_CANCEL) {
         StoreSetStatus("cancelled");
         ConsoleWrite("store job: cancelled\n");
-        ConsoleShowPrompt();
+        if (!ConsolePromptSuspended()) {
+            if (!StoreJobShellPumping() && !ConsolePromptSuspended()) {
+            ConsoleShowPrompt();
+        }
+        }
         return;
     }
     if (Err == FAT_OK && Kind == STORE_JOB_INSTALL && PlanN == 0) {
         StoreSetStatus("already installed");
         ConsoleWrite("store job: already installed\n");
-        ConsoleShowPrompt();
+        if (!ConsolePromptSuspended()) {
+            if (!StoreJobShellPumping() && !ConsolePromptSuspended()) {
+            ConsoleShowPrompt();
+        }
+        }
         return;
     }
     if (Err == FAT_OK) {
@@ -169,5 +177,9 @@ void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN) {
         StoreSetStatus("sync fail (need repo)");
         ConsoleWrite("store job: sync fail\n");
     }
-    ConsoleShowPrompt();
+    if (!ConsolePromptSuspended()) {
+        if (!StoreJobShellPumping() && !ConsolePromptSuspended()) {
+            ConsoleShowPrompt();
+        }
+    }
 }

@@ -44,6 +44,10 @@ int StoreJobCancel(void);
 int StoreJobShellBegin(void);
 void StoreJobShellEnd(void);
 int StoreJobShellIsBusy(void);
+/* Shell 泵 StoreJobStep 期间置位；FinishStatus 勿 ShowPrompt */
+void StoreJobShellPumpBegin(void);
+void StoreJobShellPumpEnd(void);
+int StoreJobShellPumping(void);
 
 /*
  * Shell INTERFACE：只 Enqueue，立即返回（0=已入队；-1=忙）。

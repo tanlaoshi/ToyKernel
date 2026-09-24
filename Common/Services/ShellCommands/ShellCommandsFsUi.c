@@ -73,6 +73,16 @@ static void ShellStoreNetDone(const char *Verb, int Err) {
 static void ShellStoreJobStatus(void) {
     char Buf[96];
     int Err;
+    int i;
+
+    /* 无 GUI 让出时 Worker 可能饿死；Shell 查 job 时顺带泵几步 */
+    StoreJobShellPumpBegin();
+    for (i = 0; i < 16 && StoreJobUiIsBusy(); i++) {
+        if (StoreJobStep() != 0) {
+            break;
+        }
+    }
+    StoreJobShellPumpEnd();
 
     if (StoreJobUiIsBusy()) {
         StoreJobGetStatus(Buf, (int)sizeof(Buf));

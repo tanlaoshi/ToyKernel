@@ -68,8 +68,15 @@ int StoreInstallCopyBegin(const char *Src, const char *Dst, int Check) {
     if (FileSystemFileStat(Src, &St) != FAT_OK || (St.Attr & FAT_ATTR_DIR)) {
         return FAT_ERR_NOENT;
     }
-    if (St.Size < 4 || St.Size > STORE_COPY_MAX) {
+    if (St.Size > STORE_COPY_MAX) {
         return FAT_ERR_FILE_TOO_BIG;
+    }
+    /* ELF/TOYF 至少魔数 4 字节；其它（PKG/Assets）允许更小 */
+    if (Check != STORE_CHECK_NONE && St.Size < 4) {
+        return FAT_ERR_FILE_TOO_BIG;
+    }
+    if (St.Size == 0) {
+        return FAT_ERR_NOENT;
     }
     Pages = (UINT32)((St.Size + 4095u) / 4096u);
     if (Pages == 0) {

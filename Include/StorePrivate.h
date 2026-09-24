@@ -70,6 +70,18 @@ void StoreInstallCopyAbort(void);
 int  StoreInstallCopyBusy(void);
 void StoreInstallCopyProgress(UINTN *OutGot, UINTN *OutSize);
 
+/* PR-S-bundle-install */
+const char *StorePathBaseName(const char *Path);
+void StoreAppBundleDir(char *Out, int Max, const char *Id);
+void StoreAppElfPath(char *Out, int Max, const char *Id, const char *File);
+int StoreAppElfExists(const char *Id, const char *File);
+int StoreAppBundleReady(const char *Id);
+int StoreResolveAppPath(const char *Id, const char *File, char *Out, int OutMax);
+int StoreInstallBundlePrepare(const char *Id, const char *File, char *DstElf,
+                              int DstMax);
+int StoreInstallBundleExtras(const char *Id);
+int StoreRemoveAppPayload(const char *Id, const char *File);
+
 /* Console 里已有同名全局，这里不能再导出。 */
 static inline int StrEq(const char *A, const char *B) {
     if (!A || !B) {

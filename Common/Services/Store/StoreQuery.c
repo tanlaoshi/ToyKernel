@@ -119,6 +119,15 @@ int StoreIsInstalled(const char *Id) {
             Dir = STORE_FONTS_DIR;
         } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
             Dir = STORE_PACKS_DIR;
+        } else if (Kind == STORE_KIND_APP) {
+            if (File[0] && StoreAppElfExists(Id, File)) {
+                return 1;
+            }
+            (void)DbDelete(Key);
+            if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+                (void)DbDelete(DepKey);
+            }
+            return 0;
         } else {
             Dir = STORE_APPS_DIR;
         }
@@ -146,7 +155,7 @@ int StoreIsInstalled(const char *Id) {
         }
         Kind = EntryKind(Tab[i].Type);
         if (Kind == STORE_KIND_APP) {
-            return DirHasFileCI(STORE_APPS_DIR, Tab[i].File);
+            return StoreAppElfExists(Tab[i].Id, Tab[i].File);
         }
         if (Kind == STORE_KIND_FONT) {
             return DirHasFileCI(STORE_FONTS_DIR, Tab[i].File);
@@ -160,12 +169,10 @@ int StoreIsInstalled(const char *Id) {
 }
 
 void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags) {
-    static FAT_DIRECTORY_ENTRY Apps[FAT_LIST_MAX];
     static FAT_DIRECTORY_ENTRY Fonts[FAT_LIST_MAX];
     static FAT_DIRECTORY_ENTRY Packs[FAT_LIST_MAX];
     char Key[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
-    int Na = -1;
     int Nf = -1;
     int Np = -1;
     int i;
@@ -195,21 +202,7 @@ void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags) {
         }
         Kind = EntryKind(Tab[i].Type);
         if (Kind == STORE_KIND_APP) {
-            if (Na < 0) {
-                Na = 0;
-                if (FileSystemListEntries(STORE_APPS_DIR, Apps, FAT_LIST_MAX, &Na) !=
-                    FAT_OK) {
-                    Na = 0;
-                }
-                StoreIoBreath();
-            }
-            for (j = 0; j < Na; j++) {
-                if (!(Apps[j].Attr & FAT_ATTR_DIR) &&
-                    StrEqIgnoreCase(Apps[j].Name, Tab[i].File)) {
-                    OutFlags[i] = 1;
-                    break;
-                }
-            }
+            OutFlags[i] = StoreAppElfExists(Tab[i].Id, Tab[i].File) ? 1 : 0;
         } else if (Kind == STORE_KIND_FONT) {
             if (Nf < 0) {
                 Nf = 0;

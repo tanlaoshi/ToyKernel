@@ -25,6 +25,17 @@ int StoreDeleteManagedFile(const char *Path) {
     return Err;
 }
 
+int StoreDeleteManagedTree(const char *Path) {
+    int Err;
+
+    gStorePayloadBypass++;
+    Err = FileSystemRemoveTree(Path);
+    if (gStorePayloadBypass > 0) {
+        gStorePayloadBypass--;
+    }
+    return Err;
+}
+
 int StoreUnregister(const char *Id) {
     char Key[DB_KEY_MAX];
     char DepKey[DB_KEY_MAX];
@@ -99,7 +110,7 @@ static int SiListsFile(const char *File) {
         return 0;
     }
     for (i = 0; i < N; i++) {
-        if (StrEqIgnoreCase(Inst[i].File, File)) {
+        if (StrEqIgnoreCase(StorePathBaseName(Inst[i].File), StorePathBaseName(File))) {
             return 1;
         }
     }
@@ -119,7 +130,8 @@ static int CatalogListsPayload(const char *File, int WantKind) {
     }
     for (i = 0; i < Count; i++) {
         if (EntryKind(Tab[i].Type) == WantKind &&
-            StrEqIgnoreCase(Tab[i].File, File)) {
+            StrEqIgnoreCase(StorePathBaseName(Tab[i].File),
+                            StorePathBaseName(File))) {
             return 1;
         }
     }
@@ -139,10 +151,12 @@ int StoreIsManagedPayload(const char *Path) {
     }
     (void)Vol;
     if (RelUnderDir(Rel, STORE_APPS_DIR, &Leaf)) {
-        if (!PathEndsWithElf(Leaf)) {
+        const char *Base = StorePathBaseName(Leaf);
+
+        if (!PathEndsWithElf(Base)) {
             return 0; /* Apps 下 README 等可删 */
         }
-        return SiListsFile(Leaf) || CatalogListsPayload(Leaf, STORE_KIND_APP);
+        return SiListsFile(Base) || CatalogListsPayload(Base, STORE_KIND_APP);
     }
     if (RelUnderDir(Rel, STORE_FONTS_DIR, &Leaf)) {
         return SiListsFile(Leaf) || CatalogListsPayload(Leaf, STORE_KIND_FONT);

@@ -81,15 +81,6 @@ static void MenuLabelFromElf(const char *File, char *Out, int Max) {
     Out[i] = 0;
 }
 
-static int MenuPathExists(const char *Path) {
-    FAT_FILE_STAT St;
-
-    if (!Path || !Path[0]) {
-        return 0;
-    }
-    return FileSystemFileStat(Path, &St) == 0;
-}
-
 static int MenuAlreadyHasAppPath(const char *Path) {
     int i;
 
@@ -265,15 +256,18 @@ void RebuildStartMenu(void) {
             if (!In->File[0]) {
                 continue;
             }
-            MenuBuildAppsPath(Path, (int)sizeof(Path), In->File);
-            if (MenuAlreadyHasAppPath(Path)) {
-                continue;
-            }
-            if (MenuPathExists(Path)) {
+            if (StoreResolveAppPath(In->Id, In->File, Path, (int)sizeof(Path)) ==
+                FAT_OK) {
+                if (MenuAlreadyHasAppPath(Path)) {
+                    continue;
+                }
                 MenuLabelFromElf(In->File, Label, sizeof(Label));
                 MenuEnrichLabelFromCatalog(In->File, Label, sizeof(Label));
                 MenuAddAppRow(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
                 AppN++;
+                continue;
+            }
+            if (MenuAlreadyHasAppPath(Path)) {
                 continue;
             }
             MenuLabelFromElf(In->File, Label, sizeof(Label));
