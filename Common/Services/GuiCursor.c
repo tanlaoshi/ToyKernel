@@ -10,6 +10,7 @@
 #include "FilesUi.h"
 #include "SettingsUi.h"
 #include "StoreUi.h"
+#include "EditUi.h"
 #include "Desktop.h"
 
 void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
