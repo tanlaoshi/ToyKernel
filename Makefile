@@ -465,8 +465,22 @@ endif
 # 汇编用同一 TOY_BRINGUP（Startup.S 无条件调 StartupMain）
 ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
-.PHONY: all clean boards kernel-bin
+.PHONY: all clean boards kernel-bin runtests scheduler
 .DEFAULT_GOAL := all
+
+HOSTCC ?= gcc
+TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_SCHED_HOST -I Tests/Stub -I Include
+
+scheduler: runtests
+
+runtests:
+	@mkdir -p Build/Tests
+	$(HOSTCC) $(TEST_CFLAGS) -c Common/Modules/SchedulerRoundRobin/SchedulerRoundRobin.c -o Build/Tests/rr.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Core/Scheduler/SchedulerOps.c -o Build/Tests/ops.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Tests/Stub/SchedulerStub.c -o Build/Tests/stub.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Tests/TestScheduler.c -o Build/Tests/test.o
+	$(HOSTCC) -o Build/Tests/TestScheduler Build/Tests/rr.o Build/Tests/ops.o Build/Tests/stub.o Build/Tests/test.o
+	./Build/Tests/TestScheduler
 
 all: $(TARGET)
 ifneq ($(ARCH),x86_64)

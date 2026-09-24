@@ -4,7 +4,11 @@
 #ifndef SCHEDULER_OPS_H
 #define SCHEDULER_OPS_H
 
+#ifdef TOY_SCHED_HOST
+#include "SchedHostTypes.h"
+#else
 #include "Scheduler.h"
+#endif
 
 typedef struct {
     void (*Init)(void);
