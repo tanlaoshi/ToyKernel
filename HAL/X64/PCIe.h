@@ -26,6 +26,8 @@ void PciWriteConfig(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Offset, UINT3
 /* PR-DEV-bar-size：探测指定 BAR 槽的尺寸（写 0xFFFFFFFF 读掩码后写回原值）。
  * 64-bit BAR 由本函数内部探测高 dword 并合成；高槽本身由调用方置 0。 */
 UINT64 PciBarSize(UINT8 Bus, UINT8 Device, UINT8 Function, int Bar);
+/* PR-DEV-mmio-conflict：读 BAR 原值 bit0 判 IO(1)/MMIO(0)；只读不写。 */
+int PciBarIsIo(UINT8 Bus, UINT8 Device, UINT8 Function, int Bar);
 /* PR-DEV-irq-mode：在能力链中查找指定 Cap ID，返回偏移或 0（只读）。
  * 优先级与 PciEnableMsi 一致：先 MSI-X(0x11) 再 MSI(0x05) 再 INTx。 */
 int PciFindCap(UINT8 Bus, UINT8 Device, UINT8 Function, UINT8 Id);

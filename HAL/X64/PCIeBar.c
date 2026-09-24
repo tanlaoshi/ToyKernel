@@ -22,7 +22,8 @@ static UINT64 MaskToSize32(UINT32 Mask, int IsIo) {
     if (M == 0) {
         return 0;
     }
-    return (UINT64)((~(UINT64)M) + 1);
+    /* ~M 为 UINT32（不提升到 64 位），避免高位填 0xFFFFFFFF 产生假冲突 */
+    return (UINT64)((~M) + 1u);
 }
 
 UINT64 PciBarSize(UINT8 Bus, UINT8 Dev, UINT8 Func, int Bar) {
@@ -67,6 +68,11 @@ UINT64 PciBarSize(UINT8 Bus, UINT8 Dev, UINT8 Func, int Bar) {
         Hi = PciReadConfig(Bus, Dev, Func, HighOff);
         PciWriteConfig(Bus, Dev, Func, HighOff, OrigHi);
 
+        /* 高 dword 不可写（Hi=0）= 32-bit addressable：按低 dword 算 size，
+         * 避免 64 位 ~M+1 把高位填 0xFFFFFFFF 产生假冲突。 */
+        if (Hi == 0) {
+            return MaskToSize32(Mask, 0);
+        }
         Combined = ((UINT64)Hi << 32) | (UINT64)(Mask & 0xFFFFFFF0u);
         M = Combined & 0xFFFFFFFFFFFFFFF0ULL;
         if (M == 0) {
@@ -74,4 +80,17 @@ UINT64 PciBarSize(UINT8 Bus, UINT8 Dev, UINT8 Func, int Bar) {
         }
         return (~M) + 1;
     }
+}
+
+/* PR-DEV-mmio-conflict：读 BAR 原值 bit0 判 IO(1)/MMIO(0)；只读不写。 */
+int PciBarIsIo(UINT8 Bus, UINT8 Dev, UINT8 Func, int Bar) {
+    UINT8 Off;
+    UINT32 Raw;
+
+    if (Bar < 0 || Bar > 5) {
+        return 0;
+    }
+    Off = (UINT8)(PCI_BAR_BASE + Bar * 4);
+    Raw = PciReadConfig(Bus, Dev, Func, Off);
+    return (Raw & 1u) ? 1 : 0;
 }

@@ -96,6 +96,9 @@ void DeviceListDump(void);
 int DeviceListDumpArgs(int Argc, char **Argv);
 /* PR-DEV-tree-lsdev：lsdev -t 树状打印（根=Parent==NULL，缩进 2 空格×深度，深度≥16 停）。 */
 void DeviceListDumpTree(int Verbose);
+/* PR-DEV-mmio-conflict：登记一段 MMIO 区间；与已有区间重叠则 DebugWrite 并返回 -1。
+ * Size==0 或 Base==0 不登记。表满返回 -1。平台无关（Core 不读配置空间）。 */
+int DeviceRegisterMmio(DEVICE_NODE *Dev, UINT64 Base, UINT64 Size);
 
 /*
  * 由启动路径调用（PR-DEV-3）；内部调 HalDeviceEnumerate。

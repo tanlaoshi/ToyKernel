@@ -234,4 +234,29 @@ void HalDeviceEnumerate(void) {
 
     /* PR-DEV-tree-pci：扁平枚举后按桥建父子边 */
     HalDeviceLinkPciTree();
+
+    /* PR-DEV-mmio-conflict：策略 A — 枚举完成后对表内 MMIO BAR 自动登记。
+     * IO BAR 由 PciBarIsIo 过滤；只读不写。冲突由 Core 表打 DebugWrite。 */
+    {
+        int N = DeviceCount();
+        int i;
+
+        for (i = 0; i < N; i++) {
+            DEVICE_NODE *Dev = DeviceGet(i);
+            int b;
+
+            if (!Dev || Dev->Bus != DEVICE_BUS_PCI) {
+                continue;
+            }
+            for (b = 0; b < 6; b++) {
+                if (Dev->BarSize[b] == 0) {
+                    continue;
+                }
+                if (PciBarIsIo(Dev->PciBus, Dev->PciDev, Dev->PciFn, b)) {
+                    continue;
+                }
+                DeviceRegisterMmio(Dev, Dev->Bar[b], Dev->BarSize[b]);
+            }
+        }
+    }
 }
