@@ -209,6 +209,18 @@ UINT64 SchedulerSignal(HAL_INTERRUPT_FRAME *Frame) {
         SpinLockRelease(&gSchedulerLock);
         return 0;
     }
+    /*
+     * PR-TEST：自定义 handler（>SIG_HANDLER_IGN）必须落在用户代码区
+     * （≥ USER_CODE_VIRT）。拒绝 (sighandler_t)2 这类 null 页非法值——
+     * 否则 signal() 返回成功，投递时才在 DeliverToHandlerFrame 崩。
+     * SIG_DFL=0 / SIG_IGN=1 仍放行；真实 handler（如 SigDemo 的 OnTerm
+     * 在 0x40000000+）通过。
+     */
+    if (Handler > SIG_HANDLER_IGN && Handler < USER_CODE_VIRT) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedulerLock);
+        return 0;
+    }
     Old = *Slot;
     *Slot = Handler;
     HalFrameSetReturn(Frame, Old);

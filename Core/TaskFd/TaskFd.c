@@ -24,6 +24,17 @@ void TaskClearFds(TASK *T) {
         T->Fds[i].Path[0] = 0;
         T->Fds[i].Dirty = 0;
     }
+    /*
+     * PR-TEST：预留 fd 0/1/2 为 stdin/stdout/stderr 占位。否则 FdAllocSlot
+     * 从 0 起，pipe() 会分到 Pfd[1]=1，子进程 write(1) 命中 SysWrite 的
+     * Fd==1||2 走 console，PIPEDEMO 因此读到空 Buf。占位后 pipe() 从 fd 3 起。
+     */
+    for (i = 0; i < 3; i++) {
+        T->Fds[i].Used = 1;
+        T->Fds[i].Kind = FD_KIND_CONSOLE;
+        T->Fds[i].SockId = -1;
+        T->Fds[i].Data = 0;
+    }
 }
 
 static void FdFlush(TASK_FD *F) {

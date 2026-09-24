@@ -8,6 +8,13 @@
 #include "Serial.h"
 #include "Font.h"
 #include "ToySerialConfig.h"
+#include "SpinLock.h"
+
+/* PR-TEST：串口输出锁。fork 后父子并发 printf 会字节交错（如 PIPEDEMO 的
+ * "root=0x000PING000..."），用自旋锁把每次 HalSerialWriteChannel 调用做成
+ * 原子（关中断，避免持锁被定时器打断再抢同锁死锁）。RingAppend/GopWrite
+ * 不会回调本函数，无重入风险。零初始化即解锁态。 */
+static SPIN_LOCK gSerialLock;
 
 static int ChannelGopOn(int Channel) {
 #if !TOY_SCREEN_LOG
@@ -78,6 +85,7 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
     if (!Text) {
         return;
     }
+    SpinLockAcquire(&gSerialLock);
     /* ring 始终收（boot / Desktop） */
     RingAppend(Text);
     if (SerialPresent() && ChannelUartOn(Channel)) {
@@ -87,6 +95,7 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
     if (ChannelGopOn(Channel)) {
         GopMirrorLine(Text);
     }
+    SpinLockRelease(&gSerialLock);
 }
 
 void HalSerialWrite(const char *Text) {

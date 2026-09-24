@@ -18,6 +18,7 @@
 #define FD_KIND_SOCKET 1
 #define FD_KIND_PIPE   2
 #define FD_KIND_DIR    3  /* PR-F4：目录快照（Data=FAT_DIRECTORY_ENTRY[]） */
+#define FD_KIND_CONSOLE 4 /* PR-TEST：stdin/stdout/stderr 占位（无 Data；SysWrite 仍按 Fd==1||2 走 console） */
 
 #define PIPE_END_READ  0
 #define PIPE_END_WRITE 1

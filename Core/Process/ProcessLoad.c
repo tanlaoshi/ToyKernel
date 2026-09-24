@@ -17,11 +17,12 @@
 
 int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,
                            const char *Name) {
-    if (SchedulerCreateUser(Name, Info->Entry, Info->StackTop,
-                        VirtualMemorySpaceRoot(Space), Space, Info->BrkBase) < 0) {
-        ConsoleWrite("process: no task slot\n");
-        return -1;
-    }
+    /*
+     * PR-TEST：先打 banner 再 SchedulerCreateUser。原来先建任务再打，新任务
+     * 可被时钟抢占在中途运行，子进程输出与 "process: started" 交错
+     *（FORK 段曾出现 "process: started FORK.C" / "ELF" 拆行）。先打完再建，
+     * banner 完整后再让任务跑。
+     */
     DebugWrite("process: started ");
     DebugWrite(Name);
     DebugWrite(" entry=");
@@ -29,6 +30,11 @@ int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,
     DebugWrite(" root=");
     DebugHex64(VirtualMemorySpaceRoot(Space));
     DebugWrite("\n");
+    if (SchedulerCreateUser(Name, Info->Entry, Info->StackTop,
+                        VirtualMemorySpaceRoot(Space), Space, Info->BrkBase) < 0) {
+        ConsoleWrite("process: no task slot\n");
+        return -1;
+    }
     return 0;
 }
 

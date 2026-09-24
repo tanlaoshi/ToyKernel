@@ -199,7 +199,8 @@ int SysFstat(int Fd, UINT64 UserOut) {
         return -1;
     }
     F = &T->Fds[Fd];
-    if (!F->Used || F->Kind == FD_KIND_SOCKET || F->Kind == FD_KIND_PIPE) {
+    if (!F->Used || F->Kind == FD_KIND_SOCKET || F->Kind == FD_KIND_PIPE ||
+        F->Kind == FD_KIND_CONSOLE) {
         return -1;
     }
     if (SchedulerFdFileStat(T, F->Path, &St) < 0) {

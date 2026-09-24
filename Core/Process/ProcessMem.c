@@ -156,7 +156,7 @@ UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
         }
         Fd = (INT32)((Flags >> 16) & 0xFFFFu);
         if (Fd < 0 || Fd >= MAX_FDS || !T->Fds[Fd].Used ||
-            T->Fds[Fd].Kind != FD_KIND_FILE || !T->Fds[Fd].Data) {
+            T->Fds[Fd].Kind != FD_KIND_FILE) {
             return (UINT64)(INT64)-1;
         }
         FileFd = &T->Fds[Fd];
@@ -201,12 +201,18 @@ UINT64 ProcessMmap(UINT64 Len, UINT64 Prot, UINT64 Flags) {
         if (FileFd) {
             if (FileOff < FileFd->Size) {
                 UINTN N = FileFd->Size - FileOff;
-                UINTN i;
+                UINTN Got = 0;
                 if (N > PAGE_SIZE) {
                     N = PAGE_SIZE;
                 }
-                for (i = 0; i < N; i++) {
-                    ((UINT8 *)Page)[i] = FileFd->Data[FileOff + i];
+                /*
+                 * PR-TEST：流式文件无 Data 缓冲（SchedulerFdOpen 设 Data=0），
+                 * 直接从盘按偏移读入新页。旧代码读 FileFd->Data[off] 永远失败。
+                 */
+                if (VfsServiceReadFileAt(FileFd->Path, FileOff, Page, N, &Got) != FAT_OK) {
+                    PhysicalMemoryFreePage(Page);
+                    MmapRollbackPages(Space, Base, Va);
+                    return (UINT64)(INT64)-1;
                 }
             }
             FileOff += PAGE_SIZE;
