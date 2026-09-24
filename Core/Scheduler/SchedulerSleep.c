@@ -36,7 +36,7 @@ void SchedulerWakeSleepers(void) {
         if (T->Frame) {
             HalFrameSetReturn(T->Frame, 0);
         }
-        SchedulerOpsGet()->Enqueue(SchedulerOpsGet()->PickHome(T), T);
+        RunQueueEnqueue(SchedulerOpsGet()->PickHome(T), T);
     }
     SpinLockRelease(&gSchedulerLock);
 }

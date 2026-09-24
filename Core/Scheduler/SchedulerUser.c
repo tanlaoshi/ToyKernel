@@ -106,7 +106,7 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     TaskCloneFds(&gTasks[Child], Parent);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;
-    SchedulerOpsGet()->Enqueue(SchedulerOpsGet()->PickHome(&gTasks[Child]), &gTasks[Child]);
+    RunQueueEnqueue(SchedulerOpsGet()->PickHome(&gTasks[Child]), &gTasks[Child]);
 
     HalFrameSetReturn(Frame, (UINT64)(UINT32)(Child + 1));
     Parent->Frame = Frame;

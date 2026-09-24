@@ -47,8 +47,8 @@ void SchedulerSetNeedResched(void);
 void RunQueueInitialize(void);
 void RunQueueEnqueue(UINT32 Cpu, TASK *T);
 void RunQueueRemove(TASK *T);
-UINT32 PickHomeCpu(const TASK *T);
 TASK *PickNext(UINT32 Cpu);
+void SchedulerRunQueueView(UINT32 Cpu, TASK ***Slots, int **Count);
 
 /* 定义在 SchedulerWait.c */
 int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,

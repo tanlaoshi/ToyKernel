@@ -439,7 +439,15 @@ USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 	$(USER_VIRT_DIR)/stat.o
 endif
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
+SCHEDULER ?= round-robin
+ifeq ($(SCHEDULER),round-robin)
+SCHED_SRCS := Common/Modules/SchedulerRoundRobin/SchedulerRoundRobin.c
+else
+$(error unknown SCHEDULER=$(SCHEDULER))
+endif
+SCHED_OBJS := $(patsubst Common/Modules/%.c,$(BUILDDIR)/Common/Modules/%.o,$(SCHED_SRCS))
+
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
@@ -507,6 +515,10 @@ ifneq ($(ARCH),x86_64)
 endif
 
 $(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+
+$(BUILDDIR)/Common/Modules/%.o: Common/Modules/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 

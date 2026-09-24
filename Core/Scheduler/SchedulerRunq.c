@@ -2,12 +2,12 @@
  * SchedulerRunq.c — 每核 READY 队列 / steal / PickNext（PR-S-sched-split-1）
  */
 #include "SchedulerPrivate.h"
+#include "SchedulerOps.h"
 #include "Hal.h"
 #include "SpinLock.h"
 #include "ToySerialLog.h"
 
 static SPIN_LOCK gRunQueueLock[HAL_MAX_CPUS];
-static volatile int gRoundRobinHome;
 static volatile UINT64 gStealCount;
 
 typedef struct {
@@ -25,7 +25,6 @@ void RunQueueInitialize(void) {
     UINT32 c;
     int i;
     gStealCount = 0;
-    gRoundRobinHome = 0;
     for (c = 0; c < HAL_MAX_CPUS; c++) {
         SpinLockInit(&gRunQueueLock[c]);
         gRunQueue[c].Count = 0;
@@ -35,39 +34,19 @@ void RunQueueInitialize(void) {
     }
 }
 
-/* 调用方已持 gRunQueueLock[Cpu] */
-static void RunQueueEnqueueLocked(UINT32 Cpu, TASK *T) {
-    CPU_RUN_QUEUE *Q;
-    int Pos;
-    if (!T || Cpu >= HAL_MAX_CPUS || IsIdleTask(T) || T->InRunQueue) {
-        return;
-    }
-    Q = &gRunQueue[Cpu];
-    if (Q->Count >= MAX_TASKS) {
-        return;
-    }
-    /* 高 Priority 靠前；同级 FIFO——队尾偷任务偏向低优先级 */
-    Pos = Q->Count;
-    while (Pos > 0) {
-        TASK *Prev = Q->Slot[Pos - 1];
-        if (!Prev || Prev->Priority >= T->Priority) {
-            break;
-        }
-        Q->Slot[Pos] = Prev;
-        Pos--;
-    }
-    Q->Slot[Pos] = T;
-    Q->Count++;
-    T->InRunQueue = 1;
-    T->HomeCpu = (INT32)Cpu;
+void SchedulerRunQueueView(UINT32 Cpu, TASK ***Slots, int **Count)
+{
+    *Slots = gRunQueue[Cpu].Slot;
+    *Count = &gRunQueue[Cpu].Count;
 }
 
-void RunQueueEnqueue(UINT32 Cpu, TASK *T) {
+void RunQueueEnqueue(UINT32 Cpu, TASK *T)
+{
     if (!T || Cpu >= HAL_MAX_CPUS) {
         return;
     }
     SpinLockAcquire(&gRunQueueLock[Cpu]);
-    RunQueueEnqueueLocked(Cpu, T);
+    SchedulerOpsGet()->Enqueue(Cpu, T);
     SpinLockRelease(&gRunQueueLock[Cpu]);
 }
 
@@ -161,27 +140,6 @@ void RunQueueRemove(TASK *T) {
     T->InRunQueue = 0;
 }
 
-UINT32 PickHomeCpu(const TASK *T) {
-    int Cpus = HalCpuCount();
-    UINT32 Home;
-    int Rr;
-    if (Cpus < 1) {
-        Cpus = 1;
-    }
-    if (Cpus > HAL_MAX_CPUS) {
-        Cpus = HAL_MAX_CPUS;
-    }
-    if (T && T->Affinity >= 0 && T->Affinity < Cpus) {
-        return (UINT32)T->Affinity;
-    }
-    Rr = __sync_fetch_and_add(&gRoundRobinHome, 1);
-    if (Rr < 0) {
-        Rr = -Rr;
-    }
-    Home = (UINT32)(Rr % Cpus);
-    return Home;
-}
-
 static int TaskFitsCpu(const TASK *T, UINT32 Cpu) {
     if (!T || T->State != TASK_READY) {
         return 0;
@@ -255,9 +213,9 @@ TASK *PickNext(UINT32 Cpu) {
         if (TaskFitsCpu(T, Cpu)) {
             return T;
         }
-        Home = PickHomeCpu(T);
+        Home = SchedulerOpsGet()->PickHome(T);
         SpinLockAcquire(&gRunQueueLock[Home]);
-        RunQueueEnqueueLocked(Home, T);
+        SchedulerOpsGet()->Enqueue(Home, T);
         SpinLockRelease(&gRunQueueLock[Home]);
     }
 
@@ -284,9 +242,9 @@ TASK *PickNext(UINT32 Cpu) {
             __sync_fetch_and_add(&gStealCount, 1);
             return T;
         }
-        Home = PickHomeCpu(T);
+        Home = SchedulerOpsGet()->PickHome(T);
         SpinLockAcquire(&gRunQueueLock[Home]);
-        RunQueueEnqueueLocked(Home, T);
+        SchedulerOpsGet()->Enqueue(Home, T);
         SpinLockRelease(&gRunQueueLock[Home]);
     }
 

@@ -138,7 +138,7 @@ void SchedulerStart(void) {
                 gTasks[i].Affinity = (INT32)InputCpu;
                 gTasks[i].HomeCpu = (INT32)InputCpu;
                 gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
-                SchedulerOpsGet()->Enqueue(InputCpu, &gTasks[i]);
+                RunQueueEnqueue(InputCpu, &gTasks[i]);
                 continue;
             }
             if ((gTasks[i].Name[0] == 's' && gTasks[i].Name[1] == 'h') ||
@@ -147,7 +147,7 @@ void SchedulerStart(void) {
                 gTasks[i].Affinity = (INT32)InteractiveCpu;
                 gTasks[i].HomeCpu = (INT32)InteractiveCpu;
                 gTasks[i].Priority = SCHED_PRIORITY_SHELL;
-                SchedulerOpsGet()->Enqueue(InteractiveCpu, &gTasks[i]);
+                RunQueueEnqueue(InteractiveCpu, &gTasks[i]);
                 continue;
             }
             /* worker：钉 BSP（≠ shell/gui 的 AP），后台 Job 与 INTERFACE 分核 */
@@ -156,7 +156,7 @@ void SchedulerStart(void) {
                 gTasks[i].Affinity = 0;
                 gTasks[i].HomeCpu = 0;
                 gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
-                SchedulerOpsGet()->Enqueue(0, &gTasks[i]);
+                RunQueueEnqueue(0, &gTasks[i]);
             }
         }
     }

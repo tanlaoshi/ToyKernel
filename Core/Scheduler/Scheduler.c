@@ -85,6 +85,7 @@ void SchedulerInitialize(void) {
     SpinLockInit(&gSchedulerLock);
     gSchedulerOnline = 0;
     SchedulerOpsRegister(SchedulerRoundRobinOps());
+    RunQueueInitialize();
     SchedulerOpsGet()->Init();
     for (c = 0; c < HAL_MAX_CPUS; c++) {
         gCurrentCpu[c] = 0;
@@ -219,7 +220,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTaskCount++;
         {
             UINT32 Home = SchedulerOpsGet()->PickHome(&gTasks[i]);
-            SchedulerOpsGet()->Enqueue(Home, &gTasks[i]);
+            RunQueueEnqueue(Home, &gTasks[i]);
         }
         SpinLockRelease(&gSchedulerLock);
         return i;
@@ -280,7 +281,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTaskCount++;
         {
             UINT32 Home = SchedulerOpsGet()->PickHome(&gTasks[i]);
-            SchedulerOpsGet()->Enqueue(Home, &gTasks[i]);
+            RunQueueEnqueue(Home, &gTasks[i]);
         }
         SpinLockRelease(&gSchedulerLock);
         return i;
@@ -322,7 +323,7 @@ int SchedulerSetPriority(INT32 Pid, INT32 Priority) {
     if (T->State == TASK_READY && T->InRunQueue) {
         UINT32 Home = (T->HomeCpu >= 0) ? (UINT32)T->HomeCpu : SchedulerOpsGet()->PickHome(T);
         SchedulerOpsGet()->Remove(T);
-        SchedulerOpsGet()->Enqueue(Home, T);
+        RunQueueEnqueue(Home, T);
     }
     SpinLockRelease(&gSchedulerLock);
     return 0;
@@ -367,7 +368,7 @@ void ActivateTask(TASK *T) {
         Prev->State = TASK_READY;
         Prev->OnCpu = -1;
         if (!IsIdleTask(Prev)) {
-            SchedulerOpsGet()->Enqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
+            RunQueueEnqueue(Cpu, Prev); /* 留在本核队列，利于缓存 */
         }
     }
     SchedulerOpsGet()->Remove(T);

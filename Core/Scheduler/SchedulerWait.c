@@ -87,7 +87,7 @@ static int WakeWaitingParent(TASK *Zombie) {
     }
     P->Waiting = 0;
     P->State = TASK_READY;
-    SchedulerOpsGet()->Enqueue(SchedulerOpsGet()->PickHome(P), P);
+    RunQueueEnqueue(SchedulerOpsGet()->PickHome(P), P);
     ReapZombie(Zombie);
     return 1;
 }
