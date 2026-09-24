@@ -21,5 +21,6 @@ typedef struct {
 void SchedulerOpsRegister(const SCHEDULER_OPS *Ops);
 const SCHEDULER_OPS *SchedulerOpsGet(void);
 const SCHEDULER_OPS *SchedulerRoundRobinOps(void);
+const SCHEDULER_OPS *SchedulerPriorityOps(void);
 
 #endif

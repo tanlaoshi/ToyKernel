@@ -83,7 +83,11 @@ static void TestRemove(const SCHEDULER_OPS *Ops)
 
 int main(void)
 {
+#ifdef TOY_SCHED_PRIORITY
+    const SCHEDULER_OPS *Ops = SchedulerPriorityOps();
+#else
     const SCHEDULER_OPS *Ops = SchedulerRoundRobinOps();
+#endif
 
     SchedulerOpsRegister(Ops);
     TestPriority(Ops);

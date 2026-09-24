@@ -84,7 +84,11 @@ void SchedulerInitialize(void) {
 
     SpinLockInit(&gSchedulerLock);
     gSchedulerOnline = 0;
+#ifdef TOY_SCHED_PRIORITY
+    SchedulerOpsRegister(SchedulerPriorityOps());
+#else
     SchedulerOpsRegister(SchedulerRoundRobinOps());
+#endif
     RunQueueInitialize();
     SchedulerOpsGet()->Init();
     for (c = 0; c < HAL_MAX_CPUS; c++) {

@@ -6,6 +6,7 @@ cd "$Root"
 case "${1:-}" in
 scheduler)
     make runtests
+    make runtests SCHEDULER=priority
     ;;
 *)
     echo "usage: runtests.sh scheduler" >&2

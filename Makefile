@@ -442,10 +442,13 @@ endif
 SCHEDULER ?= round-robin
 ifeq ($(SCHEDULER),round-robin)
 SCHED_SRCS := Common/Modules/SchedulerRoundRobin/SchedulerRoundRobin.c
+else ifeq ($(SCHEDULER),priority)
+SCHED_SRCS := Student/SchedulerPriority/SchedulerPriority.c
+CFLAGS_COMMON += -DTOY_SCHED_PRIORITY
 else
 $(error unknown SCHEDULER=$(SCHEDULER))
 endif
-SCHED_OBJS := $(patsubst Common/Modules/%.c,$(BUILDDIR)/Common/Modules/%.o,$(SCHED_SRCS))
+SCHED_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(SCHED_SRCS))
 
 OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(HALDIR)/Kernel.elf
@@ -470,16 +473,19 @@ ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 
 HOSTCC ?= gcc
 TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_SCHED_HOST -I Tests/Stub -I Include
+ifeq ($(SCHEDULER),priority)
+TEST_CFLAGS += -DTOY_SCHED_PRIORITY
+endif
 
 scheduler: runtests
 
 runtests:
 	@mkdir -p Build/Tests
-	$(HOSTCC) $(TEST_CFLAGS) -c Common/Modules/SchedulerRoundRobin/SchedulerRoundRobin.c -o Build/Tests/rr.o
+	$(HOSTCC) $(TEST_CFLAGS) -c $(SCHED_SRCS) -o Build/Tests/policy.o
 	$(HOSTCC) $(TEST_CFLAGS) -c Core/Scheduler/SchedulerOps.c -o Build/Tests/ops.o
 	$(HOSTCC) $(TEST_CFLAGS) -c Tests/Stub/SchedulerStub.c -o Build/Tests/stub.o
 	$(HOSTCC) $(TEST_CFLAGS) -c Tests/TestScheduler.c -o Build/Tests/test.o
-	$(HOSTCC) -o Build/Tests/TestScheduler Build/Tests/rr.o Build/Tests/ops.o Build/Tests/stub.o Build/Tests/test.o
+	$(HOSTCC) -o Build/Tests/TestScheduler Build/Tests/policy.o Build/Tests/ops.o Build/Tests/stub.o Build/Tests/test.o
 	./Build/Tests/TestScheduler
 
 all: $(TARGET)
@@ -533,6 +539,10 @@ $(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Modules/%.o: Common/Modules/%.c | $(BUILDDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_COMMON) -c $< -o $@
+
+$(BUILDDIR)/Student/%.o: Student/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS_COMMON) -c $< -o $@
 
