@@ -18,6 +18,7 @@
 #include "Serial.h"
 #include "Font.h"
 #include "ToySerialConfig.h"
+#include "XHCI.h"
 
 static char gRing[GOP_RING];
 static UINTN gRingLen;
@@ -165,10 +166,17 @@ void HalSerialGopMute(int Mute) {
 }
 
 int HalSerialDataReady(void) {
+    XhciFtdiPollRx();
+    if (XhciFtdiDataReady()) {
+        return 1;
+    }
     return SerialDataReady();
 }
 
 char HalSerialReadChar(void) {
+    if (XhciFtdiDataReady()) {
+        return XhciFtdiReadChar();
+    }
     return SerialReadChar();
 }
 

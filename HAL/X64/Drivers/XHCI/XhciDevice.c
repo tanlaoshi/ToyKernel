@@ -193,6 +193,8 @@ void DisableSlot(UINT32 SlotId) {
         gFtdiSlot = 0;
         gFtdiClaimed = 0;
         gFtdiPort = 0;
+        gFtdiBulkInDci = 0;
+        gFtdiBulkOutDci = 0;
     }
     if (gXferSlot == SlotId) {
         gXferSlot = 0;

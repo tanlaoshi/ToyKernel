@@ -91,7 +91,8 @@ void ProcessEventsLocked(void) {
                 gBulkDone = 1;
                 Matched = 1;
             }
-            if (!Matched && XhciFtdiMatchXferEvent(EvtSlot, Ep, TrbPtr, Code)) {
+            if (!Matched && XhciFtdiMatchXferEvent(EvtSlot, Ep, TrbPtr, Code,
+                                                   Evt->Status & 0xFFFFFFu)) {
                 Matched = 1;
             }
             if (!Matched) {

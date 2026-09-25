@@ -1,32 +1,46 @@
 /*
- * XhciFtdiTx.c — PR-H-usb-uart-ftdi-1：FT232 Bulk OUT TX + 事件匹配
+ * XhciFtdiTx.c — PR-H-usb-uart：FT232 Bulk OUT TX + 事件匹配（IN/OUT）
  */
 #include "XHCI/XhciInternal.h"
 
 extern UINT32 gFtdiBulkOutDci;
 extern UINT16 gFtdiBulkOutMps;
+extern UINT32 gFtdiBulkInDci;
 extern XHCI_TRB gFtdiBulkOutRing[RING_SIZE];
 extern RING_STATE gFtdiBulkOut;
+extern XHCI_TRB gFtdiBulkInRing[RING_SIZE];
 
 static UINT8 gFtdiTxBuf[64] __attribute__((aligned(64)));
 static volatile UINT32 gFtdiBulkDone;
 static volatile UINT32 gFtdiBulkCode;
 static int gFtdiTxBusy;
 
-int XhciFtdiMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code) {
-    UINT64 Lo;
-    UINT64 Hi;
+int XhciFtdiOnInComplete(UINT32 Code, UINT32 Remain);
+
+int XhciFtdiMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code,
+                           UINT32 Remain) {
+    UINT64 OutLo;
+    UINT64 OutHi;
+    UINT64 InLo;
+    UINT64 InHi;
 
     if (!gFtdiClaimed || gFtdiSlot == 0 || EvtSlot != gFtdiSlot) {
         return 0;
     }
-    Lo = PointerToPhysical(gFtdiBulkOutRing);
-    Hi = Lo + sizeof(gFtdiBulkOutRing);
+    OutLo = PointerToPhysical(gFtdiBulkOutRing);
+    OutHi = OutLo + sizeof(gFtdiBulkOutRing);
+    InLo = PointerToPhysical(gFtdiBulkInRing);
+    InHi = InLo + sizeof(gFtdiBulkInRing);
+
     if ((gFtdiBulkOutDci != 0 && Ep == gFtdiBulkOutDci) ||
-        (TrbPtr >= Lo && TrbPtr < Hi)) {
+        (TrbPtr >= OutLo && TrbPtr < OutHi)) {
         gFtdiBulkCode = Code;
         gFtdiBulkDone = 1;
         return 1;
+    }
+    if ((gFtdiBulkInDci != 0 && Ep == gFtdiBulkInDci) ||
+        (TrbPtr >= InLo && TrbPtr < InHi)) {
+        return XhciFtdiOnInComplete(Code, Remain);
     }
     return 0;
 }

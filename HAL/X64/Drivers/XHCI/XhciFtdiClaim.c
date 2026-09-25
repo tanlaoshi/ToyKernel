@@ -42,12 +42,15 @@ static int IsFtdiPid(UINT16 Pid) {
     return Pid == FTDI_PID_FT232R || Pid == FTDI_PID_FT232H || Pid == FTDI_PID_FT231X;
 }
 
-static int ParseFtdiBulk(UINT8 *Cfg, UINT16 Total, UINT8 *EpOut, UINT16 *MpsOut) {
+static int ParseFtdiBulk(UINT8 *Cfg, UINT16 Total, UINT8 *EpIn, UINT16 *MpsIn,
+                         UINT8 *EpOut, UINT16 *MpsOut) {
     UINT16 Off = 0;
     UINT8 CurIface = 0xFF;
     UINT8 CurAlt = 0;
+    UINT8 BestIn = 0;
     UINT8 BestOut = 0;
-    UINT16 BestMps = 0;
+    UINT16 BestInMps = 0;
+    UINT16 BestOutMps = 0;
 
     while (Off + 2 <= Total) {
         UINT8 Len = Cfg[Off];
@@ -64,21 +67,32 @@ static int ParseFtdiBulk(UINT8 *Cfg, UINT16 Total, UINT8 *EpOut, UINT16 *MpsOut)
             UINT8 Attr = Cfg[Off + 3];
             UINT16 Mps = (UINT16)(Cfg[Off + 4] | (Cfg[Off + 5] << 8));
 
-            if ((Attr & 0x03) == 2 && (Addr & 0x80) == 0) {
-                BestOut = Addr;
-                BestMps = Mps ? Mps : 64;
+            if ((Attr & 0x03) == 2) {
+                if (Addr & 0x80) {
+                    BestIn = Addr;
+                    BestInMps = Mps ? Mps : 64;
+                } else {
+                    BestOut = Addr;
+                    BestOutMps = Mps ? Mps : 64;
+                }
             }
         }
         Off = (UINT16)(Off + Len);
     }
-    if (BestOut == 0) {
+    if (BestIn == 0 || BestOut == 0) {
         return 0;
+    }
+    if (EpIn) {
+        *EpIn = BestIn;
+    }
+    if (MpsIn) {
+        *MpsIn = BestInMps;
     }
     if (EpOut) {
         *EpOut = BestOut;
     }
     if (MpsOut) {
-        *MpsOut = BestMps;
+        *MpsOut = BestOutMps;
     }
     return 1;
 }
@@ -108,51 +122,10 @@ static int FtdiSetLine115200(void) {
     return 0;
 }
 
-static int ConfigureFtdiBulkOut(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
-                                UINT8 EpOut, UINT16 MpsOut) {
-    UINT8 OutNum = EpOut & 0x0F;
-    UINT32 OutDci = (UINT32)OutNum * 2 + 0;
-    UINT32 *Slot;
-    UINT32 *Ep;
-    UINT64 Deq;
-
-    if (MpsOut == 0 || MpsOut > 512) {
-        MpsOut = 64;
-    }
-    ZeroMemory(gInCtx, sizeof(gInCtx));
-    *(UINT32 *)(void *)(gInCtx + 4) = (1u << 0) | (1u << OutDci);
-
-    Slot = (UINT32 *)(void *)InSlot();
-    Slot[0] = (OutDci << 27) | ((UINT32)Speed << 20) | (gFtdiRoute & 0xFFFFFu);
-    Slot[1] = (UINT32)RootPort << 16;
-    if (gFtdiHubSlot != 0 && Speed < 3) {
-        Slot[2] = (UINT32)gFtdiHubSlot | ((UINT32)gFtdiTtPort << 8);
-    }
-
-    InitRing(gFtdiBulkOutRing, &gFtdiBulkOut, RING_SIZE);
-    Ep = (UINT32 *)(void *)InEp(OutDci);
-    Ep[0] = 0;
-    Ep[1] = (3u << 1) | (2u << 3) | ((UINT32)MpsOut << 16);
-    Deq = PointerToPhysical(gFtdiBulkOutRing) | 1;
-    Ep[2] = (UINT32)Deq;
-    Ep[3] = (UINT32)(Deq >> 32);
-    Ep[4] = (UINT32)MpsOut;
-
-    FlushDma(gInCtx, sizeof(gInCtx));
-    FlushDma(gFtdiBulkOutRing, sizeof(gFtdiBulkOutRing));
-    FlushDma(gFtdiDevCtx, sizeof(gFtdiDevCtx));
-    if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) <
-        0) {
-        BootLog("Boot: usb-uart cfg ep fail\n");
-        return 0;
-    }
-    gFtdiBulkOutDci = OutDci;
-    gFtdiBulkOutMps = MpsOut;
-    return 1;
-}
-
 int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
+    UINT8 EpIn = 0;
     UINT8 EpOut = 0;
+    UINT16 MpsIn = 64;
     UINT16 MpsOut = 64;
     UINT16 Total;
     UINT8 ConfigVal = 1;
@@ -185,13 +158,13 @@ int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
     if (GetDesc(0x0200, 0, Total, gFtdiCfgBuf) < 0) {
         goto fail;
     }
-    if (!ParseFtdiBulk(gFtdiCfgBuf, Total, &EpOut, &MpsOut)) {
+    if (!ParseFtdiBulk(gFtdiCfgBuf, Total, &EpIn, &MpsIn, &EpOut, &MpsOut)) {
         goto fail;
     }
     if (SetConfig(ConfigVal) < 0) {
         goto fail;
     }
-    if (!ConfigureFtdiBulkOut(gFtdiSlot, RootPort, Speed, EpOut, MpsOut)) {
+    if (!XhciFtdiConfigBulk(gFtdiSlot, RootPort, Speed, EpIn, MpsIn, EpOut, MpsOut)) {
         goto fail;
     }
     if (FtdiSetLine115200() < 0) {
@@ -200,6 +173,7 @@ int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
     }
     gFtdiPort = RootPort;
     gFtdiClaimed = 1;
+    XhciFtdiRxArm();
     BootLog("boot: usb-uart ftdi\n");
     BootLogHex("Boot: usb-uart pid=", Pid, 4);
     BootLogHex("Boot: usb-uart port=", RootPort, 2);
