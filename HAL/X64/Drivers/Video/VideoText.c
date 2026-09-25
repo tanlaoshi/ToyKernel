@@ -159,6 +159,10 @@ void VideoNewLine(void) {
 }
 
 void VideoDrawChar(char c, UINT32 Color) {
+    if (c == '\n') {
+        VideoNewLine();
+        return;
+    }
     if ((UINT8)c < 32 || (UINT8)c > 126) {
         return;
     }
@@ -170,7 +174,11 @@ void VideoDrawCodepoint(UINT32 Cp, UINT32 Color) {
     UINT32 MaxY;
     UINT32 Adv;
 
-    if (Cp == 0 || Cp == '\n') {
+    if (Cp == 0) {
+        return;
+    }
+    if (Cp == '\n') {
+        VideoNewLine();
         return;
     }
     if ((!gFront && !gBack) || gScreen.Width == 0 || gScreen.Height == 0) {

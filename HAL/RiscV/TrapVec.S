@@ -93,7 +93,7 @@ HalTrapVector:
 
     ld      ra, 8(sp)
     ld      gp, 24(sp)
-    ld      tp, 32(sp)
+    /* tp：保持内核逻辑 CPU id，勿从帧恢复（见 HalUserEnter） */
     ld      a0, 80(sp)
     ld      a1, 88(sp)
     ld      a2, 96(sp)
@@ -146,7 +146,11 @@ HalUserEnter:
 
     ld      ra, 8(a0)
     ld      gp, 24(a0)
-    ld      tp, 32(a0)
+    /*
+     * PR-V-ap-interactive：勿从帧恢复 tp。
+     * tp = 逻辑 CPU id（HalGetCpuId）；用户帧常为 0，恢复后 AP 上
+     * CurrentTask/ActivateTask 会砸到 gCurrentCpu[0]。Arm64 用 tpidr_el1 隔离。
+     */
     ld      t0, 40(a0)
     ld      t1, 48(a0)
     ld      t2, 56(a0)
@@ -206,6 +210,7 @@ HalUserSelfTestEnter:
     sd      s9, 88(t0)
     sd      s10, 96(t0)
     sd      s11, 104(t0)
+    sd      tp, 108(t0)
 
     mv      sp, a0
     csrw    sscratch, sp
@@ -236,6 +241,7 @@ HalUserSelfTestReturn:
     ld      s9, 88(t0)
     ld      s10, 96(t0)
     ld      s11, 104(t0)
+    ld      tp, 108(t0)
     ret
 
     .size HalTrapVector, .-HalTrapVector
@@ -244,4 +250,4 @@ HalUserSelfTestReturn:
     .align 3
     .global gUserSelfRet
 gUserSelfRet:
-    .space 112
+    .space 116

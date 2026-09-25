@@ -106,7 +106,10 @@ static void CommandExec(int Argc, char **Argv) {
         return;
     }
     if (ProcessExec(Argv[1]) == 0) {
-        /* virt：ProcessExec 内已协作跑完并 ShowPrompt；x86 等定时器收尸 */
+        /*
+         * x86：用户异步跑，WaitPrompt 挡住 PromptAfterCommand，exit 时 ShowPrompt。
+         * virt：CoopDrain 同步跑完且 exit 不再 ShowPrompt，靠 PromptAfterCommand 画一次。
+         */
         if (!HalPlatformIsVirtSerialConsole()) {
             ConsoleWaitPrompt();
         }

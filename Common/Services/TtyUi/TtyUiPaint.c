@@ -29,6 +29,7 @@ void TtyPaint(void) {
     char Head[TTY_STATUS_MAX + 32];
     UINTN Hn;
     const char *P;
+    UINT32 Fg;
 
     if (!GuiFocusClient(&X, &Y, &W, &H, &Bg)) {
         return;
@@ -86,7 +87,13 @@ void TtyPaint(void) {
             Row[Col] = 0;
             if (Line >= StartLine && Line < StartLine + VisLines) {
                 UINT32 Dy = TextTop + (UINT32)(Line - StartLine) * LineH;
-                DrawLine(X + 8, Dy, Row, ThemeShellText());
+                /* 输入行（tty>）用提示符色，其余正文色 */
+                Fg = ThemeShellText();
+                if (Col >= 4 && Row[0] == 't' && Row[1] == 't' && Row[2] == 'y' &&
+                    Row[3] == '>') {
+                    Fg = ThemeShellPrompt();
+                }
+                DrawLine(X + 8, Dy, Row, Fg);
             }
             Line++;
             Col = 0;
@@ -100,7 +107,12 @@ void TtyPaint(void) {
     if (Col > 0 || gTtyLen == 0) {
         if (Line >= StartLine && Line < StartLine + VisLines) {
             UINT32 Dy = TextTop + (UINT32)(Line - StartLine) * LineH;
-            DrawLine(X + 8, Dy, Row, ThemeShellText());
+            Fg = ThemeShellText();
+            if (Col >= 4 && Row[0] == 't' && Row[1] == 't' && Row[2] == 'y' &&
+                Row[3] == '>') {
+                Fg = ThemeShellPrompt();
+            }
+            DrawLine(X + 8, Dy, Row, Fg);
         }
     }
 

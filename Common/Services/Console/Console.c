@@ -24,6 +24,7 @@ int gAtLineStart = 1;
 
 void Prompt(void) {
     gLen = 0;
+    /* 仅当不在行首时换行：开窗欢迎语后已有 \\n，再打会空一行像「提示语不对」 */
     if (!gAtLineStart) {
         ConsoleWrite("\n");
     }
@@ -33,8 +34,6 @@ void Prompt(void) {
         ConsoleSbEnsureLive();
         ConsoleSbFeed("toyos> ");
         ConsoleDrawString("toyos> ", ThemeShellPrompt());
-    } else {
-        ConsoleSbFeed("toyos> ");
     }
 }
 
@@ -145,10 +144,33 @@ void ConsoleInitialize(void) {
 }
 
 void ConsoleOnShellOpened(void) {
-    if (!GuiShellAcceptsInput()) {
+    int Idx;
+    int i;
+    int OtherShell;
+
+    /*
+     * 勿用 GuiShellAcceptsInput：刚 OpenChromeDefer 时 z-order 可能仍判遮挡，
+     * 会整段跳过欢迎语。按窗是否为 Shell 即可。
+     */
+    Idx = GuiFocusIndex();
+    if (!GuiShellWindowActive(Idx)) {
         return;
     }
-    ConsolePaintShellWindow(GuiFocusIndex());
+    /*
+     * 首个 Shell：丢掉开窗前自测 write(1,"Hello…") 等污染的行缓冲，
+     * 否则误走 sb-repaint、串口不见「ToyOS console」/toyos>。
+     */
+    OtherShell = 0;
+    for (i = 0; i < GUI_MAX_WINS; i++) {
+        if (i != Idx && GuiShellWindowActive(i)) {
+            OtherShell = 1;
+            break;
+        }
+    }
+    if (!OtherShell) {
+        ConsoleSbReset();
+    }
+    ConsolePaintShellWindow(Idx);
 }
 
 /* PR-G8：主题合成时按窗下标画 Shell，不要求当前可输入/未遮挡 */

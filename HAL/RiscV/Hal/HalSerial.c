@@ -38,6 +38,17 @@ static int ChannelUartOn(int Channel) {
 #endif
 }
 
+static void UartPut(char C) {
+#if TOY_SERIAL
+    while ((UART_LSR & UART_LSR_THRE) == 0) {
+    }
+    UART_THR = (UINT8)C;
+#else
+    (void)C;
+#endif
+}
+
+/* \\n → \\r\\n（含 Input/timer 等直呼 HalSerialWrite 的路径）；已有 \\r\\n 不叠 */
 static void UartWriteRaw(const char *Text) {
 #if !TOY_SERIAL
     (void)Text;
@@ -46,9 +57,19 @@ static void UartWriteRaw(const char *Text) {
         return;
     }
     while (*Text) {
-        while ((UART_LSR & UART_LSR_THRE) == 0) {
+        if (*Text == '\r' && Text[1] == '\n') {
+            UartPut('\r');
+            UartPut('\n');
+            Text += 2;
+            continue;
         }
-        UART_THR = (UINT8)(*Text++);
+        if (*Text == '\n') {
+            UartPut('\r');
+            UartPut('\n');
+            Text++;
+            continue;
+        }
+        UartPut(*Text++);
     }
 #endif
 }

@@ -200,12 +200,8 @@ int HalConsoleOnly(void) {
 }
 
 int HalPinInteractiveToBootstrap(void) {
-    /* PR-V-input-fix：AP 上 SchedulerOnTimer→shell 会 user fault；交互留 BSP */
-#if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
-    return 1;
-#else
+    /* PR-V-ap-interactive：解钉；AP OnTimer 切 shell/gui（input-fix 已铺路） */
     return 0;
-#endif
 }
 
 int HalPlatformIsVirtSerialConsole(void) {

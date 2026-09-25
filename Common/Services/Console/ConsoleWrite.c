@@ -105,8 +105,24 @@ void ConsoleWrite(const char *Text) {
      * 会与 GuiDemo 标签等叠字，并污染用户窗备份（透视/花屏）。
      */
     if (GuiFocusKind() != GUI_WIN_SHELL) {
-        /* 仍记入行缓冲，便于切回 Shell 滚轮看到近期输出 */
-        ConsoleSbFeed(Text);
+        int i;
+        int HasShell;
+
+        /*
+         * 已有 Shell 窗时记入行缓冲，便于切回后滚轮看近期输出。
+         * 尚无 Shell 时勿记（Arm64 自测 write("Hello EL0!") 会污染，
+         * 开窗误走 sb-repaint、跳过欢迎语/toyos>）。
+         */
+        HasShell = 0;
+        for (i = 0; i < GUI_MAX_WINS; i++) {
+            if (GuiShellWindowActive(i)) {
+                HasShell = 1;
+                break;
+            }
+        }
+        if (HasShell) {
+            ConsoleSbFeed(Text);
+        }
         return;
     }
     ConsoleSbEnsureLive();

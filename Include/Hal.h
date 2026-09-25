@@ -189,7 +189,7 @@ const char *HalCpuInfo(void);
  */
 int HalHasFrameBuffer(void);
 int HalConsoleOnly(void);
-/* PR-V-input-fix：1 → shell/gui 钉 BSP（RiscV virt AP OnTimer 切任务尚不稳） */
+/* PR-V-ap-interactive：1 → shell/gui 钉 BSP（仅 ConsoleOnly / 应急；virt 默认 0） */
 int HalPinInteractiveToBootstrap(void);
 
 /*

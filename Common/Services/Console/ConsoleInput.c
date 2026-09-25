@@ -177,15 +177,26 @@ void ConsoleSerialRun(void) {
         HalCpuHalt();
         HalInputPoll();
         if (HalSerialDataReady()) {
+            static int SkipLf;
             char C = HalSerialReadChar();
-            if (C == '\r' || C == '\n') {
+            if (C == '\r') {
+                SkipLf = 1;
                 ConsoleOnEnter();
-            } else if (C == '\b' || C == 127) {
-                ConsoleOnBackspace();
-            } else if (C == 3) {
-                ShellOnInterrupt();
+            } else if (C == '\n') {
+                if (SkipLf) {
+                    SkipLf = 0;
+                } else {
+                    ConsoleOnEnter();
+                }
             } else {
-                ConsoleOnChar(C);
+                SkipLf = 0;
+                if (C == '\b' || C == 127) {
+                    ConsoleOnBackspace();
+                } else if (C == 3) {
+                    ShellOnInterrupt();
+                } else {
+                    ConsoleOnChar(C);
+                }
             }
         }
         while (HalKeyboardDequeue(&Report)) {

@@ -263,6 +263,7 @@ void SchedulerCoopDrainUsers(void) {
         SpinLockRelease(&gSchedulerLock);
 
         HalSetKernelStack(Ksp);
+        HalSyncICache(0, 0);
         HalUserCoopEnter(Ksp, U->Frame);
 
         /* exit → HalUserCoopReturn；恢复宿主内核任务 */

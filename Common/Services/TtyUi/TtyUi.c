@@ -89,6 +89,8 @@ int TtyUiIsFocused(void) {
     return gTtyOpen && GuiFocusKind() == GUI_WIN_TTY;
 }
 
+#define TTY_PROMPT "tty> "
+
 void TtyUiOpen(void) {
     gTtyOpen = 1;
     gTtyLen = 0;
@@ -96,13 +98,13 @@ void TtyUiOpen(void) {
     gTtyScroll = 0;
     /* ASCII only：点阵字体无 UTF-8 字形 */
     TtyAppendStr("ToyOS TTY - serial session (not boot log)\n");
-    TtyAppendStr("Type to TX (COM1/USB-UART tee); RX while focused.\n");
-    TtyAppendStr("Esc=clear buffer.\n\n");
+    TtyAppendStr("Type to TX; RX while focused. Esc=clear.\n\n");
     if (HalSerialPresent()) {
         TtySetStatus("serial: present");
     } else {
         TtySetStatus("serial: no COM1 (USB-UART tee may still work)");
     }
+    TtyAppendStr(TTY_PROMPT);
     /* 与 DevicesUiOpen 相同：开窗期焦点已在 OpenChromeDefer 设好，只画不 Raise */
     TtyPaint();
 }
@@ -125,24 +127,49 @@ void TtyUiOnChar(char C) {
 }
 
 void TtyUiOnEnter(void) {
+    /*
+     * 须发 CR+LF：只发 \\r 时主机串口光标回行首、不下移，
+     * 下一条输出会盖住刚键入的一行（virt -nographic / CoolTerm 同）。
+     * ShellTask 侧已吞「CR 后紧跟的 LF」，不会双 Enter。
+     */
     TtyAppend('\n');
-    TtySerialOut("\r");
+    TtySerialOut("\r\n");
+    TtyAppendStr(TTY_PROMPT);
     TtyUiRepaint();
 }
 
 void TtyUiOnBackspace(void) {
-    if (gTtyLen > 0 && gTtyBuf[gTtyLen - 1] != '\n') {
-        gTtyLen--;
-        gTtyBuf[gTtyLen] = 0;
-        TtySerialOut("\b");
-        TtyUiRepaint();
+    UINTN LineStart;
+    UINTN i;
+    UINTN PromptLen;
+
+    if (gTtyLen == 0) {
+        return;
     }
+    PromptLen = sizeof(TTY_PROMPT) - 1;
+    LineStart = 0;
+    for (i = 0; i < gTtyLen; i++) {
+        if (gTtyBuf[i] == '\n') {
+            LineStart = i + 1;
+        }
+    }
+    if (gTtyLen <= LineStart + PromptLen) {
+        return;
+    }
+    if (gTtyBuf[gTtyLen - 1] == '\n') {
+        return;
+    }
+    gTtyLen--;
+    gTtyBuf[gTtyLen] = 0;
+    TtySerialOut("\b \b");
+    TtyUiRepaint();
 }
 
 void TtyUiOnEscape(void) {
     gTtyLen = 0;
     gTtyBuf[0] = 0;
     TtySetStatus("buffer cleared");
+    TtyAppendStr(TTY_PROMPT);
     TtyUiRepaint();
 }
 

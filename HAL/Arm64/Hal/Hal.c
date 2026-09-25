@@ -190,12 +190,8 @@ int HalConsoleOnly(void) {
 }
 
 int HalPinInteractiveToBootstrap(void) {
-    /* PR-V-input-fix：与 RiscV virt 同 — AP 上 OnTimer 首切任务易关 IRQ，交互留 BSP */
-#if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
-    return 1;
-#else
+    /* PR-V-ap-interactive：解钉；AP OnTimer 切 shell/gui（input-fix 已铺路） */
     return 0;
-#endif
 }
 
 int HalPlatformIsVirtSerialConsole(void) {
