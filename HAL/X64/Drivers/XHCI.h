@@ -125,5 +125,8 @@ char XhciFtdiReadChar(void);
 int XhciCdcClaim(void);
 int XhciCdcReady(void);
 void XhciCdcWrite(const char *Text);
+void XhciCdcPollRx(void);
+int XhciCdcDataReady(void);
+char XhciCdcReadChar(void);
 
 #endif

@@ -457,15 +457,20 @@ void XhciFtdiPollRx(void);
 int XhciFtdiDataReady(void);
 char XhciFtdiReadChar(void);
 
-/* PR-H-usb-uart-cdc-1 */
+/* PR-H-usb-uart-cdc-1/2 */
 int XhciCdcClaim(void);
 int XhciCdcReady(void);
 void XhciCdcWrite(const char *Text);
 void XhciCdcEp0Ring(XHCI_TRB **RingOut, RING_STATE **StOut);
-int XhciCdcMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code);
+int XhciCdcMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code,
+                          UINT32 Remain);
 int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed);
 int XhciCdcConfigBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
                       UINT8 EpIn, UINT16 MpsIn, UINT8 EpOut, UINT16 MpsOut);
+void XhciCdcRxArm(void);
+void XhciCdcPollRx(void);
+int XhciCdcDataReady(void);
+char XhciCdcReadChar(void);
 
 int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);

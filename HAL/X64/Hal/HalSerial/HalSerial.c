@@ -170,12 +170,19 @@ int HalSerialDataReady(void) {
     if (XhciFtdiDataReady()) {
         return 1;
     }
+    XhciCdcPollRx();
+    if (XhciCdcDataReady()) {
+        return 1;
+    }
     return SerialDataReady();
 }
 
 char HalSerialReadChar(void) {
     if (XhciFtdiDataReady()) {
         return XhciFtdiReadChar();
+    }
+    if (XhciCdcDataReady()) {
+        return XhciCdcReadChar();
     }
     return SerialReadChar();
 }

@@ -84,24 +84,31 @@ int XhciCdcConfigBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
     return 1;
 }
 
-int XhciCdcMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code) {
+int XhciCdcOnInComplete(UINT32 Code, UINT32 Remain);
+
+int XhciCdcMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code,
+                          UINT32 Remain) {
     UINT64 OutLo;
     UINT64 OutHi;
+    UINT64 InLo;
+    UINT64 InHi;
 
     if (!gCdcClaimed || gCdcSlot == 0 || EvtSlot != gCdcSlot) {
         return 0;
     }
     OutLo = PointerToPhysical(gCdcBulkOutRing);
     OutHi = OutLo + sizeof(gCdcBulkOutRing);
+    InLo = PointerToPhysical(gCdcBulkInRing);
+    InHi = InLo + sizeof(gCdcBulkInRing);
     if ((gCdcBulkOutDci != 0 && Ep == gCdcBulkOutDci) ||
         (TrbPtr >= OutLo && TrbPtr < OutHi)) {
         gCdcBulkCode = Code;
         gCdcBulkDone = 1;
         return 1;
     }
-    /* IN 留给 cdc-2；先吞掉完成事件免 unmatched */
-    if (gCdcBulkInDci != 0 && Ep == gCdcBulkInDci) {
-        return 1;
+    if ((gCdcBulkInDci != 0 && Ep == gCdcBulkInDci) ||
+        (TrbPtr >= InLo && TrbPtr < InHi)) {
+        return XhciCdcOnInComplete(Code, Remain);
     }
     return 0;
 }

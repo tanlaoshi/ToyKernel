@@ -190,6 +190,7 @@ int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed) {
     }
     gCdcPort = RootPort;
     gCdcClaimed = 1;
+    XhciCdcRxArm();
     /* COM1 + CDC 双路；BootMark 保证 QEMU 非 verbose 也看得见 */
     ToyLogBoot("boot: usb-uart cdc\n");
     ToyBootMarkUsb("boot: usb-uart cdc\n");
