@@ -13,6 +13,8 @@
 
 /* 安装/更新 MSC 后端：保留当前 Primary，注册 Mux */
 void BlockMuxInstallMsc(const BLOCK_BACKEND *Msc);
+/* PR-H-msc-hot：卸 MSC 后端；有 Primary 则绑回 Primary，否则保留空 Mux */
+void BlockMuxRemoveMsc(void);
 /* 1=该槽是 USB MSC（慢）；0=主后端 NVMe/AHCI/ATA/virtio 或未挂 Mux */
 int BlockDriveIsMsc(UINT32 Drive);
 

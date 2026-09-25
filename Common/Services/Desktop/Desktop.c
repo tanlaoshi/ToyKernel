@@ -256,6 +256,12 @@ void DesktopTickClock(void) {
     }
     LastCheckTick = Now;
 
+    /* PR-H-msc-hot：~2Hz 拔出探测（仅 CCS/hub；不 Address） */
+    if (HalUsbMscHotPoll() == 1) {
+        (void)FileSystemRemountVolumes();
+        DebugWrite("desktop: msc hot remount after unplug\n");
+    }
+
     NeedPaint = 0;
     Ok = (HalRtcGetTime(0, 0, 0, &Hour, &Minute, 0) == 0) ? 1 : 0;
     if (Ok) {

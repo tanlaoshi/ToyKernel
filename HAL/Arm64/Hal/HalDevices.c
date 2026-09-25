@@ -70,6 +70,18 @@ int HalUsbMscAutoBeforeFs(void) {
     return 1;
 }
 
+int HalUsbMscRelease(void) {
+    return 0;
+}
+
+int HalUsbMscHotPoll(void) {
+    return 0;
+}
+
+int HalUsbMscHot(void) {
+    return 1;
+}
+
 int HalUsbUartClaim(void) {
     return -1;
 }

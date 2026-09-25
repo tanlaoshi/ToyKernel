@@ -129,6 +129,44 @@ static void CommandMsc(int Argc, char **Argv) {
         return;
     }
 
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'r' && Argv[1][1] == 'e' &&
+        Argv[1][2] == 'l' && Argv[1][3] == 'e' && Argv[1][4] == 'a' &&
+        Argv[1][5] == 's' && Argv[1][6] == 'e' && Argv[1][7] == 0) {
+        (void)HalUsbMscRelease();
+        ConsoleWrite("msc: release ok; remount…\n");
+        if (!FileSystemRemountVolumes()) {
+            ConsoleWrite("msc: remount fail (primary/RES may remain)\n");
+            return;
+        }
+        ConsoleWrite("msc: remount ok vols=");
+        ConsoleWriteHex32((UINT32)FileSystemVolCount());
+        ConsoleWrite("\n");
+        return;
+    }
+
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'h' && Argv[1][1] == 'o' &&
+        Argv[1][2] == 't' && Argv[1][3] == 0) {
+        Rc = HalUsbMscHot();
+        ConsoleWrite("msc: hot ");
+        if (Rc == 1) {
+            ConsoleWrite("none (no MSC; try plug then hot)\n");
+            return;
+        }
+        if (Rc < 0) {
+            ConsoleWrite("fail\n");
+            return;
+        }
+        ConsoleWrite("mux ok; remount…\n");
+        if (!FileSystemRemountVolumes()) {
+            ConsoleWrite("msc: remount fail\n");
+            return;
+        }
+        ConsoleWrite("msc: remount ok vols=");
+        ConsoleWriteHex32((UINT32)FileSystemVolCount());
+        ConsoleWrite("\n");
+        return;
+    }
+
     Rc = HalUsbMscInit();
     ConsoleWrite("msc: bringup=");
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
@@ -136,14 +174,14 @@ static void CommandMsc(int Argc, char **Argv) {
     ConsoleWrite(HalUsbMscReady() ? "1" : "0");
     ConsoleWrite(" auto=");
     ConsoleWrite(HalUsbMscAutoEnabled() ? "1" : "0");
-    ConsoleWrite(" (scan|claim|capacity|mount; auto=THEME msc=0|MSC.OFF)\n");
+    ConsoleWrite(" (scan|claim|capacity|mount|release|hot; auto=THEME msc=0|MSC.OFF)\n");
 }
 
 void ShellCommandsUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + counters", CommandXhci);
     ConsoleRegister2("show", "input", "input counters (xhci or virtio)", CommandInputDiag);
     ConsoleRegister("msc",
-                    "USB MSC: scan|claim|capacity|mount; boot auto (msc-7b)",
+                    "USB MSC: scan|claim|capacity|mount|release|hot",
                     CommandMsc);
     ConsoleRegisterAliasLine("xhci", "show", "xhci");
     ConsoleRegisterAliasLine("input", "show", "input");

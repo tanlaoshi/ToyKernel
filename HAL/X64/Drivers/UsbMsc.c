@@ -7,7 +7,9 @@
 #include "UsbMsc.h"
 #include "XHCI.h"
 #include "Block.h"
+#include "BlockMux.h"
 #include "ToySerialLog.h"
+#include "Debug.h"
 
 void BlockMscInstall(void); /* BlockMsc.c */
 
@@ -115,5 +117,52 @@ int UsbMscAutoBeforeFs(void) {
         return Rc;
     }
     ToyLogBoot("Boot: MSC Auto Mux OK\n");
+    return 0;
+}
+
+int UsbMscRelease(void) {
+    BlockMuxRemoveMsc();
+    return XhciMscRelease();
+}
+
+int UsbMscHotPoll(void) {
+    if (!UsbMscReady()) {
+        return 0;
+    }
+    if (XhciMscPresent()) {
+        return 0;
+    }
+    DebugWrite("msc: hot unplug → release\n");
+    (void)UsbMscRelease();
+    return 1;
+}
+
+/*
+ * 0 = 已 ready 且在位（或刚挂上）；1 = 无 MSC；负 = 失败。
+ * 不在此 Remount（交给 Shell / Desktop）。
+ */
+int UsbMscHot(void) {
+    int Claim;
+    int Rc;
+
+    if (UsbMscReady()) {
+        if (XhciMscPresent()) {
+            return 0;
+        }
+        (void)UsbMscRelease();
+    }
+
+    Claim = UsbMscClaim();
+    if (Claim < 0) {
+        return -1;
+    }
+    if (Claim == 0) {
+        return 1;
+    }
+    Rc = UsbMscMount();
+    if (Rc != 0) {
+        (void)UsbMscRelease();
+        return Rc < 0 ? Rc : -2;
+    }
     return 0;
 }

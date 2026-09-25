@@ -115,6 +115,11 @@ int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 int XhciMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
 int XhciMscFlush(void);
 
+/* PR-H-msc-hot：卸 slot + 清容量；已非 claim 亦 0 */
+int XhciMscRelease(void);
+/* 1=盘仍在（根口 CCS / hub 子口 CONNECTION）；0=已拔或未 claim */
+int XhciMscPresent(void);
+
 /* PR-H-usb-uart：FT232 / CDC-ACM 认领 + TX/RX tee */
 int XhciFtdiClaim(void);  /* 1 ok；0 无棒；-1 无 HC */
 int XhciFtdiReady(void);

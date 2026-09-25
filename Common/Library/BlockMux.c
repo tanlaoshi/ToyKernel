@@ -114,3 +114,24 @@ void BlockMuxInstallMsc(const BLOCK_BACKEND *Msc) {
     BlockRegisterBackend(&gMuxBackend);
     DebugWrite("block-mux: msc installed\n");
 }
+
+void BlockMuxRemoveMsc(void) {
+    UINT32 i;
+
+    if (!gMsc) {
+        return;
+    }
+    gMsc = 0;
+    gMscPlaced = 0;
+    for (i = 0; i < BLOCK_MAX_DRIVES; i++) {
+        if (gKind[i] == KIND_MSC) {
+            gKind[i] = KIND_NONE;
+        }
+    }
+    if (gPrimary) {
+        BlockRegisterBackend(gPrimary);
+    } else {
+        BlockRegisterBackend(&gMuxBackend);
+    }
+    DebugWrite("block-mux: msc removed\n");
+}

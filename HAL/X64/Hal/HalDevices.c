@@ -91,6 +91,18 @@ int HalUsbMscAutoBeforeFs(void) {
     return UsbMscAutoBeforeFs();
 }
 
+int HalUsbMscRelease(void) {
+    return UsbMscRelease();
+}
+
+int HalUsbMscHotPoll(void) {
+    return UsbMscHotPoll();
+}
+
+int HalUsbMscHot(void) {
+    return UsbMscHot();
+}
+
 int HalUsbUartClaim(void) {
     int Rc;
 

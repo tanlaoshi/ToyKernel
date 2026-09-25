@@ -88,3 +88,56 @@ int XhciMscScanPorts(void) {
     BootLogHex("Boot: MSC scan done n=", (UINT32)Found, 2);
     return Found;
 }
+
+/*
+ * PR-H-msc-hot：DisableSlot 清 gMsc*（见 XhciDevice.c）。
+ */
+int XhciMscRelease(void) {
+    if (gMscScanSlot != 0) {
+        DisableSlot(gMscScanSlot);
+    } else {
+        gMscClaimed = 0;
+        gMscPort = 0;
+        gMscRoute = 0;
+        gMscHubSlot = 0;
+        gMscTtPort = 0;
+        gMscBulkInDci = 0;
+        gMscBulkOutDci = 0;
+        gMscCapacityOk = 0;
+        gMscBlockCount = 0;
+        gMscBlockSize = 0;
+    }
+    BootLog("Boot: MSC release\n");
+    return 0;
+}
+
+/*
+ * 根口：PORTSC.CCS。hub 子设备：HubGetPortStatus(CONNECTION)
+ *（仅当 gMscHubSlot==当前 HID hub，第二 hub 场景 Shell 手动 release）。
+ */
+int XhciMscPresent(void) {
+    UINT32 Ps;
+    UINT32 St;
+
+    if (!gMscClaimed) {
+        return 0;
+    }
+    if (!gXhciStarted || gOperationalBase == 0) {
+        return 0;
+    }
+    if (gMscHubSlot != 0 && gMscTtPort != 0) {
+        if (gMscHubSlot != (UINT8)gHubSlotId || gHubSlotId == 0) {
+            /* 父 hub 非当前 gHub*：勿乱 HubCtrl；当仍在 */
+            return 1;
+        }
+        if (HubGetPortStatus(gMscTtPort, &St) < 0) {
+            return 0;
+        }
+        return (St & HUB_PORT_CONNECTION) ? 1 : 0;
+    }
+    if (gMscPort == 0 || gMscPort > gMaxPorts) {
+        return 0;
+    }
+    Ps = ReadMmio32(gOperationalBase + PortReg(gMscPort));
+    return (Ps & PORTSC_CCS) ? 1 : 0;
+}
