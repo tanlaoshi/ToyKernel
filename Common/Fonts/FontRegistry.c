@@ -19,7 +19,9 @@
 #define FONT_TOYF_VERSION 1u
 #define FONT_TOYF_HDR     32u
 #define FONT_FILE_MAX     (64u * 1024u)
-#define FONT_RUNTIME_MAX  2u
+/* 系统 TOYF 占 0..FONT_APP_SLOT-1；末槽专供应用私有字（PR-S-app-font） */
+#define FONT_RUNTIME_MAX  4u
+#define FONT_APP_SLOT     (FONT_RUNTIME_MAX - 1u)
 #define FONT_NAME_MAX     16u
 #define FONT_TABLE_MAX    8u
 #define FONT_SPACING_MAX  16u
@@ -286,8 +288,8 @@ int FontLoadAssets(void) {
     Slot = 0;
     BaseCount = 0;
 
-    /* 稳定优先：样本路径 */
-    if (Slot < FONT_RUNTIME_MAX &&
+    /* 稳定优先：样本路径（勿占 FONT_APP_SLOT） */
+    if (Slot < FONT_APP_SLOT &&
         TryLoadPath("Assets/Fonts/VGA8X16.FNT", &gRuntime[Slot]) == 0) {
         if (FaceNameRegistered(gRuntime[Slot].Name, &gRuntime[Slot])) {
             HalConsoleWriteSerial("Font: skip duplicate name ");
@@ -311,7 +313,7 @@ int FontLoadAssets(void) {
 
     Err = FileSystemListEntries("Assets/Fonts", Ents, FAT_LIST_MAX, &Count);
     if (Err == FAT_OK) {
-        for (i = 0; i < Count && Slot < FONT_RUNTIME_MAX; i++) {
+        for (i = 0; i < Count && Slot < FONT_APP_SLOT; i++) {
             int n;
             int j;
             int SkipBase;
@@ -400,6 +402,42 @@ int FontReloadAssets(void) {
         (void)FontSetById(Fallback);
     }
     return 0;
+}
+
+int FontLoadPath(const char *Path) {
+    UINT32 i;
+
+    if (!Path || !Path[0]) {
+        return -1;
+    }
+    if (gRuntime[FONT_APP_SLOT].Used) {
+        FreeRuntimeSlot(&gRuntime[FONT_APP_SLOT]);
+        RebuildFontTable();
+    }
+    if (TryLoadPath(Path, &gRuntime[FONT_APP_SLOT]) != 0) {
+        return -1;
+    }
+    /* 私有槽允许与系统同名；不跑 FaceNameRegistered */
+    RebuildFontTable();
+    for (i = 0; i < gFontCount; i++) {
+        if (gFonts[i] == &gRuntime[FONT_APP_SLOT].Face) {
+            return (int)i;
+        }
+    }
+    FreeRuntimeSlot(&gRuntime[FONT_APP_SLOT]);
+    RebuildFontTable();
+    return -1;
+}
+
+void FontUnloadApp(void) {
+    if (!gRuntime[FONT_APP_SLOT].Used) {
+        return;
+    }
+    FreeRuntimeSlot(&gRuntime[FONT_APP_SLOT]);
+    RebuildFontTable();
+    if (gCurrentId >= gFontCount) {
+        gCurrentId = gFontCount ? (gFontCount - 1u) : 0u;
+    }
 }
 
 UINT32 FontCount(void) {

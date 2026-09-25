@@ -52,6 +52,7 @@ void ProcessStopAllUsers(void) {
     for (I = 0; I < N; I++) {
         SchedulerDestroyDetached(Spaces[I]);
     }
+    ProcessRestoreAppFont();
 }
 
 int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,

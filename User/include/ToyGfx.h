@@ -36,10 +36,11 @@ typedef struct {
 } TOY_GFX_DAMAGE_RECT;
 
 /*
- * ToyGfxInitialize — 声明使用系统字体（PR-S-bundle-font）
+ * ToyGfxInitialize — 声明使用系统字体约定（PR-S-bundle-font）
  *
  * 内核启动已加载 Assets/Fonts 下 .FNT；本调用无加载动作，成功恒 0。
- * 课上应在首绘 / DamageText 前调用，避免误以为要 FontLoad("...")。
+ * 若 PKG 写了 font=，ProcessExec 会由内核挂私有字（PR-S-app-font）；
+ * Guest 仍只调本 API + DamageText，勿自行拼路径。
  */
 int ToyGfxInitialize(void);
 

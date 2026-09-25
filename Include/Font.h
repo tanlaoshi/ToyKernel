@@ -37,6 +37,13 @@ void FontInitialize(void);
  */
 int FontLoadAssets(void);
 int FontReloadAssets(void);
+/*
+ * PR-S-app-font：按路径加载 TOYF 到专用应用槽（覆盖上次私有字）。
+ * 成功返回字体 id（≥0）；失败 -1。不改当前选中 id。
+ */
+int FontLoadPath(const char *Path);
+/* 卸应用私有槽；当前 id 若失效则钳到合法值 */
+void FontUnloadApp(void);
 UINT32 FontCount(void);
 UINT32 FontCurrentId(void);
 const FONT_FACE *FontGetById(UINT32 Id);

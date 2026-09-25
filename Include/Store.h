@@ -45,6 +45,8 @@ typedef struct STORE_APP_DESKTOP_META {
     int TaskbarYes;
     char Title[STORE_TITLE_MAX];
     char IconRel[STORE_ICON_REL_MAX];
+    /* PR-S-app-font：相对应用目录的私有 .fnt；空 = 系统字 */
+    char FontRel[STORE_ICON_REL_MAX];
 } STORE_APP_DESKTOP_META;
 
 /* 加载 catalog；优先 StoreCache/（S2 同步后），再 Assets/；成功返回条目数 */

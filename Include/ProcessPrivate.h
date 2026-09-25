@@ -12,5 +12,8 @@ int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,
 int ProcessLoadPath(const char *Path, VIRTUAL_ADDRESS_SPACE **OutSpace,
                     ELF_LOAD_RESULT *OutInfo);
 void ProcessStopAllUsers(void);
+/* PR-S-app-font：Apps/<id>/ + PKG font= → 挂/卸私有字 */
+void ProcessApplyAppFont(const char *Path);
+void ProcessRestoreAppFont(void);
 
 #endif

@@ -36,6 +36,8 @@ static void ApplyPkgLine(STORE_APP_DESKTOP_META *Out, const char *Key,
         CopyStr(Out->Title, (int)sizeof(Out->Title), Val);
     } else if (StrEqIgnoreCase(Key, "icon") && Val) {
         CopyStr(Out->IconRel, (int)sizeof(Out->IconRel), Val);
+    } else if (StrEqIgnoreCase(Key, "font") && Val) {
+        CopyStr(Out->FontRel, (int)sizeof(Out->FontRel), Val);
     }
 }
 
@@ -101,6 +103,7 @@ int StoreReadAppDesktopMeta(const char *Id, STORE_APP_DESKTOP_META *Out) {
     Out->TaskbarYes = 0;
     Out->Title[0] = 0;
     Out->IconRel[0] = 0;
+    Out->FontRel[0] = 0;
 
     StoreAppBundleDir(Path, (int)sizeof(Path), Id);
     JoinPath(Path, (int)sizeof(Path), Path, "PKG.TXT");

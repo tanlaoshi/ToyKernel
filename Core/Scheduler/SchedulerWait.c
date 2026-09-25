@@ -13,6 +13,7 @@
 #include "Gui.h"
 #include "Debug.h"
 #include "VirtualMemory.h"
+#include "ProcessPrivate.h"
 
 static void ReapZombie(TASK *Z) {
     SchedulerOpsGet()->Remove(Z);
@@ -199,6 +200,7 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
         if (LastUser) {
             GuiCloseAllUserWindows();
             GuiWaitNoWindowClosing();
+            ProcessRestoreAppFont();
         }
     }
     SchedulerDestroyDetached(Detached);

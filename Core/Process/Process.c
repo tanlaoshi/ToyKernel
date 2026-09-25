@@ -147,7 +147,9 @@ int ProcessExec(const char *Path) {
     /* 单用户 GUI：先停旧任务，避免 Raise 挪槽导致 wid 串台 */
     ProcessStopAllUsers();
     SchedulerReapOrphanZombies();
+    ProcessApplyAppFont(Path);
     if (ProcessStartElf(Space, &Info, Path) != 0) {
+        ProcessRestoreAppFont();
         return -1;
     }
     /* PR-A12 / B1：virt 平台形状无定时抢占 → 协作排空用户任务 */
@@ -239,6 +241,7 @@ int ProcessExecve(HAL_INTERRUPT_FRAME *Frame, const char *Path, UINT64 UserArgv,
     VirtualMemorySpaceDestroy(OldSpace);
 
     HalInstallUserMode();
+    ProcessApplyAppFont(Path);
     DebugWrite("execve: ");
     DebugWrite(Path);
     DebugWrite(" entry=");

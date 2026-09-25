@@ -9,3 +9,4 @@ depends=demopack,sun8
 desktop=yes
 taskbar=yes
 icon=Assets/icon.bmp
+font=Assets/APP.FNT
