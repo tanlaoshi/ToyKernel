@@ -50,6 +50,9 @@
 #define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_FIXED_BOT)
 #define MENU_LABEL_MAX        40
 #define MENU_PATH_MAX         80
+/* 勿用 0..DESKTOP_ICON_COUNT-1：6/7 已是 Apps 槽，会错画/空白 */
+#define MENU_ICON_SRC_POWER   (-2)
+#define MENU_ICON_SRC_REBOOT  (-3)
 #define WALL_FILE_MAX         (512u * 1024u)
 #define ICON_FILE_MAX         (16u * 1024u)
 
@@ -115,6 +118,10 @@ extern BMP_IMAGE gRebootBmp;
 extern int gRebootBmpReady;
 
 extern int gMenuOpen;
+extern UINT32 gMenuCoverX;
+extern UINT32 gMenuCoverY;
+extern UINT32 gMenuCoverW;
+extern UINT32 gMenuCoverH;
 extern UINT8 gClockHour;
 extern UINT8 gClockMinute;
 extern int gClockValid;
@@ -161,6 +168,8 @@ void DrawOneIconOccluded(const DESKTOP_ICON *Icon, int Selected);
 void DrawTaskbarRaw(void);
 void DrawStartMenuRaw(void);
 void DrawTaskbarOccluded(void);
+void DesktopMenuCoverUpdate(void);
+int DrawMenuRowIcon(const MENU_ROW *R, UINT32 IconX, UINT32 IconY);
 
 /* PR-N-nic-tray */
 void DesktopNetTrayDraw(UINT32 ClockX, UINT32 TextY);

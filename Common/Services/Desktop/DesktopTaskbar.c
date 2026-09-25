@@ -199,46 +199,13 @@ void DrawStartMenuRaw(void) {
         UINT32 IconY;
         UINT32 TextX;
         UINT32 Fg;
-        int HasIcon = 0;
 
         UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, ThemeMenuSep());
         IconX = Mx + 6;
         IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);
         TextX = Mx + 10;
         Fg = R->Enabled ? ThemeMenuText() : ThemeControlBorder();
-        if (R->IconSrc >= 0 && R->IconSrc < DESKTOP_ICON_COUNT &&
-            gIcons[R->IconSrc].BmpReady) {
-            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                             &gIcons[R->IconSrc].Bmp);
-            HasIcon = 1;
-        } else if (R->IconSrc >= 0 && R->IconSrc < DESKTOP_ICON_COUNT) {
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                            gIcons[R->IconSrc].IconColor);
-            HasIcon = 1;
-        } else if (R->IconSrc == 6 && gPowerBmpReady) {
-            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                             &gPowerBmp);
-            HasIcon = 1;
-        } else if (R->IconSrc == 6) {
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, ThemeIconFallbackPower());
-            HasIcon = 1;
-        } else if (R->IconSrc == 7 && gRebootBmpReady) {
-            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                             &gRebootBmp);
-            HasIcon = 1;
-        } else if (R->IconSrc == 7) {
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ, ThemeIconFallbackReboot());
-            HasIcon = 1;
-        } else if (R->Action == DESKTOP_ACTION_EXEC && gIcons[0].BmpReady) {
-            BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                             &gIcons[0].Bmp);
-            HasIcon = 1;
-        } else if (R->Action == DESKTOP_ACTION_EXEC) {
-            UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                            gIcons[0].IconColor);
-            HasIcon = 1;
-        }
-        if (HasIcon) {
+        if (DrawMenuRowIcon(R, IconX, IconY)) {
             TextX = IconX + MENU_ICON_SZ + 6u;
         }
         HalVideoDrawStringAt(TextX,
@@ -276,6 +243,8 @@ void DrawStartMenuRaw(void) {
         GameFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
         DrawFlyoutBox(Fx, Fy, Fw, Fh, gMenuGameRows, gMenuGameCount, 5);
     }
+
+    DesktopMenuCoverUpdate();
 }
 
 void DrawTaskbarOccluded(void) {

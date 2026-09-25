@@ -95,6 +95,8 @@ static void ComputeResizeSize(int Idx, int Edge, UINT32 X, UINT32 Y,
     const GUI_WINDOW *W;
     INT32 Dw;
     INT32 Dh;
+    INT32 Tw;
+    INT32 Th;
     UINT32 Nw;
     UINT32 Nh;
 
@@ -106,14 +108,23 @@ static void ComputeResizeSize(int Idx, int Edge, UINT32 X, UINT32 Y,
     W = &gWindows[Idx];
     Dw = (INT32)X - gResizeAnchorX;
     Dh = (INT32)Y - gResizeAnchorY;
-    Nw = gResizeOrigW;
-    Nh = gResizeOrigH;
+    Tw = (INT32)gResizeOrigW;
+    Th = (INT32)gResizeOrigH;
     if (Edge == RESIZE_EDGE_SE || Edge == RESIZE_EDGE_E) {
-        Nw = (UINT32)((INT32)gResizeOrigW + Dw);
+        Tw = (INT32)gResizeOrigW + Dw;
     }
     if (Edge == RESIZE_EDGE_SE || Edge == RESIZE_EDGE_S) {
-        Nh = (UINT32)((INT32)gResizeOrigH + Dh);
+        Th = (INT32)gResizeOrigH + Dh;
     }
+    /* 向左/上拖过最小时 INT 变负；若直接转 UINT32 会下溢成「撑满屏」 */
+    if (Tw < (INT32)RESIZE_MIN_W) {
+        Tw = (INT32)RESIZE_MIN_W;
+    }
+    if (Th < (INT32)RESIZE_MIN_H) {
+        Th = (INT32)RESIZE_MIN_H;
+    }
+    Nw = (UINT32)Tw;
+    Nh = (UINT32)Th;
     ClampResizeSize(W, &Nw, &Nh);
     *OutW = Nw;
     *OutH = Nh;
@@ -242,11 +253,17 @@ void GuiResizeEnd(void) {
 
         ExpandRectByWindowShadow(&Fx, &Fy, &Fw, &Fh);
         ClipRectToScreen(&Fx, &Fy, &Fw, &Fh);
-        ClearOldDragFootprint(Fx, Fy, Fw, Fh, Idx);
 
+        /*
+         * 必须先改成新尺寸再 Clear：FillDesktopRectClipped 认
+         * PointInAnyActiveWindow；若仍是旧 W/H，向左/上缩时露出条
+         * 会被当成「仍在窗内」而跳过 → 旧客户区像素残留。
+         */
         gWindows[Idx].Width = Nw;
         gWindows[Idx].Height = Nh;
         gWinBackupValid[Idx] = 0;
+
+        ClearOldDragFootprint(Fx, Fy, Fw, Fh, Idx);
 
         DrawWindowAt(Idx);
         RepaintAfterResize(Idx);

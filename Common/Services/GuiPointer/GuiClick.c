@@ -138,6 +138,8 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
             GfxIrqLeave();
             RaiseWindow(gFocusWin);
             GuiResizeBegin(gFocusWin, X, Y);
+            /* 按下瞬间须立刻换成 E/S/SE 形，勿等下一次 Move */
+            GuiCursorPaint();
             return 1;
         }
         if (PointInTitle(&gWindows[gFocusWin], X, Y) &&

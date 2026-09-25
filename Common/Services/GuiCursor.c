@@ -17,27 +17,56 @@ void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy,
                       UINT32 *Sw, UINT32 *Sh) {
     int Half;
     int Thick;
-    UINT32 Ext;
-    UINT32 Ex;
-    UINT32 Ey;
+    int L;
+    int R;
+    int T;
+    int B;
+    UINT32 ExtPad;
+    INT32 X0;
+    INT32 Y0;
+    INT32 X1;
+    INT32 Y1;
 
     CursorMetrics(&Half, &Thick);
-    Ext = (UINT32)(Half + Thick + CURSOR_OUTLINE);
+    ExtPad = 0;
     if (HalVideoGetUiScale() != 100u) {
-        Ext += 2u;
+        ExtPad = 2u;
     }
-    *Sx = Cx >= Ext ? Cx - Ext : 0;
-    *Sy = Cy >= Ext ? Cy - Ext : 0;
-    Ex = Cx + Ext + 1;
-    Ey = Cy + Ext + 1;
-    if (Ex > gScreenWidth) {
-        Ex = gScreenWidth;
+    if (gCursorKind == CURSOR_KIND_ARROW) {
+        /*
+         * 尖在热点；头约 1.5H、尾再约 0.5H。多留边防拖尾。
+         */
+        L = Half / 2 + CURSOR_OUTLINE + (int)ExtPad + 4;
+        T = Half / 2 + CURSOR_OUTLINE + (int)ExtPad + 4;
+        R = Half * 3 + CURSOR_OUTLINE + (int)ExtPad + 6;
+        B = Half * 3 + CURSOR_OUTLINE + (int)ExtPad + 6;
+    } else {
+        /* resize：热点居中 */
+        L = R = T = B = Half + Thick + CURSOR_OUTLINE + (int)ExtPad;
+        if (gCursorKind == CURSOR_KIND_RESIZE_SE) {
+            L = R = T = B = Half + Thick + CURSOR_OUTLINE + 2 + (int)ExtPad;
+        }
     }
-    if (Ey > gScreenHeight) {
-        Ey = gScreenHeight;
+    X0 = (INT32)Cx - L;
+    Y0 = (INT32)Cy - T;
+    X1 = (INT32)Cx + R + 1;
+    Y1 = (INT32)Cy + B + 1;
+    if (X0 < 0) {
+        X0 = 0;
     }
-    *Sw = Ex - *Sx;
-    *Sh = Ey - *Sy;
+    if (Y0 < 0) {
+        Y0 = 0;
+    }
+    if (X1 > (INT32)gScreenWidth) {
+        X1 = (INT32)gScreenWidth;
+    }
+    if (Y1 > (INT32)gScreenHeight) {
+        Y1 = (INT32)gScreenHeight;
+    }
+    *Sx = (UINT32)X0;
+    *Sy = (UINT32)Y0;
+    *Sw = (UINT32)(X1 - X0);
+    *Sh = (UINT32)(Y1 - Y0);
 }
 
 void DrawCursorAt(UINT32 X, UINT32 Y) {

@@ -43,6 +43,10 @@ int gPowerBmpReady;
 BMP_IMAGE gRebootBmp;
 int gRebootBmpReady;
 int gMenuOpen;
+UINT32 gMenuCoverX;
+UINT32 gMenuCoverY;
+UINT32 gMenuCoverW;
+UINT32 gMenuCoverH;
 int gMenuAppsOpen;
 int gMenuGameOpen;
 UINT8 gClockHour;
@@ -267,14 +271,9 @@ void DesktopTickClock(void) {
         return;
     }
     /*
-     * 勿 BeginFront：UI scale≠100 时逻辑坐标直写物理 GOP →
-     * 屏幕中部出现「更细」假任务栏，鼠标 Present 像橡皮擦掉。
-     * 走后缓冲 + Present（含缩放）与桌面其它绘制一致。
-     * 先擦光标、铺回任务栏带再画一次，避免 Alpha 叠画 + 开始钮实心方块烙印。
-     *
-     * 须 ClearClip：Shell ConsoleWrite 常留下客户区 clip。
-     * DesktopFillRect / 开始图标走 WriteRect（无视 clip）会先擦掉整条栏，
-     * 而任务栏半透底与控件 FillRect 受 clip → 栏没了、开始图标还在。
+     * 勿 BeginFront：scale≠100 时逻辑坐标直写物理 GOP → 假任务栏。
+     * 后缓冲 + Present；先擦光标再铺栏，避 Alpha/开始钮烙印。
+     * 须 ClearClip：Shell 客户区 clip 会让半透底被裁、开始图标仍在。
      */
     {
         UINT32 BarY;

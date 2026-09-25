@@ -131,20 +131,6 @@ void GuiRedraw(void) {
 }
 
 
-/* PR-G13：菜单开合后整屏合成（开/关都走 Compose，避免 Sync 备份残留方块烙印） */
-void GuiRefreshDesktop(void) {
-    if (DesktopStartMenuIsOpen()) {
-        /* 弹出开始菜单：其它窗失焦；禁止半透/chrome 镂进菜单 */
-        if (gFocusWin >= 0) {
-            GuiFocusSave();
-            gFocusWin = -1;
-        }
-        gHoverWin = -1;
-    }
-    GuiComposeThemeScene();
-}
-
-
 void GuiApplyThemeColors(void) {
     int i;
     UINT32 Bg = ThemeShellClientBackground();

@@ -1,5 +1,7 @@
 /*
- * GuiCursorShape.c — 光标字形：箭头 / 右 / 底 / 对角 resize
+ * GuiCursorShape.c — 光标字形：指针箭头 / ↔ / ↕ / 对角 resize
+ *
+ * 热点：箭头 = 尖端；resize = 字形中心。
  */
 #include "GuiPrivate.h"
 #include "HalVideo.h"
@@ -39,101 +41,195 @@ static void PutCursorPx(int Px, int Py, UINT32 Color) {
     HalVideoDrawPixelRaw((UINT32)Px, (UINT32)Py, Color);
 }
 
-static void DrawCursorArrow(UINT32 X, UINT32 Y) {
-    int Half;
-    int Thick;
-    int i;
-    int t;
-
-    CursorMetrics(&Half, &Thick);
-    for (t = -(Thick + CURSOR_OUTLINE); t <= (Thick + CURSOR_OUTLINE); t++) {
-        for (i = -(Half + CURSOR_OUTLINE); i <= (Half + CURSOR_OUTLINE); i++) {
-            PutCursorPx((int)X + i, (int)Y + t, COLOR_BLACK);
-        }
-    }
-    for (t = -(Thick + CURSOR_OUTLINE); t <= (Thick + CURSOR_OUTLINE); t++) {
-        for (i = -(Half + CURSOR_OUTLINE); i <= (Half + CURSOR_OUTLINE); i++) {
-            if (i >= -(Thick + CURSOR_OUTLINE) && i <= (Thick + CURSOR_OUTLINE)) {
-                continue;
-            }
-            PutCursorPx((int)X + t, (int)Y + i, COLOR_BLACK);
-        }
-    }
-    for (t = -Thick; t <= Thick; t++) {
-        for (i = -Half; i <= Half; i++) {
-            PutCursorPx((int)X + i, (int)Y + t, COLOR_WHITE);
-        }
-    }
-    for (t = -Thick; t <= Thick; t++) {
-        for (i = -Half; i <= Half; i++) {
-            if (i >= -Thick && i <= Thick) {
-                continue;
-            }
-            PutCursorPx((int)X + t, (int)Y + i, COLOR_WHITE);
-        }
-    }
+/*
+ * 指针：等腰三角（尖=热点）+ 沿对称轴伸出的尾巴。
+ * 轴 (1,1) 正右下 45°，底边用垂直向量 (-1,1) 对称展开，避免 (1,2) 那般左下歪。
+ */
+static int Orient2(int Ax, int Ay, int Bx, int By, int Cx, int Cy) {
+    return (Bx - Ax) * (Cy - Ay) - (By - Ay) * (Cx - Ax);
 }
 
-/* Axis：0=水平 E，1=竖直 S，2=对角 SE */
-static void DrawCursorAxis(UINT32 X, UINT32 Y, int Axis) {
+static int InTriangle(int Px, int Py, int X0, int Y0, int X1, int Y1, int X2,
+                      int Y2) {
+    int O1 = Orient2(X0, Y0, X1, Y1, Px, Py);
+    int O2 = Orient2(X1, Y1, X2, Y2, Px, Py);
+    int O3 = Orient2(X2, Y2, X0, Y0, Px, Py);
+    int Neg = (O1 < 0) || (O2 < 0) || (O3 < 0);
+    int Pos = (O1 > 0) || (O2 > 0) || (O3 > 0);
+
+    return !(Neg && Pos);
+}
+
+/* 点到线段距离² ≤ R² */
+static int NearSeg(int Px, int Py, int X0, int Y0, int X1, int Y1, int R) {
+    int Dx = X1 - X0;
+    int Dy = Y1 - Y0;
+    int L2 = Dx * Dx + Dy * Dy;
+    int T;
+    int Qx;
+    int Qy;
+    int Ex;
+    int Ey;
+
+    if (L2 <= 0) {
+        Ex = Px - X0;
+        Ey = Py - Y0;
+        return Ex * Ex + Ey * Ey <= R * R;
+    }
+    T = ((Px - X0) * Dx + (Py - Y0) * Dy);
+    if (T < 0) {
+        T = 0;
+    }
+    if (T > L2) {
+        T = L2;
+    }
+    Qx = X0 + (Dx * T) / L2;
+    Qy = Y0 + (Dy * T) / L2;
+    Ex = Px - Qx;
+    Ey = Py - Qy;
+    return Ex * Ex + Ey * Ey <= R * R;
+}
+
+static void ArrowGeom(int *TipX, int *TipY, int *Lx, int *Ly, int *Rx, int *Ry,
+                      int *Bx, int *By, int *Ex, int *Ey, int *StemR) {
     int Half;
     int Thick;
-    int i;
-    int t;
+    int Head;
+    int Stem;
+    int Wing;
+
+    CursorMetrics(&Half, &Thick);
+    /* 三角高度再矮一点；翼仍窄保细尖；尾短细 */
+    Head = Half;
+    if (Head < 6) {
+        Head = 6;
+    }
+    Stem = Half / 2; /* 再短 2px（原 Half/2+2） */
+    if (Stem < 2) {
+        Stem = 2;
+    }
+    Wing = Half / 2;
+    if (Wing < 2) {
+        Wing = 2;
+    }
+    *TipX = 0;
+    *TipY = 0;
+    *Bx = Head;
+    *By = Head;
+    *Lx = *Bx - Wing;
+    *Ly = *By + Wing;
+    *Rx = *Bx + Wing;
+    *Ry = *By - Wing;
+    *Ex = *Bx + Stem;
+    *Ey = *By + Stem;
+    *StemR = (Thick > 0) ? Thick : 1;
+}
+
+static int ArrowSolid(int Ox, int Oy) {
+    int TipX;
+    int TipY;
+    int Lx;
+    int Ly;
+    int Rx;
+    int Ry;
+    int Bx;
+    int By;
+    int Ex;
+    int Ey;
+    int StemR;
+
+    ArrowGeom(&TipX, &TipY, &Lx, &Ly, &Rx, &Ry, &Bx, &By, &Ex, &Ey, &StemR);
+    if (InTriangle(Ox, Oy, TipX, TipY, Lx, Ly, Rx, Ry)) {
+        return 1;
+    }
+    /* 尾巴只接在底边中点之外，勿画穿三角（穿心会又粗又丑） */
+    if (NearSeg(Ox, Oy, Bx, By, Ex, Ey, StemR)) {
+        return 1;
+    }
+    return 0;
+}
+
+static void DrawCursorArrow(UINT32 X, UINT32 Y) {
+    int TipX;
+    int TipY;
+    int Lx;
+    int Ly;
+    int Rx;
+    int Ry;
+    int Bx;
+    int By;
+    int Ex;
+    int Ey;
+    int StemR;
+    int MinX;
+    int MaxX;
+    int MinY;
+    int MaxY;
     int Ox;
     int Oy;
 
-    CursorMetrics(&Half, &Thick);
-    for (i = -Half; i <= Half; i++) {
-        for (t = -(Thick + CURSOR_OUTLINE); t <= (Thick + CURSOR_OUTLINE); t++) {
-            if (Axis == 0) {
-                Ox = i;
-                Oy = t;
-            } else if (Axis == 1) {
-                Ox = t;
-                Oy = i;
-            } else {
-                Ox = i;
-                Oy = i + t;
+    ArrowGeom(&TipX, &TipY, &Lx, &Ly, &Rx, &Ry, &Bx, &By, &Ex, &Ey, &StemR);
+    MinX = TipX;
+    MaxX = TipX;
+    MinY = TipY;
+    MaxY = TipY;
+    if (Lx < MinX) {
+        MinX = Lx;
+    }
+    if (Rx < MinX) {
+        MinX = Rx;
+    }
+    if (Ex < MinX) {
+        MinX = Ex;
+    }
+    if (Lx > MaxX) {
+        MaxX = Lx;
+    }
+    if (Rx > MaxX) {
+        MaxX = Rx;
+    }
+    if (Ex > MaxX) {
+        MaxX = Ex;
+    }
+    if (Ly < MinY) {
+        MinY = Ly;
+    }
+    if (Ry < MinY) {
+        MinY = Ry;
+    }
+    if (Ey < MinY) {
+        MinY = Ey;
+    }
+    if (Ly > MaxY) {
+        MaxY = Ly;
+    }
+    if (Ry > MaxY) {
+        MaxY = Ry;
+    }
+    if (Ey > MaxY) {
+        MaxY = Ey;
+    }
+    MinX -= StemR + CURSOR_OUTLINE + 1;
+    MinY -= StemR + CURSOR_OUTLINE + 1;
+    MaxX += StemR + CURSOR_OUTLINE + 1;
+    MaxY += StemR + CURSOR_OUTLINE + 1;
+
+    for (Oy = MinY; Oy <= MaxY; Oy++) {
+        for (Ox = MinX; Ox <= MaxX; Ox++) {
+            if (ArrowSolid(Ox, Oy)) {
+                continue;
             }
-            PutCursorPx((int)X + Ox, (int)Y + Oy, COLOR_BLACK);
-            if (Axis == 2) {
-                PutCursorPx((int)X + Ox, (int)Y + i - t, COLOR_BLACK);
-            }
-        }
-        for (t = -Thick; t <= Thick; t++) {
-            if (Axis == 0) {
-                Ox = i;
-                Oy = t;
-            } else if (Axis == 1) {
-                Ox = t;
-                Oy = i;
-            } else {
-                Ox = i;
-                Oy = i + t;
-            }
-            PutCursorPx((int)X + Ox, (int)Y + Oy, COLOR_WHITE);
-            if (Axis == 2) {
-                PutCursorPx((int)X + Ox, (int)Y + i - t, COLOR_WHITE);
+            if (ArrowSolid(Ox - 1, Oy) || ArrowSolid(Ox + 1, Oy) ||
+                ArrowSolid(Ox, Oy - 1) || ArrowSolid(Ox, Oy + 1)) {
+                PutCursorPx((int)X + Ox, (int)Y + Oy, COLOR_BLACK);
             }
         }
     }
-    for (t = -Half / 2; t <= Half / 2; t++) {
-        if (Axis == 0) {
-            PutCursorPx((int)X - Half, (int)Y + t, COLOR_WHITE);
-            PutCursorPx((int)X + Half, (int)Y + t, COLOR_WHITE);
-            PutCursorPx((int)X - Half - 1, (int)Y + t, COLOR_BLACK);
-            PutCursorPx((int)X + Half + 1, (int)Y + t, COLOR_BLACK);
-        } else if (Axis == 1) {
-            PutCursorPx((int)X + t, (int)Y - Half, COLOR_WHITE);
-            PutCursorPx((int)X + t, (int)Y + Half, COLOR_WHITE);
-            PutCursorPx((int)X + t, (int)Y - Half - 1, COLOR_BLACK);
-            PutCursorPx((int)X + t, (int)Y + Half + 1, COLOR_BLACK);
-        } else {
-            PutCursorPx((int)X - Half + t, (int)Y - Half, COLOR_WHITE);
-            PutCursorPx((int)X + Half, (int)Y + Half - t, COLOR_WHITE);
-            PutCursorPx((int)X - Half, (int)Y - Half + t, COLOR_WHITE);
-            PutCursorPx((int)X + Half - t, (int)Y + Half, COLOR_WHITE);
+    for (Oy = MinY; Oy <= MaxY; Oy++) {
+        for (Ox = MinX; Ox <= MaxX; Ox++) {
+            if (ArrowSolid(Ox, Oy)) {
+                PutCursorPx((int)X + Ox, (int)Y + Oy, COLOR_WHITE);
+            }
         }
     }
 }

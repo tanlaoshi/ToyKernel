@@ -31,10 +31,11 @@
 #define CURSOR_OUTLINE   1
 /* +1：UI 缩放时 CursorBox 再外扩 1 逻辑像素 */
 #define CURSOR_SCALE_PAD 3
-#define CURSOR_EXT_MAX   (CURSOR_HALF_MAX + CURSOR_THICK_MAX + CURSOR_OUTLINE + CURSOR_SCALE_PAD)
-#define CURSOR_BOX       (CURSOR_EXT_MAX * 2 + 1)
+/* resize 居中臂；指针头+尾最大约 4*HALF_MAX+描边 */
+#define CURSOR_EXT_MAX   40
+#define CURSOR_BOX       112
 
-/* 光标外形（对角/边框 resize） */
+/* 光标外形：0=指针箭头；1..3=边/角 resize */
 #define CURSOR_KIND_ARROW     0
 #define CURSOR_KIND_RESIZE_SE 1
 #define CURSOR_KIND_RESIZE_E  2
@@ -213,6 +214,7 @@ int PixelCoveredByHigherWindow(int Idx, UINT32 Px, UINT32 Py);
 void CursorMetrics(int *Half, int *Thick);
 void CursorBox(UINT32 Cx, UINT32 Cy, UINT32 *Sx, UINT32 *Sy, UINT32 *Sw, UINT32 *Sh);
 void DrawCursorGlyph(UINT32 X, UINT32 Y);
+void DrawCursorAxis(UINT32 X, UINT32 Y, int Axis);
 void DrawCursorAt(UINT32 X, UINT32 Y);
 void CursorRestore(void);
 void CursorPaint(void);

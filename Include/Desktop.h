@@ -41,6 +41,9 @@ void DesktopDrawStartMenu(void);
 /* PR-N-nic-tray：网络简况弹层（叠在窗上） */
 void DesktopDrawNetTrayPopup(void);
 int DesktopStartMenuIsOpen(void);
+/* 开始菜单上次绘制覆盖区（含 flyout）；无则 W=0。供 Gui 局部刷新 */
+int DesktopMenuCoverGet(UINT32 *X, UINT32 *Y, UINT32 *W, UINT32 *H);
+void DesktopMenuCoverClear(void);
 /* PR-N-nic-tray */
 int DesktopNetTrayIsOpen(void);
 void DesktopDismissStartMenu(void);

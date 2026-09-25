@@ -218,7 +218,10 @@ static int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
             gMenuAppsOpen = 0;
             gMenuGameOpen = 0;
             DesktopNetTrayClose();
-            RebuildStartMenu();
+            /* Apps 未变则复用上次 Rebuild；NotifyAppsChanged 会清 gMenuCount */
+            if (gMenuCount <= 0) {
+                RebuildStartMenu();
+            }
             RequestRefresh();
             return 1;
         }

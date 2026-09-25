@@ -294,7 +294,7 @@ void RebuildStartMenu(void) {
     }
 
     L = LocStr(MSG_ICON_SHUTDOWN);
-    MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1, 6);
+    MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1, MENU_ICON_SRC_POWER);
     L = LocStr(MSG_ICON_REBOOT);
-    MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1, 7);
+    MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1, MENU_ICON_SRC_REBOOT);
 }
