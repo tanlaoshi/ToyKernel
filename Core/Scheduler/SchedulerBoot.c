@@ -123,7 +123,7 @@ void SchedulerStart(void) {
         UINT32 InteractiveCpu = (Cpus > 1) ? 1u : 0u;
         UINT32 InputCpu = (Cpus > 2) ? 2u : InteractiveCpu;
 
-        if (HalConsoleOnly()) {
+        if (HalConsoleOnly() || HalPinInteractiveToBootstrap()) {
             InteractiveCpu = 0;
             InputCpu = 0;
         }
@@ -201,6 +201,12 @@ void SchedulerStart(void) {
         SpinLockRelease(&gSchedulerLock);
         HalTimerStart();
         DebugWrite("sched: online, entering tasks\n");
+        /*
+         * PR-V-input-fix：Start 前 cli；First 若是 shell（virt 钉 BSP）则从不
+         * HalCpuHalt 开中断 → 无 tick、OnTimer 不转、Poll 侧也饿（见 show input t0=0）。
+         * 进任务前开 IRQ；AP 首入仍由 IdleTask→Halt 路径保活。
+         */
+        HalIrqEnable();
         HalSchedulerEnter(Frame);
     }
 }

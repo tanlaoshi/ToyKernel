@@ -78,6 +78,8 @@ HalTrapVector:
     ld      t1, 296(a0)
     csrw    sscratch, zero
     mv      sp, t1
+    /* trap 入口 SIE=0；jr 不经 sret，须显式开 SIE 否则无 tick / 易卡死 */
+    csrs    sstatus, 2
     jr      t0
 
 3:

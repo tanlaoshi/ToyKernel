@@ -421,6 +421,10 @@ int HalConsoleOnly(void) {
     return 0;
 }
 
+int HalPinInteractiveToBootstrap(void) {
+    return 0;
+}
+
 int HalPlatformIsVirtSerialConsole(void) {
     return 0;
 }

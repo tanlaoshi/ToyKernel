@@ -208,6 +208,16 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
     if (Next == Cur || Next == 0) {
         return 0;
     }
+    /*
+     * PR-V-input-fix：virt 用户只走 SchedulerCoopDrainUsers / HalUserCoopEnter。
+     * IRQ 路径 OnTimer 若切到未跑过的用户帧（或从用户切走再以 Create 帧恢复），
+     * Arm64/RiscV 会落到非法 ELR（如 0x100）/ user fault；内核任务仍可抢占。
+     */
+    if (HalPlatformIsVirtSerialConsole()) {
+        if (Cur->IsUser || Next->IsUser) {
+            return 0;
+        }
+    }
     ActivateTask(Next);
     return SchedulerResumeFrame(Next);
 }

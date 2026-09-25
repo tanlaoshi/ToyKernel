@@ -3,6 +3,7 @@
  */
 #include "Hal.h"
 #include "Syscall.h"
+#include "Scheduler.h"
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
 
@@ -93,12 +94,15 @@ UINT64 HalTrapDispatch(HAL_INTERRUPT_FRAME *Frame) {
     Status = Frame->Rflags;
     FromUser = (Status & SSTATUS_SPP) == 0;
 
-    /* PR-A13：supervisor timer interrupt（cause 5） */
+    /* PR-A13 / PR-V-input-fix：supervisor timer → SchedulerOnTimer（对齐 x86） */
     if (Cause & (1ULL << 63)) {
         UINT64 Code = Cause & 0xFFULL;
         if (Code == 5) {
             extern void HalTimerIrq(void);
             HalTimerIrq();
+            if (SchedulerIsOnline()) {
+                return SchedulerOnTimer(Frame);
+            }
             return 0;
         }
         HalSerialWrite("vmm: irq cause=");

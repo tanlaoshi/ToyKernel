@@ -106,11 +106,11 @@ HalExcSync:
     eret
 
 /*
- * PR-A13：IRQ（Current EL 或 Lower EL）— 保存易失寄存器，调 HalExceptionIrq。
- * 用户态抢占仍靠协作 drain（A12）；此处保证 tick + WFI 唤醒。
+ * PR-A13 / PR-V-input-fix：IRQ（Current EL 或 Lower EL）
+ * 压 HAL_INTERRUPT_FRAME，调 HalExceptionIrqDispatch；返回非 0 → 调度切换（同 LowerSync）。
  */
 HalExcIrq:
-    sub     sp, sp, #256
+    sub     sp, sp, #304
     stp     x0, x1, [sp, #0]
     stp     x2, x3, [sp, #16]
     stp     x4, x5, [sp, #32]
@@ -128,8 +128,56 @@ HalExcIrq:
     stp     x28, x29, [sp, #224]
     str     x30, [sp, #240]
 
-    bl      HalExceptionIrq
+    mrs     x0, elr_el1
+    str     x0, [sp, #264]          /* InstructionPointer */
+    mrs     x0, spsr_el1
+    str     x0, [sp, #280]          /* Rflags */
+    /* EL0：SP_EL0；EL1：中断前 SP = 本帧 + 304 */
+    and     x1, x0, #0xf
+    cbnz    x1, 1f
+    mrs     x0, sp_el0
+    b       2f
+1:
+    add     x0, sp, #304
+2:
+    str     x0, [sp, #288]          /* StackPointer */
+    mov     x0, #0
+    str     x0, [sp, #248]          /* Vec */
+    str     x0, [sp, #256]          /* Err */
+    str     x0, [sp, #272]          /* Cs */
+    str     x0, [sp, #296]          /* Ss */
 
+    mov     x0, sp
+    bl      HalExceptionIrqDispatch
+
+    tst     x0, x0
+    b.eq    .Lirq_restore
+    tbnz    x0, #0, .Lirq_kern_first
+    and     x0, x0, #0xfffffffffffffffc
+    mov     sp, x0
+    b       .Lirq_restore
+
+.Lirq_kern_first:
+    and     x0, x0, #0xfffffffffffffffc
+    mov     x1, x0
+    ldr     x2, [x1, #264]
+    ldr     x3, [x1, #288]
+    mov     sp, x3
+    /* IRQ 入口时 DAIF.I=1；br 不经 eret，须显式开 IRQ 否则任务永无 tick */
+    msr     daifclr, #2
+    br      x2
+
+.Lirq_restore:
+    ldr     x0, [sp, #264]
+    msr     elr_el1, x0
+    ldr     x0, [sp, #280]
+    msr     spsr_el1, x0
+    /* 仅 EL0 写回 SP_EL0 */
+    and     x1, x0, #0xf
+    cbnz    x1, 3f
+    ldr     x0, [sp, #288]
+    msr     sp_el0, x0
+3:
     ldr     x30, [sp, #240]
     ldp     x28, x29, [sp, #224]
     ldp     x26, x27, [sp, #208]
@@ -146,7 +194,7 @@ HalExcIrq:
     ldp     x4, x5, [sp, #32]
     ldp     x2, x3, [sp, #16]
     ldp     x0, x1, [sp, #0]
-    add     sp, sp, #256
+    add     sp, sp, #304
     eret
 
 /*

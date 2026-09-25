@@ -7,8 +7,8 @@
 #include "BootInfo.h"
 
 /* 默认 virt 分辨率（XR24 / XRGB8888） */
-#define RAMFB_WIDTH  800u
-#define RAMFB_HEIGHT 600u
+#define RAMFB_WIDTH  1920u
+#define RAMFB_HEIGHT 1080u
 
 /*
  * 在 *FreeStart 处切出帧缓冲，经 fw_cfg 写 etc/ramfb，填 Info 的 FB 字段，

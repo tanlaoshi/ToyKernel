@@ -23,5 +23,6 @@
 #define TOY_BOARD_HAS_BLOCK        1 /* virtio-blk */
 #define TOY_BOARD_HAS_NET          1 /* virtio-net */
 #define TOY_BOARD_CONSOLE_ONLY     0
+#define TOY_BOARD_IS_VIRT          1
 
 #endif /* TOY_BOARD_CONFIG_H */

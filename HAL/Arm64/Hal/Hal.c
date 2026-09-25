@@ -3,6 +3,8 @@
  */
 #include "Hal.h"
 #include "BootInfo.h"
+#include "Scheduler.h"
+#include "BoardConfig.h"
 
 static UINT64 gCntLast;
 static UINT64 gCntFreq;
@@ -158,14 +160,22 @@ void HalTimerPoll(void) {
     }
 }
 
-/* PR-A13：Current/Lower EL IRQ 入口 */
-void HalExceptionIrq(void) {
+/* PR-A13 / PR-V-input-fix：IRQ 帧上 tick + SchedulerOnTimer（对齐 x86） */
+UINT64 HalExceptionIrqDispatch(HAL_INTERRUPT_FRAME *Frame) {
     UINT32 Id = HalGicAck();
+    UINT64 Ret = 0;
+
     if (HalGicIsTimer(Id)) {
         HalCpuIncrementTicks();
         HalTimerAck();
+        HalGicEoi(Id);
+        if (SchedulerIsOnline() && Frame) {
+            Ret = SchedulerOnTimer(Frame);
+        }
+        return Ret;
     }
     HalGicEoi(Id);
+    return 0;
 }
 
 int HalHasFrameBuffer(void) {
@@ -177,6 +187,15 @@ int HalHasFrameBuffer(void) {
 int HalConsoleOnly(void) {
     /* 无 FB → 串口命令行靶（virt --headless / 未来 Duo S 等板包） */
     return HalHasFrameBuffer() ? 0 : 1;
+}
+
+int HalPinInteractiveToBootstrap(void) {
+    /* PR-V-input-fix：与 RiscV virt 同 — AP 上 OnTimer 首切任务易关 IRQ，交互留 BSP */
+#if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
+    return 1;
+#else
+    return 0;
+#endif
 }
 
 int HalPlatformIsVirtSerialConsole(void) {

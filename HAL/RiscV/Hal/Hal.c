@@ -10,7 +10,9 @@
  * 用 rdtime + SBI set_timer；QEMU virt 常见 10MHz。
  */
 #define TIME_HZ 10000000ULL
-#define SSTATUS_SIE (1ULL << 1)
+#define SSTATUS_SIE  (1ULL << 1)
+#define SSTATUS_SPIE (1ULL << 5)
+#define SSTATUS_SPP  (1ULL << 8)
 #define SIE_STIE    (1ULL << 5)
 #define SBI_EXT_TIME 0x54494D45ULL
 #define SBI_EXT_LEGACY_SET_TIMER 0x00ULL
@@ -197,6 +199,15 @@ int HalConsoleOnly(void) {
     return HalHasFrameBuffer() ? 0 : 1;
 }
 
+int HalPinInteractiveToBootstrap(void) {
+    /* PR-V-input-fix：AP 上 SchedulerOnTimer→shell 会 user fault；交互留 BSP */
+#if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 int HalPlatformIsVirtSerialConsole(void) {
     /* virt 平台形状（协作调度 / 桌面模块表）；真机板包 IS_VIRT=0（PR-B3） */
 #if defined(TOY_BOARD_IS_VIRT) && TOY_BOARD_IS_VIRT
@@ -284,6 +295,8 @@ void HalFrameSetKernelEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 StackTo
     FrameZero(F);
     F->InstructionPointer = Entry;
     F->StackPointer = StackTop;
+    /* PR-V-input-fix：Create 帧若经 sret 恢复须保持 S-mode（SPP=1） */
+    F->Rflags = SSTATUS_SPP | SSTATUS_SPIE;
 }
 
 void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStackTop) {
