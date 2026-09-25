@@ -74,6 +74,8 @@ void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 void HalInputPoll(void);
 /* 诊断串：mode= + t/i/k/m…（Shell show xhci） */
 void HalInputDiagFormat(char *Buf, int Max);
+/* PR-H-ehci-1：EHCI CCS；无 EHCI 时 Buf="ready=0" */
+void HalEhciDiagFormat(char *Buf, int Max);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);

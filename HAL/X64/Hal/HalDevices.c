@@ -9,9 +9,11 @@
 #include "DriverNet.h"
 #include "InputXhci.h"
 #include "InputPs2.h"
+#include "InputEhci.h"
 #include "Net.h"
 #include "UsbMsc.h"
 #include "E1000.h"
+#include "Ehci.h"
 #include "XHCI.h"
 
 #ifndef TOY_DEMO_DRIVER
@@ -24,6 +26,7 @@ void AhciDriverRegister(void);
 void NvmeDriverRegister(void);
 void MscDriverRegister(void); /* PR-H-msc：空壳注册；认盘在后续 PR */
 void E1000DriverRegister(void);
+void AlxDriverRegister(void); /* PR-N-alx-1：AR8161 Probe/MAC；无卡不挡 */
 void DemoDriverRegister(void); /* PR-D-tpl-2 */
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -34,10 +37,12 @@ void HalDriverRegister(void) {
     AtaDriverRegister();
     NvmeDriverRegister();
     MscDriverRegister(); /* PR-H-msc-1：Bind 不改 Block 后端 */
-    InputXhciRegister(); /* 先 USB HID */
-    InputPs2Register();  /* 后 PS/2：PR-H-input-mux 与 xhci-hid 可并存 */
+    InputXhciRegister(); /* 先 USB HID（xHCI） */
+    InputEhciRegister(); /* PR-H-ehci-1：EHCI CCS；HID→ehci-2 */
+    InputPs2Register();  /* 后 PS/2：PR-H-input-mux 与 USB 可并存 */
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
+    AlxDriverRegister();   /* PR-N-alx-1：不 NetAttach；alx-2 再挂 L2 */
 #if TOY_DEMO_DRIVER
     DemoDriverRegister(); /* PR-D-tpl-2：课堂 Demo；-DTOY_DEMO_DRIVER=0 可关 */
 #endif
@@ -136,6 +141,10 @@ void HalInputPoll(void) {
 
 void HalInputDiagFormat(char *Buf, int Max) {
     XhciDiagFormat(Buf, Max);
+}
+
+void HalEhciDiagFormat(char *Buf, int Max) {
+    EhciDiagFormat(Buf, Max);
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

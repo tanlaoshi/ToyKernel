@@ -109,6 +109,22 @@ void HalInputDiagFormat(char *Buf, int Max) {
     VirtioInputDiagFormat(Buf, Max);
 }
 
+void HalEhciDiagFormat(char *Buf, int Max) {
+    if (Buf && Max > 0) {
+        Buf[0] = 0;
+        if (Max > 8) {
+            Buf[0] = 'r';
+            Buf[1] = 'e';
+            Buf[2] = 'a';
+            Buf[3] = 'd';
+            Buf[4] = 'y';
+            Buf[5] = '=';
+            Buf[6] = '0';
+            Buf[7] = 0;
+        }
+    }
+}
+
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     return ToyDriverInputKeyboardDequeue(Report);
 }
