@@ -16,6 +16,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "Locale.h"
 #include "CoreOps.h"
 
@@ -115,6 +116,8 @@ void GuiRefreshTitles(void) {
             gWindows[i].Title = LocStr(MSG_APP_FILES);
         } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
             gWindows[i].Title = "Edit";
+        } else if (gWindows[i].Kind == GUI_WIN_TTY) {
+            gWindows[i].Title = LocStr(MSG_APP_TTY);
         }
     }
     SyncWindowVisualsEx(1);
@@ -128,6 +131,8 @@ void GuiRefreshTitles(void) {
         FilesUiRepaint();
     } else if (GuiFocusKind() == GUI_WIN_EDIT) {
         EditUiRepaint();
+    } else if (GuiFocusKind() == GUI_WIN_TTY) {
+        TtyUiRepaint();
     }
 }
 

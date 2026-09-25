@@ -15,6 +15,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 
 
 void ResetDragState(void) {
@@ -263,6 +264,8 @@ void GuiDragEnd(void) {
             FilesUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_EDIT) {
             EditUiRepaint();
+        } else if (gWindows[DragIdx].Kind == GUI_WIN_TTY) {
+            TtyUiRepaint();
         } else if (gWindows[DragIdx].Kind == GUI_WIN_USER) {
             PaintUserClient(DragIdx);
         } else if (gWindows[DragIdx].Kind == GUI_WIN_SHELL &&

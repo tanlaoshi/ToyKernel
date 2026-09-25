@@ -11,6 +11,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "StoreUi.h"
 #include "Udp.h"
 #include "Tcp.h"
@@ -113,6 +114,34 @@ void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
                 char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
                 if (C != 0) {
                     EditUiOnChar(C);
+                }
+            }
+            continue;
+        }
+
+        /* TTY：串口会话键入 */
+        if (TtyUiIsFocused()) {
+            if (Key == HID_KEY_ESCAPE) {
+                TtyUiOnEscape();
+                continue;
+            }
+            if (Key == HID_KEY_ENTER) {
+                TtyUiOnEnter();
+                continue;
+            }
+            if (Key == HID_KEY_BACKSPACE) {
+                TtyUiOnBackspace();
+                continue;
+            }
+            if (Key == HID_KEY_CAPSLOCK) {
+                HIDKeyboardToggleCapsLock();
+                HalKeyboardSetLeds(HIDKeyboardGetLeds());
+                continue;
+            }
+            {
+                char C = HIDKeyCodeToASCII(Key, Report->ModifierKeys);
+                if (C != 0) {
+                    TtyUiOnChar(C);
                 }
             }
             continue;

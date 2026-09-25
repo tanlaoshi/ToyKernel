@@ -156,6 +156,17 @@ static void CommandEdit(int Argc, char **Argv) {
     }
 }
 
+static void CommandTty(int Argc, char **Argv) {
+    int Idx;
+
+    (void)Argc;
+    (void)Argv;
+    Idx = GuiOpenTty();
+    if (Idx < 0) {
+        ConsoleWrite("tty: no free window\n");
+    }
+}
+
 static void CommandZh(int Argc, char **Argv) {
     (void)Argc;
     (void)Argv;
@@ -479,6 +490,7 @@ void ShellCommandsFsUiRegister(void) {
     ConsoleRegister("settings", "open Settings window", CommandSettings);
     ConsoleRegister("files", "open Files browser", CommandFiles);
     ConsoleRegister("edit", "edit <path> open text editor (PR-V2)", CommandEdit);
+    ConsoleRegister("tty", "open serial TTY session window", CommandTty);
     ConsoleRegister("font", "font [reload|<id>] (Assets/Fonts TOYF)", CommandFont);
     ConsoleRegister("store", "store list|install|remove|combo|uncombo|installed|…", CommandStore);
 }

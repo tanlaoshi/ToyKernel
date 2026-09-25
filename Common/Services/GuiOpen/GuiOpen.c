@@ -17,6 +17,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "Locale.h"
 #include "Desktop.h"
 #include "DesktopPrivate.h"
@@ -92,6 +93,9 @@ void CloseWindow(int Idx) {
     }
     gWindows[Idx].Closing = 1;
     WasUser = (gWindows[Idx].Kind == GUI_WIN_USER);
+    if (gWindows[Idx].Kind == GUI_WIN_TTY) {
+        TtyUiClose();
+    }
     X = gWindows[Idx].X;
     Y = gWindows[Idx].Y;
     Ww = gWindows[Idx].Width;
@@ -202,6 +206,10 @@ void CloseWindow(int Idx) {
             } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
                 gFocusWin = i;
                 EditUiRepaint();
+                gFocusWin = SavedFocus;
+            } else if (gWindows[i].Kind == GUI_WIN_TTY) {
+                gFocusWin = i;
+                TtyUiRepaint();
                 gFocusWin = SavedFocus;
             } else if (gWindows[i].Kind == GUI_WIN_USER) {
                 PaintUserClient(i);

@@ -90,6 +90,7 @@ typedef enum {
     MSG_DEV_HYPERVISOR,
     MSG_DEV_PCI_COUNT,
     MSG_DEV_READY,
+    MSG_APP_TTY,
     MSG_COUNT
 } MSG_ID;
 

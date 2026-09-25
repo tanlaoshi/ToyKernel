@@ -95,6 +95,7 @@ static const char *const gMsgKeys[MSG_COUNT] = {
     "MSG_DEV_HYPERVISOR",
     "MSG_DEV_PCI_COUNT",
     "MSG_DEV_READY",
+    "MSG_APP_TTY",
 };
 
 static const char *const gEnFallback[MSG_COUNT] = {
@@ -173,6 +174,7 @@ static const char *const gEnFallback[MSG_COUNT] = {
     "Virtualization",
     "PCI devices",
     "ready",
+    "TTY",
 };
 
 static const char *const gZhFallback[MSG_COUNT] = {
@@ -250,7 +252,8 @@ static const char *const gZhFallback[MSG_COUNT] = {
     "显示器",
     "虚拟化",
     "PCI 设备",
-    "就绪"
+    "就绪",
+    "串口",
 };
 
 static char gEn[MSG_COUNT][LOCALE_STR_MAX];

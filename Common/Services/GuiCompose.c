@@ -15,6 +15,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "Scheduler.h"
 
 void GfxIrqEnter(void) {
@@ -156,6 +157,8 @@ void GuiApplyThemeColors(void) {
             gWindows[i].Background = ThemeSettingsClientBackground();
         } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_EDIT) {
             gWindows[i].Background = ThemeSettingsClientBackground();
+        } else if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_TTY) {
+            gWindows[i].Background = ThemeShellClientBackground();
         }
     }
 }
@@ -206,6 +209,9 @@ void GuiComposeThemeScene(void) {
         } else if (gWindows[i].Kind == GUI_WIN_EDIT) {
             gFocusWin = i;
             EditUiPaintFocused();
+        } else if (gWindows[i].Kind == GUI_WIN_TTY) {
+            gFocusWin = i;
+            TtyUiPaintFocused();
         } else if (gWindows[i].Kind == GUI_WIN_USER) {
             gFocusWin = i;
             PaintUserClient(i);

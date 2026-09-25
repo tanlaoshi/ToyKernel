@@ -11,6 +11,7 @@
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "LwIp.h"
@@ -105,6 +106,10 @@ void ShellTask(void) {
                     } else if (C >= 32 && C <= 126) {
                         EditUiOnChar(C);
                     }
+                    continue;
+                }
+                if (TtyUiIsFocused()) {
+                    TtyUiOnRxChar(C);
                     continue;
                 }
                 if (SerialIsEnter(C)) {

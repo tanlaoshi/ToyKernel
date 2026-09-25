@@ -12,6 +12,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "Console.h"
 #include "Process.h"
 #include "ToySerialLog.h"
@@ -197,6 +198,15 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                 GuiFrameBufferEnd();
             }
             /* 客户区：悬停/按下由 OnPointer；抬起触发 Save（PR-GUI-migrate-edit） */
+        } else if (GuiFocusKind() == GUI_WIN_TTY) {
+            if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
+                TtyUiRepaint();
+                GuiFrameBufferBegin();
+                DrawWindowChromeAt(gFocusWin);
+                GuiFrameBufferEnd();
+            } else {
+                TtyUiOnClick(X, Y);
+            }
         } else if (GuiFocusKind() == GUI_WIN_SHELL) {
             if (PointInTitle(&gWindows[gFocusWin], X, Y)) {
                 if (!gWinBackupValid[gFocusWin]) {

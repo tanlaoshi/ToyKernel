@@ -11,6 +11,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 
 #define RESIZE_MIN_W    480u
 #define RESIZE_MIN_H    360u
@@ -143,6 +144,8 @@ static void RepaintAfterResize(int Idx) {
         FilesUiRepaint();
     } else if (Kind == GUI_WIN_EDIT) {
         EditUiRepaint();
+    } else if (Kind == GUI_WIN_TTY) {
+        TtyUiRepaint();
     } else if (Kind == GUI_WIN_USER) {
         PaintUserClient(Idx);
     } else if (Kind == GUI_WIN_SHELL) {

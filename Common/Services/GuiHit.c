@@ -12,6 +12,7 @@
 #include "StoreUi.h"
 #include "DevicesUi.h"
 #include "EditUi.h"
+#include "TtyUi.h"
 #include "ToySerialLog.h"
 
 void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
@@ -133,6 +134,9 @@ void GuiRaiseToFront(int Idx) {
         BackupWindowAt(Top);
     } else if (gWindows[Top].Kind == GUI_WIN_EDIT) {
         EditUiRepaint();
+        BackupWindowAt(Top);
+    } else if (gWindows[Top].Kind == GUI_WIN_TTY) {
+        TtyUiPaintFocused();
         BackupWindowAt(Top);
     } else if (gWindows[Top].Kind == GUI_WIN_USER) {
         /* Sync 已画过光标；先擦再重画客户区，避免旧底盖住按钮 */
