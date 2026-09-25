@@ -75,6 +75,19 @@ static void CommandEhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
+/* PR-H-uhci-1：UHCI CCS */
+static void CommandUhci(int Argc, char **Argv) {
+    char Diag[160];
+
+    (void)Argc;
+    (void)Argv;
+    Diag[0] = 0;
+    HalUhciDiagFormat(Diag, (int)sizeof(Diag));
+    ConsoleWrite("uhci ");
+    ConsoleWrite(Diag[0] ? Diag : "(no stats)");
+    ConsoleWrite("\n");
+}
+
 /* PR-H-msc-6：msc | scan | claim | capacity | mount；不自动认盘 */
 static void CommandMsc(int Argc, char **Argv) {
     int Rc;
@@ -223,10 +236,12 @@ void ShellCommandsUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + counters", CommandXhci);
     ConsoleRegister2("show", "input", "input counters (xhci or virtio)", CommandInputDiag);
     ConsoleRegister2("show", "ehci", "EHCI CCS / ehci hid retry", CommandEhci);
+    ConsoleRegister2("show", "uhci", "UHCI CCS (PR-H-uhci-1)", CommandUhci);
     ConsoleRegister("msc",
                     "USB MSC: scan|claim|capacity|mount|release|hot",
                     CommandMsc);
     ConsoleRegisterAliasLine("xhci", "show", "xhci");
     ConsoleRegisterAliasLine("input", "show", "input");
     ConsoleRegisterAliasLine("ehci", "show", "ehci");
+    ConsoleRegisterAliasLine("uhci", "show", "uhci");
 }

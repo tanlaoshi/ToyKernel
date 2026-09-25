@@ -122,6 +122,39 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
                     for (int B = 0; B < 6; B++) {
                         Controllers[Count].Bar[B] = 0;
                     }
+
+                    /*
+                     * UHCI（ProgIF 00）：寄存器在 I/O BAR（常 BAR4），非 MMIO。
+                     * 旧逻辑跳过 bit0=1 的 BAR → UHCI 永远扫不到（PR-H-uhci-1）。
+                     */
+                    if (ProgIF == 0x00) {
+                        UINT16 IoBase = 0;
+                        int Bi;
+                        for (Bi = 0; Bi < 6; Bi++) {
+                            if (RawBar[Bi] & 1u) {
+                                IoBase = (UINT16)(RawBar[Bi] & 0xFFFCu);
+                                Controllers[Count].Bar[Bi] = IoBase;
+                                break;
+                            }
+                        }
+                        if (IoBase == 0) {
+                            continue;
+                        }
+                        Controllers[Count].Bus = (UINT8)Bus;
+                        Controllers[Count].Device = (UINT8)Device;
+                        Controllers[Count].Function = (UINT8)Function;
+                        Controllers[Count].BaseAddress = IoBase;
+                        Controllers[Count].Type = ProgIF;
+#if TOY_KERNEL_DEBUG
+                        DebugWrite("USB: UHCI io=");
+                        DebugWrite(Uint64ToHex(IoBase));
+                        DebugWrite("\n");
+#endif
+                        Count++;
+                        Found = 1;
+                        continue;
+                    }
+
                     for (int B = 0; B < 6; ) {
                         if (RawBar[B] & 1) {
                             B++;
@@ -151,8 +184,7 @@ int PciScanUSBControllers(USB_CONTROLLER *Controllers, int MaxControllers) {
 #if TOY_KERNEL_DEBUG
                     {
                         char *TypeStr;
-                        if (ProgIF == 0x00) TypeStr = "UHCI";
-                        else if (ProgIF == 0x10) TypeStr = "OHCI";
+                        if (ProgIF == 0x10) TypeStr = "OHCI";
                         else if (ProgIF == 0x20) TypeStr = "EHCI";
                         else if (ProgIF == 0x30) TypeStr = "XHCI";
                         else TypeStr = "USB";

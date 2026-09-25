@@ -10,10 +10,12 @@
 #include "InputXhci.h"
 #include "InputPs2.h"
 #include "InputEhci.h"
+#include "InputUhci.h"
 #include "Net.h"
 #include "UsbMsc.h"
 #include "E1000.h"
 #include "Ehci.h"
+#include "Uhci.h"
 #include "XHCI.h"
 
 #ifndef TOY_DEMO_DRIVER
@@ -39,6 +41,7 @@ void HalDriverRegister(void) {
     MscDriverRegister(); /* PR-H-msc-1：Bind 不改 Block 后端 */
     InputXhciRegister(); /* 先 USB HID（xHCI） */
     InputEhciRegister(); /* PR-H-ehci-1：EHCI CCS；HID→ehci-2 */
+    InputUhciRegister(); /* PR-H-uhci-1：UHCI CCS 骨架 */
     InputPs2Register();  /* 后 PS/2：PR-H-input-mux 与 USB 可并存 */
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
@@ -166,6 +169,10 @@ int HalEhciFtdiPing(void) {
         return -1;
     }
     return 1;
+}
+
+void HalUhciDiagFormat(char *Buf, int Max) {
+    UhciDiagFormat(Buf, Max);
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

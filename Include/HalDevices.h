@@ -80,6 +80,8 @@ void HalEhciDiagFormat(char *Buf, int Max);
 int HalEhciHidRetry(void);
 /* PR-H-ehci-4：ping FT232 tee；1=Bulk ok 0=未认 -1=Bulk 失败 */
 int HalEhciFtdiPing(void);
+/* PR-H-uhci-1：UHCI CCS 诊断串 */
+void HalUhciDiagFormat(char *Buf, int Max);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);
