@@ -174,21 +174,33 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     DebugHex32((UINT32)Code);
     DebugWrite("\n");
 
-    (void)TerminateUserLocked(Exiting, Code, &ShowPrompt, &Detached);
-
     /*
-     * 先卸用户 CR3，再收窗/销毁地址空间。
-     * 若仍挂着用户 PML4 就 Free 页表页，真机 IRQ 页漫步会踩已释放页
-     * → 二次 exec #PF@0x40000000 err=0xD（RSVD）。
+     * 非最后用户则勿 GuiCloseAllUserWindows：短命 ELF exit 会拆掉仍在跑的 GUI 窗。
      */
-    SpinLockRelease(&gSchedulerLock);
-    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
-    /* 再写一次 CR3：冲掉本核用户 TLB，避免 Destroy 后旧 PTE 幽灵 */
-    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
-    /* 等点 × 关窗结束再拆页表（无限等，禁止超时强拆） */
-    GuiWaitNoWindowClosing();
-    GuiCloseAllUserWindows();
-    GuiWaitNoWindowClosing();
+    {
+        int J;
+        int LastUser = 1;
+
+        for (J = 0; J < MAX_TASKS; J++) {
+            TASK *U = &gTasks[J];
+
+            if (U != Exiting && U->IsUser &&
+                (U->State == TASK_READY || U->State == TASK_RUNNING ||
+                 U->State == TASK_BLOCKED)) {
+                LastUser = 0;
+                break;
+            }
+        }
+        (void)TerminateUserLocked(Exiting, Code, &ShowPrompt, &Detached);
+        SpinLockRelease(&gSchedulerLock);
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+        GuiWaitNoWindowClosing();
+        if (LastUser) {
+            GuiCloseAllUserWindows();
+            GuiWaitNoWindowClosing();
+        }
+    }
     SchedulerDestroyDetached(Detached);
     Detached = 0;
     /* USER 轻量关窗后补一次全桌合成，恢复任务栏/残影（此时页表已拆完） */

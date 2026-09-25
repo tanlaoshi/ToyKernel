@@ -6,14 +6,53 @@
 #include "Elf.h"
 #include "CoreOps.h"
 #include "Scheduler.h"
+#include "SchedulerPrivate.h"
 #include "VirtualMemory.h"
 #include "Hal.h"
 #include "Console.h"
 #include "Debug.h"
 #include "PhysicalMemory.h"
 #include "Fat.h"
+#include "Gui.h"
 
 #define ELF_MAX_SIZE (512 * 1024)
+
+/*
+ * 桌面/Shell ProcessExec 前：清掉其它用户任务与 USER 窗。
+ * RaiseWindow 会搬槽，多 GUI 进程同持旧 wid → damage_rect 写穿。
+ */
+void ProcessStopAllUsers(void) {
+    VIRTUAL_ADDRESS_SPACE *Spaces[MAX_TASKS];
+    int N = 0;
+    int I;
+
+    SpinLockAcquire(&gSchedulerLock);
+    for (I = 0; I < MAX_TASKS; I++) {
+        TASK *T = &gTasks[I];
+        VIRTUAL_ADDRESS_SPACE *Det = 0;
+
+        if (!T->IsUser || T == CurrentTask()) {
+            continue;
+        }
+        if (T->State != TASK_READY && T->State != TASK_RUNNING &&
+            T->State != TASK_BLOCKED) {
+            continue;
+        }
+        (void)TerminateUserLocked(T, 0, 0, &Det);
+        if (Det != 0 && N < MAX_TASKS) {
+            Spaces[N++] = Det;
+        }
+    }
+    SpinLockRelease(&gSchedulerLock);
+
+    VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
+    GuiWaitNoWindowClosing();
+    GuiCloseAllUserWindows();
+    GuiWaitNoWindowClosing();
+    for (I = 0; I < N; I++) {
+        SchedulerDestroyDetached(Spaces[I]);
+    }
+}
 
 int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,
                            const char *Name) {

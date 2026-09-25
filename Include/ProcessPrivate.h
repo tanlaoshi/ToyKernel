@@ -11,5 +11,6 @@ int ProcessStartElf(VIRTUAL_ADDRESS_SPACE *Space, const ELF_LOAD_RESULT *Info,
                     const char *Name);
 int ProcessLoadPath(const char *Path, VIRTUAL_ADDRESS_SPACE **OutSpace,
                     ELF_LOAD_RESULT *OutInfo);
+void ProcessStopAllUsers(void);
 
 #endif

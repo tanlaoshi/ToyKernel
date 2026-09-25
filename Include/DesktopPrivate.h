@@ -157,7 +157,9 @@ void RedrawIconIndex(int Idx);
 void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now);
 
 void MenuCopyStr(char *Dst, int Max, const char *Src);
+int MenuNameEqIgnoreCase(const char *A, const char *B);
 void RebuildStartMenu(void);
+void FillStartMenuAppRows(int AppCap);
 void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh);
 void GameFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh);
 

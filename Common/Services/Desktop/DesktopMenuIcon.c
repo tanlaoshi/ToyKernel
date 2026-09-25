@@ -38,12 +38,13 @@ int DrawMenuRowIcon(const MENU_ROW *R, UINT32 IconX, UINT32 IconY) {
         return 1;
     }
     if (R->Action == DESKTOP_ACTION_EXEC) {
-        if (gIcons[0].BmpReady) {
+        /* IconSrc<0：无桌面槽时勿回落 Shell，用 Store 作通用应用标 */
+        if (gIcons[3].BmpReady) {
             BlitBmpScaledRaw(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                             &gIcons[0].Bmp);
+                             &gIcons[3].Bmp);
         } else {
             UiFillRectangle(IconX, IconY, MENU_ICON_SZ, MENU_ICON_SZ,
-                            gIcons[0].IconColor);
+                            gIcons[3].IconColor);
         }
         return 1;
     }

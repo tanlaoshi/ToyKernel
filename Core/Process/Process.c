@@ -144,6 +144,8 @@ int ProcessExec(const char *Path) {
     VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
     Info.StackTop = NewRsp;
     HalInstallUserMode();
+    /* 单用户 GUI：先停旧任务，避免 Raise 挪槽导致 wid 串台 */
+    ProcessStopAllUsers();
     SchedulerReapOrphanZombies();
     if (ProcessStartElf(Space, &Info, Path) != 0) {
         return -1;

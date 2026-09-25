@@ -146,6 +146,10 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$ELF" "$DEST/Kernel.elf"
     USER_OUT=Build/User
     cp -f "$USER_OUT/hello.elf" "$DEST/HELLO.ELF"
+    # Store/桌面装在 Apps/<id>/ 与 StoreCache；勿留号段重排前的旧副本
+    mkdir -p "$DEST/Apps/hello" "$DEST/StoreCache"
+    cp -f "$USER_OUT/hello.elf" "$DEST/Apps/hello/HELLO.ELF"
+    cp -f "$USER_OUT/hello.elf" "$DEST/StoreCache/HELLO.ELF"
     cp -f "$USER_OUT/count.elf" "$DEST/COUNT.ELF"
     cp -f "$USER_OUT/fork.elf" "$DEST/FORK.ELF"
     cp -f "$USER_OUT/waitnh.elf" "$DEST/WAITNH.ELF"
@@ -165,6 +169,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/sigdemo.elf" "$DEST/SIGDEMO.ELF"
     cp -f "$USER_OUT/windemo.elf" "$DEST/WINDEMO.ELF"
     cp -f "$USER_OUT/guidemo.elf" "$DEST/GUIDEMO.ELF"
+    mkdir -p "$DEST/Apps/guidemo"
+    cp -f "$USER_OUT/guidemo.elf" "$DEST/Apps/guidemo/GUIDEMO.ELF"
     cp -f "$USER_OUT/blitdemo.elf" "$DEST/BLITDEMO.ELF"
     cp -f "$USER_OUT/libcdemo.elf" "$DEST/LIBCDEMO.ELF"
     cp -f "$USER_OUT/sleepdemo.elf" "$DEST/SLEEPDEMO.ELF"
@@ -173,7 +179,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/cwddemo.elf" "$DEST/CWDDEMO.ELF"
     cp -f "$USER_OUT/netlibdemo.elf" "$DEST/NETLIB.ELF"
     cp -f "$USER_OUT/sockdemo.elf" "$DEST/SOCKDEMO.ELF"
-    echo "Synced Kernel/HELLO/.../SLEEPDEMO/NETLIB/SOCKDEMO -> $DEST/"
+    echo "Synced Kernel/HELLO/... (+ Apps/hello、StoreCache、Apps/guidemo) -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else
