@@ -125,6 +125,10 @@ void HalEhciDiagFormat(char *Buf, int Max) {
     }
 }
 
+int HalEhciHidRetry(void) {
+    return -1;
+}
+
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     return ToyDriverInputKeyboardDequeue(Report);
 }

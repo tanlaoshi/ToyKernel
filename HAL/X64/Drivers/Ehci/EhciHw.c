@@ -7,6 +7,11 @@
 #include "HalSerial.h"
 #include "ToySerialLog.h"
 
+#ifndef PTE_PWT
+#define PTE_PWT HAL_PAGE_PWT
+#define PTE_PCD HAL_PAGE_PCD
+#endif
+
 EHCI_CTRL gEhci[EHCI_MAX_CTRL];
 int gEhciCount;
 int gEhciReady;
@@ -62,21 +67,16 @@ void EhciSurveyCcs(EHCI_CTRL *C) {
     UINT32 Ps;
     UINT32 Mask = 0;
 
+    /* 先给所有口上电并等待稳定（HCRESET 后 PP 常被清） */
     for (P = 1; P <= C->NPorts && P <= 16; P++) {
         Ps = EhciR32(C->Op, EHCI_PORTSC(P));
-        /* 写 PORTSC 时清 W1C（bit1/3/5），避免误清其它态 */
-        if ((Ps & EHCI_PORT_PP) == 0) {
-            EhciW32(C->Op, EHCI_PORTSC(P),
-                    (Ps & ~(EHCI_PORT_CSC | EHCI_PORT_PEDC | EHCI_PORT_OCC)) |
-                        EHCI_PORT_PP);
-            {
-                int W = 50000;
-                while (W-- > 0) {
-                    HalCpuRelax();
-                }
-            }
-            Ps = EhciR32(C->Op, EHCI_PORTSC(P));
-        }
+        EhciW32(C->Op, EHCI_PORTSC(P),
+                (Ps & ~(EHCI_PORT_CSC | EHCI_PORT_PEDC | EHCI_PORT_OCC)) |
+                    EHCI_PORT_PP);
+    }
+    EhciDelay(400000);
+    for (P = 1; P <= C->NPorts && P <= 16; P++) {
+        Ps = EhciR32(C->Op, EHCI_PORTSC(P));
         if (Ps & EHCI_PORT_CCS) {
             Mask |= (1u << (P - 1));
         }
@@ -147,7 +147,7 @@ int EhciInitOne(EHCI_CTRL *C, int Index) {
         return 0;
     }
     if (VirtualMemoryMapRange(Bar, Bar, EHCI_BAR_MAP,
-                              PTE_PRESENT | PTE_WRITABLE) != 0) {
+                              PTE_PRESENT | PTE_WRITABLE | PTE_PWT | PTE_PCD) != 0) {
         if (RealPc) {
             ToyBootMarkUsb("Boot: EHCI map fail\n");
         }
@@ -184,16 +184,14 @@ int EhciInitOne(EHCI_CTRL *C, int Index) {
         }
     }
 
-    /* 口路由到 EHCI（相对伴生 UHCI/OHCI） */
+    /* 口路由到 EHCI；上电后再扫 CCS（太早常为 0） */
     EhciW32(C->Op, EHCI_CONFIGFLAG, 1u);
-    {
-        int W = 20000;
-        while (W-- > 0) {
-            HalCpuRelax();
-        }
-    }
-
+    EhciDelay(300000);
     EhciSurveyCcs(C);
+    if (C->CcsMask == 0) {
+        EhciDelay(500000);
+        EhciSurveyCcs(C);
+    }
     C->Up = 1;
     LogCtrl(C, Index);
     return 1;

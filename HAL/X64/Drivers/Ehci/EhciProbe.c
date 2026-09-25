@@ -131,9 +131,20 @@ void EhciDiagFormat(char *Buf, int Max) {
         Buf[n++] = *P++;
     }
     HalSerialFormatHex(Hex, gEhciCcsOr, 4);
-    /* "0xABCD" → 拷 [2..5] */
     for (i = 0; i < 4 && n < Max - 1; i++) {
         Buf[n++] = Hex[2 + i];
+    }
+    P = gEhciHidReady ? " hid=1" : " hid=0";
+    while (*P && n < Max - 1) {
+        Buf[n++] = *P++;
+    }
+    P = " err=";
+    while (*P && n < Max - 1) {
+        Buf[n++] = *P++;
+    }
+    P = gEhciLastErr ? gEhciLastErr : "?";
+    while (*P && n < Max - 1) {
+        Buf[n++] = *P++;
     }
     for (i = 0; i < gEhciCount && n < Max - 8; i++) {
         P = " #";
@@ -151,6 +162,16 @@ void EhciDiagFormat(char *Buf, int Max) {
             for (j = 0; j < 4 && n < Max - 1; j++) {
                 Buf[n++] = Hex[2 + j];
             }
+        }
+    }
+    if (gEhciHubNote[0] && n < Max - 8) {
+        P = " note=";
+        while (*P && n < Max - 1) {
+            Buf[n++] = *P++;
+        }
+        P = gEhciHubNote;
+        while (*P && n < Max - 1) {
+            Buf[n++] = *P++;
         }
     }
     Buf[n] = 0;

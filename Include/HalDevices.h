@@ -76,6 +76,8 @@ void HalInputPoll(void);
 void HalInputDiagFormat(char *Buf, int Max);
 /* PR-H-ehci-1：EHCI CCS；无 EHCI 时 Buf="ready=0" */
 void HalEhciDiagFormat(char *Buf, int Max);
+/* PR-H-ehci-2：插上 USB 后再枚举 HID；0=ok */
+int HalEhciHidRetry(void);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);

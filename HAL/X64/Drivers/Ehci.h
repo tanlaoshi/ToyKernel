@@ -1,7 +1,5 @@
 /*
- * Ehci.h — EHCI 对外 API（PR-H-ehci-1：Probe/CCS）
- *
- * 本刀：认卡、handoff、复位、扫端口 CCS；不传控/HID。
+ * Ehci.h — EHCI 对外 API（PR-H-ehci-1/2）
  */
 #ifndef EHCI_H
 #define EHCI_H
@@ -10,9 +8,15 @@
 
 int EhciSetup(void);
 int EhciReady(void);
-/* 所有已起 EHCI 口的 CCS 位图或（诊断用） */
 UINT32 EhciCcsMask(void);
-/* Shell / PHOTO：ready= n= ccs= #+（会重扫 PORTSC） */
 void EhciDiagFormat(char *Buf, int Max);
+
+/* PR-H-ehci-2 */
+int EhciHidBringup(void);
+int EhciHidReady(void);
+void EhciHidPoll(void);
+int EhciHidKeyboardDequeue(UINT8 Out[8]);
+int EhciHidMousePresent(void);
+int EhciHidMouseDequeue(UINT32 *X, UINT32 *Y, UINT8 *Buttons, INT8 *Wheel);
 
 #endif

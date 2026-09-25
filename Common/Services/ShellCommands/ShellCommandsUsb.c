@@ -33,12 +33,25 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-ehci-1：开机黄字太快时用 Shell 重扫 CCS */
+/* PR-H-ehci-1/2：诊断；`ehci hid` 插上后再枚举 */
 static void CommandEhci(int Argc, char **Argv) {
     char Diag[160];
 
-    (void)Argc;
-    (void)Argv;
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'h' && Argv[1][1] == 'i' &&
+        Argv[1][2] == 'd' && Argv[1][3] == 0) {
+        ConsoleWrite("ehci: hid retry…\n");
+        if (HalEhciHidRetry() == 0) {
+            ConsoleWrite("ehci: hid ok\n");
+        } else {
+            ConsoleWrite("ehci: hid fail — ");
+        }
+        Diag[0] = 0;
+        HalEhciDiagFormat(Diag, (int)sizeof(Diag));
+        ConsoleWrite(Diag[0] ? Diag : "(no stats)");
+        ConsoleWrite("\n");
+        return;
+    }
+
     Diag[0] = 0;
     HalEhciDiagFormat(Diag, (int)sizeof(Diag));
     ConsoleWrite("ehci ");
@@ -193,7 +206,7 @@ static void CommandMsc(int Argc, char **Argv) {
 void ShellCommandsUsbRegister(void) {
     ConsoleRegister2("show", "xhci", "xHCI mode= + counters", CommandXhci);
     ConsoleRegister2("show", "input", "input counters (xhci or virtio)", CommandInputDiag);
-    ConsoleRegister2("show", "ehci", "EHCI CCS (re-survey PORTSC)", CommandEhci);
+    ConsoleRegister2("show", "ehci", "EHCI CCS / ehci hid retry", CommandEhci);
     ConsoleRegister("msc",
                     "USB MSC: scan|claim|capacity|mount|release|hot",
                     CommandMsc);
