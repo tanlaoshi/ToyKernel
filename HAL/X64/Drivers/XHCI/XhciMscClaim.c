@@ -232,6 +232,10 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
         BootLog("Boot: MSC claim skip hub device\n");
         goto fail;
     }
+    if (DevClass == 0x02) {
+        BootLog("Boot: MSC claim skip CDC\n");
+        goto fail;
+    }
     if (DevClass == 0x03 || DevClass == 0xE0) {
         BootLogHex("Boot: MSC claim skip class=", DevClass, 2);
         goto fail;

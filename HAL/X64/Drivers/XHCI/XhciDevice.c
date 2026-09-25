@@ -33,6 +33,8 @@ void Ep0RingForSlot(UINT32 SlotId, XHCI_TRB **RingOut, RING_STATE **StOut) {
         *StOut = &gMscScanEp0;
     } else if (SlotId != 0 && SlotId == gFtdiSlot) {
         XhciFtdiEp0Ring(RingOut, StOut);
+    } else if (SlotId != 0 && SlotId == gCdcSlot) {
+        XhciCdcEp0Ring(RingOut, StOut);
     } else if (SlotId != 0 && SlotId <= DCBAA_SLOTS && gSlotEp0UsesKbdRing[SlotId]) {
         /* 曾以键盘路径 Address：claim 为鼠后仍跟 gEp0 硬件 dequeue */
         *RingOut = gEp0Ring;
@@ -58,6 +60,8 @@ void Ep0RingForSlotOut(UINT32 *SlotOut, XHCI_TRB **RingOut, RING_STATE **StOut) 
         *StOut = &gMscScanEp0;
     } else if (SlotOut == &gFtdiSlot) {
         XhciFtdiEp0Ring(RingOut, StOut);
+    } else if (SlotOut == &gCdcSlot) {
+        XhciCdcEp0Ring(RingOut, StOut);
     } else {
         *RingOut = gEp0Ring;
         *StOut = &gEp0;
@@ -195,6 +199,13 @@ void DisableSlot(UINT32 SlotId) {
         gFtdiPort = 0;
         gFtdiBulkInDci = 0;
         gFtdiBulkOutDci = 0;
+    }
+    if (gCdcSlot == SlotId) {
+        gCdcSlot = 0;
+        gCdcClaimed = 0;
+        gCdcPort = 0;
+        gCdcBulkInDci = 0;
+        gCdcBulkOutDci = 0;
     }
     if (gXferSlot == SlotId) {
         gXferSlot = 0;

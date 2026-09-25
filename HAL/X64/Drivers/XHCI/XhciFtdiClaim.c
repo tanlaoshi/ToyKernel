@@ -174,9 +174,9 @@ int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
     gFtdiPort = RootPort;
     gFtdiClaimed = 1;
     XhciFtdiRxArm();
-    BootLog("boot: usb-uart ftdi\n");
-    BootLogHex("Boot: usb-uart pid=", Pid, 4);
-    BootLogHex("Boot: usb-uart port=", RootPort, 2);
+    /* QEMU 默认 BootLog 会滤非 milestone；COM1+棒上都要看得见 */
+    ToyLogBoot("boot: usb-uart ftdi\n");
+    ToyBootMarkUsb("boot: usb-uart ftdi\n");
     return 1;
 
 fail:

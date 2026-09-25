@@ -97,8 +97,9 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
         GopMirrorLine(Text);
     }
     SpinLockRelease(&gSerialLock);
-    /* PR-H-usb-uart-ftdi-1：有 FT232 则 tee（锁外，避免 Bulk 等事件重入） */
+    /* PR-H-usb-uart：有 FT232/CDC 则 tee（锁外，避免 Bulk 等事件重入） */
     XhciFtdiWrite(Text);
+    XhciCdcWrite(Text);
 }
 
 void HalSerialWrite(const char *Text) {
@@ -136,6 +137,7 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
         GopWrite(Text);
     }
     XhciFtdiWrite(Text);
+    XhciCdcWrite(Text);
 }
 
 void HalSerialBootMark(const char *Text) {

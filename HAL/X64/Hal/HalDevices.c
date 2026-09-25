@@ -92,11 +92,18 @@ int HalUsbMscAutoBeforeFs(void) {
 }
 
 int HalUsbUartClaim(void) {
-    return XhciFtdiClaim();
+    int Rc;
+
+    /* FTDI 优先；已认则 CDC 互斥跳过 */
+    Rc = XhciFtdiClaim();
+    if (Rc == 1) {
+        return 1;
+    }
+    return XhciCdcClaim();
 }
 
 int HalUsbUartReady(void) {
-    return XhciFtdiReady();
+    return (XhciFtdiReady() || XhciCdcReady()) ? 1 : 0;
 }
 
 void HalInputArmIrq(void) {

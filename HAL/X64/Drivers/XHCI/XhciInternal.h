@@ -219,6 +219,13 @@ extern int gFtdiClaimed;
 extern UINT32 gFtdiBulkInDci;
 extern UINT32 gFtdiBulkOutDci;
 
+/* PR-H-usb-uart-cdc-1 */
+extern UINT32 gCdcSlot;
+extern UINT32 gCdcPort;
+extern int gCdcClaimed;
+extern UINT32 gCdcBulkInDci;
+extern UINT32 gCdcBulkOutDci;
+
 extern volatile UINT32 gStatIntrEvt;
 extern volatile UINT32 gStatMouseEvt;
 extern volatile UINT32 gStatKbdPush;
@@ -449,6 +456,16 @@ void XhciFtdiRxArm(void);
 void XhciFtdiPollRx(void);
 int XhciFtdiDataReady(void);
 char XhciFtdiReadChar(void);
+
+/* PR-H-usb-uart-cdc-1 */
+int XhciCdcClaim(void);
+int XhciCdcReady(void);
+void XhciCdcWrite(const char *Text);
+void XhciCdcEp0Ring(XHCI_TRB **RingOut, RING_STATE **StOut);
+int XhciCdcMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code);
+int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed);
+int XhciCdcConfigBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
+                      UINT8 EpIn, UINT16 MpsIn, UINT8 EpOut, UINT16 MpsOut);
 
 int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);

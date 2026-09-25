@@ -86,6 +86,9 @@ int XhciMscClaimPorts(void) {
         if (gFtdiClaimed && gFtdiPort == P) {
             continue;
         }
+        if (gCdcClaimed && gCdcPort == P) {
+            continue;
+        }
 
         /*
          * MSC 认领必须稳：真机始终 Force PR 再 Address。
