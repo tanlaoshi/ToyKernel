@@ -77,6 +77,7 @@ int EhciSchedStart(EHCI_CTRL *C) {
     C->SetupBuf = Mem + PAGE_SIZE + 512 + 5 * 64;
     C->CtrlBuf = C->SetupBuf + 64;
     C->ReportBuf = C->CtrlBuf + 512;
+    C->BulkBuf = C->ReportBuf + 64; /* 512B BOT bounce */
 
     ZeroQh(C->AsyncHead);
     ZeroQh(C->CtrlQh);

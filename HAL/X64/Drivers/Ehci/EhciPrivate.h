@@ -119,6 +119,7 @@ typedef struct {
     UINT8 *CtrlBuf;
     UINT8 *SetupBuf;
     UINT8 *ReportBuf;
+    UINT8 *BulkBuf; /* PR-H-ehci-3：BOT bounce（512） */
     /* 当前 control 路由（根口 HS：Hub=0；RMH 后设备填 Hub/Speed） */
     UINT8 XferSpeed; /* 0=FS 1=LS 2=HS */
     UINT8 XferHubAddr;
@@ -133,6 +134,23 @@ typedef struct {
     UINT16 HidMaxPkt;
     UINT8 HidInterval;
     int HidOk;
+    /* PR-H-ehci-3 MSC（与 HID 分字段，勿覆盖 HubPort） */
+    UINT8 MscAddr;
+    UINT8 MscSpeed;
+    UINT8 MscHubAddr;
+    UINT8 MscHubPort;
+    UINT8 MscIface;
+    UINT8 MscEpIn;  /* 含 DIR 位 */
+    UINT8 MscEpOut;
+    UINT16 MscMpsIn;
+    UINT16 MscMpsOut;
+    UINT8 MscDtIn;
+    UINT8 MscDtOut;
+    UINT8 MscEpMax0;
+    int MscOk;
+    int MscCapacityOk;
+    UINT32 MscBlockCount;
+    UINT32 MscBlockSize;
 } EHCI_CTRL;
 
 extern EHCI_CTRL gEhci[EHCI_MAX_CTRL];
@@ -169,14 +187,71 @@ int EhciSchedStart(EHCI_CTRL *C);
 void EhciSchedEnablePeriodic(EHCI_CTRL *C);
 int EhciControlXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax,
                     const USB_SETUP_PACKET *Setup, void *Data);
+/* DirIn=1 Bulk IN；成功 0 */
+int EhciBulkXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 Ep, UINT16 MaxPkt,
+                 UINT8 Speed, UINT8 HubAddr, UINT8 HubPort, int DirIn,
+                 void *Buf, UINT32 Len, UINT8 *Dt);
 int EhciPortReset(EHCI_CTRL *C, UINT8 Port);
+
+int EhciEnumGetDesc(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax, UINT16 TypeIndex,
+                    UINT16 Len, void *Out);
+int EhciEnumSetAddr(EHCI_CTRL *C, UINT8 NewAddr, UINT8 EpMax);
+int EhciEnumSetConfig(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax, UINT8 Cfg);
+int EhciEnumSetProtocolBoot(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax, UINT8 Iface);
+int EhciEnumSetIdle(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax, UINT8 Iface);
+void EhciEnumMarkHex4(const char *Prefix, UINT32 V);
+
 int EhciEnumDevice(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort);
 int EhciEnumHub(EHCI_CTRL *C);
 int EhciEnumHid(EHCI_CTRL *C);
+void EhciHidArmIntr(EHCI_CTRL *C);
+extern UINT8 gEhciIntrDt;
+void EhciHidResetQueues(void);
 int EhciHidBringup(void);
 void EhciHidPoll(void);
 int EhciHidKeyboardDequeue(UINT8 Out[8]);
 int EhciHidMousePresent(void);
 int EhciHidMouseDequeue(UINT32 *X, UINT32 *Y, UINT8 *Buttons, INT8 *Wheel);
+
+/* PR-H-ehci-3 */
+int EhciMscClaim(void);
+int EhciMscReady(void);
+int EhciMscScan(void);
+int EhciMscCapacity(void);
+UINT32 EhciMscBlockCount(void);
+UINT32 EhciMscBlockSize(void);
+int EhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
+int EhciMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
+int EhciMscFlush(void);
+int EhciMscRelease(void);
+int EhciMscPresent(void);
+
+/* async helpers（control/bulk 共用） */
+void EhciCopyBuf(UINT8 *D, const UINT8 *S, UINT32 N);
+void EhciPrepQtd(EHCI_QTD *T, UINT32 Next, UINT32 Pid, UINT32 Bytes,
+                 UINT32 Dt, UINT64 BufPhys);
+int EhciAsyncOff(EHCI_CTRL *C);
+int EhciAsyncOn(EHCI_CTRL *C);
+int EhciWaitQtd(EHCI_CTRL *C, EHCI_QTD *T);
+
+/* MSC 跨文件态 / claim·bot 帮手 */
+extern EHCI_CTRL *gEhciMscCtrl;
+extern int gEhciMscInSense;
+extern UINT32 gEhciMscTag;
+#define EHCI_HUB_STAT_CONNECT (1u << 0)
+void EhciMscZero(UINT8 *P, UINT32 N);
+void EhciMscCopy(UINT8 *D, const UINT8 *S, UINT32 N);
+void EhciMscMarkHex4(const char *Prefix, UINT32 V);
+int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort);
+int EhciMscClaimViaHub(EHCI_CTRL *C);
+int EhciMscEnsureHub(EHCI_CTRL *C, UINT8 Port);
+int EhciMscBot(EHCI_CTRL *C, UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen,
+               int DataIn, void *Data);
+int EhciMscHubGetStatus(EHCI_CTRL *C, UINT8 HubAddr, UINT8 Port,
+                        UINT16 *Status, UINT16 *Change);
+int EhciMscHubSetFeat(EHCI_CTRL *C, UINT8 HubAddr, UINT8 Port, UINT16 Feat);
+int EhciMscHubClearFeat(EHCI_CTRL *C, UINT8 HubAddr, UINT8 Port, UINT16 Feat);
+int EhciMscHubGetDesc(EHCI_CTRL *C, UINT8 HubAddr, UINT8 *Out, UINT16 Len);
+int EhciMscHubResetPort(EHCI_CTRL *C, UINT8 HubAddr, UINT8 Port, UINT8 *SpeedOut);
 
 #endif

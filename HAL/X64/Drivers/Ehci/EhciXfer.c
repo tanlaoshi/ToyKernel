@@ -28,14 +28,14 @@ void EhciFlush(const void *Ptr, UINTN Size) {
     __asm__ volatile("mfence" ::: "memory");
 }
 
-static void Copy(UINT8 *D, const UINT8 *S, UINT32 N) {
+void EhciCopyBuf(UINT8 *D, const UINT8 *S, UINT32 N) {
     UINT32 i;
     for (i = 0; i < N; i++) {
         D[i] = S[i];
     }
 }
 
-static void PrepQtd(EHCI_QTD *T, UINT32 Next, UINT32 Pid, UINT32 Bytes,
+void EhciPrepQtd(EHCI_QTD *T, UINT32 Next, UINT32 Pid, UINT32 Bytes,
                     UINT32 Dt, UINT64 BufPhys) {
     UINT32 i;
 
@@ -51,7 +51,7 @@ static void PrepQtd(EHCI_QTD *T, UINT32 Next, UINT32 Pid, UINT32 Bytes,
     T->BufHi[0] = 0;
 }
 
-static int AsyncOff(EHCI_CTRL *C) {
+int EhciAsyncOff(EHCI_CTRL *C) {
     UINT32 Cmd;
     int Spin;
 
@@ -67,7 +67,7 @@ static int AsyncOff(EHCI_CTRL *C) {
     return 0;
 }
 
-static int AsyncOn(EHCI_CTRL *C) {
+int EhciAsyncOn(EHCI_CTRL *C) {
     UINT32 Cmd;
     int Spin;
 
@@ -122,7 +122,7 @@ static void SetTokErr(EHCI_CTRL *C, UINT32 Tok) {
     gEhciLastErr = gTokErr;
 }
 
-static int WaitQtd(EHCI_CTRL *C, EHCI_QTD *T) {
+int EhciWaitQtd(EHCI_CTRL *C, EHCI_QTD *T) {
     int Spin = 8000000;
 
     while (Spin-- > 0) {
@@ -174,7 +174,7 @@ int EhciControlXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax,
     DataTd = &C->Qtds[1];
     StatusTd = &C->Qtds[2];
 
-    Copy(C->SetupBuf, (const UINT8 *)Setup, 8);
+    EhciCopyBuf(C->SetupBuf, (const UINT8 *)Setup, 8);
 
     /* DTC + RL + Addr + MaxPkt；Speed 在 13:12；FS/LS control 置 C */
     {
@@ -195,21 +195,21 @@ int EhciControlXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax,
         StatusPid = (DataPid == EHCI_QTD_PID_IN) ? EHCI_QTD_PID_OUT
                                                  : EHCI_QTD_PID_IN;
         if ((Setup->bmRequestType & 0x80u) == 0) {
-            Copy(C->CtrlBuf, (const UINT8 *)Data, Len);
+            EhciCopyBuf(C->CtrlBuf, (const UINT8 *)Data, Len);
         }
-        PrepQtd(SetupTd, (UINT32)EhciPtrPhys(DataTd), EHCI_QTD_PID_SETUP, 8, 0,
+        EhciPrepQtd(SetupTd, (UINT32)EhciPtrPhys(DataTd), EHCI_QTD_PID_SETUP, 8, 0,
                 EhciPtrPhys(C->SetupBuf));
-        PrepQtd(DataTd, (UINT32)EhciPtrPhys(StatusTd), DataPid, Len, 1,
+        EhciPrepQtd(DataTd, (UINT32)EhciPtrPhys(StatusTd), DataPid, Len, 1,
                 EhciPtrPhys(C->CtrlBuf));
-        PrepQtd(StatusTd, EHCI_LINK_TERMINATE, StatusPid, 0, 1, 0);
+        EhciPrepQtd(StatusTd, EHCI_LINK_TERMINATE, StatusPid, 0, 1, 0);
     } else {
         StatusPid = EHCI_QTD_PID_IN;
-        PrepQtd(SetupTd, (UINT32)EhciPtrPhys(StatusTd), EHCI_QTD_PID_SETUP, 8, 0,
+        EhciPrepQtd(SetupTd, (UINT32)EhciPtrPhys(StatusTd), EHCI_QTD_PID_SETUP, 8, 0,
                 EhciPtrPhys(C->SetupBuf));
-        PrepQtd(StatusTd, EHCI_LINK_TERMINATE, StatusPid, 0, 1, 0);
+        EhciPrepQtd(StatusTd, EHCI_LINK_TERMINATE, StatusPid, 0, 1, 0);
     }
 
-    if (!AsyncOff(C)) {
+    if (!EhciAsyncOff(C)) {
         gEhciLastErr = "ase off";
         return -1;
     }
@@ -239,105 +239,34 @@ int EhciControlXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax,
     C->AsyncHead->Token = EHCI_QTD_HALTED;
     C->AsyncHead->Next = EHCI_LINK_TERMINATE;
     EhciFence();
-    if (!AsyncOn(C)) {
+    if (!EhciAsyncOn(C)) {
         gEhciLastErr = "ase on";
         return -1;
     }
 
-    if (!WaitQtd(C, SetupTd)) {
+    if (!EhciWaitQtd(C, SetupTd)) {
         return -1;
     }
     if (Len && Data) {
-        if (!WaitQtd(C, DataTd)) {
+        if (!EhciWaitQtd(C, DataTd)) {
             return -1;
         }
     }
-    if (!WaitQtd(C, StatusTd)) {
+    if (!EhciWaitQtd(C, StatusTd)) {
         return -1;
     }
 
-    if (!AsyncOff(C)) {
+    if (!EhciAsyncOff(C)) {
         gEhciLastErr = "ase off2";
         return -1;
     }
     C->CtrlQh->Next = EHCI_LINK_TERMINATE;
     C->CtrlQh->Token = 0;
-    AsyncOn(C);
+    EhciAsyncOn(C);
 
     if (Len && Data && (Setup->bmRequestType & 0x80u)) {
-        Copy((UINT8 *)Data, C->CtrlBuf, Len);
+        EhciCopyBuf((UINT8 *)Data, C->CtrlBuf, Len);
     }
     return 0;
 }
 
-int EhciPortReset(EHCI_CTRL *C, UINT8 Port) {
-    UINT32 Ps;
-    int Spin;
-
-    if (!C || Port == 0 || Port > C->NPorts) {
-        return 0;
-    }
-    Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-    if (Ps & EHCI_PORT_OWNER) {
-        gEhciLastErr = "port companion";
-        return 0;
-    }
-
-    Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-    Ps &= ~(EHCI_PORT_CSC | EHCI_PORT_PEDC | EHCI_PORT_OCC);
-    Ps |= EHCI_PORT_PP | EHCI_PORT_PR;
-    EhciW32(C->Op, EHCI_PORTSC(Port), Ps);
-    EhciDelay(1000000);
-
-    Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-    Ps &= ~(EHCI_PORT_PR | EHCI_PORT_CSC | EHCI_PORT_PEDC | EHCI_PORT_OCC);
-    Ps |= EHCI_PORT_PP;
-    EhciW32(C->Op, EHCI_PORTSC(Port), Ps);
-
-    Spin = 1000000;
-    while (Spin-- > 0) {
-        Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-        if ((Ps & EHCI_PORT_PR) == 0) {
-            break;
-        }
-        HalCpuRelax();
-    }
-    EhciDelay(1000000);
-
-    Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-    if (Ps & EHCI_PORT_OWNER) {
-        gEhciLastErr = "port companion";
-        ToyBootMarkUsb("Boot: EHCI port → companion (FS; need UHCI)\n");
-        return 0;
-    }
-    if ((Ps & EHCI_PORT_PED) == 0) {
-        /* 再 PR 一次（ehci hid 热重试常要） */
-        Ps &= ~(EHCI_PORT_CSC | EHCI_PORT_PEDC | EHCI_PORT_OCC);
-        Ps |= EHCI_PORT_PP | EHCI_PORT_PR;
-        EhciW32(C->Op, EHCI_PORTSC(Port), Ps);
-        EhciDelay(1000000);
-        Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-        Ps &= ~(EHCI_PORT_PR | EHCI_PORT_CSC | EHCI_PORT_PEDC | EHCI_PORT_OCC);
-        Ps |= EHCI_PORT_PP;
-        EhciW32(C->Op, EHCI_PORTSC(Port), Ps);
-        Spin = 1000000;
-        while (Spin-- > 0) {
-            Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-            if ((Ps & EHCI_PORT_PR) == 0) {
-                break;
-            }
-            HalCpuRelax();
-        }
-        EhciDelay(1000000);
-        Ps = EhciR32(C->Op, EHCI_PORTSC(Port));
-    }
-    if ((Ps & EHCI_PORT_PED) == 0) {
-        gEhciLastErr = "port no PED";
-        return 0;
-    }
-    if ((Ps & EHCI_PORT_CCS) == 0) {
-        gEhciLastErr = "port lost CCS";
-        return 0;
-    }
-    return 1;
-}

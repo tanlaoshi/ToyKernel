@@ -138,6 +138,10 @@ void EhciDiagFormat(char *Buf, int Max) {
     while (*P && n < Max - 1) {
         Buf[n++] = *P++;
     }
+    P = EhciMscReady() ? " msc=1" : " msc=0";
+    while (*P && n < Max - 1) {
+        Buf[n++] = *P++;
+    }
     P = " err=";
     while (*P && n < Max - 1) {
         Buf[n++] = *P++;

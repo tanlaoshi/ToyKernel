@@ -1,11 +1,12 @@
 /*
- * UsbMsc.c — BOT 门面（PR-H-msc-2…7b）
+ * UsbMsc.c — BOT 门面（PR-H-msc-2…7b + PR-H-ehci-3）
  *
  * Init / Scan / Claim / Capacity / Mount（Mux）。
- * PR-H-msc-7b：FS 前 auto（Live 默认开；msc=0 / MSC.OFF 可关）。
+ * 后端：优先 xHCI；无设备再试 EHCI（N56VZ USB2 口走 RMH）。
  */
 #include "UsbMsc.h"
 #include "XHCI.h"
+#include "Ehci.h"
 #include "Block.h"
 #include "BlockMux.h"
 #include "ToySerialLog.h"
@@ -17,45 +18,132 @@ void BlockMscInstall(void); /* BlockMsc.c */
 #define TOY_MSC_AUTO_DEFAULT 1 /* Live 默认开 */
 #endif
 
+#define MSC_BE_NONE 0
+#define MSC_BE_XHCI 1
+#define MSC_BE_EHCI 2
+
 static int gMscAuto = TOY_MSC_AUTO_DEFAULT;
+static int gMscBe = MSC_BE_NONE;
+
+static int BeReady(void) {
+    if (gMscBe == MSC_BE_XHCI) {
+        return XhciMscReady();
+    }
+    if (gMscBe == MSC_BE_EHCI) {
+        return EhciMscReady();
+    }
+    return 0;
+}
 
 int UsbMscInit(void) {
-    return XhciMscBringUp();
+    (void)XhciMscBringUp();
+    return BeReady() ? 0 : -1;
 }
 
 int UsbMscReady(void) {
-    return XhciMscReady();
+    if (BeReady()) {
+        return 1;
+    }
+    /* 未记后端时探测 */
+    if (XhciMscReady()) {
+        gMscBe = MSC_BE_XHCI;
+        return 1;
+    }
+    if (EhciMscReady()) {
+        gMscBe = MSC_BE_EHCI;
+        return 1;
+    }
+    return 0;
 }
 
 int UsbMscScan(void) {
-    return XhciMscScanPorts();
+    int X = XhciMscScanPorts();
+    int E = 0;
+
+    if (EhciReady()) {
+        E = EhciMscScan();
+    }
+    if (X < 0 && E < 0) {
+        return -1;
+    }
+    if (X < 0) {
+        X = 0;
+    }
+    if (E < 0) {
+        E = 0;
+    }
+    return X + E;
 }
 
 int UsbMscClaim(void) {
-    return XhciMscClaimPorts();
+    int Rc;
+
+    if (UsbMscReady()) {
+        return 1;
+    }
+
+    Rc = XhciMscClaimPorts();
+    if (Rc > 0) {
+        gMscBe = MSC_BE_XHCI;
+        return Rc;
+    }
+
+    if (EhciReady()) {
+        Rc = EhciMscClaim();
+        if (Rc > 0) {
+            gMscBe = MSC_BE_EHCI;
+            return Rc;
+        }
+        if (Rc < 0 && XhciMscScanPorts() < 0) {
+            return -1; /* 两边都无 HC */
+        }
+        return Rc; /* 0=无盘 */
+    }
+
+    return Rc; /* xHCI: 0 无盘 / -1 无 HC */
 }
 
 int UsbMscCapacity(void) {
+    if (gMscBe == MSC_BE_EHCI || (!gMscBe && EhciMscReady())) {
+        gMscBe = MSC_BE_EHCI;
+        return EhciMscCapacity();
+    }
+    gMscBe = MSC_BE_XHCI;
     return XhciMscCapacity();
 }
 
 UINT32 UsbMscBlockCount(void) {
+    if (gMscBe == MSC_BE_EHCI || EhciMscReady()) {
+        return EhciMscBlockCount();
+    }
     return XhciMscBlockCount();
 }
 
 UINT32 UsbMscBlockSize(void) {
+    if (gMscBe == MSC_BE_EHCI || EhciMscReady()) {
+        return EhciMscBlockSize();
+    }
     return XhciMscBlockSize();
 }
 
 int UsbMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer) {
+    if (gMscBe == MSC_BE_EHCI || EhciMscReady()) {
+        return EhciMscReadSectors(Lba, Count, Buffer);
+    }
     return XhciMscReadSectors(Lba, Count, Buffer);
 }
 
 int UsbMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer) {
+    if (gMscBe == MSC_BE_EHCI || EhciMscReady()) {
+        return EhciMscWriteSectors(Lba, Count, Buffer);
+    }
     return XhciMscWriteSectors(Lba, Count, Buffer);
 }
 
 int UsbMscFlush(void) {
+    if (gMscBe == MSC_BE_EHCI || EhciMscReady()) {
+        return EhciMscFlush();
+    }
     return XhciMscFlush();
 }
 
@@ -122,14 +210,27 @@ int UsbMscAutoBeforeFs(void) {
 
 int UsbMscRelease(void) {
     BlockMuxRemoveMsc();
-    return XhciMscRelease();
+    if (gMscBe == MSC_BE_EHCI) {
+        (void)EhciMscRelease();
+    } else {
+        (void)XhciMscRelease();
+    }
+    gMscBe = MSC_BE_NONE;
+    return 0;
 }
 
 int UsbMscHotPoll(void) {
+    int Present;
+
     if (!UsbMscReady()) {
         return 0;
     }
-    if (XhciMscPresent()) {
+    if (gMscBe == MSC_BE_EHCI) {
+        Present = EhciMscPresent();
+    } else {
+        Present = XhciMscPresent();
+    }
+    if (Present) {
         return 0;
     }
     DebugWrite("msc: hot unplug → release\n");
@@ -144,9 +245,11 @@ int UsbMscHotPoll(void) {
 int UsbMscHot(void) {
     int Claim;
     int Rc;
+    int Present;
 
     if (UsbMscReady()) {
-        if (XhciMscPresent()) {
+        Present = (gMscBe == MSC_BE_EHCI) ? EhciMscPresent() : XhciMscPresent();
+        if (Present) {
             return 0;
         }
         (void)UsbMscRelease();
