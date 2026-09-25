@@ -375,9 +375,7 @@ static int Ps2InitHw(void) {
 static int Ps2DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
-    if (ToyDriverInputReady()) {
-        return -1;
-    }
+    /* PR-H-input-mux：可与 xhci-hid 并存；勿因 Input 已绑而跳过 */
     if (!VirtualMemoryEnabled()) {
         return -1;
     }
@@ -410,9 +408,6 @@ static int Ps2DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivat
 
 static int Ps2DriverBind(TOY_DRIVER_INSTANCE *Inst) {
     (void)Inst;
-    if (ToyDriverInputReady()) {
-        return -1;
-    }
     return ToyDriverInputAttach(&gPs2Backend);
 }
 

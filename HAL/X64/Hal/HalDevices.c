@@ -35,7 +35,7 @@ void HalDriverRegister(void) {
     NvmeDriverRegister();
     MscDriverRegister(); /* PR-H-msc-1：Bind 不改 Block 后端 */
     InputXhciRegister(); /* 先 USB HID */
-    InputPs2Register();  /* 后 PS/2：仅当 xhci-hid 未绑 Input 时生效 */
+    InputPs2Register();  /* 后 PS/2：PR-H-input-mux 与 xhci-hid 可并存 */
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
 #if TOY_DEMO_DRIVER

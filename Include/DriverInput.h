@@ -1,7 +1,8 @@
 /*
- * DriverInput.h — Input 类适配（PR-D3）
+ * DriverInput.h — Input 类适配（PR-D3；PR-H-input-mux）
  *
- * 驱动 Bind 时调用 ToyDriverInputAttach；Common 仍只见 HalInput*。
+ * 驱动 Bind 时调用 ToyDriverInputAttach（可多次，多源聚合）；
+ * Common 仍只见 HalInput*。
  */
 #ifndef DRIVER_INPUT_H
 #define DRIVER_INPUT_H
