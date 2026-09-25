@@ -4,6 +4,7 @@
  * 偏好键 desktop/shell/font/mode/wallpaper/theme：优先 TOYOS.DB（PR-DB1）；仍写 THEME.CFG
  * 供 ToyBoot GOP SetMode（冷启动）。ThemeLoad 在 GuiInit 前；ThemeApply 末尾 ThemeSave。
  * PR-G-hotres：QEMU 上 ThemeApplyDisplayLive 可运行时切分辨率（Bochs DISPI）。
+ * PR-G-hotres-pc：真机可经 Boot 交接 GOP SetMode；失败仍 D7 写盘+重启。
  */
 #ifndef THEME_H
 #define THEME_H

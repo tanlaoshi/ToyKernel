@@ -33,6 +33,9 @@ void VideoSetPresentChunkRows(UINT32 Rows);
 /* PR-G-hotres：Bochs/QEMU VGA DISPI；成功 0，无 Bochs/失败 -1 */
 int VideoBochsSetMode(UINT32 Width, UINT32 Height);
 int VideoBochsAvailable(void);
+/* PR-G-hotres-pc：真机 GOP SetMode（Boot 交接）；QEMU 有 Bochs 时勿用 */
+int VideoGopSetMode(UINT32 Width, UINT32 Height);
+int VideoGopAvailable(void);
 UINT64 VideoFrameBufferBase(void);
 UINT64 VideoFrameBufferSize(void);
 /* 直写 scanout（boot 进度，勿与 Present 混用长路径） */

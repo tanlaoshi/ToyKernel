@@ -260,11 +260,22 @@ void HalVideoInitBackbuffer(void) {
 }
 
 int HalVideoCanHotSetMode(void) {
-    return VideoBochsAvailable();
+    /* QEMU：Bochs；真机：Boot 交接的 GOP（无 Bochs） */
+    if (VideoBochsAvailable()) {
+        return 1;
+    }
+    return VideoGopAvailable();
 }
 
 int HalVideoSetMode(UINT32 Width, UINT32 Height) {
-    if (VideoBochsSetMode(Width, Height) != 0) {
+    int Rc;
+
+    if (VideoBochsAvailable()) {
+        Rc = VideoBochsSetMode(Width, Height);
+    } else {
+        Rc = VideoGopSetMode(Width, Height);
+    }
+    if (Rc != 0) {
         return -1;
     }
     HalVideoInitBackbuffer();

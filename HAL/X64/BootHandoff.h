@@ -5,7 +5,8 @@
  * （Boot 不依赖本树即可编）。改布局必须两边一起改。
  * Keep out of ToyKernel/Include (Common stays UEFI-free).
  *
- * x86_64 sizes: VIDEO 32, MEMORY_MAP 40, BOOT_CONFIG 368（含 GOP 模式表）.
+ * x86_64 sizes: VIDEO 32, MEMORY_MAP 40, BOOT_CONFIG 632（含 GOP 模式表 + Gop 指针）.
+ * PR-G-hotres-pc：VideoMode 带 ModeNumber；末尾 GopProtocol 供真机热切。
  */
 #ifndef TOY_BOOT_HANDOFF_H
 #define TOY_BOOT_HANDOFF_H
@@ -16,6 +17,8 @@ typedef void VOID;
 #endif
 
 #define TOY_VIDEO_MODE_MAX 32
+/* VideoModePad：本 ABI 带 Gop 交接时置此魔数（旧 Boot 为 0 → 内核勿调 SetMode） */
+#define TOY_BOOT_GOP_HANDOFF_MAGIC 0x314E4F47u /* 'GON1' LE visual GOP1 */
 
 typedef struct {
     UINT64 FrameBufferBase;
@@ -28,6 +31,8 @@ typedef struct {
 typedef struct {
     UINT32 Width;
     UINT32 Height;
+    UINT32 ModeNumber; /* GOP QueryMode / SetMode 下标 */
+    UINT32 Reserved;
 } TOY_VIDEO_MODE;
 
 typedef struct {
@@ -49,17 +54,19 @@ typedef struct {
      * PR-G-modes：ExitBootServices 后内核无法 QueryMode。
      * Boot 枚举可用 GOP 模式供 Settings 列表（去重 WxH；
      * 顺序：EDID 精确 → 同宽高比就近 → 其它。选模仍以 THEME.CFG 为先）。
+     * PR-G-hotres-pc：ModeNumber + GopProtocol 供真机运行时 SetMode。
      */
     UINT32               VideoModeCount;
-    UINT32               VideoModePad;
+    UINT32               VideoModePad; /* TOY_BOOT_GOP_HANDOFF_MAGIC 时 Gop 有效 */
     TOY_VIDEO_MODE       VideoModes[TOY_VIDEO_MODE_MAX];
+    UINT64               GopProtocol; /* EFI_GRAPHICS_OUTPUT_PROTOCOL*；0=无 */
 } TOY_BOOT_CONFIG;
 
 #if defined(__GNUC__)
 _Static_assert(sizeof(TOY_VIDEO_CONFIG) == 32, "TOY_VIDEO_CONFIG size");
 _Static_assert(sizeof(TOY_MEMORY_MAP) == 40, "TOY_MEMORY_MAP size");
-_Static_assert(sizeof(TOY_VIDEO_MODE) == 8, "TOY_VIDEO_MODE size");
-_Static_assert(sizeof(TOY_BOOT_CONFIG) == 368, "TOY_BOOT_CONFIG size");
+_Static_assert(sizeof(TOY_VIDEO_MODE) == 16, "TOY_VIDEO_MODE size");
+_Static_assert(sizeof(TOY_BOOT_CONFIG) == 632, "TOY_BOOT_CONFIG size");
 _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, VideoConfig) == 0, "VideoConfig off");
 _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, MemoryMap) == 32, "MemoryMap off");
 _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, KernelEntry) == 72, "KernelEntry off");
@@ -68,6 +75,7 @@ _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, SystemTable) == 88, "SystemTa
 _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, XhciBaseAddress) == 96, "XhciBase off");
 _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, VideoModeCount) == 104, "VideoModeCount off");
 _Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, VideoModes) == 112, "VideoModes off");
+_Static_assert(__builtin_offsetof(TOY_BOOT_CONFIG, GopProtocol) == 624, "GopProtocol off");
 #endif
 
 #endif

@@ -18,6 +18,7 @@ typedef struct {
 typedef struct {
     UINT32 Width;
     UINT32 Height;
+    UINT32 ModeNumber; /* PR-G-hotres-pc：GOP SetMode 下标；0 也可为合法模式 */
 } BOOT_VIDEO_MODE;
 
 typedef struct {
@@ -36,6 +37,8 @@ typedef struct {
     /* PR-G-modes：Boot 传入的可用显示模式（0=未知，Settings 回退硬编码表） */
     UINT32          VideoModeCount;
     BOOT_VIDEO_MODE VideoModes[BOOT_VIDEO_MODE_MAX];
+    /* PR-G-hotres-pc：EFI GOP*；0=无交接 / 旧 Boot */
+    UINT64          GopProtocol;
 } BOOT_INFO;
 
 typedef struct {
