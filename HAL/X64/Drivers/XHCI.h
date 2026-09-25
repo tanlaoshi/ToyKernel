@@ -115,4 +115,9 @@ int XhciMscReadSectors(UINT32 Lba, UINT32 Count, void *Buffer);
 int XhciMscWriteSectors(UINT32 Lba, UINT32 Count, const void *Buffer);
 int XhciMscFlush(void);
 
+/* PR-H-usb-uart-ftdi-1：FT232 认领 + TX tee */
+int XhciFtdiClaim(void);  /* 1 ok；0 无棒；-1 无 HC */
+int XhciFtdiReady(void);
+void XhciFtdiWrite(const char *Text);
+
 #endif

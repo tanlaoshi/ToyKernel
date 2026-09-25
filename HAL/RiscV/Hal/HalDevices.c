@@ -92,6 +92,14 @@ int HalUsbMscAutoBeforeFs(void) {
     return 1;
 }
 
+int HalUsbUartClaim(void) {
+    return -1;
+}
+
+int HalUsbUartReady(void) {
+    return 0;
+}
+
 void HalInputArmIrq(void) {
 }
 

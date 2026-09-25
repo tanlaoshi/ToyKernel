@@ -212,6 +212,11 @@ extern volatile UINT32 gBulkCode;
 extern volatile UINT32 gBulkRemain;
 extern UINT8 gMscCfgBuf[1024];
 
+/* PR-H-usb-uart-ftdi-1：独立 slot（定义在 XhciFtdi.c） */
+extern UINT32 gFtdiSlot;
+extern UINT32 gFtdiPort;
+extern int gFtdiClaimed;
+
 extern volatile UINT32 gStatIntrEvt;
 extern volatile UINT32 gStatMouseEvt;
 extern volatile UINT32 gStatKbdPush;
@@ -426,6 +431,15 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
 int MscClaimForceUntilPed(UINT32 P, int *Force);
 int MscClaimAddressPort(UINT32 P, int Force, UINT8 *Speed);
 int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok);
+
+/* PR-H-usb-uart-ftdi-1 */
+int XhciFtdiClaim(void);
+int XhciFtdiReady(void);
+void XhciFtdiWrite(const char *Text);
+void XhciFtdiEp0Ring(XHCI_TRB **RingOut, RING_STATE **StOut);
+int XhciFtdiMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code);
+int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed);
+int XhciFtdiTryHubChildren(void);
 
 int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);

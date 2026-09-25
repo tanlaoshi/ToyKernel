@@ -83,6 +83,9 @@ int XhciMscClaimPorts(void) {
         if (gHubSlotId != 0 && P == gHubRootPort) {
             continue; /* 子口已在上面 EnumHubChildrenForMsc 试过 */
         }
+        if (gFtdiClaimed && gFtdiPort == P) {
+            continue;
+        }
 
         /*
          * MSC 认领必须稳：真机始终 Force PR 再 Address。

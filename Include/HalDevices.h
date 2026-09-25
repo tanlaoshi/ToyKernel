@@ -58,6 +58,9 @@ int HalUsbMscMount(void);
 int HalUsbMscAutoEnabled(void);
 void HalUsbMscAutoSet(int On);
 int HalUsbMscAutoBeforeFs(void);
+/* PR-H-usb-uart-ftdi-1：xHCI 上认 FT232；非 x86 空操作 */
+int HalUsbUartClaim(void);
+int HalUsbUartReady(void);
 /* 真机：usb 模块末尾开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：键鼠 ready 后再枚举鼠标，避免踩键盘 IN */

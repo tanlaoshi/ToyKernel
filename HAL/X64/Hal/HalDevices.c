@@ -12,6 +12,7 @@
 #include "Net.h"
 #include "UsbMsc.h"
 #include "E1000.h"
+#include "XHCI.h"
 
 #ifndef TOY_DEMO_DRIVER
 #define TOY_DEMO_DRIVER 1
@@ -88,6 +89,14 @@ void HalUsbMscAutoSet(int On) {
 
 int HalUsbMscAutoBeforeFs(void) {
     return UsbMscAutoBeforeFs();
+}
+
+int HalUsbUartClaim(void) {
+    return XhciFtdiClaim();
+}
+
+int HalUsbUartReady(void) {
+    return XhciFtdiReady();
 }
 
 void HalInputArmIrq(void) {

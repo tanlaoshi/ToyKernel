@@ -91,6 +91,9 @@ void ProcessEventsLocked(void) {
                 gBulkDone = 1;
                 Matched = 1;
             }
+            if (!Matched && XhciFtdiMatchXferEvent(EvtSlot, Ep, TrbPtr, Code)) {
+                Matched = 1;
+            }
             if (!Matched) {
                 UINT64 BulkInLo = PointerToPhysical(gBulkInRing);
                 UINT64 BulkInHi = BulkInLo + sizeof(gBulkInRing);

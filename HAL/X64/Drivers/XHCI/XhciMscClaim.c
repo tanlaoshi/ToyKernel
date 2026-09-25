@@ -219,6 +219,15 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
     }
     DevClass = gCtrlBuf[4];
     BootLogHex("Boot: MSC claim dclass=", DevClass, 2);
+    {
+        UINT16 Vid = (UINT16)(gCtrlBuf[8] | (gCtrlBuf[9] << 8));
+
+        /* 勿把 FT232 当 MSC（厂商 Bulk）；留给 usb-uart */
+        if (Vid == 0x0403u) {
+            BootLog("Boot: MSC claim skip FTDI\n");
+            goto fail;
+        }
+    }
     if (DevClass == 0x09) {
         BootLog("Boot: MSC claim skip hub device\n");
         goto fail;

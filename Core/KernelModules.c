@@ -156,6 +156,8 @@ static int InitializeUsb(void) {
             }
         }
     }
+    /* PR-H-usb-uart-ftdi-1：HID 之后认 FT232；失败不挡启动 */
+    (void)HalUsbUartClaim();
     return 0; /* 无键盘也必须进 gui / 桌面 */
 }
 

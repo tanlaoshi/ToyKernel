@@ -9,6 +9,7 @@
 #include "Font.h"
 #include "ToySerialConfig.h"
 #include "SpinLock.h"
+#include "XHCI.h"
 
 /* PR-TEST：串口输出锁。fork 后父子并发 printf 会字节交错（如 PIPEDEMO 的
  * "root=0x000PING000..."），用自旋锁把每次 HalSerialWriteChannel 调用做成
@@ -96,6 +97,8 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
         GopMirrorLine(Text);
     }
     SpinLockRelease(&gSerialLock);
+    /* PR-H-usb-uart-ftdi-1：有 FT232 则 tee（锁外，避免 Bulk 等事件重入） */
+    XhciFtdiWrite(Text);
 }
 
 void HalSerialWrite(const char *Text) {
@@ -128,11 +131,11 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
     }
-    if (!ChannelGopOn(Channel) || !gGopMirror || !gVideoUp) {
-        return;
+    if (ChannelGopOn(Channel) && gGopMirror && gVideoUp) {
+        /* 绕过 gGopMute：里程碑必须看得见；细日志走 ToyLog* → GopMirrorLine 仍受 Mute */
+        GopWrite(Text);
     }
-    /* 绕过 gGopMute：里程碑必须看得见；细日志走 ToyLog* → GopMirrorLine 仍受 Mute */
-    GopWrite(Text);
+    XhciFtdiWrite(Text);
 }
 
 void HalSerialBootMark(const char *Text) {
