@@ -171,6 +171,30 @@ void HalUhciDiagFormat(char *Buf, int Max) {
     }
 }
 
+void HalPs2DiagFormat(char *Buf, int Max) {
+    if (Buf && Max > 0) {
+        Buf[0] = 0;
+        if (Max > 16) {
+            Buf[0] = 'k';
+            Buf[1] = 'b';
+            Buf[2] = 'd';
+            Buf[3] = '=';
+            Buf[4] = '0';
+            Buf[5] = ' ';
+            Buf[6] = 'a';
+            Buf[7] = 'u';
+            Buf[8] = 'x';
+            Buf[9] = '=';
+            Buf[10] = '0';
+            Buf[11] = 0;
+        }
+    }
+}
+
+int HalPs2AuxRetry(void) {
+    return 0;
+}
+
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     return ToyDriverInputKeyboardDequeue(Report);
 }

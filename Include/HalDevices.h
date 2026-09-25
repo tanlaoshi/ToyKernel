@@ -82,6 +82,9 @@ int HalEhciHidRetry(void);
 int HalEhciFtdiPing(void);
 /* PR-H-uhci-1：UHCI CCS 诊断串 */
 void HalUhciDiagFormat(char *Buf, int Max);
+/* PR-H-ps2-aux：kbd/aux/fail/pkts；retry 重开 Aux */
+void HalPs2DiagFormat(char *Buf, int Max);
+int HalPs2AuxRetry(void);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);

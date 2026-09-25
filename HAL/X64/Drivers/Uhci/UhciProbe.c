@@ -55,7 +55,7 @@ int UhciSetup(void) {
 
     if (!FoundPci) {
         if (RealPc) {
-            ToyBootMarkUsb("Boot: UHCI none (no ProgIF 00)\n");
+            ToyBootMarkUsb("Boot: UHCI None (No ProgIF 00)\n");
         } else {
             DebugWrite("UHCI: none\n");
         }
@@ -67,7 +67,7 @@ int UhciSetup(void) {
     {
         char Hex[12];
         char Dig[5];
-        ToyBootMarkUsb("Boot: UHCI CCS ports=");
+        ToyBootMarkUsb("Boot: UHCI CCS Ports=");
         HalSerialFormatHex(Hex, OrMask, 4);
         Dig[0] = Hex[2];
         Dig[1] = Hex[3];
@@ -75,7 +75,7 @@ int UhciSetup(void) {
         Dig[3] = Hex[5];
         Dig[4] = 0;
         ToyBootMarkUsb(Dig);
-        ToyBootMarkUsb(Ok ? " up=1\n" : " up=0\n");
+        ToyBootMarkUsb(Ok ? " Up=1\n" : " Up=0\n");
     }
     return 1;
 }

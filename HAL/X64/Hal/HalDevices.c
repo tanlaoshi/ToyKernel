@@ -142,6 +142,7 @@ void HalInputInitMouseDeferred(void) {
 
 void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
     XhciMouseHandoffDesktop(CursorX, CursorY);
+    Ps2MouseHandoffDesktop(CursorX, CursorY);
 }
 
 void HalInputPoll(void) {
@@ -173,6 +174,14 @@ int HalEhciFtdiPing(void) {
 
 void HalUhciDiagFormat(char *Buf, int Max) {
     UhciDiagFormat(Buf, Max);
+}
+
+void HalPs2DiagFormat(char *Buf, int Max) {
+    Ps2DiagFormat(Buf, Max);
+}
+
+int HalPs2AuxRetry(void) {
+    return Ps2AuxRetry();
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

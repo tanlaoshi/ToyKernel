@@ -293,6 +293,7 @@ DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/E1000/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Alx/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ehci/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Uhci/*.c)
+DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ps2/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Nvme/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ahci/*.c)
 # PR-H-xhci-split-8：Drivers/XHCI/*.c（Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c

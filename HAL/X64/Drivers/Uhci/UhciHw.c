@@ -53,7 +53,7 @@ static void LogCtrl(UHCI_CTRL *C, int Index) {
         Line[n++] = *P++;
     }
     Line[n++] = (char)('0' + (Index % 10));
-    P = " io=";
+    P = " Io=";
     while (*P && n < 24) {
         Line[n++] = *P++;
     }
@@ -62,7 +62,7 @@ static void LogCtrl(UHCI_CTRL *C, int Index) {
     Line[n++] = Hex[3];
     Line[n++] = Hex[4];
     Line[n++] = Hex[5];
-    P = " ccs=";
+    P = " Ccs=";
     while (*P && n < 40) {
         Line[n++] = *P++;
     }
@@ -100,13 +100,13 @@ int UhciInitOne(UHCI_CTRL *C, int Index) {
         HalCpuRelax();
     }
     if (UhciR16(C->IoBase, UHCI_USBCMD) & UHCI_CMD_HCRESET) {
-        ToyBootMarkUsb("Boot: UHCI reset timeout\n");
+        ToyBootMarkUsb("Boot: UHCI Reset Timeout\n");
         return 0;
     }
 
     Fl = (UINT32 *)PhysicalMemoryAllocatePages(1);
     if (!Fl) {
-        ToyBootMarkUsb("Boot: UHCI frame list alloc fail\n");
+        ToyBootMarkUsb("Boot: UHCI FrameList Alloc Fail\n");
         return 0;
     }
     for (i = 0; i < UHCI_FRAME_ENTRIES; i++) {

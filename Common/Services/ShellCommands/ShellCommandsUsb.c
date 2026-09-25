@@ -88,6 +88,22 @@ static void CommandUhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
+/* PR-H-ps2-aux：触控板诊断；ps2 retry 重开 Aux */
+static void CommandPs2(int Argc, char **Argv) {
+    char Diag[160];
+
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'r') {
+        ConsoleWrite("ps2 Retry ");
+        ConsoleWrite(HalPs2AuxRetry() ? "Ok\n" : "Fail\n");
+    }
+    Diag[0] = 0;
+    HalPs2DiagFormat(Diag, (int)sizeof(Diag));
+    ConsoleWrite("ps2 ");
+    ConsoleWrite(Diag[0] ? Diag : "(no stats)");
+    ConsoleWrite("\n");
+    ConsoleWrite("  (aux=1 后滑板看 pkts↑；fail=ff/bat/f4=Init 卡点；input 看总鼠)\n");
+}
+
 /* PR-H-msc-6：msc | scan | claim | capacity | mount；不自动认盘 */
 static void CommandMsc(int Argc, char **Argv) {
     int Rc;
@@ -237,6 +253,7 @@ void ShellCommandsUsbRegister(void) {
     ConsoleRegister2("show", "input", "input counters (xhci or virtio)", CommandInputDiag);
     ConsoleRegister2("show", "ehci", "EHCI CCS / ehci hid retry", CommandEhci);
     ConsoleRegister2("show", "uhci", "UHCI CCS (PR-H-uhci-1)", CommandUhci);
+    ConsoleRegister2("show", "ps2", "PS/2 Kbd+Aux (Ps2 Retry)", CommandPs2);
     ConsoleRegister("msc",
                     "USB MSC: scan|claim|capacity|mount|release|hot",
                     CommandMsc);
@@ -244,4 +261,5 @@ void ShellCommandsUsbRegister(void) {
     ConsoleRegisterAliasLine("input", "show", "input");
     ConsoleRegisterAliasLine("ehci", "show", "ehci");
     ConsoleRegisterAliasLine("uhci", "show", "uhci");
+    ConsoleRegisterAliasLine("ps2", "show", "ps2");
 }
