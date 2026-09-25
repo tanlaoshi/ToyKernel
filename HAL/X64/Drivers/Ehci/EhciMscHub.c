@@ -202,6 +202,8 @@ int EhciMscClaimViaHub(EHCI_CTRL *C) {
     if (!HubAddr) {
         return 0;
     }
+    /* 扫口会 Reset 子设备；作废先前 EHCI FTDI claim（ehci-4） */
+    EhciFtdiInvalidate();
     if (EhciMscHubGetDesc(C, HubAddr, Desc, 9)) {
         NPorts = Desc[2] ? Desc[2] : 4;
         if (NPorts > 14) {

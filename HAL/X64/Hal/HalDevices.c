@@ -111,16 +111,22 @@ int HalUsbMscHot(void) {
 int HalUsbUartClaim(void) {
     int Rc;
 
-    /* FTDI 优先；已认则 CDC 互斥跳过 */
+    /* FTDI：先 xHCI，再 EHCI（N56VZ 棒在 RMH）；已认则 CDC 互斥跳过 */
     Rc = XhciFtdiClaim();
     if (Rc == 1) {
         return 1;
+    }
+    if (EhciReady()) {
+        Rc = EhciFtdiClaim();
+        if (Rc == 1) {
+            return 1;
+        }
     }
     return XhciCdcClaim();
 }
 
 int HalUsbUartReady(void) {
-    return (XhciFtdiReady() || XhciCdcReady()) ? 1 : 0;
+    return (XhciFtdiReady() || EhciFtdiReady() || XhciCdcReady()) ? 1 : 0;
 }
 
 void HalInputArmIrq(void) {
@@ -149,6 +155,17 @@ void HalEhciDiagFormat(char *Buf, int Max) {
 
 int HalEhciHidRetry(void) {
     return EhciHidBringup() ? 0 : -1;
+}
+
+/* 1=Bulk 已发出；0=未认；-1=Bulk 失败（见 ehci err=） */
+int HalEhciFtdiPing(void) {
+    if (!EhciFtdiReady()) {
+        return 0;
+    }
+    if (EhciFtdiWrite("\r\n*** FTDI 115200 ***\r\n") < 0) {
+        return -1;
+    }
+    return 1;
 }
 
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {

@@ -254,4 +254,27 @@ int EhciMscHubClearFeat(EHCI_CTRL *C, UINT8 HubAddr, UINT8 Port, UINT16 Feat);
 int EhciMscHubGetDesc(EHCI_CTRL *C, UINT8 HubAddr, UINT8 *Out, UINT16 Len);
 int EhciMscHubResetPort(EHCI_CTRL *C, UINT8 HubAddr, UINT8 Port, UINT8 *SpeedOut);
 
+/* PR-H-ehci-4 FTDI */
+extern EHCI_CTRL *gEhciFtdiCtrl;
+extern UINT8 gEhciFtdiAddr;
+extern UINT8 gEhciFtdiSpeed;
+extern UINT8 gEhciFtdiHubAddr;
+extern UINT8 gEhciFtdiHubPort;
+extern UINT8 gEhciFtdiEpIn;
+extern UINT8 gEhciFtdiEpOut;
+extern UINT16 gEhciFtdiMpsIn;
+extern UINT16 gEhciFtdiMpsOut;
+extern UINT8 gEhciFtdiDtIn;
+extern UINT8 gEhciFtdiDtOut;
+extern UINT8 gEhciFtdiEpMax0;
+extern int gEhciFtdiOk;
+int EhciFtdiClaimViaHub(EHCI_CTRL *C);
+void EhciFtdiInvalidate(void);
+int EhciFtdiClaim(void);
+int EhciFtdiReady(void);
+int EhciFtdiWrite(const char *Text);
+void EhciFtdiPollRx(void);
+int EhciFtdiDataReady(void);
+char EhciFtdiReadChar(void);
+
 #endif

@@ -78,6 +78,8 @@ void HalInputDiagFormat(char *Buf, int Max);
 void HalEhciDiagFormat(char *Buf, int Max);
 /* PR-H-ehci-2：插上 USB 后再枚举 HID；0=ok */
 int HalEhciHidRetry(void);
+/* PR-H-ehci-4：ping FT232 tee；1=Bulk ok 0=未认 -1=Bulk 失败 */
+int HalEhciFtdiPing(void);
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report);
 int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);

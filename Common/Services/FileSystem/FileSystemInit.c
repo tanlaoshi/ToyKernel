@@ -10,6 +10,7 @@
 #include "Debug.h"
 #include "ToySerialLog.h"
 #include "Hal.h"
+#include "HalDevices.h"
 #include "CoreOps.h"
 
 int FileSystemRemountVolumes(void) {
@@ -140,6 +141,12 @@ int FileSystemInitialize(void) {
             }
         }
     }
+
+    /*
+     * PR-H-ehci-4：MSC hub 扫口会 Reset 子设备，冲掉 Usb 阶段的 EHCI FTDI。
+     * FS 后重认（xHCI FTDI 已认则 Ready 直接返回）。
+     */
+    (void)HalUsbUartClaim();
 
     if (!HaveVols && !MuxOk) {
         if (HalBlockInit() <= 0) {

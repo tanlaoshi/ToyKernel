@@ -32,4 +32,13 @@ int EhciMscFlush(void);
 int EhciMscRelease(void);
 int EhciMscPresent(void);
 
+/* PR-H-ehci-4：FT232 tee */
+int EhciFtdiClaim(void);
+void EhciFtdiInvalidate(void);
+int EhciFtdiReady(void);
+int EhciFtdiWrite(const char *Text); /* 0=ok；<0 失败 */
+void EhciFtdiPollRx(void);
+int EhciFtdiDataReady(void);
+char EhciFtdiReadChar(void);
+
 #endif

@@ -51,10 +51,14 @@ int EhciBulkXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 Ep, UINT16 MaxPkt,
     /* DTC + Addr + Ep + MaxPkt + Speed；Bulk 无 Control Flag */
     EpChar = ((UINT32)MaxPkt << 16) | ((UINT32)Speed << 12) |
              ((UINT32)EpNum << 8) | (1u << 14) | (0xFu << 28) | (UINT32)Addr;
+    /*
+     * FS/LS split：HubAddr@16 Port@23。Mult 与 control 一致用 00
+     * （勿 Mult=1：RMH 下 FT232 Bulk OUT 会哑火，CoolTerm 空）。
+     */
     if (Speed != EHCI_SPEED_HS && HubAddr) {
-        EpCap = ((UINT32)HubAddr << 16) | ((UINT32)HubPort << 23) | (1u << 30);
+        EpCap = ((UINT32)HubAddr << 16) | ((UINT32)HubPort << 23);
     } else {
-        EpCap = 1u << 30; /* Mult=1 */
+        EpCap = 1u << 30; /* HS Mult=1 */
     }
 
     EhciPrepQtd(Td, EHCI_LINK_TERMINATE, Pid, Len, *Dt ? 1u : 0u,
@@ -82,6 +86,8 @@ int EhciBulkXfer(EHCI_CTRL *C, UINT8 Addr, UINT8 Ep, UINT16 MaxPkt,
     C->AsyncHead->Next = EHCI_LINK_TERMINATE;
     EhciFlush(Td, sizeof(*Td));
     EhciFlush(C->BulkBuf, Len);
+    EhciFlush(C->CtrlQh, sizeof(*C->CtrlQh));
+    EhciFlush(C->AsyncHead, sizeof(*C->AsyncHead));
     EhciFence();
     if (!EhciAsyncOn(C)) {
         gEhciLastErr = "bulk ase on";

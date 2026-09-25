@@ -19,6 +19,7 @@
 #include "Font.h"
 #include "ToySerialConfig.h"
 #include "XHCI.h"
+#include "Ehci.h"
 
 static char gRing[GOP_RING];
 static UINTN gRingLen;
@@ -170,6 +171,10 @@ int HalSerialDataReady(void) {
     if (XhciFtdiDataReady()) {
         return 1;
     }
+    EhciFtdiPollRx();
+    if (EhciFtdiDataReady()) {
+        return 1;
+    }
     XhciCdcPollRx();
     if (XhciCdcDataReady()) {
         return 1;
@@ -180,6 +185,9 @@ int HalSerialDataReady(void) {
 char HalSerialReadChar(void) {
     if (XhciFtdiDataReady()) {
         return XhciFtdiReadChar();
+    }
+    if (EhciFtdiDataReady()) {
+        return EhciFtdiReadChar();
     }
     if (XhciCdcDataReady()) {
         return XhciCdcReadChar();

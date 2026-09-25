@@ -33,7 +33,7 @@ static void CommandXhci(int Argc, char **Argv) {
     ConsoleWrite("\n");
 }
 
-/* PR-H-ehci-1/2：诊断；`ehci hid` 插上后再枚举 */
+/* PR-H-ehci-1/2/4：诊断；`ehci hid` 重枚举；`ehci ftdi` ping tee */
 static void CommandEhci(int Argc, char **Argv) {
     char Diag[160];
 
@@ -49,6 +49,22 @@ static void CommandEhci(int Argc, char **Argv) {
         HalEhciDiagFormat(Diag, (int)sizeof(Diag));
         ConsoleWrite(Diag[0] ? Diag : "(no stats)");
         ConsoleWrite("\n");
+        return;
+    }
+    if (Argc >= 2 && Argv[1] && Argv[1][0] == 'f' && Argv[1][1] == 't' &&
+        Argv[1][2] == 'd' && Argv[1][3] == 'i' && Argv[1][4] == 0) {
+        int Rc = HalEhciFtdiPing();
+        if (Rc == 1) {
+            ConsoleWrite("ehci: ftdi bulk ok — CoolTerm 115200 8N1 expect *** FTDI ***\n");
+        } else if (Rc == 0) {
+            ConsoleWrite("ehci: ftdi=0 (not claimed)\n");
+        } else {
+            ConsoleWrite("ehci: ftdi bulk FAIL — ");
+            Diag[0] = 0;
+            HalEhciDiagFormat(Diag, (int)sizeof(Diag));
+            ConsoleWrite(Diag[0] ? Diag : "?");
+            ConsoleWrite("\n");
+        }
         return;
     }
 

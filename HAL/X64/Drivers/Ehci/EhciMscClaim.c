@@ -8,7 +8,6 @@
 static int GetDesc(EHCI_CTRL *C, UINT8 Addr, UINT8 EpMax, UINT16 TypeIndex,
                    UINT16 Len, void *Out) {
     USB_SETUP_PACKET S;
-
     S.bmRequestType = 0x80;
     S.bRequest = 0x06;
     S.wValue = TypeIndex;
@@ -167,6 +166,13 @@ int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) 
         gEhciLastErr = "msc nested hub";
         return 0;
     }
+    /* FT232→ehci-4；勿 SetAddr */
+    if (Dev.idVendor == 0x0403u &&
+        (Dev.idProduct == 0x6001u || Dev.idProduct == 0x6014u ||
+         Dev.idProduct == 0x6015u)) {
+        ToyBootMarkUsb("Boot: EHCI MSC skip ftdi\n");
+        return 0;
+    }
     if (gEhciNextAddr < 2 || gEhciNextAddr > 127) {
         gEhciNextAddr = 2;
     }
@@ -178,7 +184,6 @@ int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) 
     C->XferHubAddr = HubAddr;
     C->XferHubPort = HubPort;
     EhciDelay(100000);
-
     if (GetDesc(C, Addr, EpMax, 0x0200, 9, Cfg) != 0) {
         return 0;
     }
@@ -199,7 +204,6 @@ int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) 
         return 0;
     }
     EhciDelay(200000);
-    /* GET MAX LUN（忽略失败；部分棒不开此请求就不吐 BOT） */
     {
         USB_SETUP_PACKET S;
         UINT8 Lun = 0;
@@ -213,7 +217,6 @@ int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) 
         C->XferHubPort = HubPort;
         (void)EhciControlXfer(C, Addr, EpMax, &S, &Lun);
     }
-
     C->MscAddr = Addr;
     C->MscSpeed = Speed;
     C->MscHubAddr = HubAddr;
@@ -221,7 +224,6 @@ int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) 
     C->MscIface = Iface;
     C->MscEpIn = EpIn;
     C->MscEpOut = EpOut;
-    /* HS Bulk 描述符 MPS=0 时必须 512，勿用 64 */
     if (MpsIn == 0) {
         MpsIn = (Speed == EHCI_SPEED_HS) ? 512 : 64;
     }

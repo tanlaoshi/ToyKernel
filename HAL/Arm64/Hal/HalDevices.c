@@ -129,6 +129,10 @@ int HalEhciHidRetry(void) {
     return -1;
 }
 
+int HalEhciFtdiPing(void) {
+    return 0;
+}
+
 int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
     return ToyDriverInputKeyboardDequeue(Report);
 }
