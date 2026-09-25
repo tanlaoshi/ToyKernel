@@ -179,7 +179,7 @@ int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed) {
         goto fail;
     }
     if (CdcSetLine115200(Comm) < 0) {
-        BootLog("Boot: usb-uart cdc line fail\n");
+        BootLog("Boot: USB-UART CDC Line Fail\n");
         goto fail;
     }
     /* QEMU usb-serial：Config/Line 后需短暂就绪，否则首包 Bulk OUT 易超时 */
@@ -192,8 +192,8 @@ int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed) {
     gCdcClaimed = 1;
     XhciCdcRxArm();
     /* COM1 + CDC 双路；BootMark 保证 QEMU 非 verbose 也看得见 */
-    ToyLogBoot("boot: usb-uart cdc\n");
-    ToyBootMarkUsb("boot: usb-uart cdc\n");
+    ToyLogBoot("Boot: USB-UART CDC\n");
+    ToyBootMarkUsb("Boot: USB-UART CDC\n");
     return 1;
 
 fail:

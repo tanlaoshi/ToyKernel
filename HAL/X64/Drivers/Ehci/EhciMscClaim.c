@@ -170,7 +170,7 @@ int EhciMscFinishClaim(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) 
     if (Dev.idVendor == 0x0403u &&
         (Dev.idProduct == 0x6001u || Dev.idProduct == 0x6014u ||
          Dev.idProduct == 0x6015u)) {
-        ToyBootMarkUsb("Boot: EHCI MSC skip ftdi\n");
+        ToyBootMarkUsb("Boot: EHCI MSC Skip FTDI\n");
         return 0;
     }
     if (gEhciNextAddr < 2 || gEhciNextAddr > 127) {

@@ -32,7 +32,7 @@ int EhciFtdiClaim(void) {
     if (EhciFtdiReady()) {
         return 1;
     }
-    ToyBootMarkUsb("Boot: EHCI FTDI claim begin\n");
+    ToyBootMarkUsb("Boot: EHCI FTDI Claim Begin\n");
     for (i = 0; i < gEhciCount; i++) {
         EHCI_CTRL *C = &gEhci[i];
 
@@ -43,7 +43,7 @@ int EhciFtdiClaim(void) {
             return 1;
         }
     }
-    ToyBootMarkUsb("Boot: EHCI FTDI none\n");
+    ToyBootMarkUsb("Boot: EHCI FTDI None\n");
     return 0;
 }
 

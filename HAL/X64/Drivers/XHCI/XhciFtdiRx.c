@@ -119,7 +119,7 @@ int XhciFtdiConfigBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
     FlushDma(gFtdiDevCtx, sizeof(gFtdiDevCtx));
     if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) <
         0) {
-        BootLog("Boot: usb-uart cfg ep fail\n");
+        BootLog("Boot: USB-UART Cfg Ep Fail\n");
         return 0;
     }
     gFtdiBulkInDci = InDci;

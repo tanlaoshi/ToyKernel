@@ -1,5 +1,5 @@
 /*
- * AlxProbe.c — PCI 查找、BAR、永久 MAC（PR-N-alx-1）
+ * AlxProbe.c — PCI 查找、BAR、永久 MAC（PR-N-alx-1）；Setup 末尾 BringUp（alx-2）
  */
 #include "Alx.h"
 #include "AlxPrivate.h"
@@ -12,8 +12,12 @@
 volatile UINT8 *gAlxBar;
 UINT64 gAlxBarPhys;
 UINT16 gAlxDid;
+UINT8 gAlxRev;
 UINT8 gAlxMac[6];
 int gAlxReady;
+UINT32 gAlxRxCtrl;
+UINT32 gAlxLinkMbps;
+int gAlxLinkFull;
 
 static const UINT16 gAlxIds[] = {
     ALX_DID_AR8161,
@@ -24,7 +28,7 @@ static const UINT16 gAlxIds[] = {
 };
 
 int AlxPciFind(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut,
-               UINT16 *DidOut) {
+               UINT16 *DidOut, UINT8 *RevOut) {
     int B;
     int D;
     int F;
@@ -40,6 +44,7 @@ int AlxPciFind(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut,
                 UINT32 Hi;
                 UINT64 Bar;
                 UINT32 Cmd;
+                UINT32 RevCls;
 
                 if (Vid != ALX_VENDOR) {
                     continue;
@@ -68,12 +73,16 @@ int AlxPciFind(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut,
                 if (Bar == 0) {
                     continue;
                 }
+                RevCls = PciReadConfig((UINT8)B, (UINT8)D, (UINT8)F, 0x08);
                 *Bus = (UINT8)B;
                 *Dev = (UINT8)D;
                 *Fn = (UINT8)F;
                 *BarOut = Bar;
                 if (DidOut) {
                     *DidOut = Did;
+                }
+                if (RevOut) {
+                    *RevOut = (UINT8)(RevCls & 0xFFu);
                 }
                 return 1;
             }
@@ -88,7 +97,7 @@ static int MacValid(const UINT8 Mac[6]) {
     int Broadcast = 1;
 
     if (Mac[0] & 0x01u) {
-        return 0; /* 组播 / 本地管理位当无效永久址 */
+        return 0;
     }
     for (i = 0; i < 6; i++) {
         if (Mac[i] != 0) {
@@ -101,10 +110,6 @@ static int MacValid(const UINT8 Mac[6]) {
     return !Zero && !Broadcast;
 }
 
-/*
- * STAD 布局同 Linux alx_read_macaddr：
- * STAD0=6AF600DC STAD1=000B → 00:0B:6A:F6:00:DC
- */
 int AlxReadMac(UINT8 Mac[6]) {
     UINT32 Mac0;
     UINT32 Mac1;
@@ -150,8 +155,6 @@ int AlxLoadPermMac(UINT8 Mac[6]) {
     if (AlxReadMac(Mac)) {
         return 1;
     }
-
-    /* eFuse：等空闲后触发 START */
     if (WaitReady(ALX_SLD, ALX_SLD_STAT | ALX_SLD_START, 100000)) {
         Val = AlxMmioR32(ALX_SLD);
         AlxMmioW32(ALX_SLD, Val | ALX_SLD_START);
@@ -159,8 +162,6 @@ int AlxLoadPermMac(UINT8 Mac[6]) {
             return 1;
         }
     }
-
-    /* flash / EEPROM（若存在） */
     Val = AlxMmioR32(ALX_EFLD);
     if (Val & (ALX_EFLD_F_EXIST | ALX_EFLD_E_EXIST)) {
         if (!WaitReady(ALX_EFLD, ALX_EFLD_STAT | ALX_EFLD_START, 100000)) {
@@ -178,16 +179,17 @@ static void LogMac(const UINT8 Mac[6]) {
     char Line[64];
     char Hex[12];
     int n = 0;
-    const char *P = "Boot: alx MAC=";
+    const char *P = "Boot: Alx MAC=";
     int i;
 
     while (*P && n < 20) {
         Line[n++] = *P++;
     }
     for (i = 0; i < 6; i++) {
+        /* FormatHex → "0x.."；数字从 [2] 起（同 ehci-1c） */
         HalSerialFormatHex(Hex, Mac[i], 2);
-        Line[n++] = Hex[0];
-        Line[n++] = Hex[1];
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
         if (i < 5 && n < 62) {
             Line[n++] = ':';
         }
@@ -203,7 +205,9 @@ int AlxSetup(void) {
     UINT8 Fn;
     UINT64 Bar;
     UINT16 Did = 0;
+    UINT8 Rev = 0;
     UINT8 Mac[6];
+    int i;
 
     if (gAlxReady) {
         return 1;
@@ -211,38 +215,37 @@ int AlxSetup(void) {
     if (!VirtualMemoryEnabled()) {
         return 0;
     }
-    if (!AlxPciFind(&Bus, &Dev, &Fn, &Bar, &Did)) {
+    if (!AlxPciFind(&Bus, &Dev, &Fn, &Bar, &Did, &Rev)) {
         return 0;
     }
     if (VirtualMemoryMapRange(Bar, Bar, ALX_BAR_MAP_BYTES,
                               PTE_PRESENT | PTE_WRITABLE) != 0) {
-        ToyLogDrv("Boot: alx map BAR fail\n");
+        ToyLogDrv("Boot: Alx Map BAR Fail\n");
         return 0;
     }
     gAlxBarPhys = Bar;
     gAlxBar = (volatile UINT8 *)(UINTN)Bar;
     gAlxDid = Did;
+    gAlxRev = Rev;
 
     if (!AlxLoadPermMac(Mac)) {
-        ToyLogDrv("Boot: alx MAC unavailable\n");
+        ToyLogDrv("Boot: Alx MAC Unavailable\n");
         gAlxBar = 0;
         return 0;
     }
-    gAlxMac[0] = Mac[0];
-    gAlxMac[1] = Mac[1];
-    gAlxMac[2] = Mac[2];
-    gAlxMac[3] = Mac[3];
-    gAlxMac[4] = Mac[4];
-    gAlxMac[5] = Mac[5];
-    gAlxReady = 1;
-    LogMac(Mac);
-    ToyLogDrv("Boot: alx probe ok did=");
-    {
-        char Hex[12];
-        HalSerialFormatHex(Hex, Did, 4);
-        ToyLogDrv(Hex);
-        ToyLogDrv("\n");
+    for (i = 0; i < 6; i++) {
+        gAlxMac[i] = Mac[i];
     }
+    LogMac(Mac);
+
+    if (!AlxBringUp()) {
+        ToyLogNet("Boot: Alx BringUp Fail\n");
+        gAlxBar = 0;
+        gAlxDid = 0;
+        return 0;
+    }
+    gAlxReady = 1;
+    ToyLogNet("Boot: Alx Ready Poll\n");
     return 1;
 }
 

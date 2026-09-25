@@ -74,7 +74,7 @@ int XhciCdcConfigBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
     FlushDma(gCdcDevCtx, sizeof(gCdcDevCtx));
     if (Command(PointerToPhysical(gInCtx), TRB_TYPE(TRB_CONFIG_EP) | TRB_SLOT(SlotId), 0) <
         0) {
-        BootLog("Boot: usb-uart cdc cfg ep fail\n");
+        BootLog("Boot: USB-UART CDC Cfg Ep Fail\n");
         return 0;
     }
     gCdcBulkInDci = InDci;

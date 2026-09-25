@@ -154,24 +154,24 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     C->XferHubPort = HubPort;
 
     if (GetDesc(C, 0, 8, 0x0100, 8, &Dev) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI getdesc8 fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI GetDesc8 Fail\n");
         return 0;
     }
     EpMax = Dev.bMaxPacketSize0 ? Dev.bMaxPacketSize0 : 8;
     if (GetDesc(C, 0, EpMax, 0x0100, 18, &Dev) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI getdesc18 fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI GetDesc18 Fail\n");
         return 0;
     }
     if (Dev.idVendor != FTDI_VID || !IsFtdiPid(Dev.idProduct)) {
         return 0; /* 非 FTDI：静默换口 */
     }
-    ToyBootMarkUsb("Boot: EHCI FTDI vid=0403 found\n");
+    ToyBootMarkUsb("Boot: EHCI FTDI Vid=0403 Found\n");
     if (gEhciNextAddr < 2 || gEhciNextAddr > 127) {
         gEhciNextAddr = 2;
     }
     Addr = gEhciNextAddr++;
     if (SetAddr(C, Addr, EpMax) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI setaddr fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI SetAddr Fail\n");
         return 0;
     }
     C->XferSpeed = Speed;
@@ -179,7 +179,7 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     C->XferHubPort = HubPort;
     EhciDelay(100000);
     if (GetDesc(C, Addr, EpMax, 0x0200, 9, Cfg) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI cfg9 fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI Cfg9 Fail\n");
         return 0;
     }
     CfgLen = (UINT16)(Cfg[2] | ((UINT16)Cfg[3] << 8));
@@ -187,15 +187,15 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
         CfgLen = 64;
     }
     if (GetDesc(C, Addr, EpMax, 0x0200, CfgLen, Cfg) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI cfg fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI Cfg Fail\n");
         return 0;
     }
     if (!ParseFtdiBulk(Cfg, CfgLen, &EpIn, &MpsIn, &EpOut, &MpsOut, &CfgVal)) {
-        ToyBootMarkUsb("Boot: EHCI FTDI no bulk\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI No Bulk\n");
         return 0;
     }
     if (SetConfig(C, Addr, EpMax, CfgVal) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI setcfg fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI SetCfg Fail\n");
         return 0;
     }
 
@@ -216,7 +216,7 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     if (FtdiVendor(C, FTDI_REQ_RESET, 0, 0) != 0 ||
         FtdiVendor(C, FTDI_REQ_SET_BAUD, FTDI_BAUD_115200, 0) != 0 ||
         FtdiVendor(C, FTDI_REQ_SET_DATA, 8, 0) != 0) {
-        ToyBootMarkUsb("Boot: EHCI FTDI baud fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI Baud Fail\n");
         gEhciFtdiCtrl = 0;
         return 0;
     }
@@ -229,15 +229,15 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
         if (EhciBulkXfer(C, gEhciFtdiAddr, gEhciFtdiEpOut, gEhciFtdiMpsOut,
                          gEhciFtdiSpeed, gEhciFtdiHubAddr, gEhciFtdiHubPort, 0,
                          Probe, 8, &gEhciFtdiDtOut) < 0) {
-            ToyBootMarkUsb("Boot: EHCI FTDI tx fail ");
+            ToyBootMarkUsb("Boot: EHCI FTDI Tx Fail ");
             ToyBootMarkUsb(gEhciLastErr ? gEhciLastErr : "?");
             ToyBootMarkUsb("\n");
         } else {
-            ToyBootMarkUsb("Boot: EHCI FTDI tx ok\n");
+            ToyBootMarkUsb("Boot: EHCI FTDI Tx OK\n");
         }
     }
-    ToyLogBoot("boot: usb-uart ftdi\n");
-    ToyBootMarkUsb("boot: usb-uart ftdi\n");
+    ToyLogBoot("Boot: USB-UART FTDI\n");
+    ToyBootMarkUsb("Boot: USB-UART FTDI\n");
     return 1;
 }
 
@@ -262,12 +262,12 @@ static int TryHubPort(EHCI_CTRL *C, UINT8 HubAddr, UINT8 P) {
         return 0;
     }
     if (!EhciMscHubResetPort(C, HubAddr, P, &Sp)) {
-        ToyBootMarkUsb("Boot: EHCI FTDI hub reset fail\n");
+        ToyBootMarkUsb("Boot: EHCI FTDI Hub Reset Fail\n");
         return 0;
     }
-    ToyBootMarkUsb(Sp == EHCI_SPEED_HS ? "Boot: EHCI FTDI hub spd=HS\n"
-                    : (Sp == EHCI_SPEED_LS ? "Boot: EHCI FTDI hub spd=LS\n"
-                                          : "Boot: EHCI FTDI hub spd=FS\n"));
+    ToyBootMarkUsb(Sp == EHCI_SPEED_HS ? "Boot: EHCI FTDI Hub Spd=HS\n"
+                    : (Sp == EHCI_SPEED_LS ? "Boot: EHCI FTDI Hub Spd=LS\n"
+                                          : "Boot: EHCI FTDI Hub Spd=FS\n"));
     return FinishFtdi(C, Sp, HubAddr, P);
 }
 

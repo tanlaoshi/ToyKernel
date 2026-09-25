@@ -168,15 +168,15 @@ int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
         goto fail;
     }
     if (FtdiSetLine115200() < 0) {
-        BootLog("Boot: usb-uart baud fail\n");
+        BootLog("Boot: USB-UART Baud Fail\n");
         goto fail;
     }
     gFtdiPort = RootPort;
     gFtdiClaimed = 1;
     XhciFtdiRxArm();
     /* QEMU 默认 BootLog 会滤非 milestone；COM1+棒上都要看得见 */
-    ToyLogBoot("boot: usb-uart ftdi\n");
-    ToyBootMarkUsb("boot: usb-uart ftdi\n");
+    ToyLogBoot("Boot: USB-UART FTDI\n");
+    ToyBootMarkUsb("Boot: USB-UART FTDI\n");
     return 1;
 
 fail:
