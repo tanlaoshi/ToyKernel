@@ -227,6 +227,11 @@ extern int gCdcClaimed;
 extern UINT32 gCdcBulkInDci;
 extern UINT32 gCdcBulkOutDci;
 
+/* PR-N-wifi-1 */
+extern UINT32 gWifiSlot;
+extern UINT32 gWifiPort;
+extern int gWifiXhciOk;
+
 extern volatile UINT32 gStatIntrEvt;
 extern volatile UINT32 gStatMouseEvt;
 extern volatile UINT32 gStatKbdPush;
@@ -467,11 +472,19 @@ int XhciCdcMatchXferEvent(UINT32 EvtSlot, UINT32 Ep, UINT64 TrbPtr, UINT32 Code,
                           UINT32 Remain);
 int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed);
 int XhciCdcConfigBulk(UINT32 SlotId, UINT32 RootPort, UINT8 Speed,
-                      UINT8 EpIn, UINT16 MpsIn, UINT8 EpOut, UINT16 MpsOut);
+                       UINT8 EpIn, UINT16 MpsIn, UINT8 EpOut, UINT16 MpsOut);
 void XhciCdcRxArm(void);
 void XhciCdcPollRx(void);
 int XhciCdcDataReady(void);
 char XhciCdcReadChar(void);
+
+/* PR-N-wifi-1 */
+int XhciWifiClaim(void);
+int XhciWifiReady(void);
+UINT16 XhciWifiPid(void);
+void XhciWifiEp0Ring(XHCI_TRB **RingOut, RING_STATE **StOut);
+int XhciWifiFinishClaim(UINT32 RootPort, UINT8 Speed);
+int XhciWifiTryHubChildren(void);
 
 int InitMouseOnPort(UINT32 Port1);
 int InitMouseOnKeyboardSlot(void);

@@ -134,4 +134,9 @@ void XhciCdcPollRx(void);
 int XhciCdcDataReady(void);
 char XhciCdcReadChar(void);
 
+/* PR-N-wifi-1：RTL8188EU USB */
+int XhciWifiClaim(void); /* 1 ok；0 无棒；-1 无 HC */
+int XhciWifiReady(void);
+UINT16 XhciWifiPid(void);
+
 #endif

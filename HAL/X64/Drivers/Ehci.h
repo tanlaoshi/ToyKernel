@@ -41,4 +41,9 @@ void EhciFtdiPollRx(void);
 int EhciFtdiDataReady(void);
 char EhciFtdiReadChar(void);
 
+/* PR-N-wifi-1：RTL8188EU */
+int EhciWifiClaim(void);
+int EhciWifiReady(void);
+UINT16 EhciWifiPid(void);
+
 #endif

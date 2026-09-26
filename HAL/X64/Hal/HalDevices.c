@@ -17,6 +17,9 @@
 #include "Ehci.h"
 #include "Uhci.h"
 #include "XHCI.h"
+#include "Wifi.h"
+#include "Iwl.h"
+#include "Driver.h"
 
 #ifndef TOY_DEMO_DRIVER
 #define TOY_DEMO_DRIVER 1
@@ -30,6 +33,8 @@ void MscDriverRegister(void); /* PR-H-msc：空壳注册；认盘在后续 PR */
 void E1000DriverRegister(void);
 void AlxDriverRegister(void); /* PR-N-alx-2：AR8161 L2；无卡/无链路不挡 */
 void RtlDriverRegister(void); /* PR-N-rtl-1：r8169 Probe/MAC；无卡不挡 */
+void WifiDriverRegister(void); /* USB 8188EU 骨架；无棒不挡 */
+void IwlDriverRegister(void);  /* PR-N-wifi-1：iwl8265；FS 后 Claim */
 void DemoDriverRegister(void); /* PR-D-tpl-2 */
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -48,6 +53,8 @@ void HalDriverRegister(void) {
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
     AlxDriverRegister();   /* PR-N-alx-2：Bind → NetAttachNic */
     RtlDriverRegister();   /* PR-N-rtl-1：lsdev=r8169；rtl-2 再挂 L2 */
+    WifiDriverRegister();  /* USB 8188EU 软失败骨架 */
+    IwlDriverRegister();   /* PR-N-wifi-1：NUC 8265；HalIwlClaim 后再绑 */
 #if TOY_DEMO_DRIVER
     DemoDriverRegister(); /* PR-D-tpl-2：课堂 Demo；-DTOY_DEMO_DRIVER=0 可关 */
 #endif
@@ -132,6 +139,24 @@ int HalUsbUartClaim(void) {
 
 int HalUsbUartReady(void) {
     return (XhciFtdiReady() || EhciFtdiReady() || XhciCdcReady()) ? 1 : 0;
+}
+
+/* PR-N-wifi-1：USB 8188EU；先 xHCI 再 EHCI；无棒 0 */
+int HalWifiClaim(void) {
+    return WifiSetup() ? 1 : 0;
+}
+
+int HalWifiReady(void) {
+    return WifiReady();
+}
+
+/* PR-N-wifi-1：NUC iwl8265；PCI 认卡 + 读 FW；无卡 0 */
+int HalIwlClaim(void) {
+    return IwlSetup() ? 1 : 0;
+}
+
+int HalIwlReady(void) {
+    return IwlReady();
 }
 
 void HalInputArmIrq(void) {

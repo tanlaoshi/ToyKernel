@@ -112,6 +112,22 @@ int HalUsbUartReady(void) {
     return 0;
 }
 
+int HalWifiClaim(void) {
+    return 0;
+}
+
+int HalWifiReady(void) {
+    return 0;
+}
+
+int HalIwlClaim(void) {
+    return 0;
+}
+
+int HalIwlReady(void) {
+    return 0;
+}
+
 void HalInputArmIrq(void) {
 }
 

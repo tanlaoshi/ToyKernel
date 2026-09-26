@@ -12,6 +12,7 @@
 #include "Hal.h"
 #include "HalDevices.h"
 #include "CoreOps.h"
+#include "Driver.h"
 
 int FileSystemRemountVolumes(void) {
     /*
@@ -150,6 +151,15 @@ int FileSystemInitialize(void) {
         ToyLogBoot("Boot: USB-UART Skip (COM1)\n");
     } else {
         (void)HalUsbUartClaim();
+    }
+
+    /*
+     * PR-N-wifi-1：卷已挂后认 NUC iwl8265（读 FW/IWL8265.UCODE）再 Probe NET。
+     * 勿在此调 HalWifiClaim（USB 8188EU）：会 Address/Reset 旁路口，
+     * 已认 MSC hub 上易 AddressDev cc=0x04 → bulk 挂（NUC 真机已见）。
+     */
+    if (HalIwlClaim() == 1) {
+        (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_NET);
     }
 
     if (!HaveVols && !MuxOk) {
