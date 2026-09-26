@@ -173,15 +173,16 @@ int RtlSetup(void) {
     for (i = 0; i < 6; i++) {
         gRtlMac[i] = Mac[i];
     }
-    gRtlReady = 1;
     LogMac(Mac);
-    ToyLogDrv("Boot: R8169 Probe OK Did=");
-    {
-        char Hex[12];
-        HalSerialFormatHex(Hex, Did, 4);
-        ToyLogDrv(Hex + 2);
-        ToyLogDrv("\n");
+
+    if (!RtlBringUp()) {
+        ToyLogNet("Boot: R8169 BringUp Fail\n");
+        gRtlBar = 0;
+        gRtlDid = 0;
+        return 0;
     }
+    gRtlReady = 1;
+    ToyLogNet("Boot: R8169 Ready Poll\n");
     return 1;
 }
 

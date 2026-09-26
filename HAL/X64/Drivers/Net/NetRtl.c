@@ -1,11 +1,36 @@
 /*
- * NetRtl.c — r8169 经 Driver Net 类注册（PR-N-rtl-1）
+ * NetRtl.c — r8169 经 Driver Net 类注册（PR-N-rtl-2）
  *
- * Probe 认 PCI 10EC:8168…；Bind 仅占 lsdev 槽，不 NetAttachNic（→ rtl-2）。
+ * Probe 认 PCI 10EC:8168…；Bind → NetAttachNic(NIC_L2)。
  */
 #include "Driver.h"
+#include "DriverNic.h"
 #include "Rtl.h"
+#include "Net.h"
 #include "VirtualMemory.h"
+
+static int RtlNicSendFrame(const UINT8 *Frame, UINTN FrameLen) {
+    return RtlSendFrame(Frame, FrameLen);
+}
+
+static void RtlNicPoll(void) {
+    RtlPoll();
+}
+
+static void RtlNicGetMac(UINT8 Mac[6]) {
+    RtlGetMac(Mac);
+}
+
+static int RtlNicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex) {
+    return RtlGetLink(Up, Mbps, FullDuplex);
+}
+
+static const NIC_L2 gRtlNicL2 = {
+    .SendFrame = RtlNicSendFrame,
+    .Poll = RtlNicPoll,
+    .GetMac = RtlNicGetMac,
+    .GetLink = RtlNicGetLink,
+};
 
 static int RtlDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
@@ -34,8 +59,7 @@ static int RtlDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     if (!RtlReady()) {
         return -1;
     }
-    /* PR-N-rtl-1：可见于 lsdev；协议栈挂接留给 rtl-2 */
-    return 0;
+    return NetAttachNic(&gRtlNicL2);
 }
 
 static void RtlDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
