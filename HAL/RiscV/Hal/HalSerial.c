@@ -77,6 +77,9 @@ static void UartWriteRaw(const char *Text) {
 void HalSerialInitialize(void) {
 }
 
+void HalSerialRetryIfMissing(void) {
+}
+
 int HalSerialPresent(void) {
 #if TOY_SERIAL
     return 1;

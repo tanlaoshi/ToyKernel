@@ -10,6 +10,8 @@
 #include "BootTypes.h"
 
 void HalSerialInitialize(void);
+/* COM1 首探失败时再探（与 USB-UART Early 同点） */
+void HalSerialRetryIfMissing(void);
 int HalSerialPresent(void);
 /* video 就绪后：允许 boot 期把 ring 刷到 GOP（与 COM1 无关） */
 void HalSerialGopEnable(void);

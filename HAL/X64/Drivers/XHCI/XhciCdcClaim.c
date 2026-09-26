@@ -208,7 +208,12 @@ static int CdcAddressRoot(UINT32 P, UINT8 *Speed) {
     UINT32 Ps;
     int Force = 0;
 
-    if (!MscClaimForceUntilPed(P, &Force)) {
+    Ps = ReadMmio32(gOperationalBase + PortReg(P));
+    if (gMscClaimed) {
+        if (!(Ps & PORTSC_CCS) || !(Ps & PORTSC_PED)) {
+            return 0;
+        }
+    } else if (!MscClaimForceUntilPed(P, &Force)) {
         return 0;
     }
     Ps = ReadMmio32(gOperationalBase + PortReg(P));

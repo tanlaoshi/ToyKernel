@@ -54,6 +54,19 @@ void SerialInitialize(void) {
 #endif
 }
 
+void SerialRetryIfMissing(void) {
+#if !TOY_SERIAL
+    return;
+#else
+    if (gSerialOk) {
+        return;
+    }
+    /* Startup/模块表首探可能过早；清旗再走完整 Initialize */
+    gSerialInited = 0;
+    SerialInitialize();
+#endif
+}
+
 int SerialPresent(void) {
 #if !TOY_SERIAL
     return 0;

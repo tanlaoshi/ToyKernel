@@ -72,6 +72,9 @@ void HalSerialInitialize(void) {
     /* QEMU virt 已初始化 PL011；SERIAL=0 时也不访问 */
 }
 
+void HalSerialRetryIfMissing(void) {
+}
+
 int HalSerialPresent(void) {
 #if TOY_SERIAL
     return 1;

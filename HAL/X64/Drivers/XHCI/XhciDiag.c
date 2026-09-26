@@ -64,6 +64,10 @@ void BootMarkV(const char *Text) {
 
 void EnumWhy(const char *Why) {
     gEnumWhy = Why;
+    /* gDiagQuiet：探测重试中的 Why= 不刷屏；字串仍留给最终失败路径 */
+    if (gDiagQuiet) {
+        return;
+    }
     BootLog(Why);
 }
 

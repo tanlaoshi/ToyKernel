@@ -108,6 +108,23 @@ static int InitializeCpu(void) {
     return 0;
 }
 
+/*
+ * Cpu 后 / Smp 前：只再探 COM1。
+ * 勿在此 HalUsbInit/UartClaim：FTDI 扫口会 Force 复位尚未认领的 hub 根口，
+ * NUC 上随之 MSC bulk 全超时，DesktopInit 读壁纸/图标时像「不进桌面」。
+ * USB-UART 仍在 FS 认盘后再 claim（见 FileSystemInit）。
+ */
+static int InitializeSerialEarly(void) {
+    ToyLogBoot("Boot: Serial Early (COM1)\n");
+    HalSerialRetryIfMissing();
+    if (HalSerialPresent()) {
+        ToyLogBoot("Boot: COM1 Early Ready\n");
+    } else {
+        ToyLogBoot("Boot: COM1 Early Miss\n");
+    }
+    return 0;
+}
+
 static int InitializeSmp(void) {
     return HalSmpStartApplicationProcessors();
 }
@@ -115,6 +132,7 @@ static int InitializeSmp(void) {
 static int InitializeUsb(void) {
     ToyLogBoot("Boot: Input Probe (USB Then PS/2)\n");
     (void)HalUsbInit();
+    /* USB-UART 挪到 FS MSC 认盘后，避免 Force 扫口打坏 hub */
     if (ToyDriverInputReady()) {
         ToyLogBoot("Boot: Input Backend Ready\n");
     } else {
@@ -156,8 +174,6 @@ static int InitializeUsb(void) {
             }
         }
     }
-    /* PR-H-usb-uart-ftdi-1：HID 之后认 FT232；失败不挡启动 */
-    (void)HalUsbUartClaim();
     return 0; /* 无键盘也必须进 gui / 桌面 */
 }
 
@@ -255,6 +271,7 @@ static const MODULE gModulesFull[] = {
     { "VirtualMemory",     InitializeVirtualMemory },
     { "Video",   InitializeVideo },
     { "Cpu",     InitializeCpu },
+    { "SerialEarly", InitializeSerialEarly }, /* 仅 COM1；USB-UART 见 FS 后 */
     { "Smp",     InitializeSmp },
     { "Usb",     InitializeUsb },
     { "FileSystem",      InitializeFileSystem },

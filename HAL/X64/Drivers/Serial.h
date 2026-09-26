@@ -7,6 +7,8 @@
 #include "BootTypes.h"
 
 void SerialInitialize(void);
+/* 首探未命中时再 Probe 一次（Early 模块用；已 Present 则空操作） */
+void SerialRetryIfMissing(void);
 int SerialPresent(void);
 void SerialWrite(const char *Text);
 /*

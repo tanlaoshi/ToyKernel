@@ -114,6 +114,10 @@ void HalSerialInitialize(void) {
     gSerialReady = 1;
 }
 
+void HalSerialRetryIfMissing(void) {
+    SerialRetryIfMissing();
+}
+
 int HalSerialPresent(void) {
     return SerialPresent();
 }

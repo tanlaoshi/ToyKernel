@@ -12,6 +12,7 @@
 int MscClaimForceUntilPed(UINT32 P, int *Force) {
     UINT32 Ps;
     int Ready = 0;
+    UINT32 QuietSave;
 
     *Force = 0;
     Ps = ReadMmio32(gOperationalBase + PortReg(P));
@@ -21,14 +22,17 @@ int MscClaimForceUntilPed(UINT32 P, int *Force) {
     }
 
     *Force = 1;
-    BootLogHex("Boot: MSC claim reset force port=", P, 2);
+    /* 空口 / USB3 配对口 Force 常 PRC 超时或 not PED；安静探测，只留最终一行 */
+    QuietSave = gDiagQuiet;
+    gDiagQuiet = 1;
+    BootLogHexV("Boot: MSC claim reset force port=", P, 2);
     {
         int Attempt;
 
         for (Attempt = 0; Attempt < 3 && !Ready; Attempt++) {
             if (Attempt > 0) {
                 int W;
-                BootLogHex("Boot: MSC claim Force retry port=", P, 2);
+                BootLogHexV("Boot: MSC claim Force retry port=", P, 2);
                 /* 丢 CCS 后等设备重新出现（Force 过猛常见） */
                 for (W = 0; W < 50; W++) {
                     Ps = ReadMmio32(gOperationalBase + PortReg(P));
@@ -48,7 +52,7 @@ int MscClaimForceUntilPed(UINT32 P, int *Force) {
                         Ps = ReadMmio32(gOperationalBase + PortReg(P));
                         if ((Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
                             Ready = 1;
-                            BootLogHex("Boot: MSC claim late PED port=", P, 2);
+                            BootLogHexV("Boot: MSC claim late PED port=", P, 2);
                             break;
                         }
                         if (!(Ps & PORTSC_CCS)) {
@@ -64,6 +68,7 @@ int MscClaimForceUntilPed(UINT32 P, int *Force) {
             }
         }
     }
+    gDiagQuiet = QuietSave;
     if (!Ready) {
         BootLogHex("Boot: MSC claim reset fail port=", P, 2);
         return 0;

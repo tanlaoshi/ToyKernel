@@ -48,8 +48,12 @@ int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
             if (DiagVerbose()) {
                 DiagChkStr("ControlXfer", 0, "xfer done", "timeout");
             }
+        } else if (gXferCode == CC_STALL) {
+            /* Stall：键鼠 SetProtocol/Idle/错 iface 很常见；只 VERBOSE 打 */
+            if (DiagVerbose()) {
+                DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
+            }
         } else if (!gXferFast && gCtrlFailLogged < 2) {
-            /* Stall(6) 在 GET_REPORT 轮询时很常见；限 2 条免刷屏 */
             DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
             gCtrlFailLogged++;
         }
@@ -59,7 +63,11 @@ int ControlXfer(USB_SETUP_PACKET *Setup, void *Data) {
     }
     if (!(gXferCode == CC_SUCCESS || gXferCode == CC_SHORT_PACKET)) {
         XhciEventLeaveExclusive();
-        if (!gXferFast && gCtrlFailLogged < 2) {
+        if (gXferCode == CC_STALL) {
+            if (DiagVerbose()) {
+                DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
+            }
+        } else if (!gXferFast && gCtrlFailLogged < 2) {
             DiagChk("ControlXfer", 0, "cc=1|13", gXferCode, 2);
             gCtrlFailLogged++;
         }

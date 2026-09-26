@@ -83,6 +83,7 @@
 #define TRB_TRANSFER_EVENT 32
 #define TRB_CMD_COMPLETION  33
 #define CC_SUCCESS          1
+#define CC_STALL            6  /* HID GET_REPORT / 错 iface 常见；非致命 */
 #define CC_SHORT_PACKET     13
 #define CC_CONTEXT_STATE    19 /* SetTrDeq 常见：EP 状态不允许 */
 #define CC_STOPPED          26 /* Stop EP 取消挂起传输 */

@@ -143,10 +143,14 @@ int FileSystemInitialize(void) {
     }
 
     /*
-     * PR-H-ehci-4：MSC hub 扫口会 Reset 子设备，冲掉 Usb 阶段的 EHCI FTDI。
-     * FS 后重认（xHCI FTDI 已认则 Ready 直接返回）。
+     * USB-UART：有 COM1 则跳过扫口（NUC），避免 Force 其它根口干扰已认 MSC hub。
+     * 无 COM1（N56 棒）才 claim；MSC 已认后也不再 Force（见 Ftdi/Cdc AddressRoot）。
      */
-    (void)HalUsbUartClaim();
+    if (HalSerialPresent()) {
+        ToyLogBoot("Boot: USB-UART Skip (COM1)\n");
+    } else {
+        (void)HalUsbUartClaim();
+    }
 
     if (!HaveVols && !MuxOk) {
         if (HalBlockInit() <= 0) {

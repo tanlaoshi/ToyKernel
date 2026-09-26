@@ -49,7 +49,12 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
     }
 
     if (XhciBulkXfer(0, Cbw, 31) < 0) {
-        BootLog("Boot: MSC bot cbw fail\n");
+        static UINT32 sCbwFailLogged;
+
+        if (sCbwFailLogged < 2) {
+            BootLog("Boot: MSC bot cbw fail\n");
+            sCbwFailLogged++;
+        }
         return -1;
     }
     if (DataLen != 0) {

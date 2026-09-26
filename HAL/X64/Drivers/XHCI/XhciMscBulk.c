@@ -59,6 +59,7 @@ int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
     RING_STATE *St;
     UINT32 Dci;
     UINT32 Ctrl;
+    static UINT32 sBulkFailLogged;
 
     if (!gMscClaimed || gMscScanSlot == 0 || Buf == 0 || Len == 0) {
         return -1;
@@ -90,10 +91,15 @@ int XhciBulkXfer(int DirIn, void *Buf, UINT32 Len) {
     RingDoorbell(gMscScanSlot, Dci);
     if (WaitBulk() < 0) {
         XhciEventLeaveExclusive();
-        BootLogHex("Boot: MSC bulk fail cc=", gBulkCode, 2);
+        /* 限日志；勿 fail-fast 永死，否则壁纸/图标全丢成纯色桌面 */
+        if (sBulkFailLogged < 2) {
+            BootLogHex("Boot: MSC bulk fail cc=", gBulkCode, 2);
+            sBulkFailLogged++;
+        }
         return -1;
     }
     XhciEventLeaveExclusive();
+    sBulkFailLogged = 0;
     FlushDma(Buf, Len);
     return 0;
 }

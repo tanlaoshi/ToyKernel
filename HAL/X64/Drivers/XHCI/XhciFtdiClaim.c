@@ -191,7 +191,16 @@ static int FtdiAddressRoot(UINT32 P, UINT8 *Speed) {
     UINT32 Ps;
     int Force = 0;
 
-    if (!MscClaimForceUntilPed(P, &Force)) {
+    Ps = ReadMmio32(gOperationalBase + PortReg(P));
+    /*
+     * MSC 已占用 hub 时禁止 Force：复位旁路口会拖垮 hub 上的 U 盘 bulk。
+     * 仅当口已 PED+CCS 才软 Address（FTDI 已启用过）。
+     */
+    if (gMscClaimed) {
+        if (!(Ps & PORTSC_CCS) || !(Ps & PORTSC_PED)) {
+            return 0;
+        }
+    } else if (!MscClaimForceUntilPed(P, &Force)) {
         return 0;
     }
     Ps = ReadMmio32(gOperationalBase + PortReg(P));
