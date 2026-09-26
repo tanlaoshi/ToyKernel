@@ -29,6 +29,7 @@ void NvmeDriverRegister(void);
 void MscDriverRegister(void); /* PR-H-msc：空壳注册；认盘在后续 PR */
 void E1000DriverRegister(void);
 void AlxDriverRegister(void); /* PR-N-alx-2：AR8161 L2；无卡/无链路不挡 */
+void RtlDriverRegister(void); /* PR-N-rtl-1：r8169 Probe/MAC；无卡不挡 */
 void DemoDriverRegister(void); /* PR-D-tpl-2 */
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -46,6 +47,7 @@ void HalDriverRegister(void) {
     NetDriverRegister();
     E1000DriverRegister(); /* PR-H4：无卡 Probe 失败；有卡时可覆盖 virtio */
     AlxDriverRegister();   /* PR-N-alx-2：Bind → NetAttachNic */
+    RtlDriverRegister();   /* PR-N-rtl-1：lsdev=r8169；rtl-2 再挂 L2 */
 #if TOY_DEMO_DRIVER
     DemoDriverRegister(); /* PR-D-tpl-2：课堂 Demo；-DTOY_DEMO_DRIVER=0 可关 */
 #endif
