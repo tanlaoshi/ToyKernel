@@ -130,9 +130,18 @@ int XhciMscPresent(void) {
             /* 父 hub 非当前 gHub*：勿乱 HubCtrl；当仍在 */
             return 1;
         }
+        /*
+         * BOT 进行中勿 HubGetPortStatus：与 Bulk 抢事件环/EP0 → STALL/Babble。
+         * 忙则假定仍在位（拔出下个空闲 tick 再确认）。
+         */
+        if (__sync_lock_test_and_set(&gMscBotBusy, 1u) != 0) {
+            return 1;
+        }
         if (HubGetPortStatus(gMscTtPort, &St) < 0) {
+            __sync_lock_release(&gMscBotBusy);
             return 0;
         }
+        __sync_lock_release(&gMscBotBusy);
         return (St & HUB_PORT_CONNECTION) ? 1 : 0;
     }
     if (gMscPort == 0 || gMscPort > gMaxPorts) {

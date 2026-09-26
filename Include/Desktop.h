@@ -34,6 +34,7 @@ void DesktopSetRequestRefresh(void (*Fn)(void));
 /* 擦图标脚印并还原相交窗/阴影（拖动置顶后用） */
 void DesktopSetClearIconFootprint(void (*Fn)(UINT32 X, UINT32 Y, UINT32 W,
                                              UINT32 H));
+void ClearIconFootprint(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /* 在桌面背景上画图标+任务栏（GuiRedraw / 关窗露底后调用） */
 void DesktopDraw(void);
 /* 开始菜单弹出层（开着时叠画在窗上；点菜单外则收起，再按窗聚焦） */

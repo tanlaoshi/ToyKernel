@@ -130,6 +130,8 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
     if (!Text) {
         return;
     }
+    /* 与 WriteChannel 同锁：多核 BootLog 否则字节交错成 BBoot: */
+    SpinLockAcquire(&gSerialLock);
     RingAppend(Text);
     if (SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
@@ -138,6 +140,8 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
         /* 绕过 gGopMute：里程碑必须看得见；细日志走 ToyLog* → GopMirrorLine 仍受 Mute */
         GopWrite(Text);
     }
+    SpinLockRelease(&gSerialLock);
+    /* FTDI/CDC tee 锁外（同 WriteChannel） */
     XhciFtdiWrite(Text);
     EhciFtdiWrite(Text);
     XhciCdcWrite(Text);

@@ -16,6 +16,7 @@
 #include "DevicesUi.h"
 #include "EditUi.h"
 #include "TtyUi.h"
+#include "Scheduler.h"
 
 
 void ResetDragState(void) {
@@ -210,15 +211,19 @@ void GuiDragUpdate(UINT32 X, UINT32 Y) {
     if (!GuiDragFrameTry()) {
         return;
     }
+    /* 持 gDragFrame 期间勿被抢：否则同核 Shell 自旋等锁会饿死本任务 */
+    SchedulerPreemptDisable();
     if (gDragArmed) {
         StartDragBackups(gDragWin);
         gDragArmed = 0;
         if (gDragWin < 0 || !gDragHasBackup) {
+            SchedulerPreemptEnable();
             GuiDragFrameLeave();
             return;
         }
     }
     MoveWindowTo(gDragWin, (UINT32)Nx, (UINT32)Ny);
+    SchedulerPreemptEnable();
     GuiDragFrameLeave();
 }
 
@@ -226,14 +231,21 @@ void GuiDragUpdate(UINT32 X, UINT32 Y) {
 void GuiDragEnd(void) {
     int DragIdx;
     int DidDrag;
+    int Top;
+    UINTN Wait = 0;
 
     while (!GuiDragFrameTry()) {
         HalCpuRelax();
+        /* 勿空转饿死持锁核（NUC 多核：GuiTask 持帧、Shell 松手等锁） */
+        if ((++Wait & 0x3FFFu) == 0) {
+            (void)SchedulerCondResched();
+        }
     }
     DragIdx = gDragWin;
     DidDrag = gDragHasBackup;
     gDragWin = -1;
     gDragArmed = 0;
+    Top = DragIdx;
     /* 与 GuiDragUpdate 一致：-1 哨兵 + 上界，避免 -Warray-bounds */
     if (DragIdx >= 0 && DragIdx < MAX_WINS && gWindows[DragIdx].Active) {
         if (DidDrag) {
@@ -243,6 +255,8 @@ void GuiDragEnd(void) {
             ClampWindowPos(&gWindows[DragIdx], &Nx, &Ny);
             MoveWindowTo(DragIdx, (UINT32)Nx, (UINT32)Ny);
             RaiseWindow(DragIdx);
+            /* Raise 可能搬槽：后续重画/备份必须用 gFocusWin（同 GuiRaiseToFront） */
+            Top = gFocusWin;
             /*
              * 残影：拖动路径上旧 chrome 落在「当前窗矩形之外」，只贴窗擦不掉。
              * 先铺桌面再按备份贴回，清轨迹；空色块若已烙进备份则随后 Settings/Shell 重画补。
@@ -254,22 +268,25 @@ void GuiDragEnd(void) {
              * 被挡像素不吸入上层；移走后下次 Sync/ClearOld 用备份重贴即无烙印。
              */
         }
-        if (gWindows[DragIdx].Kind == GUI_WIN_SETTINGS) {
+        if (Top < 0 || Top >= MAX_WINS || !gWindows[Top].Active) {
+            Top = -1;
+        }
+        if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_SETTINGS) {
             SettingsUiRepaint();
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_STORE) {
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_STORE) {
             StoreUiRepaint();
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_DEVICES) {
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_DEVICES) {
             DevicesUiRepaint();
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_FILES) {
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_FILES) {
             FilesUiRepaint();
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_EDIT) {
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_EDIT) {
             EditUiRepaint();
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_TTY) {
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_TTY) {
             TtyUiRepaint();
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_USER) {
-            PaintUserClient(DragIdx);
-        } else if (gWindows[DragIdx].Kind == GUI_WIN_SHELL &&
-                   !gWinBackupValid[DragIdx]) {
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_USER) {
+            PaintUserClient(Top);
+        } else if (Top >= 0 && gWindows[Top].Kind == GUI_WIN_SHELL &&
+                   !gWinBackupValid[Top]) {
             GuiConsoleOpsOnShellOpened();
         }
         /* 清桌面合成后：无备份的 Shell 客户区是空壳，补画控制台 */
@@ -287,8 +304,8 @@ void GuiDragEnd(void) {
                 }
             }
         }
-        if (gWindows[DragIdx].Active) {
-            BackupWindowAt(DragIdx);
+        if (Top >= 0 && gWindows[Top].Active) {
+            BackupWindowAt(Top);
         }
     }
     if (!AnyWindowsOverlap()) {

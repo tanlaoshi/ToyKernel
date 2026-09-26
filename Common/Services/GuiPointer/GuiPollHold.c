@@ -3,7 +3,9 @@
  */
 #include "GuiPrivate.h"
 #include "Hal.h"
+#include "HalVideo.h"
 #include "Desktop.h"
+#include "Scheduler.h"
 
 static UINT32 gHoldX;
 static UINT32 gHoldY;
@@ -71,9 +73,38 @@ void GuiPollHoldApply(UINT32 *LastX, UINT32 *LastY, UINT8 *LastBtn,
         GuiHandleClick(X, Y);
     }
     if (!(Btn & 1) && (Prev & 1)) {
+        int WasIcon = DesktopIconDragActive();
+        UINTN Wait = 0;
+
         GuiResizeEnd();
         GuiDragEnd();
-        DesktopIconDragEnd();
+        if (WasIcon) {
+            while (!GuiDragFrameTry()) {
+                HalCpuRelax();
+                if ((++Wait & 0x3FFFu) == 0) {
+                    (void)SchedulerCondResched();
+                }
+            }
+            GuiPresentDeferPause();
+            DesktopIconDragEnd();
+            if (gCursorVisible) {
+                UINT32 Sx = gSaveX;
+                UINT32 Sy = gSaveY;
+                UINT32 SbW = gSaveWidth;
+                UINT32 SbH = gSaveHeight;
+
+                gCursorVisible = 0;
+                if (SbW != 0 && SbH != 0) {
+                    ClearIconFootprint(Sx, Sy, SbW, SbH);
+                }
+            }
+            GfxIrqEnter();
+            CursorPaint();
+            HalVideoPresentFlush();
+            GfxIrqLeave();
+            GuiPresentDeferResume();
+            GuiDragFrameLeave();
+        }
     }
     if ((Btn & 2) && !(Prev & 2)) {
         GuiRightClickPlaceholder(X, Y);

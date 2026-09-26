@@ -205,6 +205,7 @@ extern UINT32 gMscBulkOutDci;
 extern UINT16 gMscBulkInMps;
 extern UINT16 gMscBulkOutMps;
 extern int gMscClaimed;
+extern volatile UINT32 gMscBotBusy; /* 1：MscBot 进行中；HotPoll 勿 HubCtrl */
 extern UINT32 gMscBlockCount;
 extern UINT32 gMscBlockSize;
 extern int gMscCapacityOk;

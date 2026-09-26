@@ -16,6 +16,8 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
     UINT8 Csw[16] __attribute__((aligned(64)));
     static UINT32 Tag;
     UINT32 i;
+    int Locked = 0;
+    int Rc = -1;
 
     if (!gMscClaimed) {
         return -1;
@@ -25,6 +27,19 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
     }
     if (DataLen != 0 && Data == 0) {
         return -1;
+    }
+
+    /*
+     * 整段 CBW→DATA→CSW 互斥。Desktop HotPoll 的 HubGetPortStatus 与
+     * 多核 FAT 读若并行会 STALL/Babble（cc=6/3）+ CSW 签名错。
+     * REQUEST SENSE 重入（gMscInSense）不再抢锁。
+     * 勿用 SpinLock：持锁跨 WaitBulk 可达数百 ms（会长期 cli）。
+     */
+    if (!gMscInSense) {
+        while (__sync_lock_test_and_set(&gMscBotBusy, 1u)) {
+            HalCpuRelax();
+        }
+        Locked = 1;
     }
 
     Tag++;
@@ -55,23 +70,23 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
             BootLog("Boot: MSC bot cbw fail\n");
             sCbwFailLogged++;
         }
-        return -1;
+        goto Out;
     }
     if (DataLen != 0) {
         if (XhciBulkXfer(DataIn ? 1 : 0, Data, DataLen) < 0) {
             BootLog("Boot: MSC bot data fail\n");
-            return -1;
+            goto Out;
         }
     }
     ZeroMemory(Csw, sizeof(Csw));
     if (XhciBulkXfer(1, Csw, 13) < 0) {
         BootLog("Boot: MSC bot csw fail\n");
-        return -1;
+        goto Out;
     }
     /* USBS */
     if (Csw[0] != 0x55 || Csw[1] != 0x53 || Csw[2] != 0x42 || Csw[3] != 0x53) {
         BootLog("Boot: MSC bot csw sig\n");
-        return -1;
+        goto Out;
     }
     if (Csw[12] != 0) {
         if (!gMscInSense) {
@@ -91,9 +106,14 @@ static int MscBot(UINT8 *CbwCb, UINT8 CbLen, UINT32 DataLen, int DataIn,
             }
             gMscInSense = 0;
         }
-        return -1;
+        goto Out;
     }
-    return 0;
+    Rc = 0;
+Out:
+    if (Locked) {
+        __sync_lock_release(&gMscBotBusy);
+    }
+    return Rc;
 }
 
 /*

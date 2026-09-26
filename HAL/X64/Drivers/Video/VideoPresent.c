@@ -149,7 +149,7 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
             return;
         }
         /*
-         * 上取整 + 外扩 2 物理像素：150%/200% 最近邻时否则光标移动会拖尾。
+         * 上取整 + 外扩 8 物理像素：150%/200% 最近邻时否则光标/图标拖尾。
          */
         Px0 = (UINT32)(((UINT64)X0 * (UINT64)gPhysW) / (UINT64)gScreen.Width);
         Py0 = (UINT32)(((UINT64)Y0 * (UINT64)gPhysH) / (UINT64)gScreen.Height);
@@ -157,23 +157,23 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
                        (UINT64)gScreen.Width);
         Py1 = (UINT32)((((UINT64)Y1 * (UINT64)gPhysH) + (UINT64)gScreen.Height - 1u) /
                        (UINT64)gScreen.Height);
-        if (Px0 >= 2u) {
-            Px0 -= 2u;
+        if (Px0 >= 8u) {
+            Px0 -= 8u;
         } else {
             Px0 = 0;
         }
-        if (Py0 >= 2u) {
-            Py0 -= 2u;
+        if (Py0 >= 8u) {
+            Py0 -= 8u;
         } else {
             Py0 = 0;
         }
-        if (Px1 + 2u < gPhysW) {
-            Px1 += 2u;
+        if (Px1 + 8u < gPhysW) {
+            Px1 += 8u;
         } else {
             Px1 = gPhysW;
         }
-        if (Py1 + 2u < gPhysH) {
-            Py1 += 2u;
+        if (Py1 + 8u < gPhysH) {
+            Py1 += 8u;
         } else {
             Py1 = gPhysH;
         }

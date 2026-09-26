@@ -16,6 +16,7 @@
 #include "Console.h"
 #include "Process.h"
 #include "ToySerialLog.h"
+#include "Scheduler.h"
 
 int gInputLocked;
 UINT8 gMousePrevBtn;
@@ -128,15 +129,41 @@ void GuiPollMouse(void) {
         }
         if (!(Raw.Buttons & 1) && (LastBtn & 1)) {
             int WasIconDrag = DesktopIconDragActive();
+            UINTN Wait = 0;
 
             GuiResizeEnd();
             GuiDragEnd();
-            DesktopIconDragEnd();
             if (WasIconDrag) {
+                /* 与窗拖一致：等帧锁再归位 Present，防 Shell 核半帧 Present 拖尾 */
+                while (!GuiDragFrameTry()) {
+                    HalCpuRelax();
+                    if ((++Wait & 0x3FFFu) == 0) {
+                        (void)SchedulerCondResched();
+                    }
+                }
+                GuiPresentDeferPause();
+                DesktopIconDragEnd();
+                /*
+                 * End 已擦落点并画在吸附格。若仍 Visible，CursorPaint→Restore
+                 * 会把拖动末帧 gUnder（旧落点图标）吐回 → 仅松手残影。
+                 */
+                if (gCursorVisible) {
+                    UINT32 Sx = gSaveX;
+                    UINT32 Sy = gSaveY;
+                    UINT32 SbW = gSaveWidth;
+                    UINT32 SbH = gSaveHeight;
+
+                    gCursorVisible = 0;
+                    if (SbW != 0 && SbH != 0) {
+                        ClearIconFootprint(Sx, Sy, SbW, SbH);
+                    }
+                }
                 GfxIrqEnter();
                 CursorPaint();
-                GfxPresent();
+                HalVideoPresentFlush();
                 GfxIrqLeave();
+                GuiPresentDeferResume();
+                GuiDragFrameLeave();
             }
         }
         if ((Raw.Buttons & 2) && !(LastBtn & 2)) {
@@ -164,15 +191,34 @@ void GuiPollMouse(void) {
             gCursorY = LastY;
             GuiDragUpdate(LastX, LastY);
         } else if ((LastBtn & 1) && DesktopIconDragActive()) {
-            if (gCursorVisible) {
+            /*
+             * 占 gDragFrame：Shell 核勿半帧 Present。
+             * 禁止 CursorRestore：gUnder 常是「旧位置图标」，Overlay 写回后
+             * 只进光标脏区 → 松手前一路图标残影。改为丢弃 under，壁纸清光标盒。
+             */
+            if (GuiDragFrameTry()) {
+                UINT32 Sx = gSaveX;
+                UINT32 Sy = gSaveY;
+                UINT32 SbW = gSaveWidth;
+                UINT32 SbH = gSaveHeight;
+
+                GuiPresentDeferPause();
+                if (gCursorVisible) {
+                    gCursorVisible = 0;
+                    if (SbW != 0 && SbH != 0) {
+                        ClearIconFootprint(Sx, Sy, SbW, SbH);
+                    }
+                }
+                gCursorX = LastX;
+                gCursorY = LastY;
+                DesktopIconDragUpdate(LastX, LastY);
                 GfxIrqEnter();
-                CursorRestore();
-                GfxPresent();
+                CursorPaint();
+                HalVideoPresentFlush();
                 GfxIrqLeave();
+                GuiPresentDeferResume();
+                GuiDragFrameLeave();
             }
-            gCursorX = LastX;
-            gCursorY = LastY;
-            DesktopIconDragUpdate(LastX, LastY);
         } else {
             GuiPointerMove(LastX, LastY);
         }

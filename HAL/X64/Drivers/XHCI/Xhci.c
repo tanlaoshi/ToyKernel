@@ -86,6 +86,7 @@ UINT32 gMscBulkOutDci;
 UINT16 gMscBulkInMps;
 UINT16 gMscBulkOutMps;
 int    gMscClaimed;       /* 1：已 SetConfig + Bulk EP */
+volatile UINT32 gMscBotBusy; /* BOT 整段互斥（勿 SpinLock：WaitBulk 可数百 ms） */
 UINT32 gMscBlockCount;    /* PR-H-msc-5：READ CAPACITY 后扇区数 */
 UINT32 gMscBlockSize;
 int    gMscCapacityOk;
