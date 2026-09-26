@@ -1,9 +1,9 @@
 # 网卡扩展规划：高通 Atheros / Realtek / 无线
 
-> **状态**：规划稿（2026-09-25）。用户 GO：先有线（AR8161 + Realtek），再无线。  
+> **状态**：规划稿（有线 alx/rtl ✅；**无线选型 ✅ TG** → [`§3`](#3-无线选型--已钉pr-n-wifi-0--2026-09-26)）。  
 > **栈契约**：只实现 [`NIC_L2`](../Include/DriverNic.h) → `NetAttachNic`；勿碰 Common 协议 / lwIP。  
 > **活范例**：[`驱动开发范例-网卡L2.md`](驱动开发范例-网卡L2.md)（e1000 路径）。  
-> **排期正文**：[`路线图.md`](../路线图.md) 排队 [`PR-N-alx-1`](../路线图.md#pr-n-alx-1) 起（input-mux TG 后升 ★）。
+> **排期正文**：[`路线图.md`](../路线图.md) [`wifi-0`](../路线图.md#pr-n-wifi-0) ✅ → ★ [`wifi-1`](../路线图.md#pr-n-wifi-1) → wifi-2。
 
 ---
 
@@ -27,7 +27,7 @@ virtio-net（课堂）               wifi（下一柱：一颗芯片 MVP）
 | ---- | ---------- | ----------- | -------- |
 | **alx** | VID `1969`，DID `1091`（AR8161）等 | N56VZ 板载有线 | `ping` 局域网网关；`lsdev` 见 `alx` |
 | **r8169** | VID `10EC`，RTL8168/8111/8169 常见 DID | 消费级笔电/台式；QEMU 可辅 `rtl8139` 课堂 | 同上 |
-| **wifi** | PCIe / USB 802.11（选型后钉死一颗） | 演示联网 | 扫 AP + open/WPA2-PSK 择一 + DHCP |
+| **wifi** | **已钉**：USB **RTL8188EU/EUS**（见 §3） | **NUC 与 N56VZ 双机**同棒必通 | 扫 AP + WPA2-PSK（或 open）+ DHCP |
 
 **明确不做（整柱通用）**
 
@@ -81,21 +81,75 @@ flowchart LR
 
 | 序 | PR | 交付 | 验收 | 非目标 |
 | -- | -- | ---- | ---- | ------ |
-| 5 | **PR-N-wifi-0** | 本文 §3 选型钉死；课路径机型 + 芯片 + 总线（USB 或 PCIe）；风险表 | 文档合入；★ 可指向 wifi-1 | 写驱动代码 |
+| 5 | **PR-N-wifi-0** | 本文 §3 **已钉**：USB **RTL8188EU/EUS**；**NUC+N56 双机硬验收**；风险表 | 文档合入；唯一主路径；双机契约写清 | 写驱动代码 |
 | 6 | **PR-N-wifi-1** | 选定芯片：固件加载 / 探针 / `lsdev`；尚无数据面可先 `HalNetReady=0` | 真机见驱动绑定日志；无卡不挡 | 关联；扫 AP UI |
 | 7 | **PR-N-wifi-2** | 扫 AP（Shell 即可）；open **或** WPA2-PSK 择一；DHCP + `ping` | 课网可演示「连上 → ping」 | WPA3；漫游；软 AP |
 
 ---
 
-## 3. 无线选型备忘（wifi-0 填写）
+## 3. 无线选型 · **已钉**（PR-N-wifi-0 · 2026-09-26）
 
-| 候选 | 总线 | 优点 | 风险 |
-| ---- | ---- | ---- | ---- |
-| USB Realtek（8188/8812 类） | USB | 易插拔演示；不绑死笔电 | 需稳定 xHCI；固件许可 |
-| ath9k 一代 PCIe | PCIe | 文档多；无复杂 fw | 新机少；N56VZ 多为 ath9k？需 `lsdev`/lspci 确认 |
-| ath10k / mt76 | PCIe | 较新 | 固件 + mac80211 过重，**不优先** |
+> **本刀只定契约**：一颗芯片 + 总线 + 课机；**不写驱动**。后续 [`wifi-1`](../路线图.md#pr-n-wifi-1) / [`wifi-2`](../路线图.md#pr-n-wifi-2) 只服务本表主路径。
 
-**默认建议（可在 wifi-0 推翻）**：先 **USB Realtek 一颗** 做课堂棒；笔电板载 Wi‑Fi 作加分项。N56VZ 板载无线另查 `lspci` 再决定是否值得并行。
+### 3.1 唯一主路径
+
+| 项 | 已钉 |
+| -- | ---- |
+| **形态** | **USB 无线网卡棒**（可插拔课堂演示；不绑死某台笔电板载） |
+| **芯片族** | **Realtek RTL8188EU / RTL8188EUS**（USB 2.0 · 802.11n · 单频 2.4G） |
+| **USB ID（认领用）** | VID **`0BDA`**（Realtek）；常见 PID 以棒为准（例：`8179` / `0179` 等）——wifi-1 Probe 用「`0BDA` + 已知 8188EU PID 白名单」，未知 PID 不挡桌面 |
+| **总线** | **USB**（N56VZ → **EHCI**；NUC → **xHCI**；均已有 MSC/HID/UART 通路径） |
+| **课机（硬）** | **NUC 与 N56VZ 都必须通**（同一根 8188EU 棒；EHCI/xHCI 各验）；演示不依赖任一方板载 Wi‑Fi |
+| **关联** | wifi-2：**WPA2-PSK**（课网密码）为主；**open** 作无密码实验网备选 |
+| **上栈** | 仍只出以太网帧 → `NetInputFrame` / 现有 lwIP（与有线 L2 同门）；**不**引入 mac80211 |
+
+```text
+同一根课堂棒 (RTL8188EU USB)
+        ├─→ N56VZ · EHCI  ✅ 必通
+        └─→ NUC    · xHCI ✅ 必通
+                │
+        HAL/X64/Drivers/Wifi/   ← wifi-1/2（双主机）
+                │
+        NetAttachNic(NIC_L2) 或等价薄适配
+                │
+        NetInputFrame / DHCP / ping
+```
+
+### 3.2 明确不选（本柱）
+
+| 候选 | 理由 |
+| ---- | ---- |
+| ath10k / mt76 / Wi‑Fi 6 板载 | 固件 + 协议栈过重；违背「单卡 MVP」 |
+| NUC 板载 Intel Wireless（如 `8086:24FD`） | 已见 lspci；无线产品化不做；也不作本柱主路径 |
+| N56VZ 板载 Wi‑Fi（若为 ath9k 等 PCIe） | **加分项 / 另议**；需 `lspci` 确认后才值得并行；**不挡** USB 棒主路径 |
+| USB Realtek 8812/8821 双频大棒 | 可后加 DID；首刀只冻 **8188EU** 一类，避免固件分叉 |
+| QEMU 虚拟 Wi‑Fi | 无稳定课堂模型；无线验收以**真棒**为准 |
+
+### 3.3 风险表（验收必读）
+
+| 风险 | 影响 | 缓解 |
+| ---- | ---- | ---- |
+| **固件 blob** | 8188EU 常需加载 fw；许可与体积 | wifi-1：最小 fw 进 `Assets/` 或 rootfs 固定路径；文档写清许可来源；无 fw 则 Probe 失败不挡桌面 |
+| **USB 主机差异** | N56=EHCI、NUC=xHCI | 棒走 USB2；两机 USB 外设已通；**wifi-1/2 双机都过才算柱通**（只通一台不算） |
+| **同 hub 与 MSC/HID** | 抢带宽 / 枚举序 | 演示时棒单独口或与鼠同口时先插棒；不与大 U 盘抢同一演示节奏 |
+| **WPA2 复杂度** | 主机端 crypto | wifi-2 可先 open 打通数据面，再加 PSK；**不做 WPA3 / EAP** |
+| **PID 杂** | 山寨棒 VID/PID 乱 | 白名单 + 课堂指定采购型号；未知 ID 软失败 |
+| **无 mac80211** | 不能「Linux 驱动直接搬」 | 手写最小 STA：扫 AP / 关联 / 数据；对照 Linux **只读** |
+
+### 3.4 采购 / 识别（给人）
+
+1. 买标称 **RTL8188EU** / **8188EUS** 的 USB Wi‑Fi 棒（免驱宣传可忽略，Guest 自有驱动）。  
+2. 宿主 `lsusb` 见 `0bda:…`；记下 PID 写入 wifi-1 白名单。  
+3. 课机：**先 NUC、再 N56**（或反过来）各插同一根棒 → wifi-1 两机都见黄字 / `lsdev` 约定驱动名（名在 wifi-1 钉，建议 `rtl8xxxu` 或 `rtl8188eu`）；**只通一台不算验收**。
+
+### 3.5 候选对照（历史备忘 · 已否决为主路径）
+
+| 候选 | 总线 | 优点 | 风险 | 结论 |
+| ---- | ---- | ---- | ---- | ---- |
+| **USB Realtek 8188EU** | USB | 易插拔；两端 USB 栈已通 | fw 许可；PID 杂 | **✅ 已钉主路径** |
+| ath9k 一代 PCIe | PCIe | 文档多；无复杂 fw | 绑死板载；N56 是否 ath9k 未确认 | 加分 / 另议 |
+| ath10k / mt76 | PCIe | 较新 | fw + 栈过重 | ❌ 不选 |
+| Intel 板载（NUC） | PCIe | 机内已有 | 产品化；驱动重 | ❌ 不选 |
 
 ---
 
@@ -113,10 +167,11 @@ flowchart LR
 
 ---
 
-## 5. 与 input-mux / USB 鼠
+## 5. 与 USB / 输入（现状）
 
-- [`PR-H-input-mux`](../路线图.md#pr-h-input-mux)：N56VZ **PS/2 键已通**；USB 鼠仍废属 **CCS=0**，不阻塞本网卡柱。  
-- input-mux **待用户 TG** 后再把文首 ★ 推到 `PR-N-alx-1`（或用户一句 TG 时助手代推）。
+- N56VZ：**EHCI** 鼠/FT232 + PS/2 键/触控板已通；板载有线 **alx `ping` 通**。  
+- NUC：**xHCI** 键鼠 + I219 有线已通。  
+- 无线主路径用 **USB 棒**，故意复用上述 USB 栈，避免再开 PCIe 无线深水。
 
 ---
 
@@ -124,10 +179,11 @@ flowchart LR
 
 | 机 | 命令 / 现象 |
 | -- | ----------- |
-| N56VZ | `lsdev` → `alx`；`ping 192.168.x.1`（按家网） |
-| Realtek 机 | `lsdev` → `r8169`；同上 |
-| 回归 | `./Scripts/smoke-boot.sh`（ToyImage）；默认仍 virtio |
-| 无线 | Shell 扫 AP → 关联 → `ping 1.1.1.1` 或网关 |
+| N56VZ | 有线：`lsdev`→`alx` / `ping`；无线：8188EU → wifi-1/2 **必通** |
+| NUC | 有线：`lsdev`→`i219`；无线：**同一根** 8188EU → wifi-1/2 **必通** |
+| Realtek 有线机 | `lsdev` → `r8169`（有卡手测后续） |
+| 回归 | `./Scripts/smoke-boot.sh`；默认仍 virtio |
+| 无线柱收口 | **NUC 与 N56 两机都** 扫 AP → WPA2-PSK（或 open）→ `ping`；只通一台不算 |
 
 ---
 
@@ -135,5 +191,6 @@ flowchart LR
 
 - Linux `drivers/net/ethernet/atheros/alx/`  
 - Linux `drivers/net/ethernet/realtek/r8169*.c`  
+- Linux `drivers/net/wireless/realtek/rtl8xxxu/` / `rtl8188eu`（**只读**序列与 fw 名，不搬 mac80211）  
 - ToyOS `HAL/X64/Drivers/E1000/` + `Net/NetE1000.c`  
 - [`已完/I219真机网课路径.md`](../已完/I219真机网课路径.md)（课路径写法模板）
