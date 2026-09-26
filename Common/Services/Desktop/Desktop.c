@@ -188,6 +188,8 @@ void DesktopInit(void) {
     gIconDragMoved = 0;
     LoadWallpaper();
     LoadDesktopIcons();
+    /* 预热开始菜单：首点勿再扫 Store/Apps（U 盘上曾明显卡顿） */
+    RebuildStartMenu();
     ToyLogGui("Boot: Desktop Ready\n");
     DebugWrite("desktop: icons+taskbar ready (TOYOS Assets or solid)\n");
 #if TOY_KERNEL_DEBUG

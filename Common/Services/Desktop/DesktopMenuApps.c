@@ -103,19 +103,11 @@ static int IconSrcForAppId(const char *Id) {
     return -1;
 }
 
-static void EnrichLabelFromCatalog(const char *File, char *Label, int Max) {
-    STORE_ENTRY *Tab;
-    int Count = 0;
+static void EnrichLabelFromCatalog(const STORE_ENTRY *Tab, int Count,
+                                   const char *File, char *Label, int Max) {
     int i;
 
-    if (!File || !Label || Max <= 0) {
-        return;
-    }
-    Tab = StoreScratchTab();
-    if (!Tab) {
-        return;
-    }
-    if (StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count) < 0 || Count <= 0) {
+    if (!File || !Label || Max <= 0 || !Tab || Count <= 0) {
         return;
     }
     for (i = 0; i < Count; i++) {
@@ -165,12 +157,22 @@ void FillStartMenuAppRows(int AppCap) {
     int AppN = 0;
     int DirN = 0;
     int InstN = 0;
+    int CatN = 0;
     int i;
     int Err;
     char Path[MENU_PATH_MAX];
     char Label[MENU_LABEL_MAX];
+    STORE_ENTRY *CatTab;
 
     gMenuAppCount = 0;
+
+    /* catalog 只读一次：首开菜单曾每 ELF 扫盘，U 盘上极慢 */
+    CatTab = StoreScratchTab();
+    if (CatTab) {
+        if (StoreLoadCatalog(CatTab, STORE_ENTRIES_MAX, &CatN) < 0) {
+            CatN = 0;
+        }
+    }
 
     if (StoreListInstalled(gMenuInstScratch, STORE_INSTALLED_MAX, &InstN) == 0) {
         for (i = 0; i < InstN && AppN < AppCap; i++) {
@@ -200,7 +202,8 @@ void FillStartMenuAppRows(int AppCap) {
                 if (HavePkg && Meta.Title[0]) {
                     MenuCopyStr(Label, sizeof(Label), Meta.Title);
                 } else {
-                    EnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+                    EnrichLabelFromCatalog(CatTab, CatN, In->File, Label,
+                                           sizeof(Label));
                 }
                 AddApp(DESKTOP_ACTION_EXEC, Label, Path, 1, IconSrc);
                 AppN++;
@@ -213,7 +216,8 @@ void FillStartMenuAppRows(int AppCap) {
             if (HavePkg && Meta.Title[0]) {
                 MenuCopyStr(Label, sizeof(Label), Meta.Title);
             } else {
-                EnrichLabelFromCatalog(In->File, Label, sizeof(Label));
+                EnrichLabelFromCatalog(CatTab, CatN, In->File, Label,
+                                       sizeof(Label));
             }
             if (!Label[0]) {
                 MenuCopyStr(Label, sizeof(Label), In->Id);
@@ -250,7 +254,7 @@ void FillStartMenuAppRows(int AppCap) {
             continue;
         }
         LabelFromElf(E->Name, Label, sizeof(Label));
-        EnrichLabelFromCatalog(E->Name, Label, sizeof(Label));
+        EnrichLabelFromCatalog(CatTab, CatN, E->Name, Label, sizeof(Label));
         AddApp(DESKTOP_ACTION_EXEC, Label, Path, 1, -1);
         AppN++;
     }
