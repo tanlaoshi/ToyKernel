@@ -212,7 +212,8 @@ int XhciEnumAndBind(void) {
 
     /*
      * 真机有线键鼠：优先其它口独立鼠（两 slot，利于保键盘）。
-     * 若独立口失败，再回退同 slot 复合——保证现在能用的鼠标不丢。
+     * 刀 #117：#115 延到桌面后再 EnumHubChildrenForMouse 会 Reset hub 子口，
+     * MSC 认盘后的二次枚举易把键鼠/中断弄死 →「进桌面不动」。改回枚举期绑。
      */
     if (gMouseSlotId == 0 && gHubSlotId != 0) {
         (void)EnumHubChildrenForMouse();

@@ -105,13 +105,11 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
 
     /*
      * 超时不依赖 timer（协作态 IF=0 时 HalCpuTicks 不涨）。
-     * 旧 Budget=Ms*4000 过重：整段 IF=0 忙等 → 键鼠/USB 假死机。
-     * 改为更紧预算 + 周期性 SchedulerIoBreath（HalInputPoll + 可 CondResched）。
+     * 每圈 SchedulerIoBreath：ping 不得饿死键鼠（E1000/Iwl 曾在锁内长转）。
      */
     {
         UINT32 Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 3000u;
         UINT32 Budget = Ms * 200u;
-        UINT32 N = 0;
 
         if (Budget < 20000u) {
             Budget = 20000u;
@@ -119,12 +117,7 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
         HalIrqEnable();
         while (!gPingDone && Budget-- > 0) {
             LwIpService();
-            N++;
-            if ((N & 63u) == 0u) {
-                SchedulerIoBreath();
-            } else {
-                HalCpuRelax();
-            }
+            SchedulerIoBreath();
         }
     }
     raw_remove(Pcb);

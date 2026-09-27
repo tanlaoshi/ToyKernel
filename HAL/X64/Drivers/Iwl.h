@@ -1,7 +1,5 @@
 /*
- * Iwl.h — Intel 8265/8275 对外 API（PR-N-wifi-1）
- *
- * Probe / 固件探测；wifi-2 再挂 Net。
+ * Iwl.h — Intel 8265/8275 对外 API（PR-N-wifi-2）
  */
 #ifndef IWL_H
 #define IWL_H
@@ -13,8 +11,17 @@
 
 int IwlSetup(void);
 int IwlReady(void);
+int IwlAssociated(void);
 void IwlGetMac(UINT8 Mac[6]);
 UINT16 IwlPciDid(void);
 int IwlFwLoaded(void);
+int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen);
+void IwlPoll(void);
+int IwlGetLink(int *Up, UINT32 *Mbps, int *FullDuplex);
+int IwlBgBusy(void);
+int IwlBgStep(void);
+/* NetIwl：Worker 泵（Step + 成功后 Attach） */
+int IwlNetBgBusy(void);
+void IwlNetBgPump(void);
 
 #endif

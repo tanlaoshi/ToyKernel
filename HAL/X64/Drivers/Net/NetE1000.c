@@ -75,6 +75,7 @@ static int E1000DriverBind(TOY_DRIVER_INSTANCE *Inst) {
     if (!E1000Ready()) {
         return -1;
     }
+    /* 无链路也挂：托盘/静态 IP；ping 仍靠 async TX + soft-lock，勿假死 */
     return NetAttachNic(&gE1000NicL2);
 }
 

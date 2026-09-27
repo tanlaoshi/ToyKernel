@@ -4,6 +4,7 @@
 #include "Tasks.h"
 #include "TasksPrivate.h"
 #include "Hal.h"
+#include "HalDevices.h"
 #include "HalVideo.h"
 #include "HIDKeyboard.h"
 #include "Console.h"
@@ -67,7 +68,7 @@ void GuiTask(void) {
 }
 
 /*
- * StoreJob 后台泵：窗/Shell 只 Enqueue；本任务 Step。
+ * StoreJob / DHCP 后台泵：窗/Shell 只 Enqueue；本任务 Step。
  * 勿再在 GuiPollMouse→StoreUiPump 里 Step，否则 Gui 被 StoreRemove 堵住，装卸期鼠标必卡。
  */
 void WorkerTask(void) {
@@ -75,6 +76,16 @@ void WorkerTask(void) {
         gWorkerCount++;
         if (StoreJobUiIsBusy()) {
             (void)StoreJobStep();
+            SchedulerIoBreath();
+            continue;
+        }
+        if (LwIpDhcpJobBusy()) {
+            (void)LwIpDhcpStep();
+            SchedulerIoBreath();
+            continue;
+        }
+        if (HalIwlBgBusy()) {
+            HalIwlBgPump();
             SchedulerIoBreath();
             continue;
         }

@@ -10,7 +10,11 @@
 int  LwIpInit(void);
 /* PR-N-nic-addr：lwIP 已开时按 NetConfig 刷新地址/DNS；未开则 0 */
 int  LwIpApplyConfig(void);
-/* PR-N-nic-dhcp：阻塞至多 TimeoutMs；成功 0；超时软失败 -1（保留静态） */
+/* PR-N-nic-dhcp：Shell 只 Enqueue；Worker 调 Step（同 store job） */
+int  LwIpDhcpEnqueue(int TimeoutMs);
+int  LwIpDhcpStep(void);     /* 0=仍忙；1=空闲/本拍结束 */
+int  LwIpDhcpJobBusy(void);
+/* 遗留：等同 Enqueue；勿在 Shell 自旋 */
 int  LwIpDhcpStart(int TimeoutMs);
 void LwIpDhcpStop(void);
 int  LwIpDhcpRunning(void);

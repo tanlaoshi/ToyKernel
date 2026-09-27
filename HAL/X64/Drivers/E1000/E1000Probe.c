@@ -278,15 +278,28 @@ int TryEnableMsiRx(void) {
     return 1;
 }
 
-/* 等 STATUS.LU；超时返回 0（Setup soft-fail，不挡桌面） */
+/* 等 STATUS.LU；超时返回 0（Setup soft-fail，不挡桌面）
+ * 刀 #115：~200ms（rdtsc 粗校）封顶；旧 2e6 次 MMIO 空转无链路时可拖数秒。
+ */
 int WaitLinkUp(void) {
-    int Spin = 2000000;
+    UINT32 Lo;
+    UINT32 Hi;
+    UINT64 T0;
+    UINT64 Limit;
+    UINT64 Now;
 
-    while (Spin-- > 0) {
+    __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+    T0 = ((UINT64)Hi << 32) | Lo;
+    Limit = T0 + 200ULL * 3000000ULL; /* 与 RtlStallMs 同粗校 */
+    for (;;) {
         if (MmioR32(E1000_REG_STATUS) & E1000_STATUS_LU) {
             return 1;
         }
+        __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+        Now = ((UINT64)Hi << 32) | Lo;
+        if (Now >= Limit) {
+            return 0;
+        }
         HalCpuRelax();
     }
-    return 0;
 }

@@ -15,6 +15,7 @@
 #include "Driver.h"
 #include "DriverNet.h"
 #include "DriverNic.h"
+#include "NetConfig.h"
 
 int gNetOk;
 UINT8 gMac[6];
@@ -118,6 +119,7 @@ UINT16 NetChecksum(const void *Data, UINTN Len) {
 }
 
 int NetInit(void) {
+    NetConfigEnsure(); /* 无 NIC / 链路超时时仍有 NUC 静态 IP 表 */
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_NET);
     return 0;
 }

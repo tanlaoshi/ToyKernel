@@ -159,12 +159,26 @@ int HalIwlReady(void) {
     return IwlReady();
 }
 
+int HalIwlBgBusy(void) {
+    return IwlNetBgBusy();
+}
+
+void HalIwlBgPump(void) {
+    IwlNetBgPump();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }
 
 void HalInputInitMouseDeferred(void) {
-    /* 已恢复枚举期绑鼠标（ea8a865）；保留符号以免旧调用方链接失败 */
+    /*
+     * 刀 #117：勿在 MSC 认盘后再扫 hub 鼠（会 Reset 子口 → 桌面假死）。
+     * 枚举期已绑则此处为空操作；仅漏绑时补一次（少见）。
+     */
+    if (!XhciMousePresent()) {
+        XhciInitMouseDeferred();
+    }
 }
 
 void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {

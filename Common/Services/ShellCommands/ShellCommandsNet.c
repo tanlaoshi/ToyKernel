@@ -103,8 +103,18 @@ static void CommandPing(int Argc, char **Argv) {
         return;
     }
     if (!HalNetReady()) {
-        ConsoleWrite("Net: not available\n");
+        ConsoleWrite("Net: not available (no link / wifi)\n");
         return;
+    }
+    {
+        int Up = 0;
+        UINT32 Mbps = 0;
+        int Fd = 0;
+
+        if (HalNetGetLinkInfo(&Up, &Mbps, &Fd) && !Up) {
+            ConsoleWrite("Net: link down\n");
+            return;
+        }
     }
     ConsoleWrite("ping ");
     ConsoleWrite(Argv[1]);
@@ -515,7 +525,7 @@ static void ShellLwIpPrintStatus(void) {
 }
 
 static void CommandLwIpDhcp(int Argc, char **Argv) {
-    char IpBuf[16];
+    int Rc;
 
     (void)Argc;
     (void)Argv;
@@ -523,16 +533,21 @@ static void CommandLwIpDhcp(int Argc, char **Argv) {
         ConsoleWrite("lwip dhcp: net not available\n");
         return;
     }
-    ConsoleWrite("lwip dhcp: requesting...\n");
-    /* 12s：真机路由器 offer 常慢于 QEMU SLIRP */
-    if (LwIpDhcpStart(12000) != 0) {
-        ConsoleWrite("lwip dhcp: no offer (kept static)\n");
+    if (LwIpDhcpJobBusy()) {
+        ConsoleWrite("lwip dhcp: busy\n");
         return;
     }
-    HalNetFormatIp(NetConfigGetIp(), IpBuf, (int)sizeof(IpBuf));
-    ConsoleWrite("lwip dhcp: ok ip=");
-    ConsoleWrite(IpBuf);
-    ConsoleWrite("\n");
+    /* INTERFACE：只入队；Worker 推进；完成行由 Worker 打 */
+    Rc = LwIpDhcpEnqueue(12000);
+    if (Rc == -1) {
+        ConsoleWrite("lwip dhcp: busy\n");
+        return;
+    }
+    if (Rc != 0) {
+        ConsoleWrite("lwip dhcp: start fail\n");
+        return;
+    }
+    ConsoleWrite("lwip dhcp: queued\n");
 }
 
 static void CommandLwIp(int Argc, char **Argv) {
@@ -601,7 +616,7 @@ void ShellCommandsNetRegister(void) {
 #ifdef TOY_LWIP
     ConsoleRegister2("lwip", "on", "enable lwIP stack", CommandLwIp);
     ConsoleRegister2("lwip", "status", "lwIP status", CommandLwIp);
-    ConsoleRegister2("lwip", "dhcp", "DHCP request (8s)", CommandLwIpDhcp);
-    ConsoleRegister2("net", "dhcp", "DHCP request (alias)", CommandLwIpDhcp);
+    ConsoleRegister2("lwip", "dhcp", "DHCP enqueue (Worker)", CommandLwIpDhcp);
+    ConsoleRegister2("net", "dhcp", "DHCP enqueue (alias)", CommandLwIpDhcp);
 #endif
 }

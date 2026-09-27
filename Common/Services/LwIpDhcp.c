@@ -1,13 +1,14 @@
 /*
- * LwIpDhcp.c — DHCP 客户端（PR-N-nic-dhcp / PR-N-i219-dhcp）
+ * LwIpDhcp.c — DHCP 客户端（PR-N-nic-dhcp / 前后端分离）
  *
- * 有 offer → 写回 NetConfig；超时/失败 → 停 DHCP，保留原静态配置。
- * shell IF=0：禁 Halt；用循环预算（与 ToyPing 同尺）。
+ * Shell/窗 = INTERFACE：Enqueue 即回提示符。
+ * WorkerTask = 干活：LwIpDhcpStep 推进；完成打一行（同 store job）。
  */
 #include "LwIp.h"
 #include "NetConfig.h"
 #include "Hal.h"
 #include "HalDevices.h"
+#include "Console.h"
 #include "Debug.h"
 
 #ifdef TOY_LWIP
@@ -19,7 +20,16 @@
 #include "toy_netif.h"
 #include "toy_ip.h"
 
+typedef enum {
+    DHCP_JOB_IDLE = 0,
+    DHCP_JOB_RUN,
+    DHCP_JOB_OK,
+    DHCP_JOB_FAIL
+} DHCP_JOB_STATE;
+
 static int gDhcpRunning;
+static volatile DHCP_JOB_STATE gJob;
+static UINT32 gBudget;
 
 void LwIpDhcpStop(void) {
     struct netif *Netif;
@@ -36,6 +46,10 @@ void LwIpDhcpStop(void) {
 
 int LwIpDhcpRunning(void) {
     return gDhcpRunning;
+}
+
+int LwIpDhcpJobBusy(void) {
+    return (gJob == DHCP_JOB_RUN) ? 1 : 0;
 }
 
 static void AdoptFromNetif(struct netif *Netif) {
@@ -56,7 +70,6 @@ static void AdoptFromNetif(struct netif *Netif) {
     NetConfigAdopt(Ip, Mask, Gw, Dns);
 }
 
-/* PR-N-i219-dhcp：DISCOVER 前清静态，避免带着 .129 去要租约 */
 static void ClearNetifAddr(struct netif *Netif) {
     ip4_addr_t Any;
 
@@ -64,22 +77,40 @@ static void ClearNetifAddr(struct netif *Netif) {
     netif_set_addr(Netif, &Any, &Any, &Any);
 }
 
-int LwIpDhcpStart(int TimeoutMs) {
+static void FinishPrint(int Ok) {
+    char IpBuf[16];
+
+    if (Ok) {
+        HalNetFormatIp(NetConfigGetIp(), IpBuf, (int)sizeof(IpBuf));
+        ConsoleWrite("lwip dhcp: ok ip=");
+        ConsoleWrite(IpBuf);
+        ConsoleWrite("\n");
+        DebugWrite("lwip: dhcp ok ip=");
+        DebugWrite(IpBuf);
+        DebugWrite("\n");
+    } else {
+        ConsoleWrite("lwip dhcp: no offer (kept static)\n");
+        DebugWrite("lwip: dhcp timeout (keep static)\n");
+    }
+}
+
+int LwIpDhcpEnqueue(int TimeoutMs) {
     struct netif *Netif;
     err_t Err;
     UINT32 Ms;
-    UINT32 Budget;
-    char IpBuf[16];
 
-    if (!HalNetReady()) {
+    if (gJob == DHCP_JOB_RUN) {
         return -1;
     }
+    if (!HalNetReady()) {
+        return -2;
+    }
     if (!LwIpActive() && LwIpInit() != 0) {
-        return -1;
+        return -2;
     }
     Netif = ToyNetifGet();
     if (!Netif) {
-        return -1;
+        return -2;
     }
     LwIpDhcpStop();
     ClearNetifAddr(Netif);
@@ -87,34 +118,74 @@ int LwIpDhcpStart(int TimeoutMs) {
     if (Err != ERR_OK) {
         DebugWrite("lwip: dhcp_start fail\n");
         (void)LwIpApplyConfig();
-        return -1;
+        return -2;
     }
     gDhcpRunning = 1;
     Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 8000u;
-    /* 与 ToyPing 同尺：IF=0 下空转 Poll；过短会误报 no offer */
-    Budget = Ms * 4000u;
-    if (Budget < 2000000u) {
-        Budget = 2000000u;
+    /* Worker 每拍 Breath≈数 ms；Budget≈墙钟 TimeoutMs */
+    gBudget = Ms * 200u;
+    if (gBudget < 20000u) {
+        gBudget = 20000u;
     }
-    while (Budget-- > 0) {
-        LwIpService();
-        if (dhcp_supplied_address(Netif)) {
-            AdoptFromNetif(Netif);
-            HalNetFormatIp(NetConfigGetIp(), IpBuf, (int)sizeof(IpBuf));
-            DebugWrite("lwip: dhcp ok ip=");
-            DebugWrite(IpBuf);
-            DebugWrite("\n");
-            return 0;
-        }
-        HalCpuRelax();
+    gJob = DHCP_JOB_RUN;
+    return 0;
+}
+
+/*
+ * Worker 泵：0=仍忙；1=空闲或本拍刚结束（已打完成行）。
+ */
+int LwIpDhcpStep(void) {
+    struct netif *Netif;
+
+    if (gJob != DHCP_JOB_RUN) {
+        return 1;
     }
-    DebugWrite("lwip: dhcp timeout (keep static)\n");
-    LwIpDhcpStop();
-    (void)LwIpApplyConfig();
-    return -1;
+    Netif = ToyNetifGet();
+    if (!Netif) {
+        LwIpDhcpStop();
+        gJob = DHCP_JOB_FAIL;
+        FinishPrint(0);
+        gJob = DHCP_JOB_IDLE;
+        return 1;
+    }
+    LwIpService();
+    if (dhcp_supplied_address(Netif)) {
+        AdoptFromNetif(Netif);
+        gJob = DHCP_JOB_OK;
+        FinishPrint(1);
+        gJob = DHCP_JOB_IDLE;
+        return 1;
+    }
+    if (gBudget-- == 0) {
+        LwIpDhcpStop();
+        (void)LwIpApplyConfig();
+        gJob = DHCP_JOB_FAIL;
+        FinishPrint(0);
+        gJob = DHCP_JOB_IDLE;
+        return 1;
+    }
+    return 0;
+}
+
+/* 遗留名：等同 Enqueue（勿在 Shell 里自旋等待） */
+int LwIpDhcpStart(int TimeoutMs) {
+    return LwIpDhcpEnqueue(TimeoutMs) == 0 ? 0 : -1;
 }
 
 #else
+
+int LwIpDhcpEnqueue(int TimeoutMs) {
+    (void)TimeoutMs;
+    return -1;
+}
+
+int LwIpDhcpStep(void) {
+    return 1;
+}
+
+int LwIpDhcpJobBusy(void) {
+    return 0;
+}
 
 int LwIpDhcpStart(int TimeoutMs) {
     (void)TimeoutMs;

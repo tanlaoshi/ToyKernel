@@ -32,6 +32,7 @@ static UINT16 gRxTail;
 static UINT16 gTxTail;
 UINT8 gE1000Mac[6];
 static int gReady;
+static int gSetupOnce; /* FS Probe NET + [Mod] Network 会各扫一次；只 Setup 一轮 */
 int gE1000UseIrq; /* PR-H4e-3：MSI 武装成功 */
 static volatile UINT32 gStatIrq;
 UINT32 gE1000TxOk;
@@ -157,10 +158,16 @@ int E1000Setup(void) {
     UINT64 Phys;
     UINT32 i;
     int Spin;
+    int LinkOk;
 
     if (gReady) {
         return 1;
     }
+    /* 刀 #84 副作用：HalIwlClaim 后再 Probe NET，链路失败时曾清空 BAR → 二次 Flush */
+    if (gSetupOnce) {
+        return 0;
+    }
+    gSetupOnce = 1;
     if (!VirtualMemoryEnabled()) {
         return 0;
     }
@@ -253,13 +260,11 @@ int E1000Setup(void) {
             E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_BSIZE_2048 |
             E1000_RCTL_SECRC | E1000_RCTL_LBM_NONE);
 
-    if (!WaitLinkUp()) {
+    LinkOk = WaitLinkUp();
+    if (!LinkOk) {
         ToyLogNet("Boot: E1000 Link Timeout\n");
-        DebugWrite("e1000: STATUS.LU timeout\n");
-        /* soft-fail：不置 gReady，桌面仍起 */
-        gBar = 0;
-        gPciDid = 0;
-        return 0;
+        DebugWrite("e1000: STATUS.LU timeout (soft-up for static IP)\n");
+        /* 仍 gReady：NUC 静态 IP / 稍后插线；勿清 BAR，避免二次 Probe 再 Flush */
     }
 
     gReady = 1;
@@ -292,12 +297,16 @@ int E1000Setup(void) {
 int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
     E1000_TX_DESC *D;
     UINTN Wire = Len;
-    int Spin;
-    int Rc;
+    int Up = 0;
 
     if (!gReady || !Frame || Len < 14) {
         gE1000TxFail++;
         gE1000TxLastRc = -1;
+        return -1;
+    }
+    if (E1000GetLink(&Up, 0, 0) != 0 || !Up) {
+        gE1000TxFail++;
+        gE1000TxLastRc = -4;
         return -1;
     }
     if (Wire > E1000_BUF_SIZE) {
@@ -310,13 +319,10 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
     }
 
     D = &gTxRing[gTxTail];
-    Spin = 100000;
-    while (!(D->Status & E1000_TX_DD) && Spin-- > 0) {
-        HalCpuRelax();
-    }
+    /* 不空等 DD：描述符忙则立刻失败，留给下次 Poll/ping 呼吸 */
     if (!(D->Status & E1000_TX_DD)) {
         gE1000TxFail++;
-        gE1000TxLastRc = -2; /* 等空闲描述符超时 */
+        gE1000TxLastRc = -2;
         return -1;
     }
 
@@ -332,19 +338,10 @@ int E1000SendFrame(const UINT8 *Frame, UINTN Len) {
     Fence();
     gTxTail = (UINT16)((gTxTail + 1u) % E1000_RING_COUNT);
     MmioW32(E1000_REG_TDT, gTxTail);
-
-    Spin = 100000;
-    while (!(D->Status & E1000_TX_DD) && Spin-- > 0) {
-        HalCpuRelax();
-    }
-    Rc = (D->Status & E1000_TX_DD) ? 0 : -3; /* -3=提交后等 DD 超时 */
-    if (Rc == 0) {
-        gE1000TxOk++;
-    } else {
-        gE1000TxFail++;
-    }
-    gE1000TxLastRc = Rc;
-    return Rc;
+    /* 异步：不在此等 DD（曾在关中断路径上假死键鼠） */
+    gE1000TxOk++;
+    gE1000TxLastRc = 0;
+    return 0;
 }
 
 void E1000Poll(void) {

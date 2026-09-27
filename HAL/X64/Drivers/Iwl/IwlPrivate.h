@@ -1,24 +1,201 @@
 /*
- * IwlPrivate.h — wifi-1 内部
+ * IwlPrivate.h — wifi-2 内部状态（对照 FreeBSD iwm / Linux iwlwifi，只读）
  */
 #ifndef IWL_PRIVATE_H
 #define IWL_PRIVATE_H
 
 #include "Iwl.h"
+#include "IwlRegs.h"
 
-#define IWL_FW_PATH  "FW/IWL8265.UCODE"
+#define IWL_FW_PATH   "FW/IWL8265.UCODE"
+#define IWL_CFG_PATH  "FW/WIFI.CFG"
 
-extern int gIwlReady;
-extern int gIwlFwOk;
+typedef struct {
+    const UINT8 *Data;
+    UINT32 Len;
+    UINT32 Offset;
+} IWL_FW_SEC;
+
+typedef struct {
+    IWL_FW_SEC Sec[IWL_FW_SEC_MAX];
+    int NumSec;
+    int DualCpus;
+    UINT32 PagingMemSize; /* TLV_PAGING；0=无 CPU2 分页镜像 */
+} IWL_FW_IMG;
+
+typedef struct {
+    UINT8 Code;
+    UINT8 Flags;
+    UINT8 Idx;
+    UINT8 Qid;
+} IWL_CMD_HDR;
+
+typedef struct {
+    UINT8 Opcode;
+    UINT8 GroupId;
+    UINT8 Idx;
+    UINT8 Qid;
+    UINT16 Length;
+    UINT8 Reserved;
+    UINT8 Version;
+} __attribute__((packed)) IWL_CMD_HDR_WIDE;
+
+typedef struct {
+    UINT32 LenNFlags;
+    IWL_CMD_HDR Hdr;
+    UINT8 Data[];
+} IWL_RX_PKT;
+
+typedef struct {
+    UINT32 Lo;
+    UINT16 HiNLen; /* [3:0]=addr[35:32] [15:4]=len */
+} __attribute__((packed)) IWL_TFD_TB;
+
+typedef struct {
+    UINT8 Reserved[3];
+    UINT8 NumTbs;
+    IWL_TFD_TB Tb[IWL_TFD_NUM_TBS];
+    UINT32 Pad;
+} __attribute__((packed)) IWL_TFD;
+
+typedef struct {
+    UINT8 Bssid[6];
+    UINT8 Chan;
+    INT8 Rssi;
+    UINT16 Caps;
+    UINT8 SsidLen;
+    UINT8 Ssid[IWL_SSID_MAX];
+    UINT8 HasRsn;
+    UINT8 RatesLen;     /* IE1，最多 8 */
+    UINT8 Rates[8];
+    UINT8 ExtRatesLen;  /* IE50，最多 8（够用） */
+    UINT8 ExtRates[8];
+} IWL_BSS;
+
+extern volatile UINT8 *gIwlBar;
+extern UINT64 gIwlBarPhys;
+extern UINT64 gIwlBarSize;
 extern UINT16 gIwlDid;
+extern UINT16 gIwlHwRev;
 extern UINT8 gIwlBus;
 extern UINT8 gIwlDev;
 extern UINT8 gIwlFn;
 extern UINT8 gIwlMac[6];
+extern UINT8 gIwlBssid[6];
+extern UINT16 gIwlAid;
+extern int gIwlReady;
+extern int gIwlFwOk;
+extern int gIwlBarOk;
+extern int gIwlAlive;
+extern int gIwlAssociated;
+extern int gIwlWpa2Ok;
+extern int gIwlScanCount;
+extern int gIwlSsidOk;
 extern UINTN gIwlFwSize;
+extern char gIwlSsid[IWL_SSID_MAX + 1];
+extern char gIwlPsk[IWL_PSK_MAX + 1];
+extern UINT8 gIwlPmk[32];
+extern int gIwlPmkOk;
+extern UINT8 gIwlTxStaId;
+extern UINT8 gIwlPtk[16];
+extern UINT8 gIwlGtk[16];
+extern IWL_BSS gIwlTarget;
+extern IWL_FW_IMG gIwlImgRt;
+extern IWL_FW_IMG gIwlImgInit;
+extern UINT8 *gIwlFwBlob;
+extern UINTN gIwlFwBlobSize;
+extern UINT32 gIwlPhyCfg;
+extern UINT32 gIwlCalibFlow[];
+extern UINT32 gIwlCalibEvent[];
+extern UINT32 gIwlSchedBase;
 
-int IwlPciFind(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT16 *DidOut);
+/* MMIO / stall */
+UINT32 IwlMmioR32(UINT32 Off);
+void IwlMmioW32(UINT32 Off, UINT32 Val);
+void IwlMmioSet(UINT32 Off, UINT32 Mask);
+void IwlMmioClr(UINT32 Off, UINT32 Mask);
+int IwlPollBit(UINT32 Off, UINT32 Bits, UINT32 Mask, UINT32 TimeoutUs);
+void IwlStallUs(UINT32 Us);
+void IwlStallMs(UINT32 Ms);
+void IwlFlushDma(const void *Ptr, UINTN Size);
+int IwlNicLock(void);
+void IwlNicUnlock(void);
+UINT32 IwlPrphR(UINT32 Addr);
+void IwlPrphW(UINT32 Addr, UINT32 Val);
+
+int IwlPciFind(UINT8 *Bus, UINT8 *Dev, UINT8 *Fn, UINT64 *BarOut, UINT16 *DidOut);
+int IwlMapBar(UINT64 Bar);
+void IwlPciPathPrep(void);
+/* 1=ok；-1=prep；-2=apm；0=无 BAR */
+int IwlHwStart(void);
+int IwlNicInit(void);
 int IwlFwTryLoad(void);
+/* 1=ok；0=alive=fail；-1=fwload=fail；-2=init_alive=fail */
+int IwlFwParseAndLoad(void);
+int IwlLoadUcode8000(const IWL_FW_IMG *Img);
+int IwlFhAliveVal(UINT32 V);
+void IwlFhProbeAccess(const char *Tag);
+void IwlFhLogFail(int Why, UINT32 Dst, UINT32 Phys, UINT32 Tssr, UINT32 Tcsr);
+int IwlWaitAlive(void);
+void IwlRxDrain(void);
+/* 1=ok/无分页；0=失败（仍可软失败继续） */
+int IwlPagingInit(const IWL_FW_IMG *Img);
+/* 刀 #57：INIT 校准捕获 + RT phy_db/PHY_CFG */
+int IwlPhyInitCalib(void);
+int IwlPhyDbSend(void);
+int IwlPhyCfgRt(void);
+
+int IwlRxInit(void);
+void IwlRxPoll(void);
+int IwlRxTake(IWL_RX_PKT **OutPkt, UINTN *OutLen);
+/* cmd sync 等待时暂存 RX_MPDU，供 EAPOL 后取（勿吞 msg1） */
+void IwlRxHoldMpdu(const IWL_RX_PKT *Pkt, UINTN Len);
+int IwlRxTakeHeld(IWL_RX_PKT **OutPkt, UINTN *OutLen);
+UINT8 IwlRxHoldCount(void); /* #130：EAPOL 前看暂存数 */
+void IwlRxRestock(void);
+UINT32 IwlRxDiagClosed(void);
+UINT32 IwlRxDiagRead(void);
+
+int IwlTxInit(void);
+int IwlSendCmd(UINT32 Id, const void *Data, UINT32 Len, int Sync); /* Sync: <0 入队不响铃；0 响铃不等；1=2.5s；>=2 等 Sync ms */
+void IwlCmdKick(void);
+int IwlCmdqUnwedge(void);
+int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len);
+int IwlRspStashClaim(UINT8 Code, UINT8 Idx);
+void IwlCmdqSnap(void);
+int IwlPostAlive(void);
+int IwlEnableAuxTxq(void);
+int IwlEnableApTxq(void); /* #127：q5 CBBC+SCD，供 AP_STA 发 EAPOL */
+int IwlCmdqReset(void);
+void IwlAuxTxLogReset(void); /* #126：apsta 后重开黄字窗 */
+
+int IwlCfgLoad(void);
+int IwlPmkPrepare(void);
+int IwlAddApSta(void);
+int IwlPhyCtxtTune(UINT8 Chan);
+void IwlProtectSession(void);
+int IwlMacCtxtPrep(void);  /* #132：auth 后、assoc 前 mac0+bind+TE */
+int IwlMacCtxtAssoc(void); /* assoc 后：apsta+macmod+apqhw */
+int IwlMvmPostAlive(void);
+int IwlScanRun(void);
+int IwlAssocRun(void);
+int IwlEapolRun(void);
+
+int IwlAesEncrypt(const UINT8 Key[16], const UINT8 In[16], UINT8 Out[16]);
+void IwlSha1(const UINT8 *Data, UINTN Len, UINT8 Out[20]);
+void IwlHmacSha1(const UINT8 *Key, UINTN KeyLen, const UINT8 *Data, UINTN Len, UINT8 Out[20]);
+int IwlPbkdf2Sha1(const char *Pass, const UINT8 *Salt, UINTN SaltLen,
+                  UINT32 Iter, UINT8 *Out, UINTN OutLen);
+int IwlCcmpEncrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame, UINTN HdrLen, UINTN BodyLen);
+int IwlCcmpDecrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame, UINTN HdrLen, UINTN BodyLen);
+
+#ifndef IWL_LOG_VERBOSE
+#define IWL_LOG_VERBOSE 0 /* 1=FH/rxraw/cmdq 等啰嗦黄字 */
+#endif
+
 void IwlLogBound(void);
+void IwlLogStage(const char *Tag);
+/* #129：成功路径啰嗦；IWL_LOG_VERBOSE=1 才打。失败/里程碑仍用 Stage */
+void IwlLogVerb(const char *Tag);
 
 #endif

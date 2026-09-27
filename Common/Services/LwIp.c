@@ -8,7 +8,7 @@
 #include "Udp.h"
 #include "NetConfig.h"
 #include "LwIpPrivate.h"
-#include "SpinLock.h"
+#include "Scheduler.h"
 
 #ifdef TOY_LWIP
 
@@ -25,7 +25,8 @@
 
 static int gLwIpReady;
 static u32_t gLwIpMs;
-static SPIN_LOCK gLwIpLock;
+/* 软锁：持锁期间保持 IF=1，避免 ping/ARP 时关中断饿死 USB 鼠 */
+static volatile UINT32 gLwIpSoft;
 
 static volatile int gDnsDone;
 static volatile err_t gDnsErr;
@@ -36,11 +37,13 @@ u32_t sys_now(void) {
 }
 
 void LwIpLock(void) {
-    SpinLockAcquire(&gLwIpLock);
+    while (__sync_lock_test_and_set(&gLwIpSoft, 1u)) {
+        SchedulerIoBreath();
+    }
 }
 
 void LwIpUnlock(void) {
-    SpinLockRelease(&gLwIpLock);
+    __sync_lock_release(&gLwIpSoft);
 }
 
 static void LwIpDnsFound(const char *Name, const ip_addr_t *Addr, void *Arg) {
@@ -61,19 +64,18 @@ int LwIpInit(void) {
     }
     NetConfigEnsure();
     HalNetSetIpAddress(NetConfigGetIp());
-    SpinLockInit(&gLwIpLock);
-    SpinLockAcquire(&gLwIpLock);
+    LwIpLock();
     TcpInit();
     UdpInit();
     lwip_init();
     if (LwIpConfigBindNetif() != 0) {
-        SpinLockRelease(&gLwIpLock);
+        LwIpUnlock();
         return -1;
     }
     LwIpConfigPushDns();
     HalNetSetLwipReceive(1);
     gLwIpReady = 1;
-    SpinLockRelease(&gLwIpLock);
+    LwIpUnlock();
     LwIpConfigLogDns();
     return 0;
 }
@@ -82,24 +84,30 @@ void LwIpPoll(void) {
     if (!gLwIpReady) {
         return;
     }
-    SpinLockAcquire(&gLwIpLock);
+    if (__sync_lock_test_and_set(&gLwIpSoft, 1u)) {
+        return;
+    }
     gLwIpMs++;
     sys_check_timeouts();
-    SpinLockRelease(&gLwIpLock);
+    __sync_lock_release(&gLwIpSoft);
 }
 
 /*
- * NO_SYS 非 SMP 安全：Shell(AP) 与 Worker(BSP) 都会调本函数。
- * 大锁串行化；SpinLock 已 cli，勿在持锁时 HalCpuHalt。
+ * NO_SYS：Shell 与 Worker 都可能进来。软锁保持 IF=1；
+ * 抢不到锁则本拍跳过（调用方会再转），绝不 SpinLock cli。
  */
 void LwIpService(void) {
-    SpinLockAcquire(&gLwIpLock);
     HalNetPoll();
-    if (gLwIpReady) {
-        gLwIpMs++;
-        sys_check_timeouts();
+    if (!gLwIpReady) {
+        return;
     }
-    SpinLockRelease(&gLwIpLock);
+    if (__sync_lock_test_and_set(&gLwIpSoft, 1u)) {
+        SchedulerIoBreath();
+        return;
+    }
+    gLwIpMs++;
+    sys_check_timeouts();
+    __sync_lock_release(&gLwIpSoft);
 }
 
 int LwIpActive(void) {
@@ -184,9 +192,10 @@ int LwIpDnsLookup(const char *Name, UINT32 *OutIp, int TimeoutMs) {
         return -TOY_EINVAL;
     }
     Tries = TimeoutMs > 0 ? TimeoutMs : 5000;
+    HalIrqEnable();
     while (!gDnsDone && Tries-- > 0) {
         LwIpService();
-        HalCpuRelax();
+        SchedulerIoBreath(); /* 与 ping/dhcp：勿空转饿死键鼠 */
     }
     if (!gDnsDone) {
         return -TOY_ETIMEDOUT;

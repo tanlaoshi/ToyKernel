@@ -1,23 +1,47 @@
 /*
- * NetIwl.c — iwl8265 经 Driver Net 类注册（PR-N-wifi-1）
- *
- * Probe 认 PCI 8086:24fd；Bind 只上 lsdev，**不** NetAttachNic（wifi-2）。
+ * NetIwl.c — iwl8265 Bind → NetAttachNic（PR-N-wifi-2；需 WPA2 关联）
  */
 #include "Driver.h"
+#include "DriverNic.h"
 #include "Iwl.h"
+#include "Net.h"
+#include "VirtualMemory.h"
+
+static int IwlNicSendFrame(const UINT8 *Frame, UINTN FrameLen) {
+    return IwlSendFrame(Frame, FrameLen);
+}
+
+static void IwlNicPoll(void) {
+    IwlPoll();
+}
+
+static void IwlNicGetMac(UINT8 Mac[6]) {
+    IwlGetMac(Mac);
+}
+
+static int IwlNicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex) {
+    return IwlGetLink(Up, Mbps, FullDuplex);
+}
+
+static const NIC_L2 gIwlNicL2 = {
+    .SendFrame = IwlNicSendFrame,
+    .Poll = IwlNicPoll,
+    .GetMac = IwlNicGetMac,
+    .GetLink = IwlNicGetLink,
+};
 
 static int IwlDriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPrivate) {
     (void)Self;
     (void)BusCtx;
 
-    if (IwlReady()) {
-        if (OutPrivate) {
-            *OutPrivate = 0;
-        }
-        return 0;
+    if (!VirtualMemoryEnabled()) {
+        return -1;
     }
-    /* FS 前 NetInit 会探一次：无卡/未 Setup → 失败；HalIwlClaim 后再探 */
+    /* 每次 Probe 进 IwlSetup：允许 FW 晚到 / alive=0 再试 */
     if (!IwlSetup()) {
+        return -1;
+    }
+    if (!IwlReady()) {
         return -1;
     }
     if (OutPrivate) {
@@ -31,7 +55,12 @@ static int IwlDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     if (!IwlReady()) {
         return -1;
     }
-    return 0;
+    if (!IwlAssociated()) {
+        /* lsdev 仍可见；无 Net 挂接（勿抢 I219 静态 IP） */
+        return 0;
+    }
+    /* WPA2 已关联：可覆盖有线 L2（课网 wifi ping） */
+    return NetAttachNic(&gIwlNicL2);
 }
 
 static void IwlDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
@@ -49,4 +78,21 @@ static const TOY_DRIVER gIwlDriver = {
 
 void IwlDriverRegister(void) {
     (void)ToyDriverRegister(&gIwlDriver);
+}
+
+/* Worker：后台上片；成功则 NetAttach（Probe 时尚未 assoc） */
+void IwlNetBgPump(void) {
+    static int gAttached;
+
+    if (IwlBgBusy()) {
+        (void)IwlBgStep();
+    }
+    if (!gAttached && IwlAssociated()) {
+        gAttached = 1;
+        (void)NetAttachNic(&gIwlNicL2);
+    }
+}
+
+int IwlNetBgBusy(void) {
+    return IwlBgBusy();
 }

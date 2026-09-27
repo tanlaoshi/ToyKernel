@@ -71,6 +71,9 @@ int HalWifiReady(void);
 /* PR-N-wifi-1：NUC iwl8265；非 x86 空操作 */
 int HalIwlClaim(void);
 int HalIwlReady(void);
+/* 刀 #114：后台关联泵；非 x86 空闲 */
+int HalIwlBgBusy(void);
+void HalIwlBgPump(void);
 /* 真机：usb 模块末尾开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：键鼠 ready 后再枚举鼠标，避免踩键盘 IN */

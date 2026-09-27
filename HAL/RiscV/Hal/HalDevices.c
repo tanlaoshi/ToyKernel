@@ -128,6 +128,13 @@ int HalIwlReady(void) {
     return 0;
 }
 
+int HalIwlBgBusy(void) {
+    return 0;
+}
+
+void HalIwlBgPump(void) {
+}
+
 void HalInputArmIrq(void) {
 }
 

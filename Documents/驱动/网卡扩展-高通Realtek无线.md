@@ -45,7 +45,7 @@ USB MSC / HID / UART         →   （无线走 PCIe，不依赖棒）
 | - | -- | ---- | ---- | ------ |
 | 5 | **PR-N-wifi-0** | §3 **已改钉** iwl `8086:24fd`；fw 路径；N56 随后 | 文档合入；唯一主路径 | 写驱动 |
 | 6 | **PR-N-wifi-1** | `HAL/X64/Drivers/Iwl/` Probe + 读 `FW/IWL8265.UCODE` + `lsdev` | NUC 黄字/`lsdev`；无卡/无 fw 不挡 | 关联 |
-| 7 | **PR-N-wifi-2** | 扫 AP + WPA2-PSK/open + DHCP + `ping` | NUC 课网 `ping` | ath9k；WPA3 |
+| 7 | **PR-N-wifi-2** | 扫 AP + **WPA2-PSK** + DHCP + `ping`；`FW/WIFI.CFG` | NUC 课网 `ping` | ath9k；WPA3；open 不计 TG |
 
 ---
 
@@ -71,8 +71,9 @@ USB MSC / HID / UART         →   （无线走 PCIe，不依赖棒）
 | **驱动名** | `iwl8265`（`lsdev`；口语 iwl / iwlwifi） |
 | **课机（硬）** | **NUC 必通**；N56 无线不挡本柱收口 |
 | **固件** | Guest **`FW/IWL8265.UCODE`**（≈2.3 MiB；自 `iwlwifi-8265-36.ucode`） |
-| **关联** | wifi-2：WPA2-PSK 主；open 备选 |
+| **关联** | wifi-2：**WPA2-PSK 硬验收**；凭证 `FW/WIFI.CFG`；open 不计 TG |
 | **上栈** | 以太网帧 → `NetInputFrame` / lwIP；**不** mac80211 |
+| **黄字** | `bar` / `alive` / `ssid` / `assoc` / `wpa2`；缺 CFG 软退 |
 
 ```text
 NUC 01:00.0  Intel 8265/8275 (8086:24fd)
@@ -147,7 +148,9 @@ USB 8188EU             ──► 无货
 
 | 机 | 现象 |
 | -- | ---- |
-| **NUC** | `Boot: iwl8265` + `lsdev` 有 `iwl8265`；wifi-2：`ping` |
+| **NUC** | `Boot: iwl8265` + `lsdev`；wifi-2：`wpa2=ok` + `ping`（需 `FW/WIFI.CFG`） |
+
+> **wifi-2 短刀试探**（进行中）：见路线图 [`PR-N-wifi-2`](../路线图.md#pr-n-wifi-2)「短刀试探日志」。主阻塞 = FH DMA `fhtx d=00404000`；HBUS 过 SecBoot 失败已弃。
 | N56VZ | 有线 alx；无线本柱不挡 |
 | 回归 | `./Scripts/smoke-boot.sh` |
 
