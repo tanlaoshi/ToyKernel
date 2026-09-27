@@ -6,11 +6,11 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 加电 → OVMF（UEFI）→ ToyBoot（BOOTX64.EFI）→ ToyKernel → 桌面 / Shell / 用户 ELF
 ```
 
-**文档入口（与仓库根 [`../README.md`](../README.md) 一致）：**
+**文档入口（明细见 [`Documents/README.md`](Documents/README.md)，本表为其精简版）：**
 
 | 文档 | 内容 |
 |------|------|
-| **本 README** / 根 README | 项目是什么、能干什么、怎么编怎么跑 |
+| **本 README** | 项目是什么、能干什么、怎么编怎么跑 |
 | [`Documents/路线图.md`](Documents/路线图.md) | 当前指针、规划、同步、归档（**文首有目录**） |
 | [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
 | [`Documents/驱动/`](Documents/驱动/) | 驱动开发指南 / 匹配规范 / 网卡 L2 范例 |
@@ -19,7 +19,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | [`Documents/已完/`](Documents/已完/) | 已完成专题（含应用生态规划、驱动标准化分析/拆分/设计） |
 | [`Documents/待做/`](Documents/待做/) | 开课前接口冻结（已落地）等规划 |
 
-`Documents/` 总索引见 [`Documents/README.md`](Documents/README.md)；顶层 **路线图** + **技术手册**；活指南在 `驱动/`、`开发/`；归档 `已完/`；规划 `待做/`。课堂讲义见 [`教学内容/`](../教学内容/)。
+`Documents/` 总索引见 [`Documents/README.md`](Documents/README.md)；**章节级索引**见 [`Documents/文档章节索引.md`](Documents/文档章节索引.md)（自动生成，含行号）；顶层 **路线图** + **技术手册**；活指南在 `驱动/`、`开发/`；归档 `已完/`；规划 `待做/`。课堂讲义（`教学内容/`）不在本仓，若单独目录/仓请与 Kernel 进度文档一并 pull。
 
 协作暗号（详见路线图）：**JX** = 下一刀；**TG** = 通过，只 commit；**TS** = push；**TB** = 拉同步。真机 USB 轨请先读 handoff。
 
@@ -95,7 +95,7 @@ cd ../ToyImage
 ToyKernel/
 ├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
 ├── Common/{Core,Services,Library,Fonts}
-├── HAL/{X86_64,Arm64,RiscV,Board}/
+├── HAL/{X64,Arm64,RiscV,Board}/
 ├── Assets/  User/
 ├── Documents/        # 顶层仅路线图 + 技术手册；驱动/ 开发/ 已完/ 待做/
 ├── build.sh  Makefile
