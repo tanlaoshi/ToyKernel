@@ -89,6 +89,7 @@ void ConsoleDrawChar(char C, UINT32 Color) {
 /* 同时输出到串口与屏幕（帧缓冲未就绪时只写串口） */
 void ConsoleWrite(const char *Text) {
     const char *P;
+    int Owner;
 
     if (Text == 0) {
         return;
@@ -101,30 +102,61 @@ void ConsoleWrite(const char *Text) {
         return;
     }
     /*
+     * 命令执行中：输出钉在发起 Shell，点到另一窗也不串台。
+     * （SMP 上 Gui 可与 Shell 并行，焦点会中途变。）
+     */
+    Owner = ConsoleCmdOutOwner();
+    if (Owner >= 0) {
+        int Cur = GuiFocusIndex();
+
+        if (Cur == Owner && GuiFocusKind() == GUI_WIN_SHELL &&
+            GuiShellWindowActive(Owner)) {
+            ConsoleSbBindFocus();
+            ConsoleSbEnsureLive();
+            ConsoleSbFeed(Text);
+            if (GuiShellAcceptsInput()) {
+                ConsoleDrawString(Text, ThemeShellText());
+            }
+            ConsoleSbBarAfterWrite();
+        } else {
+            ConsoleSbWinFeed(Owner, Text);
+        }
+        return;
+    }
+    /*
      * 仅 Shell 客户区接受控制台绘制。焦点在 USER/Settings/Files 时若仍画 FB，
      * 会与 GuiDemo 标签等叠字，并污染用户窗备份（透视/花屏）。
      */
     if (GuiFocusKind() != GUI_WIN_SHELL) {
-        int i;
-        int HasShell;
-
         /*
-         * 已有 Shell 窗时记入行缓冲，便于切回后滚轮看近期输出。
-         * 尚无 Shell 时勿记（Arm64 自测 write("Hello EL0!") 会污染，
-         * 开窗误走 sb-repaint、跳过欢迎语/toyos>）。
+         * 用户窗（Snake/GuiDemo）跑着时焦点在 USER：stdout 只走串口，
+         * 勿 Feed 到上一扇 Shell（否则 shell2 会冒出 snake: 日志）。
          */
-        HasShell = 0;
-        for (i = 0; i < GUI_MAX_WINS; i++) {
-            if (GuiShellWindowActive(i)) {
-                HasShell = 1;
-                break;
-            }
+        if (GuiFocusKind() == GUI_WIN_USER) {
+            return;
         }
-        if (HasShell) {
-            ConsoleSbFeed(Text);
+        {
+            int i;
+            int HasShell;
+
+            /*
+             * 尚无 Shell 时勿记（Arm64 自测 write 会污染开窗）。
+             * 有 Shell：只写入已 Bind 的 live 窗，绝不在未聚焦时乱 Bind。
+             */
+            HasShell = 0;
+            for (i = 0; i < GUI_MAX_WINS; i++) {
+                if (GuiShellWindowActive(i)) {
+                    HasShell = 1;
+                    break;
+                }
+            }
+            if (HasShell) {
+                ConsoleSbFeedLiveIfBound(Text);
+            }
         }
         return;
     }
+    ConsoleSbBindFocus();
     ConsoleSbEnsureLive();
     ConsoleSbFeed(Text);
     ConsoleDrawString(Text, ThemeShellText());

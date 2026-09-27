@@ -1,8 +1,8 @@
 /*
  * LwIpDhcp.c — DHCP 客户端（PR-N-nic-dhcp / 前后端分离）
  *
- * Shell/窗 = INTERFACE：Enqueue 即回提示符。
- * WorkerTask = 干活：LwIpDhcpStep 推进；完成打一行（同 store job）。
+ * Shell：Enqueue + ConsoleJobHoldPrompt（本窗等 IP，可开另一 Shell）。
+ * WorkerTask：LwIpDhcpStep；完成行 WriteToJobShell + ReleasePrompt。
  */
 #include "LwIp.h"
 #include "NetConfig.h"
@@ -90,23 +90,43 @@ static void ClearNetifAddr(struct netif *Netif) {
 }
 
 static void FinishPrint(int Ok) {
+    char Msg[80];
     char IpBuf[16];
+    int N = 0;
+    const char *P;
 
     if (Ok) {
         HalNetFormatIp(NetConfigGetIp(), IpBuf, (int)sizeof(IpBuf));
-        ConsoleWrite("lwip dhcp: ok ip=");
-        ConsoleWrite(IpBuf);
-        ConsoleWrite(" gw=");
+        P = "lwip dhcp: ok ip=";
+        while (*P && N < 70) {
+            Msg[N++] = *P++;
+        }
+        P = IpBuf;
+        while (*P && N < 70) {
+            Msg[N++] = *P++;
+        }
+        P = " gw=";
+        while (*P && N < 74) {
+            Msg[N++] = *P++;
+        }
         HalNetFormatIp(NetConfigGetGw(), IpBuf, (int)sizeof(IpBuf));
-        ConsoleWrite(IpBuf);
-        ConsoleWrite("\n");
+        P = IpBuf;
+        while (*P && N < 78) {
+            Msg[N++] = *P++;
+        }
+        if (N < 79) {
+            Msg[N++] = '\n';
+        }
+        Msg[N] = 0;
+        ConsoleWriteToJobShell(Msg);
         DebugWrite("lwip: dhcp ok ip=");
         DebugWrite(IpBuf);
         DebugWrite("\n");
     } else {
-        ConsoleWrite("lwip dhcp: no offer\n");
+        ConsoleWriteToJobShell("lwip dhcp: no offer\n");
         DebugWrite("lwip: dhcp timeout\n");
     }
+    ConsoleJobReleasePrompt();
 }
 
 int LwIpDhcpRestart(int TimeoutMs) {

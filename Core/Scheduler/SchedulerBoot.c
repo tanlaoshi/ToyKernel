@@ -54,7 +54,7 @@ void SchedulerApStart(void) {
     Idle = IdleTaskForCpu(Cpu);
     if (!Idle) {
         SpinLockRelease(&gSchedulerLock);
-        ToyLogSmp("sched: AP has no idle\n");
+        ToyLogSmp("Scheduler: AP has no idle\n");
         for (;;) {
             HalCpuPark();
         }
@@ -74,14 +74,15 @@ void SchedulerApStart(void) {
         HalFrameSetKernelEntry(Frame, (UINT64)(UINTN)IdleTask,
                                (UINT64)(UINTN)Top);
         Idle->Frame = Frame;
-        ToyLogSmp("sched: AP repaired idle frame\n");
+        ToyLogSmp("Scheduler: AP repaired idle frame\n");
     }
     ActivateTask(Idle);
     Idle->Started = 1;
     SpinLockRelease(&gSchedulerLock);
-    /* 8 AP 并发写 COM1 会把欢迎语打成乱码；只留一条样例给冒烟 */
+    /* 8 AP 并发写 COM1 会把欢迎语打成乱码；只留一条样例给冒烟。
+     * 与 Worker 上 iwl bg=* 交错属正常：SchedulerStart 后 AP 与 Worker 并行。 */
     if (Cpu == 1) {
-        ToyLogSmp("sched: AP entered idle cpu=");
+        ToyLogSmp("Scheduler: AP entered idle cpu=");
         ToyLogSmpHex32(Cpu);
         ToyLogSmp("\n");
     }

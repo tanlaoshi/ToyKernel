@@ -21,6 +21,7 @@
 #include "Locale.h"
 #include "Desktop.h"
 #include "DesktopPrivate.h"
+#include "Console.h"
 
 /*
  * 开窗：Defer Present，先画满 chrome+客户区再备份，最后一次淡入。
@@ -93,6 +94,9 @@ void CloseWindow(int Idx) {
     }
     gWindows[Idx].Closing = 1;
     WasUser = (gWindows[Idx].Kind == GUI_WIN_USER);
+    if (gWindows[Idx].Kind == GUI_WIN_SHELL) {
+        ConsoleSbWinForget(Idx);
+    }
     if (gWindows[Idx].Kind == GUI_WIN_TTY) {
         TtyUiClose();
     }

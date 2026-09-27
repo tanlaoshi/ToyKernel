@@ -21,6 +21,12 @@ int gLen;
 int gWaitPrompt;
 int gPromptSuspend;
 int gAtLineStart = 1;
+/* -2=无 Job；-1=串口壳；>=0=发起 Shell 窗下标 */
+static int gJobPromptWin = -2;
+/* Worker 在 RunLine 内已 Release 并打过 toyos> 时，阻止 PromptAfterCommand 再打一次 */
+static int gJobSkipAfterCommand;
+/* -2=非命令输出；-1=串口；>=0=本条命令输出归属窗（跟发起窗，不跟焦点） */
+static int gCmdOutWin = -2;
 
 void Prompt(void) {
     gLen = 0;
@@ -31,6 +37,7 @@ void Prompt(void) {
     HalConsoleWriteSerial("toyos> ");
     gAtLineStart = 0;
     if (HalConsoleVideoReady() && GuiFocusKind() == GUI_WIN_SHELL) {
+        ConsoleSbBindFocus();
         ConsoleSbEnsureLive();
         ConsoleSbFeed("toyos> ");
         ConsoleDrawString("toyos> ", ThemeShellPrompt());
@@ -76,14 +83,147 @@ int ConsolePromptSuspended(void) {
     return gPromptSuspend > 0;
 }
 
+void ConsoleJobHoldPrompt(void) {
+    if (HalConsoleOnly()) {
+        gJobPromptWin = -1;
+    } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+        gJobPromptWin = GuiFocusIndex();
+    } else {
+        gJobPromptWin = -1;
+    }
+    gJobSkipAfterCommand = 0;
+    ConsoleWaitPrompt();
+}
+
+int ConsoleJobConsumeSkipAfterCommand(void) {
+    if (!gJobSkipAfterCommand) {
+        return 0;
+    }
+    gJobSkipAfterCommand = 0;
+    return 1;
+}
+
+int ConsoleJobPromptPending(void) {
+    return (gJobPromptWin != -2) ? 1 : 0;
+}
+
+void ConsoleJobShiftRaise(int Idx, int Top) {
+    if (gJobPromptWin == Idx) {
+        gJobPromptWin = Top;
+    } else if (gJobPromptWin > Idx && gJobPromptWin <= Top) {
+        gJobPromptWin--;
+    }
+    if (gCmdOutWin == Idx) {
+        gCmdOutWin = Top;
+    } else if (gCmdOutWin > Idx && gCmdOutWin <= Top) {
+        gCmdOutWin--;
+    }
+}
+
+void ConsoleCmdOutBegin(void) {
+    if (HalConsoleOnly()) {
+        gCmdOutWin = -1;
+    } else if (GuiFocusKind() == GUI_WIN_SHELL) {
+        gCmdOutWin = GuiFocusIndex();
+    } else {
+        gCmdOutWin = -1;
+    }
+}
+
+void ConsoleCmdOutEnd(void) {
+    gCmdOutWin = -2;
+}
+
+int ConsoleCmdOutOwner(void) {
+    return gCmdOutWin;
+}
+
+void ConsoleWriteToJobShell(const char *Text) {
+    int Owner = gJobPromptWin;
+    int Cur;
+
+    if (!Text) {
+        return;
+    }
+    HalConsoleWriteSerial(Text);
+    if (Owner < 0 || HalConsoleOnly()) {
+        if (HalConsoleVideoReady() && GuiFocusKind() == GUI_WIN_SHELL) {
+            ConsoleSbEnsureLive();
+            ConsoleSbFeed(Text);
+            ConsoleDrawString(Text, ThemeShellText());
+        }
+        return;
+    }
+    Cur = GuiFocusIndex();
+    if (Cur == Owner && GuiShellWindowActive(Owner)) {
+        if (HalConsoleVideoReady()) {
+            ConsoleSbBindFocus();
+            ConsoleSbEnsureLive();
+            ConsoleSbFeed(Text);
+            if (GuiShellAcceptsInput()) {
+                ConsoleDrawString(Text, ThemeShellText());
+            }
+        } else {
+            ConsoleSbWinFeed(Owner, Text);
+        }
+        return;
+    }
+    ConsoleSbWinFeed(Owner, Text);
+}
+
+void ConsoleJobReleasePrompt(void) {
+    int Owner = gJobPromptWin;
+    int Cur;
+
+    if (Owner == -2) {
+        return;
+    }
+    gJobPromptWin = -2;
+    if (HalConsoleOnly() || Owner < 0) {
+        ConsoleShowPrompt();
+        gJobSkipAfterCommand = 1;
+        return;
+    }
+    if (!GuiShellWindowActive(Owner)) {
+        if (gWaitPrompt > 0) {
+            gWaitPrompt--;
+        }
+        gJobSkipAfterCommand = 1;
+        return;
+    }
+    Cur = GuiFocusIndex();
+    if (Cur == Owner) {
+        ConsoleShowPrompt();
+        GuiConsolePush(gLine, gLen, gWaitPrompt);
+        gJobSkipAfterCommand = 1;
+        return;
+    }
+    /* 已切走：完成行在 WinFeed；槽内补提示符并清该窗 WaitPrompt */
+    ConsoleSbWinFeed(Owner, "toyos> ");
+    GuiConsoleSetWaitPrompt(Owner, 0);
+    if (gWaitPrompt > 0) {
+        gWaitPrompt--;
+    }
+    gJobSkipAfterCommand = 1;
+}
 
 /* 将控制台输出限制在当前焦点窗口客户区内（不重置光标） */
 void ConsoleFocusSave(void) {
+    int Idx = GuiFocusIndex();
+
+    if (Idx >= 0 && GuiShellWindowActive(Idx)) {
+        ConsoleSbWinSave(Idx);
+    }
     GuiConsolePush(gLine, gLen, gWaitPrompt);
 }
 
 void ConsoleFocusLoad(void) {
+    int Idx = GuiFocusIndex();
+
     GuiConsolePull(gLine, &gLen, &gWaitPrompt);
+    if (Idx >= 0 && GuiShellWindowActive(Idx)) {
+        ConsoleSbWinLoad(Idx);
+    }
     /* 非 Shell 焦点（如 Settings）不碰控制台绘制 */
     if (!GuiShellAcceptsInput()) {
         return;
@@ -99,9 +239,13 @@ void ConsoleFocusLoad(void) {
                 ConsoleWrite(LocStr(MSG_CON_WELCOME));
                 ConsoleWrite("\n");
                 Prompt();
+            } else {
+                ConsoleSbRepaint();
             }
             GuiConsoleMarkPrompt();
             GuiFocusSave();
+        } else if (ConsoleSbHasContent()) {
+            ConsoleSbRepaint();
         }
         return;
     }
@@ -145,8 +289,6 @@ void ConsoleInitialize(void) {
 
 void ConsoleOnShellOpened(void) {
     int Idx;
-    int i;
-    int OtherShell;
 
     /*
      * 勿用 GuiShellAcceptsInput：刚 OpenChromeDefer 时 z-order 可能仍判遮挡，
@@ -156,20 +298,7 @@ void ConsoleOnShellOpened(void) {
     if (!GuiShellWindowActive(Idx)) {
         return;
     }
-    /*
-     * 首个 Shell：丢掉开窗前自测 write(1,"Hello…") 等污染的行缓冲，
-     * 否则误走 sb-repaint、串口不见「ToyOS console」/toyos>。
-     */
-    OtherShell = 0;
-    for (i = 0; i < GUI_MAX_WINS; i++) {
-        if (i != Idx && GuiShellWindowActive(i)) {
-            OtherShell = 1;
-            break;
-        }
-    }
-    if (!OtherShell) {
-        ConsoleSbReset();
-    }
+    /* 新窗槽为空 → 欢迎语；已有槽（主题重画）→ 重绘本窗历史 */
     ConsolePaintShellWindow(Idx);
 }
 
@@ -181,19 +310,27 @@ void ConsolePaintShellWindow(int Idx) {
         return;
     }
     Saved = GuiFocusIndex();
+    if (Saved >= 0 && Saved != Idx && GuiShellWindowActive(Saved)) {
+        ConsoleSbWinSave(Saved);
+    }
     GuiSetFocusWindow(Idx);
+    ConsoleSbWinLoad(Idx);
     /*
      * 开开始菜单等会走 GuiComposeThemeScene → 本函数。
      * 若仍 SbReset+欢迎语，ps/help 输出会被清掉；有行缓冲则重绘恢复。
      */
-    if (ConsoleSbHasContent()) {
+    if (ConsoleSbWinHasContent(Idx) || ConsoleSbHasContent()) {
         ConsoleSbRepaint();
         /* Theme 清过 PromptShown；重绘后勿让 FocusLoad 再打欢迎语 */
         GuiConsoleMarkPrompt();
+        ConsoleSbWinSave(Idx);
         /* 与空窗路径一致：勿把客户区 clip 留给随后的开始菜单/任务栏 */
         HalVideoClearClip();
         if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
             GuiSetFocusWindow(Saved);
+            if (GuiShellWindowActive(Saved)) {
+                ConsoleSbWinLoad(Saved);
+            }
         }
         return;
     }
@@ -207,11 +344,15 @@ void ConsolePaintShellWindow(int Idx) {
     ConsoleWrite("\n");
     Prompt();
     GuiConsoleMarkPrompt();
-    GuiFocusSave();
+    ConsoleSbWinSave(Idx);
+    GuiConsolePush(gLine, gLen, gWaitPrompt);
     HalVideoClearClip();
     GuiBackupFocusWindow();
     if (Saved >= 0 && GuiWindowKind(Saved) != GUI_WIN_NONE) {
         GuiSetFocusWindow(Saved);
+        if (GuiShellWindowActive(Saved)) {
+            ConsoleSbWinLoad(Saved);
+        }
     }
 }
 

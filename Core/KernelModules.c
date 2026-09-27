@@ -144,7 +144,7 @@ static int InitializeUsb(void) {
      */
     if (!HalCpuIsHypervisor()) {
         HalInputArmIrq();
-        HalVideoLogFbPte();
+        /* FB-PTE 已在 Video 模块打过，此处勿再 Log（串口/屏会重复一行） */
         {
             UINT32 Cx = 512;
             UINT32 Cy = 384;
@@ -199,20 +199,11 @@ static int InitializeGui(void) {
     if (ThemeUiScale() != 100) {
         (void)HalVideoSetUiScale(ThemeUiScale());
     }
-    GuiInit();
+    GuiInit(); /* 内已 Deferred 补鼠 + Handoff；此处只抽空残留 */
     if (!HalCpuIsHypervisor()) {
         HAL_MOUSE_REPORT Mdump;
-        UINT32 Sw = 0;
-        UINT32 Sh = 0;
-        UINT32 Cx;
-        UINT32 Cy;
 
-        /* GuiInit 后若再 Poll，相对鼠又会改 Abs/入队；对齐并抽空 */
         HalInputPoll();
-        HalVideoGetSize(&Sw, &Sh);
-        Cx = (Sw > 0) ? (Sw / 2) : 512;
-        Cy = (Sh > 0) ? (Sh / 2) : 384;
-        HalInputMouseHandoffDesktop(Cx, Cy);
         while (HalMouseDequeue(&Mdump)) {
         }
     }

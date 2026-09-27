@@ -58,6 +58,13 @@ void GuiConsolePush(const char *Line, int Len, int WaitPrompt) {
     Win->InputLine[Len] = 0;
 }
 
+void GuiConsoleSetWaitPrompt(int Idx, int WaitPrompt) {
+    if (Idx < 0 || Idx >= MAX_WINS || !gWindows[Idx].Active) {
+        return;
+    }
+    gWindows[Idx].WaitPrompt = WaitPrompt;
+}
+
 
 int GuiConsoleNeedsPrompt(void) {
     if (gFocusWin < 0 || gFocusWin >= MAX_WINS || !gWindows[gFocusWin].Active) {

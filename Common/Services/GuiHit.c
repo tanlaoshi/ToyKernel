@@ -14,6 +14,7 @@
 #include "EditUi.h"
 #include "TtyUi.h"
 #include "ToySerialLog.h"
+#include "Console.h"
 
 void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src) {
     *Dst = *Src;
@@ -68,6 +69,11 @@ int PointOnAnyClose(UINT32 X, UINT32 Y) {
 }
 
 /* 将窗口移到最前（数组后部 = 绘制在上层） */
+#include "GuiPrivate.h"
+#include "HalVideo.h"
+#include "Theme.h"
+#include "Console.h"
+
 void RaiseWindow(int Idx) {
     int Top = Idx;
     int J;
@@ -99,6 +105,9 @@ void RaiseWindow(int Idx) {
         if (HasBackup || gDragHasBackup) {
             ShiftWinBackupsUp(Idx, Top);
         }
+        /* Shell scrollback / dhcp Job 窗号随槽位挪，否则多 Shell 内容串台 */
+        ConsoleSbShiftRaise(Idx, Top);
+        ConsoleJobShiftRaise(Idx, Top);
         gFocusWin = Top;
     }
 }

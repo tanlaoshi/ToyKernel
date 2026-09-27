@@ -62,6 +62,21 @@ void ConsoleResumePrompt(void);
 int  ConsolePromptSuspended(void);
 void ConsoleNotify(const char *Text);
 
+/*
+ * Shell 异步 Job（dhcp / store …）：Hold 后本窗不立刻 toyos>，
+ * 其它 Shell 仍可输入；完成后 Release 在发起窗补提示符。
+ */
+void ConsoleJobHoldPrompt(void);
+void ConsoleJobReleasePrompt(void);
+void ConsoleWriteToJobShell(const char *Text);
+int ConsoleJobPromptPending(void);
+int ConsoleJobConsumeSkipAfterCommand(void);
+/* 关 Shell 窗时丢弃该窗 scrollback 槽 */
+void ConsoleSbWinForget(int Idx);
+/* RaiseWindow 挪槽后同步 scrollback / Job 窗号 */
+void ConsoleSbShiftRaise(int Idx, int Top);
+void ConsoleJobShiftRaise(int Idx, int Top);
+
 /* PR-A9：virt 串口 Shell（轮询 HalSerial + HalTimerPoll） */
 void ConsoleSerialRun(void);
 

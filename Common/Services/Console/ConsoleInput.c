@@ -55,6 +55,7 @@ void ConsoleOnChar(char C) {
     if (gLen >= LINE_MAX - 1) {
         return;
     }
+    ConsoleSbBindFocus();
     ConsoleSbEnsureLive();
     gLine[gLen++] = C;
     ConsoleSbFeedChar(C);
@@ -120,7 +121,10 @@ void ConsoleForceResumePrompt(void) {
 
 /* 命令可能把焦点切走（settings）；提示符只能画在 Shell 上 */
 static void ConsolePromptAfterCommand(void) {
-    if (gWaitPrompt != 0 || ConsolePromptSuspended()) {
+    if (ConsoleJobConsumeSkipAfterCommand()) {
+        return;
+    }
+    if (gWaitPrompt != 0 || ConsolePromptSuspended() || ConsoleJobPromptPending()) {
         return;
     }
     if (HalConsoleOnly() || GuiShellAcceptsInput()) {
@@ -154,7 +158,9 @@ void ConsoleOnEnter(void) {
     /* help/ls 等大量 ConsoleWrite：真机逐行 Present 极卡，整命令结束再刷一次。
      * PR-G-shell-present 只合并打字回显；本 Defer 语义保持不变。 */
     GuiPresentDeferPush();
+    ConsoleCmdOutBegin();
     ConsoleRunLine();
+    ConsoleCmdOutEnd();
     GuiPresentDeferPop();
     gLen = 0;
     ConsolePromptAfterCommand();

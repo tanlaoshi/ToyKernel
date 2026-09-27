@@ -63,7 +63,14 @@ int StoreAppElfExists(const char *Id, const char *File) {
             return 1;
         }
     }
-    return DirHasFileCI(STORE_APPS_DIR, File) ? 1 : 0;
+    if (DirHasFileCI(STORE_APPS_DIR, File)) {
+        return 1;
+    }
+    /* 课堂扁平：根目录 CAT.ELF / HELLO.ELF 等 */
+    if (FileSystemFileStat(File, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
+        return 1;
+    }
+    return 0;
 }
 
 int StoreAppBundleReady(const char *Id) {
@@ -114,6 +121,11 @@ int StoreResolveAppPath(const char *Id, const char *File, char *Out, int OutMax)
     }
     if (DirResolveFileCI(STORE_APPS_DIR, File, Leaf, (int)sizeof(Leaf))) {
         JoinPath(Out, OutMax, STORE_APPS_DIR, Leaf);
+        return FAT_OK;
+    }
+    /* 课堂扁平根目录（si.cat → CAT.ELF） */
+    if (FileSystemFileStat(File, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
+        CopyStr(Out, OutMax, File);
         return FAT_OK;
     }
     /* 偏好新布局路径（灰显 / 提示用） */

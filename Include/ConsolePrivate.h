@@ -75,6 +75,10 @@ extern int gAtLineStart;
 void ConsoleDrawString(const char *Text, UINT32 Color);
 void ConsoleDrawChar(char C, UINT32 Color);
 void ConsoleRunLine(void);
+/* 本条命令输出归属窗：Begin/End 包住 RunLine；Write 钉发起 Shell */
+void ConsoleCmdOutBegin(void);
+void ConsoleCmdOutEnd(void);
+int ConsoleCmdOutOwner(void);
 /* 提示符。定义在 Console.c；写屏与输入拆开后同模块可见 */
 void Prompt(void);
 
@@ -87,6 +91,30 @@ void ConsoleSbPaint(void);
 void ConsoleSbRepaint(void);
 int ConsoleSbHasContent(void);
 void ConsoleSbEnsureLive(void);
+
+/* 每 Shell 窗一份 scrollback（ConsoleSbSlot.c） */
+typedef struct {
+    char Lines[SB_LINES][SB_COLS];
+    char Acc[SB_COLS];
+    int Count;
+    int Next;
+    int ViewOff;
+    int AccLen;
+} CONSOLE_SB_STATE;
+
+void ConsoleSbCapture(CONSOLE_SB_STATE *Out);
+void ConsoleSbApply(const CONSOLE_SB_STATE *In);
+void ConsoleSbWinSave(int Idx);
+void ConsoleSbWinLoad(int Idx);
+void ConsoleSbWinForget(int Idx);
+void ConsoleSbWinFeed(int Idx, const char *Text);
+int ConsoleSbWinHasContent(int Idx);
+/* RaiseWindow 挪槽时 scrollback / Job 窗号一并挪 */
+void ConsoleSbShiftRaise(int Idx, int Top);
+void ConsoleSbBindFocus(void);
+void ConsoleSbFeedLiveIfBound(const char *Text);
+int ConsoleJobPromptPending(void);
+void ConsoleJobShiftRaise(int Idx, int Top);
 /* 视图度量 / 滚动条（ConsoleSbBar.c） */
 int ConsoleSbLineCount(void);
 int ConsoleSbAccLen(void);

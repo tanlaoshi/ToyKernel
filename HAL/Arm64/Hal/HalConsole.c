@@ -7,27 +7,40 @@
 
 extern void HalCpuHalt(void);
 
-/* \\n → \\r\\n，避免主机终端只认 CR 时「后一行盖前一行」；已有 \\r\\n 不叠成 \\r\\r\\n */
+/*
+ * \\n → \\r\\n。整段（或满缓冲块）一次 HalSerialWrite，与 ToyLogBoot 整行同锁粒度，
+ * 避免逐字符加锁时被「Boot: iwl…」插成 lwipBoot: 。
+ */
 static void SerialWriteCooked(const char *Text) {
-    char One[2];
+    char Buf[256];
+    int N = 0;
 
     if (!Text) {
         return;
     }
-    One[1] = 0;
     while (*Text) {
+        if (N + 3 >= (int)sizeof(Buf)) {
+            Buf[N] = 0;
+            HalSerialWrite(Buf);
+            N = 0;
+        }
         if (*Text == '\r' && Text[1] == '\n') {
-            HalSerialWrite("\r\n");
+            Buf[N++] = '\r';
+            Buf[N++] = '\n';
             Text += 2;
             continue;
         }
         if (*Text == '\n') {
-            HalSerialWrite("\r\n");
+            Buf[N++] = '\r';
+            Buf[N++] = '\n';
             Text++;
             continue;
         }
-        One[0] = *Text++;
-        HalSerialWrite(One);
+        Buf[N++] = *Text++;
+    }
+    if (N > 0) {
+        Buf[N] = 0;
+        HalSerialWrite(Buf);
     }
 }
 

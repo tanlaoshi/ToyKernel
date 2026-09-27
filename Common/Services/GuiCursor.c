@@ -176,7 +176,14 @@ void GuiFrameBufferEnd(void) {
     GfxIrqEnter();
     CursorPaint();
     GfxIrqLeave();
-    HalVideoPresentFlush();
+    /*
+     * Shell 命令 DeferPresent 期间勿逐字/逐行 Flush：
+     * 否则 help 等会一行一帧 Present，真机极卡。
+     * DeferPop 时统一 Present。
+     */
+    if (!gDeferPresent) {
+        HalVideoPresentFlush();
+    }
     ComposeEnd();
 }
 

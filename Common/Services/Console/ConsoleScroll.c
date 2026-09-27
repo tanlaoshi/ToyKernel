@@ -27,6 +27,52 @@ void ConsoleSbReset(void) {
     ConsoleSbBarReset();
 }
 
+void ConsoleSbCapture(CONSOLE_SB_STATE *Out) {
+    UINTN i;
+    const UINT8 *Live;
+    UINT8 *D;
+
+    if (!Out) {
+        return;
+    }
+    Out->Count = gSbCount;
+    Out->Next = gSbNext;
+    Out->ViewOff = gViewOff;
+    Out->AccLen = gAccLen;
+    for (i = 0; i < SB_COLS; i++) {
+        Out->Acc[i] = gAcc[i];
+    }
+    Live = (const UINT8 *)&gSb[0][0];
+    D = (UINT8 *)&Out->Lines[0][0];
+    for (i = 0; i < (UINTN)SB_LINES * (UINTN)SB_COLS; i++) {
+        D[i] = Live[i];
+    }
+}
+
+void ConsoleSbApply(const CONSOLE_SB_STATE *In) {
+    UINTN i;
+    const UINT8 *S;
+    UINT8 *Live;
+
+    ConsoleSbBarReset();
+    if (!In) {
+        ConsoleSbReset();
+        return;
+    }
+    gSbCount = In->Count;
+    gSbNext = In->Next;
+    gViewOff = In->ViewOff;
+    gAccLen = In->AccLen;
+    for (i = 0; i < SB_COLS; i++) {
+        gAcc[i] = In->Acc[i];
+    }
+    S = (const UINT8 *)&In->Lines[0][0];
+    Live = (UINT8 *)&gSb[0][0];
+    for (i = 0; i < (UINTN)SB_LINES * (UINTN)SB_COLS; i++) {
+        Live[i] = S[i];
+    }
+}
+
 int ConsoleSbLineCount(void) {
     return gSbCount;
 }

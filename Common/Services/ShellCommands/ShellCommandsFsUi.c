@@ -21,8 +21,10 @@
  * 完成态：store job；勿在此同步等 LastError（rm-exc-11 INTERFACE）。
  */
 static int ShellStoreJob(STORE_JOB_KIND Kind, const char *Id) {
+    ConsoleJobHoldPrompt();
     if (StoreJobShellRun(Kind, Id) != 0) {
         ConsoleWrite("store: busy (Cancel in Store UI, or store job)\n");
+        ConsoleJobReleasePrompt();
         return -1;
     }
     return 0;
@@ -38,7 +40,7 @@ static void ShellStoreQueued(const char *Verb, const char *Id) {
         ConsoleWrite(Id);
     }
     ConsoleWrite("\n");
-    ConsoleWrite("hint: worker runs it; store job — status / last error\n");
+    ConsoleWrite("hint: worker runs it; open another shell if needed\n");
 }
 
 /*

@@ -138,6 +138,7 @@ GUI_WIN_KIND GuiWindowKind(int Idx);
 /* PR-G2：每窗 Shell 输入行与提示符状态（随 GUI_WINDOW 移动） */
 void GuiConsolePull(char *Line, int *Len, int *WaitPrompt);
 void GuiConsolePush(const char *Line, int Len, int WaitPrompt);
+void GuiConsoleSetWaitPrompt(int Idx, int WaitPrompt);
 int GuiConsoleNeedsPrompt(void);
 void GuiConsoleMarkPrompt(void);
 int GuiConsoleHasDisplay(void);

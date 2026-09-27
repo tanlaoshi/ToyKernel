@@ -537,14 +537,17 @@ static void CommandLwIpDhcp(int Argc, char **Argv) {
         ConsoleWrite("lwip dhcp: busy\n");
         return;
     }
-    /* INTERFACE：只入队；Worker 推进；完成行由 Worker 打 */
+    /* 先 Hold：防 Worker 抢在 PromptAfterCommand 前打完并再出一次 toyos> */
+    ConsoleJobHoldPrompt();
     Rc = LwIpDhcpEnqueue(12000);
     if (Rc == -1) {
         ConsoleWrite("lwip dhcp: busy\n");
+        ConsoleJobReleasePrompt();
         return;
     }
     if (Rc != 0) {
         ConsoleWrite("lwip dhcp: start fail\n");
+        ConsoleJobReleasePrompt();
         return;
     }
     ConsoleWrite("lwip dhcp: queued\n");
@@ -616,7 +619,7 @@ void ShellCommandsNetRegister(void) {
 #ifdef TOY_LWIP
     ConsoleRegister2("lwip", "on", "enable lwIP stack", CommandLwIp);
     ConsoleRegister2("lwip", "status", "lwIP status", CommandLwIp);
-    ConsoleRegister2("lwip", "dhcp", "DHCP enqueue (Worker)", CommandLwIpDhcp);
-    ConsoleRegister2("net", "dhcp", "DHCP enqueue (alias)", CommandLwIpDhcp);
+    ConsoleRegister2("lwip", "dhcp", "DHCP; wait IP then prompt", CommandLwIpDhcp);
+    ConsoleRegister2("net", "dhcp", "DHCP; wait IP then prompt", CommandLwIpDhcp);
 #endif
 }
