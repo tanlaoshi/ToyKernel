@@ -28,21 +28,45 @@ void CopyTitleBuf(char *Dst, UINTN Cap, const char *Src) {
     Dst[i] = 0;
 }
 
-/* Raise 后槽位可能移动；返回当前 USER 窗下标，失败 -1 */
-int UserWindowIndexAfterRaise(int Wid) {
+/*
+ * Raise 挪槽后，用户态仍握着旧 wid。先认仍有效的 USER 槽；
+ * 否则若仅一扇 USER 则跟它；多扇时跟焦点 USER。
+ */
+int ResolveUserWindowIndex(int Wid) {
     int i;
+    int Found = -1;
+    int N = 0;
 
     if (Wid >= 0 && Wid < MAX_WINS && gWindows[Wid].Active &&
         gWindows[Wid].Kind == GUI_WIN_USER) {
-        RaiseWindow(Wid);
-    } else {
-        for (i = 0; i < MAX_WINS; i++) {
-            if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER) {
-                RaiseWindow(i);
-                break;
-            }
+        return Wid;
+    }
+    for (i = 0; i < MAX_WINS; i++) {
+        if (gWindows[i].Active && gWindows[i].Kind == GUI_WIN_USER) {
+            Found = i;
+            N++;
         }
     }
+    if (N == 1) {
+        return Found;
+    }
+    if (gFocusWin >= 0 && gFocusWin < MAX_WINS &&
+        gWindows[gFocusWin].Active &&
+        gWindows[gFocusWin].Kind == GUI_WIN_USER) {
+        return gFocusWin;
+    }
+    return Found;
+}
+
+/* Raise 后槽位可能移动；返回当前 USER 窗下标，失败 -1 */
+int UserWindowIndexAfterRaise(int Wid) {
+    int Idx;
+
+    Idx = ResolveUserWindowIndex(Wid);
+    if (Idx < 0) {
+        return -1;
+    }
+    RaiseWindow(Idx);
     if (gFocusWin >= 0 && gFocusWin < MAX_WINS &&
         gWindows[gFocusWin].Active && gWindows[gFocusWin].Kind == GUI_WIN_USER) {
         return gFocusWin;
@@ -158,12 +182,11 @@ int UserButtonHit(int Idx, UINT32 X, UINT32 Y) {
 }
 
 
-/* 贪吃蛇棋盘按格画死，改外框会清掉客户区且应用不会重画 */
-static int TitleIsSnake(const char *Title) {
-    static const char Name[] = "Snake";
+/* 固定布局 USER 窗：不可拖边改大小（Snake 棋盘 / TaskMgr 标签） */
+static int TitleEq(const char *Title, const char *Name) {
     int i;
 
-    if (!Title) {
+    if (!Title || !Name) {
         return 0;
     }
     for (i = 0; Name[i] != 0; i++) {
@@ -172,6 +195,10 @@ static int TitleIsSnake(const char *Title) {
         }
     }
     return Title[i] == 0;
+}
+
+static int TitleIsFixedUser(const char *Title) {
+    return TitleEq(Title, "Snake") || TitleEq(Title, "TaskMgr");
 }
 
 int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
@@ -200,7 +227,7 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     Y = (gScreenHeight > H + 40) ? (gScreenHeight - H) / 3 : Margin;
 
     gWindows[Idx].Active = 1;
-    gWindows[Idx].FixedSize = TitleIsSnake(Title);
+    gWindows[Idx].FixedSize = TitleIsFixedUser(Title);
     gWindows[Idx].Kind = GUI_WIN_USER;
     gWindows[Idx].X = X;
     gWindows[Idx].Y = Y;
@@ -259,16 +286,15 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
 }
 
 int GuiUserAddButton(int Wid, int ButtonId, const char *Label) {
-    if (Wid < 0 || Wid >= MAX_WINS || !gWindows[Wid].Active ||
-        gWindows[Wid].Kind != GUI_WIN_USER) {
+    int Idx;
+
+    Idx = ResolveUserWindowIndex(Wid);
+    if (Idx < 0 || ButtonId < 0 || ButtonId >= 4 || !Label) {
         return -1;
     }
-    if (ButtonId < 0 || ButtonId >= 4 || !Label) {
-        return -1;
-    }
-    gWindows[Wid].UserButtonUsed[ButtonId] = 1;
-    CopyTitleBuf(gWindows[Wid].UserButtonLabel[ButtonId],
-                 sizeof(gWindows[Wid].UserButtonLabel[ButtonId]), Label);
-    RepaintUserWindow(Wid);
+    gWindows[Idx].UserButtonUsed[ButtonId] = 1;
+    CopyTitleBuf(gWindows[Idx].UserButtonLabel[ButtonId],
+                 sizeof(gWindows[Idx].UserButtonLabel[ButtonId]), Label);
+    RepaintUserWindow(Idx);
     return 0;
 }

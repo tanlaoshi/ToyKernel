@@ -283,6 +283,8 @@ int FocusExistingKind(GUI_WIN_KIND Kind, void (*Repaint)(void), const char *LogT
 /* User helpers */
 void CopyTitleBuf(char *Dst, UINTN Cap, const char *Src);
 void PaintUserClient(int Idx);
+/* Raise 挪槽后用户态 wid 可能过期：解析到当前 USER 槽 */
+int ResolveUserWindowIndex(int Wid);
 int UserWindowIndexAfterRaise(int Wid);
 void RepaintUserWindow(int Wid);
 int UserButtonHit(int Idx, UINT32 X, UINT32 Y);

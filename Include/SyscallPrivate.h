@@ -38,6 +38,7 @@ int SysGetcwd(UINT64 UserBuf, UINTN Len);
 int SysChdir(UINT64 UserPath);
 int SysGetPid(void);
 int SysGetPpid(void);
+int SysTaskSnap(UINT64 UserOut, UINTN Cap);
 
 /* SyscallProc.c */
 int SysExecve(HAL_INTERRUPT_FRAME *Frame, UINT64 UserPath, UINT64 UserArgv,

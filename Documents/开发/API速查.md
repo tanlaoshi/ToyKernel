@@ -128,6 +128,12 @@
 | `FileStat(path, st)` | `<dirent.h>` | 第 2 轨；POSIX 名见上表 `stat`/`fstat` |
 | `FsUtilJoin` / `ToyosPath` / `ListDir` | `<FsUtil.h>` | 卷前缀 `TOYOS:` / `ESP:` / `RES:` |
 
+## 系统信息（任务快照）
+
+| 函数 | 头文件 | 注意 |
+|------|--------|------|
+| `toy_task_snap(TOY_TASK_SNAP *)` | `<toyos/task.h>` | `SYS_TASK_SNAP`（**1200**）；与 Shell `ps` 同源；`Pid`=槽位+1；范例 `TASKMGR.ELF` |
+
 ## 系统调用 / 版本
 
 | 符号 | 头文件 | 注意 |

@@ -33,28 +33,46 @@ static void ClampResizeSize(const GUI_WINDOW *W, UINT32 *OutW, UINT32 *OutH) {
     UINT32 MaxH;
     UINT32 Nw;
     UINT32 Nh;
+    UINT32 MinW = RESIZE_MIN_W;
+    UINT32 MinH = RESIZE_MIN_H;
 
     Nw = *OutW;
     Nh = *OutH;
-    if (Nw < RESIZE_MIN_W) {
-        Nw = RESIZE_MIN_W;
+    /*
+     * 已小于课设最小的窗（如 TaskMgr 高 200）：勿一碰拖拽就撑到 360（≈两倍）。
+     * 地板取「当前尺寸」与绝对下限 160×100 之间。
+     */
+    if (W->Width < MinW) {
+        MinW = W->Width;
     }
-    if (Nh < RESIZE_MIN_H) {
-        Nh = RESIZE_MIN_H;
+    if (W->Height < MinH) {
+        MinH = W->Height;
     }
-    MaxW = (W->X < gScreenWidth) ? (gScreenWidth - W->X) : RESIZE_MIN_W;
-    MaxH = (W->Y < gScreenHeight) ? (gScreenHeight - W->Y) : RESIZE_MIN_H;
+    if (MinW < 160u) {
+        MinW = 160u;
+    }
+    if (MinH < 100u) {
+        MinH = 100u;
+    }
+    if (Nw < MinW) {
+        Nw = MinW;
+    }
+    if (Nh < MinH) {
+        Nh = MinH;
+    }
+    MaxW = (W->X < gScreenWidth) ? (gScreenWidth - W->X) : MinW;
+    MaxH = (W->Y < gScreenHeight) ? (gScreenHeight - W->Y) : MinH;
     if (Nw > MaxW) {
         Nw = MaxW;
     }
     if (Nh > MaxH) {
         Nh = MaxH;
     }
-    if (Nw < RESIZE_MIN_W) {
-        Nw = (MaxW < RESIZE_MIN_W) ? MaxW : RESIZE_MIN_W;
+    if (Nw < MinW) {
+        Nw = (MaxW < MinW) ? MaxW : MinW;
     }
-    if (Nh < RESIZE_MIN_H) {
-        Nh = (MaxH < RESIZE_MIN_H) ? MaxH : RESIZE_MIN_H;
+    if (Nh < MinH) {
+        Nh = (MaxH < MinH) ? MaxH : MinH;
     }
     *OutW = Nw;
     *OutH = Nh;

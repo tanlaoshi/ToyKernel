@@ -59,8 +59,32 @@ void PaintUserClient(int Idx) {
         HalVideoFillRect(ClientX, ClientY, ClientW, ClientH, W->Background);
     }
     if (W->ClientText[0] != 0) {
+        UINT32 Ty;
+        const char *P;
+        char Line[128];
+        int Li;
+
+        /*
+         * 支持 '\\n' 多行（TaskMgr 等长文案）；单行仍走原路径语义。
+         * 行高按当前系统字 FontAdvanceY。
+         */
         HalVideoSetClipOrigin(Cx, Cy, Cw, Ch, W->Background);
-        HalVideoDrawStringAt(Cx, Cy, W->ClientText, ThemeText());
+        Ty = Cy;
+        P = W->ClientText;
+        while (*P && Ty + FontAdvanceY() <= Cy + Ch) {
+            Li = 0;
+            while (*P && *P != '\n' && Li + 1 < (int)sizeof(Line)) {
+                Line[Li++] = *P++;
+            }
+            Line[Li] = 0;
+            if (*P == '\n') {
+                P++;
+            }
+            if (Line[0] != 0) {
+                HalVideoDrawStringAt(Cx, Ty, Line, ThemeText());
+            }
+            Ty += FontAdvanceY();
+        }
         HalVideoClearClip();
     }
     Count = 0;
@@ -96,15 +120,16 @@ void PaintUserClient(int Idx) {
 }
 
 int GuiDamageUser(int Wid, const char *Text) {
-    if (Wid < 0 || Wid >= MAX_WINS) {
+    int Idx;
+
+    /* 开 Shell 等会 Raise 挪槽，用户态旧 wid 失效；跟真实 USER 槽写文案 */
+    Idx = ResolveUserWindowIndex(Wid);
+    if (Idx < 0 || !Text) {
         return -1;
     }
-    /* Raise 前用 Wid 写文案；槽位移动后 Repaint 用 gFocusWin */
-    if (!gWindows[Wid].Active || gWindows[Wid].Kind != GUI_WIN_USER) {
-        return -1;
-    }
-    CopyTitleBuf(gWindows[Wid].ClientText, sizeof(gWindows[Wid].ClientText), Text);
-    RepaintUserWindow(Wid);
+    CopyTitleBuf(gWindows[Idx].ClientText, sizeof(gWindows[Idx].ClientText),
+                 Text);
+    RepaintUserWindow(Idx);
     return 0;
 }
 
@@ -136,10 +161,7 @@ int GuiDamageRectUser(int Wid, UINT32 X, UINT32 Y, UINT32 W, UINT32 H,
     int Bi;
     int Count;
 
-    if (Wid < 0 || Wid >= MAX_WINS || !Pixels || W == 0 || H == 0) {
-        return -1;
-    }
-    if (!gWindows[Wid].Active || gWindows[Wid].Kind != GUI_WIN_USER) {
+    if (!Pixels || W == 0 || H == 0) {
         return -1;
     }
     Idx = UserWindowIndexAfterRaise(Wid);

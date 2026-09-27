@@ -179,6 +179,10 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
             HalFrameSetReturn(Frame, HalCpuTicks(0) * 1000ULL / (UINT64)Tps);
         }
         break;
+    case SYS_TASK_SNAP:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysTaskSnap(
+            HalFrameGetArgument0(Frame), (UINTN)HalFrameGetArgument1(Frame)));
+        break;
     default:
         /* 开课前冻结：未知号 → -ENOSYS；日志限次，避免每 tick 刷屏 */
         if (UnknownLogs < 8) {
