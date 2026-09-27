@@ -8,7 +8,8 @@
 /*
  * PR-H-msc-4：hub 子口找 MSC（Bulk）；跳过已占用键/鼠子口。
  * Address → XhciMscFinishClaim（SetConfig+Bulk，无 SCSI）。
- * 真机：先统一上电再扫，空口多等几轮（U 盘上电慢 → 误判 hub empty）。
+ * 真机：先统一上电再扫，空口略等（U 盘上电慢 → 误判 hub empty）。
+ * PR-BOOT-fast-2：Pass/空口等待收紧；仍保留一轮 rescan + 软退。
  */
 int EnumHubChildrenForMsc(void) {
     UINT8 Port;
@@ -25,22 +26,22 @@ int EnumHubChildrenForMsc(void) {
     BootLogHex("Boot: MSC claim hub slot=", gHubSlotId, 2);
     BootLogHex("Boot: MSC claim hub nports=", MaxP, 2);
 
-    /* Pass0：全部上电；Pass1+：读状态并认领 */
+    /* Pass0：全部上电；Pass1：读状态并认领（再扫一轮） */
     for (Port = 1; Port <= MaxP; Port++) {
         (void)HubSetPortFeat(Port, HUB_FEAT_PORT_POWER);
     }
     if (!HalCpuIsHypervisor()) {
-        StallMs(250);
+        StallMs(150); /* 原 250 */
     } else {
         volatile int D;
         for (D = 0; D < 80000; D++) {
         }
     }
 
-    for (Pass = 0; Pass < 3; Pass++) {
+    for (Pass = 0; Pass < 2; Pass++) {
         if (Pass > 0 && !HalCpuIsHypervisor()) {
             BootLogHex("Boot: MSC claim hub rescan pass=", (UINT32)Pass, 1);
-            StallMs(200);
+            StallMs(100); /* 原 200 */
         }
         for (Port = 1; Port <= MaxP; Port++) {
             UINT32 St = 0;
@@ -53,17 +54,17 @@ int EnumHubChildrenForMsc(void) {
                 continue;
             }
             if (!(St & HUB_PORT_CONNECTION)) {
-                /* 晚到的 CCS：多读几次再判 empty */
-                for (Wait = 0; Wait < 8 && !(St & HUB_PORT_CONNECTION); Wait++) {
+                /* 晚到的 CCS：少等几拍再判 empty */
+                for (Wait = 0; Wait < 5 && !(St & HUB_PORT_CONNECTION); Wait++) {
                     if (!HalCpuIsHypervisor()) {
-                        StallMs(40);
+                        StallMs(25); /* 原 8×40 */
                     }
                     if (HubGetPortStatus(Port, &St) < 0) {
                         break;
                     }
                 }
                 if (!(St & HUB_PORT_CONNECTION)) {
-                    if (Pass == 2) {
+                    if (Pass == 1) {
                         BootLogHex("Boot: MSC claim hub empty port=", Port, 2);
                     }
                     continue;

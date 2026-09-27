@@ -130,7 +130,8 @@ int FileSystemInitialize(void) {
         } else if (!HasToy) {
             /*
              * Live U 盘上电慢：首轮 claim 空 → 只见 NVMe ESP。
-             * 再试一轮（claim 内已有 Force/等待；勿在此拖很久）。
+             * PR-BOOT-fast-2：仅再试一轮（claim 内 Force/hub 等待已收紧）。
+             * 仍失败则软退：有 ESP/RES 可进桌面（WARN no TOYOS.ID）。
              */
             ToyLogBoot("Boot: MSC Auto Retry (No TOYOS)\n");
             if (HalUsbMscAutoBeforeFs() == 0) {

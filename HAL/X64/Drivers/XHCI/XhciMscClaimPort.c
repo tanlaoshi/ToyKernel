@@ -8,6 +8,7 @@
 /*
  * Force PR 直到 PED+CCS（真机）；QEMU 且已 PED 则直过。
  * 成功 1 并写 *Force；失败 0。
+ * PR-BOOT-fast-2：收紧 Attempt/空转上限（仍软退 continue）；慢盘靠 hub 再扫。
  */
 int MscClaimForceUntilPed(UINT32 P, int *Force) {
     UINT32 Ps;
@@ -29,17 +30,17 @@ int MscClaimForceUntilPed(UINT32 P, int *Force) {
     {
         int Attempt;
 
-        for (Attempt = 0; Attempt < 3 && !Ready; Attempt++) {
+        for (Attempt = 0; Attempt < 2 && !Ready; Attempt++) {
             if (Attempt > 0) {
                 int W;
                 BootLogHexV("Boot: MSC claim Force retry port=", P, 2);
                 /* 丢 CCS 后等设备重新出现（Force 过猛常见） */
-                for (W = 0; W < 50; W++) {
+                for (W = 0; W < 30; W++) {
                     Ps = ReadMmio32(gOperationalBase + PortReg(P));
                     if (Ps & PORTSC_CCS) {
                         break;
                     }
-                    StallMs(20);
+                    StallMs(15);
                 }
             }
             if (!ResetPortEx(P, 1)) {
@@ -47,8 +48,8 @@ int MscClaimForceUntilPed(UINT32 P, int *Force) {
                 if ((Ps & PORTSC_CCS) && !(Ps & PORTSC_PED)) {
                     int W;
                     /* PRC 已到但 PED 慢：再等一会，勿立刻放弃 */
-                    for (W = 0; W < 50; W++) {
-                        StallMs(20);
+                    for (W = 0; W < 30; W++) {
+                        StallMs(15);
                         Ps = ReadMmio32(gOperationalBase + PortReg(P));
                         if ((Ps & PORTSC_PED) && (Ps & PORTSC_CCS)) {
                             Ready = 1;
@@ -64,7 +65,7 @@ int MscClaimForceUntilPed(UINT32 P, int *Force) {
             }
             Ready = 1;
             if (!HalCpuIsHypervisor()) {
-                StallMs(100);
+                StallMs(50);
             }
         }
     }
@@ -112,7 +113,7 @@ int MscClaimAddressPort(UINT32 P, int Force, UINT8 *Speed) {
         BootLogHex("Boot: MSC claim addr retry Force port=", P, 2);
         if (ResetPortEx(P, 1)) {
             if (!HalCpuIsHypervisor()) {
-                StallMs(100);
+                StallMs(50);
             }
             *Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
             AddrOk = AddressDeviceOnPort(P, *Speed, &gMscScanSlot, gMscScanDevCtx,
@@ -131,9 +132,9 @@ int MscClaimAddressPort(UINT32 P, int Force, UINT8 *Speed) {
             DisableSlot(gMscScanSlot);
             gMscScanSlot = 0;
         }
-        StallMs(50);
+        StallMs(40);
         if (ResetPortEx(P, 1)) {
-            StallMs(150);
+            StallMs(100);
             *Speed = PortSpeed(ReadMmio32(gOperationalBase + PortReg(P)));
             AddrOk = AddressDeviceOnPort(P, *Speed, &gMscScanSlot, gMscScanDevCtx,
                                          0, 0, 0, 0, 0);
@@ -216,7 +217,7 @@ int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok) {
         }
         if (ClaimHubOnRootPort(P, Speed, Was)) {
             if (!HalCpuIsHypervisor()) {
-                StallMs(150);
+                StallMs(80); /* PR-BOOT-fast-2：原 150 */
             }
             if (EnumHubChildrenForMsc()) {
                 *Ok = 1;
@@ -224,7 +225,7 @@ int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok) {
             }
             /* 空 hub：再扫一轮后再决定是否释放（U 盘上电慢） */
             if (!HalCpuIsHypervisor()) {
-                StallMs(300);
+                StallMs(150); /* 原 300；Enum 内仍有 Pass 再扫 */
                 if (EnumHubChildrenForMsc()) {
                     *Ok = 1;
                     return 1;

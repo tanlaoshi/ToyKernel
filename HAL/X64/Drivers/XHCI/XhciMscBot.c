@@ -167,12 +167,30 @@ int XhciMscCapacity(void) {
         BootLog(Line);
     }
 
-    ZeroMemory(Cdb, sizeof(Cdb));
-    Cdb[0] = 0x25; /* READ CAPACITY(10) */
-    ZeroMemory(Cap, sizeof(Cap));
-    if (MscBot(Cdb, 10, 8, 1, Cap) < 0) {
-        BootLog("Boot: MSC readcap fail\n");
-        return -1;
+    /*
+     * PR-BOOT-fast-2：介质偶发未就绪（QEMU usb-storage / 慢棒）。
+     * 空口 Force 已收紧；此处对 ReadCap 短重试，避免误判 Mux Fail。
+     */
+    {
+        int Try;
+        int CapOk = 0;
+
+        for (Try = 0; Try < 3; Try++) {
+            if (Try > 0) {
+                StallMs(HalCpuIsHypervisor() ? 20u : 40u);
+            }
+            ZeroMemory(Cdb, sizeof(Cdb));
+            Cdb[0] = 0x25; /* READ CAPACITY(10) */
+            ZeroMemory(Cap, sizeof(Cap));
+            if (MscBot(Cdb, 10, 8, 1, Cap) >= 0) {
+                CapOk = 1;
+                break;
+            }
+        }
+        if (!CapOk) {
+            BootLog("Boot: MSC readcap fail\n");
+            return -1;
+        }
     }
     LastLba = ((UINT32)Cap[0] << 24) | ((UINT32)Cap[1] << 16) |
               ((UINT32)Cap[2] << 8) | (UINT32)Cap[3];
