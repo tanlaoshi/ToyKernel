@@ -79,13 +79,25 @@ void WorkerTask(void) {
             SchedulerIoBreath();
             continue;
         }
-        if (LwIpDhcpJobBusy()) {
-            (void)LwIpDhcpStep();
+        /* 握手先做完。中途换 L2 会把已在跑的 DHCP 停掉再要一次。 */
+        if (HalIwlBgBusy()) {
+            HalIwlBgPump();
             SchedulerIoBreath();
             continue;
         }
-        if (HalIwlBgBusy()) {
-            HalIwlBgPump();
+        if (!HalCpuIsHypervisor()) {
+            static UINT32 DhcpEpoch;
+            UINT32 Ep = HalNetNicEpoch();
+
+            if (Ep != 0 && Ep != DhcpEpoch) {
+                if (LwIpDhcpRestart(12000) == 0) {
+                    DhcpEpoch = Ep;
+                    ConsoleWrite("lwip dhcp: queued\n");
+                }
+            }
+        }
+        if (LwIpDhcpJobBusy()) {
+            (void)LwIpDhcpStep();
             SchedulerIoBreath();
             continue;
         }

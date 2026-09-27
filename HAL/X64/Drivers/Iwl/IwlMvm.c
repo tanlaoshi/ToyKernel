@@ -158,9 +158,13 @@ int IwlAddApSta(void) {
     UINT8 Qcfg[IWL_SCD_TXQ_CFG_CMD_SIZE];
     UINT8 Sta[IWL_ADD_STA_CMD_SIZE];
     UINT32 MacColor = IWL_FW_CMD_ID_AND_COLOR(0, 0);
-    UINT32 Qid = IWL_DQA_MIN_MGMT_QUEUE;
+    UINT32 Qid = IWL_DQA_BSS_CLIENT_QUEUE;
     UINT32 Flg = IWL_STA_FLG_CLASS_AUTH | IWL_STA_FLG_CLASS_ASSOC;
 
+    if (!IwlPrepareApTxq()) {
+        IwlLogStage("apq=nobind");
+        return 0;
+    }
     IwlZero(Qcfg, sizeof(Qcfg));
     Qcfg[0] = 0;
     Qcfg[1] = (UINT8)IWL_AP_STA_ID;
@@ -168,14 +172,16 @@ int IwlAddApSta(void) {
     Qcfg[3] = (UINT8)Qid;
     Qcfg[4] = 1;
     Qcfg[5] = 0;
-    Qcfg[6] = (UINT8)IWL_TX_FIFO_MCAST;
+    Qcfg[6] = (UINT8)IWL_TX_FIFO_VO;
     Qcfg[7] = (UINT8)IWL_FRAME_LIMIT;
     IwlPut16(Qcfg + 8, 0);
+    IwlLogStage("apq=tx");
     if (IwlSendCmd(IWL_CMD_SCD_QUEUE_CFG, Qcfg, sizeof(Qcfg), 150) != 0) {
         IwlLogCmdFail("apq", IWL_CMD_SCD_QUEUE_CFG);
         (void)IwlCmdqUnwedge();
         return 0;
     }
+    IwlLogStage("apq=ok");
 
     IwlZero(Sta, sizeof(Sta));
     IwlPut16(Sta + 2, 0xffff);
@@ -187,6 +193,7 @@ int IwlAddApSta(void) {
     Sta[35] = (UINT8)IWL_STA_LINK;
     IwlPut16(Sta + 36, gIwlAid ? gIwlAid : 1u);
     IwlPut32(Sta + 40, 1u << Qid);
+    IwlLogStage("apsta=tx");
     if (IwlSendCmd(IWL_CMD_ADD_STA, Sta, sizeof(Sta), 200) != 0) {
         IwlLogCmdFail("apsta", IWL_CMD_ADD_STA);
         (void)IwlCmdqUnwedge();
@@ -345,7 +352,8 @@ static int IwlBindingAdd(void) {
 
 /*
  * 刀 #132：#131 证 auth 前 Prep → auth=to。
- * Auth 成功后再 macadd+bind+TE，盖住随后 Assoc→M1 窗。
+ * 刀 #139：#132/#138 证 assoc 前 Prep → 公司仅 Null、无 AssocResp。
+ * Auth→Assoc 仍无 MAC；assoc=ok 后再 macadd+bind+TE。
  */
 int IwlMacCtxtPrep(void) {
     UINTN i;
@@ -364,6 +372,36 @@ int IwlMacCtxtPrep(void) {
     }
     IwlProtectSession();
     return 1;
+}
+
+/* 刀 #152：站的 16 档速率。数据帧在此之前固件不调度。 */
+static int IwlSendLq(UINT8 StaId) {
+    UINT8 Cmd[88];
+    UINT32 Rate6 = IWL_RATE_6M_PLCP | IWL_RATE_MCS_ANT_A;
+    UINT32 Rate1 = IWL_RATE_1M_PLCP | IWL_RATE_MCS_CCK | IWL_RATE_MCS_ANT_A;
+    UINT32 i;
+
+    IwlZero(Cmd, sizeof(Cmd));
+    Cmd[0] = StaId;
+    Cmd[6] = (UINT8)IWL_ANT_A;
+    Cmd[7] = (UINT8)IWL_ANT_AB;
+    IwlPut16(Cmd + 12, 4000);
+    Cmd[15] = 1;
+    for (i = 0; i < 16u; i++) {
+        IwlPut32(Cmd + 20 + i * 4u, (i < 12u) ? Rate6 : Rate1);
+    }
+    return IwlSendCmd(IWL_CMD_LQ, Cmd, sizeof(Cmd), 400) == 0;
+}
+
+/* 刀 #162：AP 站建站时 tid_disable_tx=0xffff。数据改走这站之前先清掉。 */
+static int IwlStaEnableTx(UINT8 StaId) {
+    UINT8 Sta[IWL_ADD_STA_CMD_SIZE];
+
+    IwlZero(Sta, sizeof(Sta));
+    Sta[0] = (UINT8)IWL_STA_MODE_MODIFY;
+    Sta[16] = StaId;
+    Sta[17] = (UINT8)IWL_STA_MODIFY_TID_DISABLE_TX;
+    return IwlSendCmd(IWL_CMD_ADD_STA, Sta, sizeof(Sta), 200) == 0;
 }
 
 /*
@@ -388,6 +426,8 @@ int IwlMacCtxtAssoc(void) {
             IwlLogStage("apqhw=soft");
             IwlAuxTxLogReset();
         }
+        IwlLogStage(IwlSendLq((UINT8)IWL_AP_STA_ID) ? "lq=ok" : "lq=fail");
+        IwlLogStage(IwlStaEnableTx((UINT8)IWL_AP_STA_ID) ? "tid=ok" : "tid=fail");
     }
     return 1;
 }

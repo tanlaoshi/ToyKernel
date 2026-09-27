@@ -119,7 +119,7 @@ UINT16 NetChecksum(const void *Data, UINTN Len) {
 }
 
 int NetInit(void) {
-    NetConfigEnsure(); /* 无 NIC / 链路超时时仍有 NUC 静态 IP 表 */
+    NetConfigEnsure(); /* QEMU 静态；真机为 0，等挂上 L2 后再 DHCP */
     (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_NET);
     return 0;
 }

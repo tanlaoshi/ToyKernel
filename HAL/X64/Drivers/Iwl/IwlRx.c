@@ -28,11 +28,13 @@ static UINT8 gMpduHoldR;
 static UINT8 gMpduHoldW;
 static UINT8 gMpduHoldCnt;
 
-/* 802.11 FC0：mgmt beacon/probe 不值得占握手窗 */
-static int IwlHoldIsBeaconish(const UINT8 *Slot, UINT16 SlotLen) {
+/* 802.11：beacon/probe 与 Null 不值得占握手窗 */
+static int IwlHoldSkipMpdu(const UINT8 *Slot, UINT16 SlotLen) {
     const UINT8 *Dot;
     UINTN Off;
     UINT8 Fc0;
+    UINT8 Type;
+    UINT8 Sub;
 
     if (SlotLen < sizeof(IWL_CMD_HDR) + 4u + 2u) {
         return 0;
@@ -44,12 +46,16 @@ static int IwlHoldIsBeaconish(const UINT8 *Slot, UINT16 SlotLen) {
     }
     Dot = Slot + Off;
     Fc0 = Dot[0];
-    if ((Fc0 & 0x0Cu) != 0) {
-        return 0; /* 非 mgmt */
+    Type = (UINT8)((Fc0 >> 2) & 0x3u);
+    Sub = (UINT8)((Fc0 >> 4) & 0x0Fu);
+    if (Type == 0u && (Sub == 8u || Sub == 5u)) {
+        return 1; /* beacon / probe-resp */
     }
-    /* subtype beacon=8 probe-resp=5 */
-    Fc0 = (UINT8)((Fc0 >> 4) & 0x0Fu);
-    return (Fc0 == 8u || Fc0 == 5u) ? 1 : 0;
+    /* 刀 #139：公司 assoc 窗被 Null(0x48)/QoS-Null(0xC8) 灌满 */
+    if (Type == 2u && (Sub == 4u || Sub == 12u)) {
+        return 1;
+    }
+    return 0;
 }
 
 static void IwlZero(void *P, UINTN N) {
@@ -257,8 +263,8 @@ void IwlRxHoldMpdu(const IWL_RX_PKT *Pkt, UINTN Len) {
     }
     TmpLen = (UINT16)(Copy - sizeof(UINT32));
 
-    /* #130：永不暂存 beacon/probe，避免挤掉 M1 */
-    if (IwlHoldIsBeaconish(Tmp, (UINT16)Copy)) {
+    /* #130/#139：beacon/probe/Null 不占握手槽 */
+    if (IwlHoldSkipMpdu(Tmp, (UINT16)Copy)) {
         return;
     }
 

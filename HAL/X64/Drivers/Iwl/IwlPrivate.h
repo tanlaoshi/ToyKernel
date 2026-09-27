@@ -70,6 +70,10 @@ typedef struct {
     UINT8 Rates[8];
     UINT8 ExtRatesLen;  /* IE50，最多 8（够用） */
     UINT8 ExtRates[8];
+    UINT8 HtLen;        /* IE45 载荷，最多 26；0=无 */
+    UINT8 Ht[26];
+    UINT8 RsnLen;       /* 整段 IE48（含 id/len），最多 48 */
+    UINT8 Rsn[48];
 } IWL_BSS;
 
 extern volatile UINT8 *gIwlBar;
@@ -165,7 +169,9 @@ int IwlRspStashClaim(UINT8 Code, UINT8 Idx);
 void IwlCmdqSnap(void);
 int IwlPostAlive(void);
 int IwlEnableAuxTxq(void);
-int IwlEnableApTxq(void); /* #127：q5 CBBC+SCD，供 AP_STA 发 EAPOL */
+int IwlPrepareApTxq(void); /* #155：SCD_QUEUE_CFG 之前只绑 q5 环 */
+int IwlEnableApTxq(void); /* 标记 q5 可发，不再改调度器额度 */
+void IwlLogApQ(void); /* #154：q5 读/写指针 */
 int IwlCmdqReset(void);
 void IwlAuxTxLogReset(void); /* #126：apsta 后重开黄字窗 */
 
@@ -184,7 +190,15 @@ int IwlAssocRun(void);
 int IwlEapolRun(void);
 
 int IwlAesEncrypt(const UINT8 Key[16], const UINT8 In[16], UINT8 Out[16]);
+void IwlAesKeyExpand(const UINT8 Key[16], UINT8 Rk[176]);
+void IwlAesAddRoundKey(UINT8 S[16], const UINT8 *Rk);
+int IwlAesDecrypt(const UINT8 Key[16], const UINT8 In[16], UINT8 Out[16]);
+int IwlAesUnwrap(const UINT8 Kek[16], const UINT8 *In, UINTN InLen,
+                 UINT8 *Out, UINTN OutCap, UINTN *OutLen);
+void IwlAesCmac(const UINT8 Key[16], const UINT8 *Msg, UINTN Len, UINT8 Out[16]);
 void IwlSha1(const UINT8 *Data, UINTN Len, UINT8 Out[20]);
+void IwlKdfSha256(const UINT8 *Key, UINTN KeyLen, const char *Label,
+                  const UINT8 *Ctx, UINTN CtxLen, UINT8 *Out, UINTN OutLen);
 void IwlHmacSha1(const UINT8 *Key, UINTN KeyLen, const UINT8 *Data, UINTN Len, UINT8 Out[20]);
 int IwlPbkdf2Sha1(const char *Pass, const UINT8 *Salt, UINTN SaltLen,
                   UINT32 Iter, UINT8 *Out, UINTN OutLen);

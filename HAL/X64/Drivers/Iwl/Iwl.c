@@ -14,6 +14,14 @@ int gIwlBarOk;
 int gIwlAlive;
 int gIwlAssociated;
 int gIwlWpa2Ok;
+static int gDatTxLogged;
+static int gDatRxLogged;
+static int gDtxLogged;
+static int gRxMicLogged;
+static int gRxMicU;
+static int gRxDiscLogged;
+static int gRxOffLogged;
+static int gRxLlcLogged;
 UINT16 gIwlDid;
 UINT8 gIwlBus;
 UINT8 gIwlDev;
@@ -152,12 +160,14 @@ static int IwlBringUpSta(void) {
     if (!IwlScanRun()) {
         return 0;
     }
-    /* 刀 #132：#131 auth 前 Prep → auth=to。Auth 仍无 MAC；Assoc 前再 Prep */
+    /* 刀 #132：Auth 无 MAC；#139/#140：assoc=ok 后再 Prep。接着 AP STA + EAPOL */
     if (!IwlAssocRun()) {
         IwlLogStage("assoc=fail");
         return 0;
     }
+    IwlLogStage("post=sta");
     (void)IwlMacCtxtAssoc();
+    IwlLogStage("post=eap");
     if (!IwlEapolRun()) {
         IwlLogStage("wpa2=fail");
         return 0;
@@ -307,8 +317,11 @@ int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     Wlan[23] = 0;
 
     if (gIwlWpa2Ok) {
+        /*
+         * 队列 4 是用 tid 8 打开的，EAPOL 因此能被取走。
+         * tid 6 的 QoS 帧停在环上。数据改回非 QoS，tid 仍由发送函数写成 8。
+         */
         Pn = gTxPn++;
-        /* CCMP hdr @24：PN0 PN1 0 ExtIV|KeyID PN2..PN5 */
         Wlan[24] = (UINT8)Pn;
         Wlan[25] = (UINT8)(Pn >> 8);
         Wlan[26] = 0;
@@ -317,7 +330,6 @@ int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen) {
         Wlan[29] = (UINT8)(Pn >> 24);
         Wlan[30] = (UINT8)(Pn >> 32);
         Wlan[31] = (UINT8)(Pn >> 40);
-        /* LLC/SNAP @32 */
         Wlan[32] = 0xAA;
         Wlan[33] = 0xAA;
         Wlan[34] = 0x03;
@@ -329,11 +341,11 @@ int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen) {
         for (i = 0; i < FrameLen - 14; i++) {
             Wlan[40 + i] = Frame[14 + i];
         }
-        /* Encrypt：HdrLen=32（MAC+CCMP），body 自 32 起；MIC 写在 body 后 */
-        if (!IwlCcmpEncrypt(gIwlPtk, Pn, Wlan, 32, BodyLen)) {
-            return -1;
-        }
-        WireLen = 32u + BodyLen + 8u;
+        /*
+         * 明文交给固件加密。主机先算的 MIC 能通过自检，
+         * 接入点只确认了 FCS，没有发回 Offer。
+         */
+        WireLen = 32u + BodyLen;
     } else {
         Wlan[24] = 0xAA;
         Wlan[25] = 0xAA;
@@ -348,7 +360,21 @@ int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen) {
         }
         WireLen = 24u + BodyLen;
     }
-    return IwlSendFrameRaw(Wlan, WireLen);
+    if (IwlSendFrameRaw(Wlan, WireLen) != 0) {
+        return -1;
+    }
+    if (!gDatTxLogged) {
+        gDatTxLogged = 1;
+        IwlLogStage("dat=fw");
+    }
+    return 0;
+}
+
+static int IwlDecryptEither(UINT8 *Frame, UINT64 Pn, UINTN CryptHdr, UINTN CryptBody) {
+    if (IwlCcmpDecrypt(gIwlPtk, Pn, Frame, CryptHdr, CryptBody)) {
+        return 1;
+    }
+    return IwlCcmpDecrypt(gIwlGtk, Pn, Frame, CryptHdr, CryptBody);
 }
 
 static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
@@ -356,7 +382,7 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     UINTN HdrLen;
     UINTN BodyOff;
     UINTN BodyLen;
-    UINT8 Eth[400];
+    UINT8 Eth[640];
     UINTN EthLen;
     UINTN i;
     UINT64 Pn;
@@ -382,6 +408,9 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     }
     if (Qos) {
         HdrLen += 2u;
+        if ((Fc & 0x8000u) != 0) {
+            HdrLen += 4u; /* HT Control */
+        }
     }
     if (FLen < HdrLen + 8u) {
         return;
@@ -408,11 +437,52 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
         {
             UINTN CryptHdr = HdrLen + 8u;
             UINTN CryptBody = FLen - CryptHdr - 8u;
-            if (!IwlCcmpDecrypt(gIwlPtk, Pn, Frame, CryptHdr, CryptBody)) {
-                /* 尝试 GTK（广播） */
-                if (!IwlCcmpDecrypt(gIwlGtk, Pn, Frame, CryptHdr, CryptBody)) {
-                    return;
+            int Ok = IwlDecryptEither(Frame, Pn, CryptHdr, CryptBody);
+
+            /* byte_count 若含了尾部状态字，MIC 在倒数 4 字节之前 */
+            if (!Ok && CryptBody > 4u) {
+                Ok = IwlDecryptEither(Frame, Pn, CryptHdr, CryptBody - 4u);
+                if (Ok) {
+                    CryptBody -= 4u;
                 }
+            }
+            if (!Ok) {
+                {
+                    int Us = 1;
+                    int k;
+
+                    for (k = 0; k < 6; k++) {
+                        if (Frame[4 + k] != gIwlMac[k]) {
+                            Us = 0;
+                        }
+                    }
+                    if (Us) {
+                        if (!gRxMicU) {
+                            char Line[12];
+                            char Hex[12];
+                            UINT16 FcLog;
+                            int n = 0;
+                            const char *P = "rx=u";
+
+                            gRxMicU = 1;
+                            FcLog = (UINT16)Frame[0] | ((UINT16)Frame[1] << 8);
+                            while (*P) {
+                                Line[n++] = *P++;
+                            }
+                            HalSerialFormatHex(Hex, FcLog, 4);
+                            Line[n++] = Hex[2];
+                            Line[n++] = Hex[3];
+                            Line[n++] = Hex[4];
+                            Line[n++] = Hex[5];
+                            Line[n] = 0;
+                            IwlLogStage(Line);
+                        }
+                    } else if (!gRxMicLogged) {
+                        gRxMicLogged = 1;
+                        IwlLogStage("rx=mic o");
+                    }
+                }
+                return;
             }
             BodyOff = CryptHdr;
             BodyLen = CryptBody;
@@ -423,6 +493,10 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     }
     /* LLC/SNAP */
     if (Frame[BodyOff] != 0xAA || Frame[BodyOff + 1] != 0xAA) {
+        if (!gRxLlcLogged) {
+            gRxLlcLogged = 1;
+            IwlLogStage("rx=llc");
+        }
         return;
     }
     /* DA / SA */
@@ -441,6 +515,10 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     }
     Eth[12] = Frame[BodyOff + 6];
     Eth[13] = Frame[BodyOff + 7];
+    /* 0x888E 是 EAPOL，握手已经结束，不要送进 lwIP，也不要占掉第一帧记录 */
+    if (Eth[12] == 0x88 && Eth[13] == 0x8E) {
+        return;
+    }
     EthLen = 14u + (BodyLen - 8u);
     if (EthLen > sizeof(Eth)) {
         return;
@@ -448,7 +526,54 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     for (i = 0; i < BodyLen - 8u; i++) {
         Eth[14 + i] = Frame[BodyOff + 8 + i];
     }
+    if (Eth[12] == 0x08 && Eth[13] == 0x00 && EthLen >= 38u && Eth[23] == 17u) {
+        UINT16 Sp = (UINT16)(((UINT16)Eth[34] << 8) | Eth[35]);
+        UINT16 Dp = (UINT16)(((UINT16)Eth[36] << 8) | Eth[37]);
+
+        if (Sp == 0x0044u && Dp == 0x0043u) {
+            if (!gRxDiscLogged) {
+                gRxDiscLogged = 1;
+                IwlLogStage("rx=disc");
+            }
+        } else if (Sp == 0x0043u && Dp == 0x0044u) {
+            if (!gRxOffLogged) {
+                gRxOffLogged = 1;
+                IwlLogStage("rx=off");
+            }
+        } else if (!gDatRxLogged) {
+            gDatRxLogged = 1;
+            IwlLogStage("rx=0800");
+        }
+    } else if (!gDatRxLogged) {
+        gDatRxLogged = 1;
+        IwlLogStage("rx=oth");
+    }
     NetInputFrame(Eth, EthLen);
+}
+
+static void IwlLogDataTx(const IWL_RX_PKT *Pkt, UINTN Len) {
+    char Line[16];
+    char Hex[12];
+    UINT16 St;
+    int n = 0;
+    const char *P = "dtx=";
+
+    /* 握手的 M4 回执会先到。发现包发出之后的第一帧才算数。 */
+    if (!gDatTxLogged || gDtxLogged || !Pkt || Len < sizeof(IWL_CMD_HDR) + 38u) {
+        return;
+    }
+    gDtxLogged = 1;
+    St = (UINT16)Pkt->Data[36] | ((UINT16)Pkt->Data[37] << 8);
+    while (*P) {
+        Line[n++] = *P++;
+    }
+    HalSerialFormatHex(Hex, St, 4);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = Hex[4];
+    Line[n++] = Hex[5];
+    Line[n] = 0;
+    IwlLogStage(Line);
 }
 
 void IwlPoll(void) {
@@ -459,21 +584,37 @@ void IwlPoll(void) {
         return;
     }
     IwlRxPoll();
-    while (IwlRxTake(&Pkt, &Len)) {
+    {
+    int Took = 0;
+    while (Took < 24 && IwlRxTake(&Pkt, &Len)) {
         UINT8 Code;
         const UINT8 *Payload;
         UINTN PayLen;
         UINT8 Mutable[512];
         UINTN i;
 
+        Took++;
         if (!Pkt || Len < sizeof(IWL_CMD_HDR)) {
             continue;
         }
         Code = Pkt->Hdr.Code;
+        if (Code == IWL_CMD_TX) {
+            IwlLogDataTx(Pkt, Len);
+        }
         Payload = Pkt->Data;
         PayLen = Len - sizeof(IWL_CMD_HDR);
         if (Code == IWL_RX_MPDU_CMD && PayLen > 4) {
+            UINT16 Bc;
             UINTN FLen = PayLen - 4;
+
+            /*
+             * 刀 #170：byte_count 是 802.11 帧长。DMA 长度还含帧后的状态字
+             * 和对齐填充，CCMP 会把 MIC 对到填充上。
+             */
+            Bc = (UINT16)Payload[0] | ((UINT16)Payload[1] << 8);
+            if (Bc >= 24u && (UINTN)Bc <= FLen) {
+                FLen = Bc;
+            }
             if (FLen > sizeof(Mutable)) {
                 FLen = sizeof(Mutable);
             }
@@ -485,6 +626,7 @@ void IwlPoll(void) {
             }
         }
         (void)Code;
+    }
     }
 }
 

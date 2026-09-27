@@ -65,7 +65,6 @@ int IwlAssocRun(void) {
      */
     {
         int EverAuth = 0;
-        int Prepped = 0;
 
         for (Attempt = 0; Attempt < 4 && !GotAssoc; Attempt++) {
             GotAuth = 0;
@@ -83,62 +82,81 @@ int IwlAssocRun(void) {
                 if (IwlSendFrameRaw(Frame, Flen) != 0) {
                     return 0;
                 }
-                (void)IwlSendFrameRaw(Frame, Flen);
-
-                for (i = 0; i < 1500 && !GotAuth; i++) {
-                    IwlRxPoll();
-                    while (IwlAssocTake(&Pkt, &Len)) {
-                        const UINT8 *Dot;
-                        UINTN PayLen;
-                        UINT8 Sub;
-                        if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 12) {
-                            continue;
-                        }
-                        Dot = Pkt->Data + 4;
-                        PayLen = Len - sizeof(IWL_CMD_HDR) - 4;
-                        RxN++;
-                        if (PayLen < 24) {
-                            continue;
-                        }
-                        if (FirstFc == 0) {
-                            FirstFc = Dot[0];
-                        }
-                        if ((Dot[0] & 0x0Cu) != 0) {
-                            /* #132：data 可能是抢跑 M1 */
-                            if (((Dot[0] >> 2) & 0x3u) == 0x2u) {
-                                IwlRxHoldMpdu(Pkt, Len);
-                            }
-                            continue;
-                        }
-                        Sub = (UINT8)((Dot[0] >> 4) & 0x0Fu);
-                        if (Sub == 0xBu) {
-                            GotAuth = 1;
-                        }
-                    }
-                    IwlStallMs(1);
+                /* 刀 #144：#140 首发双发能 auth=ok。#143 窗内再补发后重试 n=00。
+                 * 仅第 0 轮双发；重试只发一帧，不再窗内补发。 */
+                if (Attempt == 0) {
+                    (void)IwlSendFrameRaw(Frame, Flen);
                 }
-                if (!GotAuth) {
-                    char Line[28];
-                    char Hex[12];
-                    int n = 0;
-                    const char *P = "auth=to n=";
-                    while (*P) {
-                        Line[n++] = *P++;
+
+                {
+                    UINT32 BeaconN = 0;
+
+                    for (i = 0; i < 1500 && !GotAuth; i++) {
+                        IwlRxPoll();
+                        while (IwlAssocTake(&Pkt, &Len)) {
+                            const UINT8 *Dot;
+                            UINTN PayLen;
+                            UINT8 Sub;
+                            if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 12) {
+                                continue;
+                            }
+                            Dot = Pkt->Data + 4;
+                            PayLen = Len - sizeof(IWL_CMD_HDR) - 4;
+                            RxN++;
+                            if (PayLen < 24) {
+                                continue;
+                            }
+                            if (FirstFc == 0) {
+                                FirstFc = Dot[0];
+                            }
+                            if ((Dot[0] & 0x0Cu) != 0) {
+                                if (((Dot[0] >> 2) & 0x3u) == 0x2u) {
+                                    IwlRxHoldMpdu(Pkt, Len);
+                                }
+                                continue;
+                            }
+                            Sub = (UINT8)((Dot[0] >> 4) & 0x0Fu);
+                            if (Sub == 8u || Sub == 5u) {
+                                BeaconN++;
+                            }
+                            if (Sub == 0xBu) {
+                                GotAuth = 1;
+                            }
+                        }
+                        IwlStallMs(1);
                     }
-                    HalSerialFormatHex(Hex, RxN & 0xffu, 2);
-                    Line[n++] = Hex[2];
-                    Line[n++] = Hex[3];
-                    Line[n++] = ' ';
-                    Line[n++] = 'f';
-                    Line[n++] = '=';
-                    HalSerialFormatHex(Hex, FirstFc, 2);
-                    Line[n++] = Hex[2];
-                    Line[n++] = Hex[3];
-                    Line[n] = 0;
-                    IwlLogStage(Line);
-                    (void)IwlPhyCtxtTune(gIwlTarget.Chan);
-                    continue;
-                } else {
+                    if (!GotAuth) {
+                        char Line[32];
+                        char Hex[12];
+                        int n = 0;
+                        const char *P = "auth=to n=";
+                        while (*P) {
+                            Line[n++] = *P++;
+                        }
+                        HalSerialFormatHex(Hex, RxN & 0xffu, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n++] = ' ';
+                        Line[n++] = 'f';
+                        Line[n++] = '=';
+                        HalSerialFormatHex(Hex, FirstFc, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n++] = ' ';
+                        Line[n++] = 'b';
+                        Line[n++] = '=';
+                        HalSerialFormatHex(Hex, BeaconN & 0xffu, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n] = 0;
+                        IwlLogStage(Line);
+                        /* 有 beacon 说明信道还在；phytune 会把后面打成 n=00 */
+                        if (RxN == 0) {
+                            (void)IwlCmdqUnwedge();
+                            (void)IwlPhyCtxtTune(gIwlTarget.Chan);
+                        }
+                        continue;
+                    }
                     IwlLogStage("auth=ok");
                     EverAuth = 1;
                 }
@@ -146,14 +164,11 @@ int IwlAssocRun(void) {
                 IwlLogVerb("auth=keep");
             }
 
-            /* 刀 #132：#131 前置 Prep 打挂 auth；改到 auth 后、Assoc 前 */
-            if (!Prepped) {
-                if (!IwlMacCtxtPrep()) {
-                    IwlLogStage("prep=soft");
-                }
-                Prepped = 1;
-            }
-
+            /*
+             * 刀 #139：#132 在 assoc 前 Prep → 公司 AP 上 assoc=to，首帧尽是 f=48 Null，
+             * 从未见 AssocResp(0x10)。#109 是 assoc 后再 macadd 才 assoc=ok。
+             * 认证已通；关联请求仍无 MAC 上下文，Prep 挪到 assoc=ok 之后。
+             */
             Pay[0] = (UINT8)(gIwlTarget.Caps);
             Pay[1] = (UINT8)(gIwlTarget.Caps >> 8);
             Pay[2] = 0x0A;
@@ -195,106 +210,192 @@ int IwlAssocRun(void) {
                     P += 2 + ExtLen;
                 }
 
+                /* 刀 #140：beacon 里的 HT，再 RSN（优先拷贝 AP 原件） */
+                if (gIwlTarget.HtLen > 0 && P + 2 + gIwlTarget.HtLen <= sizeof(Pay)) {
+                    Pay[P] = 45;
+                    Pay[P + 1] = gIwlTarget.HtLen;
+                    IwlCopyN(Pay + P + 2, gIwlTarget.Ht, gIwlTarget.HtLen);
+                    P += 2 + gIwlTarget.HtLen;
+                }
                 if (gIwlTarget.HasRsn && gIwlPsk[0]) {
-                    static const UINT8 Rsn[] = {
-                        0x30, 0x14, 0x01, 0x00, 0x00, 0x0f, 0xac, 0x04,
-                        0x01, 0x00, 0x00, 0x0f, 0xac, 0x04, 0x01, 0x00,
-                        0x00, 0x0f, 0xac, 0x02, 0x00, 0x00
-                    };
-                    UINTN r;
-                    for (r = 0; r < sizeof(Rsn) && P + r < sizeof(Pay); r++) {
-                        Pay[P + r] = Rsn[r];
+                    if (gIwlTarget.RsnLen >= 4 &&
+                        P + gIwlTarget.RsnLen <= sizeof(Pay)) {
+                        IwlCopyN(Pay + P, gIwlTarget.Rsn, gIwlTarget.RsnLen);
+                        P += gIwlTarget.RsnLen;
+                    } else {
+                        static const UINT8 Rsn[] = {
+                            0x30, 0x14, 0x01, 0x00, 0x00, 0x0f, 0xac, 0x04,
+                            0x01, 0x00, 0x00, 0x0f, 0xac, 0x04, 0x01, 0x00,
+                            0x00, 0x0f, 0xac, 0x02, 0x00, 0x00
+                        };
+                        UINTN r;
+                        for (r = 0; r < sizeof(Rsn) && P + r < sizeof(Pay); r++) {
+                            Pay[P + r] = Rsn[r];
+                        }
+                        P += sizeof(Rsn);
                     }
-                    P += sizeof(Rsn);
                 }
                 IwlBuildMgmt(Frame, &Flen, 0x0, Pay, P);
             }
+            if (Attempt == 0) {
+                char Ie[20];
+                int en = 0;
+                const char *Ep = "assoc=ie h=";
+                while (*Ep) {
+                    Ie[en++] = *Ep++;
+                }
+                Ie[en++] = gIwlTarget.HtLen ? '1' : '0';
+                Ie[en++] = ' ';
+                Ie[en++] = 'r';
+                Ie[en++] = '=';
+                Ie[en++] = (gIwlTarget.RsnLen >= 4) ? '1' : '0';
+                Ie[en] = 0;
+                IwlLogStage(Ie);
+            }
+            /* 刀 #137：te=ok 之后原先要等满本次超时才有下一行黄字 */
             if (IwlSendFrameRaw(Frame, Flen) != 0) {
+                IwlLogStage("assoc=txfail");
                 return 0;
             }
-            (void)IwlSendFrameRaw(Frame, Flen);
+            IwlLogStage("assoc=tx");
+            /* 刀 #150：仅首轮双发。重试再双发、窗内再补发，会把收包打成 n=00。 */
+            if (Attempt == 0) {
+                (void)IwlSendFrameRaw(Frame, Flen);
+            }
+            /* 刀 #138：第二发若卡住，不会有 wait；0.4s 报一次已收帧数 */
+            IwlLogStage("assoc=wait");
             RxN = 0;
             FirstFc = 0;
-            for (i = 0; i < 2500 && !GotAssoc; i++) {
-                if ((i % 400u) == 399u) {
-                    (void)IwlSendFrameRaw(Frame, Flen);
-                }
-                IwlRxPoll();
-                while (IwlAssocTake(&Pkt, &Len)) {
-                    const UINT8 *Dot;
-                    UINTN PayLen;
-                    UINT8 Sub;
-                    if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 12) {
-                        continue;
+            {
+                UINT32 BeaconN = 0;
+                UINT32 RxLate = 0;
+
+                for (i = 0; i < 2500 && !GotAssoc; i++) {
+                    int Took = 0;
+
+                    if (i == 2000u) {
+                        RxLate = RxN;
                     }
-                    Dot = Pkt->Data + 4;
-                    PayLen = Len - sizeof(IWL_CMD_HDR) - 4;
-                    RxN++;
-                    if (PayLen < 24) {
-                        continue;
-                    }
-                    if (FirstFc == 0) {
-                        FirstFc = Dot[0];
-                    }
-                    if ((Dot[0] & 0x0Cu) != 0) {
-                        if (((Dot[0] >> 2) & 0x3u) == 0x2u) {
-                            IwlRxHoldMpdu(Pkt, Len);
+                    IwlRxPoll();
+                    while (Took < 32 && IwlAssocTake(&Pkt, &Len)) {
+                        const UINT8 *Dot;
+                        UINTN PayLen;
+                        UINT8 Sub;
+
+                        Took++;
+                        if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 12) {
+                            continue;
                         }
-                        continue;
-                    }
-                    Sub = (UINT8)((Dot[0] >> 4) & 0x0Fu);
-                    if (Sub == 0x1u && PayLen >= 30) {
-                        UINT16 St = (UINT16)Dot[26] | ((UINT16)Dot[27] << 8);
-                        if (St == 0) {
-                            GotAssoc = 1;
-                            if (PayLen >= 32) {
-                                gIwlAid = (UINT16)Dot[28] | ((UINT16)Dot[29] << 8);
-                                gIwlAid &= 0x3fffu;
+                        Dot = Pkt->Data + 4;
+                        PayLen = Len - sizeof(IWL_CMD_HDR) - 4;
+                        RxN++;
+                        if (PayLen < 24) {
+                            continue;
+                        }
+                        if (FirstFc == 0) {
+                            FirstFc = Dot[0];
+                        }
+                        if ((Dot[0] & 0x0Cu) != 0) {
+                            if (((Dot[0] >> 2) & 0x3u) == 0x2u) {
+                                IwlRxHoldMpdu(Pkt, Len);
                             }
-                        } else {
-                            char Line[24];
-                            char Hex[12];
-                            int n = 0;
-                            const char *Ps = "assoc=st";
-                            while (*Ps) {
-                                Line[n++] = *Ps++;
+                            continue;
+                        }
+                        Sub = (UINT8)((Dot[0] >> 4) & 0x0Fu);
+                        if (Sub == 8u || Sub == 5u) {
+                            BeaconN++;
+                        }
+                        if (Sub == 0x1u && PayLen >= 30) {
+                            UINT16 St = (UINT16)Dot[26] | ((UINT16)Dot[27] << 8);
+                            if (St == 0) {
+                                GotAssoc = 1;
+                                if (PayLen >= 32) {
+                                    gIwlAid = (UINT16)Dot[28] | ((UINT16)Dot[29] << 8);
+                                    gIwlAid &= 0x3fffu;
+                                }
+                            } else {
+                                char Line[24];
+                                char Hex[12];
+                                int n = 0;
+                                const char *Ps = "assoc=st";
+                                while (*Ps) {
+                                    Line[n++] = *Ps++;
+                                }
+                                HalSerialFormatHex(Hex, St, 4);
+                                Line[n++] = Hex[2];
+                                Line[n++] = Hex[3];
+                                Line[n++] = Hex[4];
+                                Line[n++] = Hex[5];
+                                Line[n] = 0;
+                                IwlLogStage(Line);
                             }
-                            HalSerialFormatHex(Hex, St, 4);
-                            Line[n++] = Hex[2];
-                            Line[n++] = Hex[3];
-                            Line[n++] = Hex[4];
-                            Line[n++] = Hex[5];
-                            Line[n] = 0;
-                            IwlLogStage(Line);
                         }
                     }
+                    if (i == 399u) {
+                        char Line[28];
+                        char Hex[12];
+                        int n = 0;
+                        const char *Pr = "assoc=rn n=";
+
+                        while (*Pr) {
+                            Line[n++] = *Pr++;
+                        }
+                        HalSerialFormatHex(Hex, RxN & 0xffu, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n++] = ' ';
+                        Line[n++] = 'f';
+                        Line[n++] = '=';
+                        HalSerialFormatHex(Hex, FirstFc, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n] = 0;
+                        IwlLogStage(Line);
+                    }
+                    IwlStallMs(1);
                 }
-                IwlStallMs(1);
-            }
-            if (!GotAssoc) {
-                char Line[28];
-                char Hex[12];
-                int n = 0;
-                const char *P = "assoc=to n=";
-                while (*P) {
-                    Line[n++] = *P++;
-                }
-                HalSerialFormatHex(Hex, RxN & 0xffu, 2);
-                Line[n++] = Hex[2];
-                Line[n++] = Hex[3];
-                Line[n++] = ' ';
-                Line[n++] = 'f';
-                Line[n++] = '=';
-                HalSerialFormatHex(Hex, FirstFc, 2);
-                Line[n++] = Hex[2];
-                Line[n++] = Hex[3];
-                Line[n] = 0;
-                IwlLogStage(Line);
-                if (RxN == 0) {
-                    (void)IwlPhyCtxtTune(gIwlTarget.Chan);
-                }
-                if (Attempt < 3) {
-                    IwlLogStage("assoc=retry");
+                if (!GotAssoc) {
+                    char Line[32];
+                    char Hex[12];
+                    int n = 0;
+                    const char *P = "assoc=to n=";
+                    while (*P) {
+                        Line[n++] = *P++;
+                    }
+                    HalSerialFormatHex(Hex, RxN & 0xffu, 2);
+                    Line[n++] = Hex[2];
+                    Line[n++] = Hex[3];
+                    Line[n++] = ' ';
+                    Line[n++] = 'f';
+                    Line[n++] = '=';
+                    HalSerialFormatHex(Hex, FirstFc, 2);
+                    Line[n++] = Hex[2];
+                    Line[n++] = Hex[3];
+                    Line[n++] = ' ';
+                    Line[n++] = 'b';
+                    Line[n++] = '=';
+                    HalSerialFormatHex(Hex, BeaconN & 0xffu, 2);
+                    Line[n++] = Hex[2];
+                    Line[n++] = Hex[3];
+                    Line[n] = 0;
+                    IwlLogStage(Line);
+                    /*
+                     * 刀 #142：#140 曾首轮 assoc=ok。#141 仅加黄字却「退步」：
+                     * 首轮 to 仍见 beacon 时 Unwedge+phytune → 其后全程 n=00。
+                     * 还有 beacon 就只重发 Assoc；收包归零才拉 RX。
+                     */
+                    /*
+                     * 末 0.5s 没有新帧：环已停（本轮 n 仍可能是开头的 beacon）。
+                     * 还在收 beacon 则只重发，不 phytune。
+                     */
+                    if (RxN == 0 || RxN == RxLate) {
+                        IwlLogStage("assoc=rxstall");
+                        (void)IwlCmdqUnwedge();
+                        (void)IwlPhyCtxtTune(gIwlTarget.Chan);
+                    }
+                    if (Attempt < 3) {
+                        IwlLogStage("assoc=retry");
+                    }
                 }
             }
         }
@@ -305,12 +406,24 @@ int IwlAssocRun(void) {
     }
     gIwlAssociated = 1;
     IwlLogStage("assoc=ok");
-    /* assoc 后短抽，再捞一波抢跑 M1 */
+    /* 刀 #139：assoc 成功后再 macadd+bind+TE，盖住随后 EAPOL 窗 */
+    if (!IwlMacCtxtPrep()) {
+        IwlLogStage("prep=soft");
+    }
+    /*
+     * 刀 #145：#144 te=ok 后十余秒无 post=sta。
+     * 这段抽环不封顶，MAC 起来后 beacon 灌满就出不去。
+     */
+    IwlLogStage("drain=go");
     for (i = 0; i < 80; i++) {
+        int Took = 0;
+
         IwlRxPoll();
-        while (IwlAssocTake(&Pkt, &Len)) {
+        while (Took < 32 && IwlAssocTake(&Pkt, &Len)) {
             const UINT8 *Dot;
             UINTN PayLen;
+
+            Took++;
             if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 12) {
                 continue;
             }

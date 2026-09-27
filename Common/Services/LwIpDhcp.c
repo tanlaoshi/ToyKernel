@@ -30,6 +30,18 @@ typedef enum {
 static int gDhcpRunning;
 static volatile DHCP_JOB_STATE gJob;
 static UINT32 gBudget;
+#if defined(__x86_64__)
+static UINT64 gDhcpT0;
+static UINT64 gDhcpNeed;
+
+static UINT64 DhcpTsc(void) {
+    UINT32 Lo;
+    UINT32 Hi;
+
+    __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+    return ((UINT64)Hi << 32) | Lo;
+}
+#endif
 
 void LwIpDhcpStop(void) {
     struct netif *Netif;
@@ -84,14 +96,25 @@ static void FinishPrint(int Ok) {
         HalNetFormatIp(NetConfigGetIp(), IpBuf, (int)sizeof(IpBuf));
         ConsoleWrite("lwip dhcp: ok ip=");
         ConsoleWrite(IpBuf);
+        ConsoleWrite(" gw=");
+        HalNetFormatIp(NetConfigGetGw(), IpBuf, (int)sizeof(IpBuf));
+        ConsoleWrite(IpBuf);
         ConsoleWrite("\n");
         DebugWrite("lwip: dhcp ok ip=");
         DebugWrite(IpBuf);
         DebugWrite("\n");
     } else {
-        ConsoleWrite("lwip dhcp: no offer (kept static)\n");
-        DebugWrite("lwip: dhcp timeout (keep static)\n");
+        ConsoleWrite("lwip dhcp: no offer\n");
+        DebugWrite("lwip: dhcp timeout\n");
     }
+}
+
+int LwIpDhcpRestart(int TimeoutMs) {
+    if (gJob == DHCP_JOB_RUN) {
+        LwIpDhcpStop();
+        gJob = DHCP_JOB_IDLE;
+    }
+    return LwIpDhcpEnqueue(TimeoutMs);
 }
 
 int LwIpDhcpEnqueue(int TimeoutMs) {
@@ -122,11 +145,15 @@ int LwIpDhcpEnqueue(int TimeoutMs) {
     }
     gDhcpRunning = 1;
     Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 8000u;
-    /* Worker 每拍 Breath≈数 ms；Budget≈墙钟 TimeoutMs */
     gBudget = Ms * 200u;
     if (gBudget < 20000u) {
         gBudget = 20000u;
     }
+#if defined(__x86_64__)
+    /* 真机一拍远慢于 5µs。用 TSC，按约 3GHz 把 TimeoutMs 当成墙钟。 */
+    gDhcpT0 = DhcpTsc();
+    gDhcpNeed = (UINT64)Ms * 3000ULL * 1000ULL;
+#endif
     gJob = DHCP_JOB_RUN;
     return 0;
 }
@@ -156,7 +183,11 @@ int LwIpDhcpStep(void) {
         gJob = DHCP_JOB_IDLE;
         return 1;
     }
+#if defined(__x86_64__)
+    if (DhcpTsc() - gDhcpT0 >= gDhcpNeed) {
+#else
     if (gBudget-- == 0) {
+#endif
         LwIpDhcpStop();
         (void)LwIpApplyConfig();
         gJob = DHCP_JOB_FAIL;
@@ -175,6 +206,11 @@ int LwIpDhcpStart(int TimeoutMs) {
 #else
 
 int LwIpDhcpEnqueue(int TimeoutMs) {
+    (void)TimeoutMs;
+    return -1;
+}
+
+int LwIpDhcpRestart(int TimeoutMs) {
     (void)TimeoutMs;
     return -1;
 }

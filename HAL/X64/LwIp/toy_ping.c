@@ -108,14 +108,23 @@ int ToyPing(UINT32 DstIp, int TimeoutMs) {
      * 每圈 SchedulerIoBreath：ping 不得饿死键鼠（E1000/Iwl 曾在锁内长转）。
      */
     {
+        UINT32 Lo;
+        UINT32 Hi;
+        UINT64 T0;
+        UINT64 Need;
         UINT32 Ms = TimeoutMs > 0 ? (UINT32)TimeoutMs : 3000u;
-        UINT32 Budget = Ms * 200u;
+        UINT32 Guard = 100000u;
 
-        if (Budget < 20000u) {
-            Budget = 20000u;
-        }
+        __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+        T0 = ((UINT64)Hi << 32) | Lo;
+        /* 约 3GHz。真机上按拍数等会把 3 秒拖成一两分钟。 */
+        Need = (UINT64)Ms * 3000ULL * 1000ULL;
         HalIrqEnable();
-        while (!gPingDone && Budget-- > 0) {
+        while (!gPingDone && Guard-- > 0) {
+            __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+            if ((((UINT64)Hi << 32) | Lo) - T0 >= Need) {
+                break;
+            }
             LwIpService();
             SchedulerIoBreath();
         }

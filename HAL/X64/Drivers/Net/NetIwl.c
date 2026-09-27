@@ -56,7 +56,7 @@ static int IwlDriverBind(TOY_DRIVER_INSTANCE *Inst) {
         return -1;
     }
     if (!IwlAssociated()) {
-        /* lsdev 仍可见；无 Net 挂接（勿抢 I219 静态 IP） */
+        /* lsdev 仍可见；未关联则不挂 L2 */
         return 0;
     }
     /* WPA2 已关联：可覆盖有线 L2（课网 wifi ping） */

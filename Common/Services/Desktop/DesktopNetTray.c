@@ -68,7 +68,7 @@ static void BuildShortLabel(char *Buf, int Max) {
         return;
     }
     /*
-     * 以 NetConfig 为准（真机默认 192.168.31.129 / QEMU 10.0.2.15）。
+     * 以 NetConfig 为准（真机等 DHCP，未拿到地址时为 0 / QEMU 10.0.2.15）。
      * 勿先信 HalNetGetIpAddress：后端未挂或 Ensure 早于 Attach 时 Hal 会停在
      * SLIRP 残留，任务栏就会一直显示 10.0.2.x。
      */

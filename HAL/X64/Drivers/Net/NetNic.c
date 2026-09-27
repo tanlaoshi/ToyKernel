@@ -10,6 +10,7 @@
 #include "NetConfig.h"
 
 const NIC_L2 *gNicL2;
+static UINT32 gNicEpoch;
 
 int NetAttachNic(const NIC_L2 *Nic) {
     if (!NicL2OpsValid(Nic)) {
@@ -17,6 +18,7 @@ int NetAttachNic(const NIC_L2 *Nic) {
         return -1;
     }
     gNicL2 = Nic;
+    gNicEpoch++;
     Nic->GetMac(gMac);
     gLwIpRx = 0;
     gNetOk = 1;
@@ -46,6 +48,10 @@ void NetNicPoll(void) {
 
 int NetNicHasL2(void) {
     return gNicL2 != 0 ? 1 : 0;
+}
+
+UINT32 NetNicEpoch(void) {
+    return gNicEpoch;
 }
 
 int NetNicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex) {

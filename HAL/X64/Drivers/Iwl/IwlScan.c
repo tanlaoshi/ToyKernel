@@ -61,6 +61,10 @@ static int IwlParseBeacon(const UINT8 *Frame, UINTN Len) {
     UINT8 Rates[8];
     UINT8 ExtRatesLen = 0;
     UINT8 ExtRates[8];
+    UINT8 HtLen = 0;
+    UINT8 Ht[26];
+    UINT8 RsnLen = 0;
+    UINT8 Rsn[48];
     UINTN i;
 
     if (Len < 36) {
@@ -92,7 +96,13 @@ static int IwlParseBeacon(const UINT8 *Frame, UINTN Len) {
         } else if (Id == 50 && El >= 1) {
             ExtRatesLen = El > 8 ? 8 : El;
             IwlCopyN(ExtRates, Frame + Pos + 2, ExtRatesLen);
-        } else if (Id == 48) {
+        } else if (Id == 45 && El >= 2) {
+            /* 刀 #140：公司 AP 常要 HT Capabilities */
+            HtLen = El > 26 ? 26 : El;
+            IwlCopyN(Ht, Frame + Pos + 2, HtLen);
+        } else if (Id == 48 && El >= 2 && (UINTN)El + 2u <= sizeof(Rsn)) {
+            RsnLen = (UINT8)(El + 2);
+            IwlCopyN(Rsn, Frame + Pos, RsnLen);
             HasRsn = 1;
         }
         Pos += 2 + El;
@@ -110,6 +120,10 @@ static int IwlParseBeacon(const UINT8 *Frame, UINTN Len) {
     IwlCopyN(gIwlTarget.Rates, Rates, RatesLen);
     gIwlTarget.ExtRatesLen = ExtRatesLen;
     IwlCopyN(gIwlTarget.ExtRates, ExtRates, ExtRatesLen);
+    gIwlTarget.HtLen = HtLen;
+    IwlCopyN(gIwlTarget.Ht, Ht, HtLen);
+    gIwlTarget.RsnLen = RsnLen;
+    IwlCopyN(gIwlTarget.Rsn, Rsn, RsnLen);
     gIwlSsidOk = 1;
     return 1;
 }

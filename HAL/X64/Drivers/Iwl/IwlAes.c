@@ -98,6 +98,16 @@ static void KeyExpand(const UINT8 Key[16], UINT8 Rk[176])
     }
 }
 
+void IwlAesKeyExpand(const UINT8 Key[16], UINT8 Rk[176])
+{
+    KeyExpand(Key, Rk);
+}
+
+void IwlAesAddRoundKey(UINT8 S[16], const UINT8 *Rk)
+{
+    AddRoundKey(S, Rk);
+}
+
 int IwlAesEncrypt(const UINT8 Key[16], const UINT8 In[16], UINT8 Out[16])
 {
     UINT8 Rk[176];
@@ -126,4 +136,84 @@ int IwlAesEncrypt(const UINT8 Key[16], const UINT8 In[16], UINT8 Out[16])
         Out[I] = S[I];
     }
     return 1;
+}
+/* RFC 4493：128-bit 块左移，最高位为 1 时异或 Rb=0x87 */
+static void CmacDbl(UINT8 Block[16])
+{
+    UINT8 Msb = (UINT8)(Block[0] >> 7);
+    UINTN I;
+
+    for (I = 0; I < 15; I++) {
+        Block[I] = (UINT8)((Block[I] << 1) | (Block[I + 1] >> 7));
+    }
+    Block[15] = (UINT8)(Block[15] << 1);
+    if (Msb) {
+        Block[15] = (UINT8)(Block[15] ^ 0x87u);
+    }
+}
+
+/* M1 密钥描述符版本 3：EAPOL MIC 用 AES-128-CMAC，标签 16 字节 */
+void IwlAesCmac(const UINT8 Key[16], const UINT8 *Msg, UINTN Len, UINT8 Out[16])
+{
+    UINT8 Zero[16];
+    UINT8 L[16];
+    UINT8 K1[16];
+    UINT8 K2[16];
+    UINT8 X[16];
+    UINT8 Y[16];
+    UINTN Nblks;
+    UINTN Off;
+    UINTN I;
+    int Complete;
+
+    for (I = 0; I < 16; I++) {
+        Zero[I] = 0;
+        X[I] = 0;
+    }
+    IwlAesEncrypt(Key, Zero, L);
+    for (I = 0; I < 16; I++) {
+        K1[I] = L[I];
+    }
+    CmacDbl(K1);
+    for (I = 0; I < 16; I++) {
+        K2[I] = K1[I];
+    }
+    CmacDbl(K2);
+
+    if (Len == 0 || (Len % 16u) != 0) {
+        Nblks = Len / 16u + 1u;
+        Complete = 0;
+    } else {
+        Nblks = Len / 16u;
+        Complete = 1;
+    }
+    Off = 0;
+    if (Nblks > 1) {
+        UINTN B;
+        for (B = 0; B < Nblks - 1u; B++) {
+            for (I = 0; I < 16; I++) {
+                Y[I] = (UINT8)(X[I] ^ Msg[Off + I]);
+            }
+            IwlAesEncrypt(Key, Y, X);
+            Off += 16u;
+        }
+    }
+    for (I = 0; I < 16; I++) {
+        Y[I] = 0;
+    }
+    if (Complete) {
+        for (I = 0; I < 16; I++) {
+            Y[I] = (UINT8)(Msg[Off + I] ^ K1[I] ^ X[I]);
+        }
+    } else {
+        UINTN Rem = Len - Off;
+        for (I = 0; I < Rem; I++) {
+            Y[I] = Msg[Off + I];
+        }
+        Y[Rem] = 0x80u;
+        for (I = 0; I < 16; I++) {
+            Y[I] = (UINT8)(Y[I] ^ K2[I] ^ X[I]);
+        }
+    }
+    IwlAesEncrypt(Key, Y, Out);
 }

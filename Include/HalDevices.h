@@ -101,6 +101,8 @@ int HalMouseDequeue(HAL_MOUSE_REPORT *Report);
 
 int HalNetInit(void);
 int HalNetReady(void);
+/* 当前 L2 挂接次数；未挂过或本架构无此外置网卡时为 0 */
+UINT32 HalNetNicEpoch(void);
 void HalNetPoll(void);
 void HalNetGetMacAddress(UINT8 Mac[6]);
 UINT32 HalNetGetIpAddress(void);

@@ -67,7 +67,7 @@ static void IwlPrf384(const UINT8 Pmk[32], const UINT8 *A, UINTN Alen,
 }
 
 static void IwlBuildPtk(const UINT8 Pmk[32], const UINT8 *Anon, const UINT8 *Snon,
-                        UINT8 Ptk[48]) {
+                        UINT8 Ptk[48], UINT8 Ver) {
     UINT8 A[22];
     UINT8 B[76];
     UINTN i;
@@ -98,18 +98,27 @@ static void IwlBuildPtk(const UINT8 Pmk[32], const UINT8 *Anon, const UINT8 *Sno
     IwlCopyN(B + 6, MaxMac, 6);
     IwlCopyN(B + 12, MinNon, 32);
     IwlCopyN(B + 44, MaxNon, 32);
-    IwlPrf384(Pmk, A, 22, B, 76, Ptk);
+    if (Ver == 3) {
+        IwlKdfSha256(Pmk, 32, Lab, B, 76, Ptk, 48);
+    } else {
+        IwlPrf384(Pmk, A, 22, B, 76, Ptk);
+    }
 }
 
-/* EAPOL-Key MIC：HMAC-SHA1，取前 16 字节（Key Descriptor Ver 2） */
-static void IwlEapolMic(const UINT8 Kck[16], UINT8 *Eapol, UINTN EapolLen,
-                        UINT8 Mic[16]) {
-    UINT8 Dig[20];
+/* EAPOL-Key MIC：版本 2 = HMAC-SHA1-128；版本 3 = AES-128-CMAC */
+static void IwlEapolMic(UINT8 Ver, const UINT8 Kck[16], UINT8 *Eapol,
+                        UINTN EapolLen, UINT8 Mic[16]) {
+    UINT8 Dig[32];
     UINTN i;
     for (i = 0; i < 16; i++) {
         Eapol[81 + i] = 0;
+        Dig[i] = 0;
     }
-    IwlHmacSha1(Kck, 16, Eapol, EapolLen, Dig);
+    if (Ver == 3) {
+        IwlAesCmac(Kck, Eapol, EapolLen, Dig);
+    } else {
+        IwlHmacSha1(Kck, 16, Eapol, EapolLen, Dig);
+    }
     for (i = 0; i < 16; i++) {
         Mic[i] = Dig[i];
         Eapol[81 + i] = Dig[i];
@@ -203,19 +212,128 @@ static int IwlAddr1IsUs(const UINT8 *Dot11) {
     return 1;
 }
 
+/* 刀 #149：M2 发出后固件的 TX 回执。0=还没看到 */
+static int gIwlTxRsp;
+
+static int gIwlRxCode;
+
+static void IwlLogTxRsp(const IWL_RX_PKT *Pkt, UINTN Len) {
+    char Line[40];
+    char Hex[12];
+    int n = 0;
+    const char *P = "txa=l=";
+    UINT8 Count = 0;
+
+    if (gIwlTxRsp || !Pkt || Pkt->Hdr.Code != IWL_CMD_TX) {
+        return;
+    }
+    if (Len >= sizeof(IWL_CMD_HDR) + 1u) {
+        Count = Pkt->Data[0];
+    }
+    gIwlTxRsp = 1;
+    while (*P) {
+        Line[n++] = *P++;
+    }
+    HalSerialFormatHex(Hex, (UINT32)Len & 0xffu, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = ' ';
+    Line[n++] = 'c';
+    Line[n++] = '=';
+    HalSerialFormatHex(Hex, Count, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    if (Len >= sizeof(IWL_CMD_HDR) + 4u) {
+        Line[n++] = ' ';
+        Line[n++] = 'f';
+        Line[n++] = '=';
+        HalSerialFormatHex(Hex, Pkt->Data[3], 2);
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
+    }
+    if (Len >= sizeof(IWL_CMD_HDR) + 38u) {
+        UINT16 St = (UINT16)Pkt->Data[36] | ((UINT16)Pkt->Data[37] << 8);
+        Line[n++] = ' ';
+        Line[n++] = 's';
+        Line[n++] = '=';
+        HalSerialFormatHex(Hex, St, 4);
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
+        Line[n++] = Hex[4];
+        Line[n++] = Hex[5];
+    }
+    Line[n] = 0;
+    IwlLogStage(Line);
+}
+
+static void IwlLogRxCode(const IWL_RX_PKT *Pkt, UINTN Len) {
+    char Line[36];
+    char Hex[12];
+    int n = 0;
+    const char *P = "rxc=";
+    UINTN Pay;
+    UINTN i;
+
+    if (gIwlRxCode || !Pkt) {
+        return;
+    }
+    gIwlRxCode = 1;
+    while (*P) {
+        Line[n++] = *P++;
+    }
+    HalSerialFormatHex(Hex, Pkt->Hdr.Code, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = ' ';
+    Line[n++] = 'l';
+    Line[n++] = '=';
+    HalSerialFormatHex(Hex, (UINT32)Len & 0xffu, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    if (Pkt->Hdr.Code == 0xf7u) {
+        Pay = 0;
+        if (Len > sizeof(IWL_CMD_HDR)) {
+            Pay = Len - sizeof(IWL_CMD_HDR);
+        }
+        if (Pay > 8u) {
+            Pay = 8u;
+        }
+        Line[n++] = ' ';
+        Line[n++] = 'd';
+        Line[n++] = '=';
+        for (i = 0; i < Pay; i++) {
+            HalSerialFormatHex(Hex, Pkt->Data[i], 2);
+            Line[n++] = Hex[2];
+            Line[n++] = Hex[3];
+        }
+    }
+    Line[n] = 0;
+    IwlLogStage(Line);
+}
+
 /* 抽干当前 RX 环；找到 EAPOL 返回 1，环空且未找到返回 0 */
 static int IwlRxDrainForEapol(UINT8 *EapOut, UINTN *EapLenOut, UINTN Cap) {
     IWL_RX_PKT *Pkt;
     UINTN Len;
+    int Took = 0;
 
-    while (IwlRxTake(&Pkt, &Len)) {
+    while (Took < 32 && IwlRxTake(&Pkt, &Len)) {
         UINT8 Mutable[512];
         UINTN FLen;
         UINT8 *Ep;
         UINTN EpLen;
         UINTN k;
 
-        if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 8) {
+        Took++;
+        if (Pkt->Hdr.Code == IWL_CMD_TX) {
+            IwlLogTxRsp(Pkt, Len);
+            continue;
+        }
+        if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD) {
+            IwlLogRxCode(Pkt, Len);
+            continue;
+        }
+        if (Len < 8) {
             continue;
         }
         FLen = Len - sizeof(IWL_CMD_HDR) - 4;
@@ -243,6 +361,7 @@ static int IwlSendEapol(const UINT8 *Eapol, UINTN EapolLen) {
     if (EapolLen > 280) {
         return -1;
     }
+    /* 非 QoS 数据。关联后 SendFrameRaw 放到 q5+AP_STA，速率 6M。 */
     Frame[0] = 0x08;
     Frame[1] = 0x01;
     Frame[2] = 0;
@@ -267,17 +386,35 @@ static int IwlSendEapol(const UINT8 *Eapol, UINTN EapolLen) {
     return IwlSendFrameRaw(Frame, Flen);
 }
 
-/* ToDS Null（PM=0）：促 AP 清省电缓冲，再发 EAPOL-Start */
-static void IwlSendNullPm0(void) {
-    UINT8 Frame[24];
+/* 刀 #163：M3 密钥数据是 KEK 包起来的 GTK KDE。 */
+static void IwlInstallGtk(const UINT8 *Eapol, UINTN EapLen, const UINT8 Kek[16]) {
+    UINT16 Kd;
+    UINT8 Plain[48];
+    UINTN PlainLen = 0;
+    UINTN i;
 
-    IwlZero(Frame, sizeof(Frame));
-    Frame[0] = 0x48; /* Data Null */
-    Frame[1] = 0x01; /* ToDS */
-    IwlCopyN(Frame + 4, gIwlBssid, 6);
-    IwlCopyN(Frame + 10, gIwlMac, 6);
-    IwlCopyN(Frame + 16, gIwlBssid, 6);
-    (void)IwlSendFrameRaw(Frame, 24);
+    if (EapLen < 101u) {
+        IwlLogStage("gtk=no");
+        return;
+    }
+    Kd = (UINT16)(((UINT16)Eapol[97] << 8) | Eapol[98]);
+    if (Kd < 16u || 99u + (UINTN)Kd > EapLen) {
+        IwlLogStage("gtk=no");
+        return;
+    }
+    if (!IwlAesUnwrap(Kek, Eapol + 99, Kd, Plain, sizeof(Plain), &PlainLen)) {
+        IwlLogStage("gtk=bad");
+        return;
+    }
+    for (i = 0; i + 22u <= PlainLen; i++) {
+        if (Plain[i] == 0x00u && Plain[i + 1] == 0x0fu
+            && Plain[i + 2] == 0xacu && Plain[i + 3] == 0x01u) {
+            IwlCopyN(gIwlGtk, Plain + i + 6, 16);
+            IwlLogStage("gtk=ok");
+            return;
+        }
+    }
+    IwlLogStage("gtk=no");
 }
 
 static UINT16 IwlBe16(const UINT8 *P) {
@@ -303,6 +440,9 @@ int IwlEapolRun(void) {
     int Got3 = 0;
     UINTN SsidLen;
     UINT16 KeyInfo;
+    UINT8 KeyDesc = 2;
+    UINT8 KeyVer = 2;
+    UINT8 EapVer = 1;
 
     gIwlWpa2Ok = 0;
     IwlZero(Pmk, 32);
@@ -364,7 +504,6 @@ int IwlEapolRun(void) {
             Hline[hn] = 0;
             IwlLogStage(Hline);
         }
-        IwlSendNullPm0();
         if (IwlSendEapol(Start, 4) == 0) {
             char Mline[40];
             char Hex[12];
@@ -397,24 +536,29 @@ int IwlEapolRun(void) {
             UINTN Len;
 
             if ((i % 500u) == 499u) {
-                IwlSendNullPm0();
                 (void)IwlSendEapol(Start, 4);
             }
 
             IwlRxPoll();
-            for (;;) {
-                UINT8 Mutable[512];
-                UINTN FLen;
-                UINT8 *Ep;
-                UINTN EpLen;
-                UINTN k;
-                UINT16 Fc;
-                int ToUs;
+            {
+                int Took = 0;
+                for (;;) {
+                    UINT8 Mutable[512];
+                    UINTN FLen;
+                    UINT8 *Ep;
+                    UINTN EpLen;
+                    UINTN k;
+                    UINT16 Fc;
+                    int ToUs;
 
-                if (IwlRxTakeHeld(&Pkt, &Len)) {
-                } else if (!IwlRxTake(&Pkt, &Len)) {
-                    break;
-                }
+                    if (Took >= 24) {
+                        break;
+                    }
+                    Took++;
+                    if (IwlRxTakeHeld(&Pkt, &Len)) {
+                    } else if (!IwlRxTake(&Pkt, &Len)) {
+                        break;
+                    }
                 if (Pkt->Hdr.Code != IWL_RX_MPDU_CMD || Len < 8) {
                     continue;
                 }
@@ -480,6 +624,7 @@ int IwlEapolRun(void) {
                         if ((KeyInfo & 0x0080u) != 0 && (KeyInfo & 0x0100u) == 0) {
                             IwlCopyN(Anonce, Eapol + 17, 32);
                             IwlCopyN(Replay, Eapol + 9, 8);
+                            KeyDesc = Eapol[4];
                             Got1 = 1;
                             break;
                         }
@@ -487,6 +632,7 @@ int IwlEapolRun(void) {
                         LastKi = (UINT16)Eapol[4];
                     }
                 }
+            }
             }
             if (!Got1) {
                 IwlStallMs(1);
@@ -575,7 +721,31 @@ int IwlEapolRun(void) {
             return 0;
         }
     }
-    IwlLogStage("wpa2=m1");
+    {
+        char Line[20];
+        char Hex[12];
+        int n = 0;
+        const char *P = "wpa2=m1 k=";
+        while (*P) {
+            Line[n++] = *P++;
+        }
+        HalSerialFormatHex(Hex, (KeyInfo >> 8) & 0xffu, 2);
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
+        HalSerialFormatHex(Hex, KeyInfo & 0xffu, 2);
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
+        Line[n] = 0;
+        IwlLogStage(Line);
+        KeyVer = (UINT8)(KeyInfo & 7u);
+        if (KeyVer != 3) {
+            KeyVer = 2;
+        }
+        EapVer = Eapol[0];
+        if (EapVer < 1 || EapVer > 2) {
+            EapVer = 1;
+        }
+    }
 
     if (gIwlPmkOk) {
         IwlCopyN(Pmk, gIwlPmk, 32);
@@ -593,83 +763,170 @@ int IwlEapolRun(void) {
     for (i = 0; i < 32; i++) {
         Snonce[i] = (UINT8)(gIwlMac[i % 6] ^ (UINT8)(i * 17u + 3u));
     }
-    IwlBuildPtk(Pmk, Anonce, Snonce, Ptk);
+    IwlBuildPtk(Pmk, Anonce, Snonce, Ptk, KeyVer);
     IwlCopyN(Kck, Ptk, 16);
     IwlCopyN(gIwlPtk, Ptk + 32, 16);
     IwlCopyN(gIwlGtk, Ptk + 32, 16);
 
-    /* msg2：尽快回，AP 等 MIC */
+    /* 刀 #146：M2 带 beacon RSN。刀 #147：KeyInfo 版本跟 M1（2=HMAC-SHA1，3=AES-CMAC）。 */
     IwlZero(Eapol, sizeof(Eapol));
-    Eapol[0] = 1;
+    Eapol[0] = EapVer;
     Eapol[1] = 3;
-    IwlPutBe16(Eapol + 2, 95);
-    Eapol[4] = 2;
-    IwlPutBe16(Eapol + 5, 0x010A);
+    Eapol[4] = KeyDesc;
+    IwlPutBe16(Eapol + 5, (UINT16)(0x0108u | KeyVer));
     IwlPutBe16(Eapol + 7, 16);
     IwlCopyN(Eapol + 9, Replay, 8);
     IwlCopyN(Eapol + 17, Snonce, 32);
-    IwlPutBe16(Eapol + 97, 0);
     {
-        UINT8 Mic[16];
-        IwlEapolMic(Kck, Eapol, 99, Mic);
-        (void)Mic;
-    }
-    if (IwlSendEapol(Eapol, 99) != 0) {
-        IwlLogStage("wpa2=m2tx");
-        return 0;
-    }
-    IwlLogStage("wpa2=m2");
+        UINTN Total = 99;
+        UINT8 M2[160];
+        UINT8 Kd = gIwlTarget.RsnLen;
+        UINT32 Eap3 = 0;
+        int SawKi = 0;
+        int MicLogged = 0;
 
-    for (i = 0; i < 4000 && !Got3; i++) {
-        IwlRxPoll();
-        while (!Got3 && IwlRxDrainForEapol(Eapol, &EapLen, sizeof(Eapol))) {
-            UINT8 Calc[16];
-            UINT8 Saved[16];
-            UINTN k;
-            int Diff;
+        if (Kd >= 4 && Kd <= 48 && 99u + Kd <= sizeof(Eapol)) {
+            IwlCopyN(Eapol + 99, gIwlTarget.Rsn, Kd);
+            IwlPutBe16(Eapol + 97, Kd);
+            IwlPutBe16(Eapol + 2, (UINT16)(95u + Kd));
+            Total = 99u + Kd;
+        } else {
+            IwlPutBe16(Eapol + 97, 0);
+            IwlPutBe16(Eapol + 2, 95);
+            Kd = 0;
+        }
+        {
+            UINT8 Mic[16];
+            IwlEapolMic(KeyVer, Kck, Eapol, Total, Mic);
+            (void)Mic;
+        }
+        if (IwlSendEapol(Eapol, Total) != 0) {
+            IwlLogStage("wpa2=m2tx");
+            return 0;
+        }
+        IwlCopyN(M2, Eapol, Total);
+        if (KeyVer == 3 && Kd) {
+            IwlLogStage("wpa2=m2c");
+        } else {
+            IwlLogStage(Kd ? "wpa2=m2r" : "wpa2=m2");
+        }
 
-            if (Eapol[4] != 2 && Eapol[4] != 254) {
-                continue;
+        gIwlTxRsp = 0;
+        gIwlRxCode = 0;
+        for (i = 0; i < 4000 && !Got3; i++) {
+            if (i == 1000u || i == 2000u) {
+                (void)IwlSendEapol(M2, Total);
             }
-            KeyInfo = IwlBe16(Eapol + 5);
-            if ((KeyInfo & 0x0100u) == 0 || (KeyInfo & 0x0080u) == 0) {
-                continue;
+            IwlRxPoll();
+            while (!Got3 && IwlRxDrainForEapol(Eapol, &EapLen, sizeof(Eapol))) {
+                UINT8 Calc[16];
+                UINT8 Saved[16];
+                UINTN k;
+                int Diff;
+
+                Eap3++;
+                if (!SawKi) {
+                    char Line[28];
+                    char Hex[12];
+                    int n = 0;
+                    const char *P = "wpa2=ki d=";
+                    UINT16 Ki = IwlBe16(Eapol + 5);
+                    while (*P) {
+                        Line[n++] = *P++;
+                    }
+                    HalSerialFormatHex(Hex, Eapol[4], 2);
+                    Line[n++] = Hex[2];
+                    Line[n++] = Hex[3];
+                    Line[n++] = ' ';
+                    Line[n++] = 'k';
+                    Line[n++] = '=';
+                    HalSerialFormatHex(Hex, (Ki >> 8) & 0xffu, 2);
+                    Line[n++] = Hex[2];
+                    Line[n++] = Hex[3];
+                    HalSerialFormatHex(Hex, Ki & 0xffu, 2);
+                    Line[n++] = Hex[2];
+                    Line[n++] = Hex[3];
+                    Line[n] = 0;
+                    IwlLogStage(Line);
+                    SawKi = 1;
+                }
+                if (Eapol[4] != 2 && Eapol[4] != 254) {
+                    continue;
+                }
+                KeyInfo = IwlBe16(Eapol + 5);
+                /* M1 重传只有 ACK、没有 MIC。MIC 位置位就验，不再要求 ACK。 */
+                if ((KeyInfo & 0x0100u) == 0) {
+                    continue;
+                }
+                IwlCopyN(Saved, Eapol + 81, 16);
+                IwlEapolMic(KeyVer, Kck, Eapol, EapLen, Calc);
+                Diff = 0;
+                for (k = 0; k < 16; k++) {
+                    Diff |= (int)(Calc[k] ^ Saved[k]);
+                }
+                if (Diff != 0) {
+                    if (!MicLogged) {
+                        char Line[20];
+                        char Hex[12];
+                        int n = 0;
+                        const char *P = "wpa2=mic k=";
+                        while (*P) {
+                            Line[n++] = *P++;
+                        }
+                        HalSerialFormatHex(Hex, (KeyInfo >> 8) & 0xffu, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        HalSerialFormatHex(Hex, KeyInfo & 0xffu, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n] = 0;
+                        IwlLogStage(Line);
+                        MicLogged = 1;
+                    }
+                    continue;
+                }
+                IwlCopyN(Replay, Eapol + 9, 8);
+                Got3 = 1;
             }
-            IwlCopyN(Saved, Eapol + 81, 16);
-            IwlEapolMic(Kck, Eapol, EapLen, Calc);
-            Diff = 0;
-            for (k = 0; k < 16; k++) {
-                Diff |= (int)(Calc[k] ^ Saved[k]);
+            if (!Got3) {
+                IwlStallMs(1);
             }
-            if (Diff != 0) {
-                IwlLogStage("wpa2=mic");
-                continue;
-            }
-            IwlCopyN(Replay, Eapol + 9, 8);
-            Got3 = 1;
         }
         if (!Got3) {
-            IwlStallMs(1);
+            char Line[24];
+            char Hex[12];
+            int n = 0;
+            const char *P = "wpa2=m3to e=";
+            if (!gIwlTxRsp) {
+                IwlLogApQ();
+                IwlLogStage("txa=none");
+            }
+            while (*P) {
+                Line[n++] = *P++;
+            }
+            HalSerialFormatHex(Hex, Eap3 & 0xffu, 2);
+            Line[n++] = Hex[2];
+            Line[n++] = Hex[3];
+            Line[n] = 0;
+            IwlLogStage(Line);
+            return 0;
         }
     }
-    if (!Got3) {
-        IwlLogStage("wpa2=m3to");
-        return 0;
-    }
     IwlLogStage("wpa2=m3");
+    IwlInstallGtk(Eapol, EapLen, Ptk + 16);
 
     IwlZero(Eapol, sizeof(Eapol));
-    Eapol[0] = 1;
+    Eapol[0] = EapVer;
     Eapol[1] = 3;
     IwlPutBe16(Eapol + 2, 95);
-    Eapol[4] = 2;
-    IwlPutBe16(Eapol + 5, 0x030A);
+    Eapol[4] = KeyDesc;
+    IwlPutBe16(Eapol + 5, (UINT16)(0x0308u | KeyVer));
     IwlPutBe16(Eapol + 7, 16);
     IwlCopyN(Eapol + 9, Replay, 8);
     IwlPutBe16(Eapol + 97, 0);
     {
         UINT8 Mic[16];
-        IwlEapolMic(Kck, Eapol, 99, Mic);
+        IwlEapolMic(KeyVer, Kck, Eapol, 99, Mic);
         (void)Mic;
     }
     if (IwlSendEapol(Eapol, 99) != 0) {

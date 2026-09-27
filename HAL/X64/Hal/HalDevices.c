@@ -249,6 +249,10 @@ int HalNetReady(void) {
     return ToyDriverNetReady();
 }
 
+UINT32 HalNetNicEpoch(void) {
+    return NetNicEpoch();
+}
+
 void HalNetPoll(void) {
     ToyDriverNetPoll();
 }

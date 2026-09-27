@@ -10,8 +10,6 @@
 #define NET_CFG_MASK_DEFAULT 0xFFFFFF00U  /* /24 */
 #define NET_CFG_GW_QEMU      0x0A000202U  /* 10.0.2.2 */
 #define NET_CFG_DNS_QEMU     0x0A000203U  /* 10.0.2.3 */
-#define NET_CFG_IP_NUC       0xC0A81F81U  /* 192.168.31.129 */
-#define NET_CFG_GW_NUC       0xC0A81F01U  /* 192.168.31.1 */
 
 static int gReady;
 static UINT32 gIp = NET_CFG_IP_QEMU;
@@ -32,9 +30,9 @@ void NetConfigEnsure(void) {
         gGw = NET_CFG_GW_QEMU;
         gDns = NET_CFG_DNS_QEMU;
     } else {
-        /* NUC / 真机 LAN 默认（PR-N-i219-static） */
-        gIp = NET_CFG_IP_NUC;
-        gGw = NET_CFG_GW_NUC;
+        /* 真机不预置地址，等当前 L2 上的 DHCP */
+        gIp = 0;
+        gGw = 0;
         gDns = 0;
     }
     HalNetSetIpAddress(gIp);

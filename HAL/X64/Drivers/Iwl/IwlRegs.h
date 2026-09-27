@@ -105,6 +105,7 @@
 #define IWL_SCD_SRAM_BASE_ADDR        (IWL_SCD_BASE + 0x0u)
 #define IWL_SCD_DRAM_BASE_ADDR        (IWL_SCD_BASE + 0x8u)
 #define IWL_SCD_TXFACT                (IWL_SCD_BASE + 0x10u)
+#define IWL_SCD_QUEUECHAIN_SEL        (IWL_SCD_BASE + 0xe8u)
 #define IWL_SCD_CHAINEXT_EN           (IWL_SCD_BASE + 0x244u)
 #define IWL_SCD_AGGR_SEL              (IWL_SCD_BASE + 0x248u)
 #define IWL_SCD_EN_CTRL               (IWL_SCD_BASE + 0x254u)
@@ -169,6 +170,7 @@
 #define IWL_CMD_ADD_STA               0x18u
 #define IWL_CMD_SCD_QUEUE_CFG         0x1du
 #define IWL_CMD_TX                    0x1cu
+#define IWL_CMD_LQ                    0x4eu /* 数据帧前必须给 AP 站一张速率表 */
 #define IWL_CMD_MAC_CONTEXT           0x28u
 #define IWL_CMD_BINDING               0x2bu
 #define IWL_FW_MAC_TYPE_LISTENER      2u
@@ -210,6 +212,9 @@
 #define IWL_STA_AUX_ACTIVITY          4u
 #define IWL_STA_FLG_CLASS_AUTH        (1u << 14)
 #define IWL_STA_FLG_CLASS_ASSOC       (1u << 15)
+#define IWL_STA_MODE_MODIFY           1u
+#define IWL_STA_MODIFY_TID_DISABLE_TX (1u << 1)
+#define IWL_STA_MODIFY_QUEUES         (1u << 7)
 #define IWL_DQA_MIN_MGMT_QUEUE        5u /* OpenBSD LINK：q5..8；q2=P2P */
 #define IWL_DQA_MAX_MGMT_QUEUE        8u
 #define IWL_DQA_BSS_CLIENT_QUEUE      4u /* Linux：BSS 关联后保证有队列 */
@@ -320,9 +325,13 @@
 #define IWL_TX_CMD_FLG_ACK            (1u << 3)
 #define IWL_TX_CMD_FLG_BT_DIS         (1u << 12)
 #define IWL_TX_CMD_FLG_SEQ_CTL        (1u << 13)
+#define IWL_TX_CMD_FLG_MH_PAD         (1u << 20) /* 26/30 字节头后有 2 字节填充 */
+#define IWL_TX_CMD_FLG_RESP_TO_DRV    (1u << 21) /* 清掉则 TX 回执只留在固件里 */
+#define IWL_TX_CMD_SEC_CCM            0x02u /* 固件用 TX 命令里的密钥做 CCMP */
 #define IWL_TX_CMD_LIFE_INFINITE      0xffffffffu
 #define IWL_TID_NON_QOS               0u
 #define IWL_RATE_1M_PLCP              10u
+#define IWL_RATE_6M_PLCP              13u /* OFDM 6Mbps；CCK 1M 常被 HT AP 丢掉数据帧 */
 #define IWL_RATE_MCS_CCK              (1u << 9)
 #define IWL_RATE_MCS_ANT_A            (1u << 14)
 #define IWL_PM_FRAME_MGMT             2u

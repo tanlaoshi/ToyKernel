@@ -71,11 +71,19 @@ static int E1000DriverProbe(const TOY_DRIVER *Self, void *BusCtx, void **OutPriv
 }
 
 static int E1000DriverBind(TOY_DRIVER_INSTANCE *Inst) {
+    int Up = 0;
+
     (void)Inst;
     if (!E1000Ready()) {
         return -1;
     }
-    /* 无链路也挂：托盘/静态 IP；ping 仍靠 async TX + soft-lock，勿假死 */
+    /*
+     * 线没插就不占 L2。无线关联与网线无关；占着 down 的有线口时，
+     * 托盘只能显示 down，DHCP 也跑在这张没有链路的卡上。
+     */
+    if (E1000GetLink(&Up, 0, 0) != 0 || !Up) {
+        return 0;
+    }
     return NetAttachNic(&gE1000NicL2);
 }
 

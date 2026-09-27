@@ -42,6 +42,8 @@ int  NetLwIpRx(void);
 void NetInputFrame(const UINT8 *Pkt, UINTN Len);
 /* 外置 NIC（e1000 等）挂 L2；成功 0。virtio 仍走 Net.c 内置路径 */
 int  NetAttachNic(const NIC_L2 *Nic);
+/* 每次成功挂上 L2 加一；未挂过为 0 */
+UINT32 NetNicEpoch(void);
 int  NetNicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex);
 
 #endif

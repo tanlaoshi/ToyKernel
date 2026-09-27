@@ -251,5 +251,10 @@ int IwlCcmpDecrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame,
     for (I = 0; I < 8; I++) {
         Diff |= (UINT8)(Mic[I] ^ Got[I]);
     }
-    return Diff == 0 ? 1 : 0;
+    if (Diff != 0) {
+        /* 解密是就地的。MIC 不符时再跑一遍 CTR，把密文还原给下一把密钥。 */
+        CcmAuthCrypt(Key, Aad, AadLen, Nonce, Frame + HdrLen, BodyLen, Mic, 0);
+        return 0;
+    }
+    return 1;
 }

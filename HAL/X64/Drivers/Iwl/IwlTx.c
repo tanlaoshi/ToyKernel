@@ -14,14 +14,18 @@ static UINT8 *gCmdBufs[IWL_CMD_Q_SIZE];
 static UINT64 gCmdBufPhys[IWL_CMD_Q_SIZE];
 static IWL_TFD *gAuxTfd;
 static UINT64 gAuxTfdPhys;
+static IWL_TFD *gApTfd;
+static UINT64 gApTfdPhys;
 /* 刀 #84：多槽 AUX 缓冲，避免等 RDPTR 时在 LwIp CLI 锁里 Stall→键鼠假死 */
 #define IWL_AUX_SLOTS  16u
 #define IWL_AUX_SLOT   512u
 static UINT8 *gAuxBuf;
 static UINT64 gAuxBufPhys;
 static UINT32 gAuxWrite;
+static UINT32 gApWrite; /* #149：q5 从 0 起，不跟 AUX 写指针 */
 static UINT32 gAuxTxLog;
-static int gApQReady; /* #127：q5 HW 已绑，SendFrame 走 AP_STA */
+static int gApQReady; /* #127：q5 HW 已绑 */
+static int gEapAuxLogged;
 static UINT8 *gFirstTbBase; /* 32 × 64B：Linux FIRST_TB 双向 DMA 窗 */
 static UINT64 gFirstTbPhys;
 static UINT8 *gKwPage;
@@ -263,9 +267,8 @@ static int IwlEnableAcTxq(UINT32 Qid, UINT32 Fifo) {
          | (1u << IWL_SCD_STTS_WSL_POS)
          | IWL_SCD_STTS_MSK;
     IwlPrphW(IWL_SCD_QUEUE_STATUS_BITS(Qid), Stts);
-    if (Qid == IWL_CMD_QUEUE) {
-        IwlPrphW(IWL_SCD_EN_CTRL, IwlPrphR(IWL_SCD_EN_CTRL) | (1u << Qid));
-    }
+    /* 刀 #152：以前只有命令队列置 SCD_EN。q5 因此取不走 TFD，表现为 txa=none。 */
+    IwlPrphW(IWL_SCD_EN_CTRL, IwlPrphR(IWL_SCD_EN_CTRL) | (1u << Qid));
     return 1;
 }
 
@@ -401,31 +404,132 @@ void IwlAuxTxLogReset(void) {
 }
 
 /*
- * 刀 #127：#126 证 AUX+AUX_STA 发 EAPOL-Start 仍 u=00。
- * ADD_STA 已挂 q5，但从未 CBBC/EnableAcTxq — 数据帧到不了 AP。
- * 复用 AUX TFD/槽（assoc 已完，不再并发表）；FIFO=VO。
+ * 刀 #155：#154 为 q5r=00 w=05。SCD_QUEUE_CFG 之后再写 context=0，
+ * 把固件刚设的额度清掉，调度器不取描述符。环基址改在该命令之前绑上。
  */
-int IwlEnableApTxq(void) {
-    UINT32 Qid = IWL_DQA_MIN_MGMT_QUEUE;
+int IwlPrepareApTxq(void) {
+    UINT32 Qid = IWL_DQA_BSS_CLIENT_QUEUE;
 
-    if (!gTxReady || !gAuxTfd || !gAuxReady) {
+    if (!gTxReady || !gApTfd) {
         return 0;
     }
     if (!IwlNicLock()) {
         return 0;
     }
-    IwlMmioW32(IWL_FH_CBBC_QUEUE(Qid), (UINT32)(gAuxTfdPhys >> 8));
-    IwlFlushDma(gAuxTfd, 8 * PAGE_SIZE);
+    IwlMmioW32(IWL_FH_CBBC_QUEUE(Qid), (UINT32)(gApTfdPhys >> 8));
+    IwlFlushDma(gApTfd, 8 * PAGE_SIZE);
+    IwlMmioW32(IWL_HBUS_TARG_WRPTR, (Qid << 8) | 0);
+    IwlNicUnlock();
+    gApWrite = 0;
+    return 1;
+}
+
+int IwlEnableApTxq(void) {
+    UINT32 Qid = IWL_DQA_BSS_CLIENT_QUEUE;
+
+    if (!gTxReady || !gApTfd || !gAuxReady || gSchedBase == 0) {
+        return 0;
+    }
+    if (!IwlNicLock()) {
+        return 0;
+    }
+    /*
+     * 刀 #162：q1 能取管理帧，是因为 SCD_QUEUE_CFG 之后走了完整 EnableAcTxq。
+     * q5 只或了几个状态位，固件又写回 0x9D。数据改走 q4，按 q1 的方式打开。
+     */
+    IwlMmioW32(IWL_FH_CBBC_QUEUE(Qid), (UINT32)(gApTfdPhys >> 8));
     if (!IwlEnableAcTxq(Qid, IWL_TX_FIFO_VO)) {
         IwlNicUnlock();
         return 0;
     }
+    IwlPrphW(IWL_SCD_QUEUECHAIN_SEL,
+             IwlPrphR(IWL_SCD_QUEUECHAIN_SEL) | (1u << Qid));
     IwlNicUnlock();
-    gAuxWrite = 0;
+    gApWrite = 0;
     gApQReady = 1;
     IwlAuxTxLogReset();
     IwlLogStage("apqhw=ok");
     return 1;
+}
+
+void IwlLogApQ(void) {
+    char Line[48];
+    char Hex[12];
+    int n = 0;
+    const char *P = "q4r=";
+    UINT32 Rd = 0;
+    UINT32 Wr = 0;
+    UINT32 St = 0;
+    UINT32 Ch = 0;
+
+    if (IwlNicLock()) {
+        Rd = IwlPrphR(IWL_SCD_QUEUE_RDPTR(IWL_DQA_BSS_CLIENT_QUEUE)) & 0xffu;
+        Wr = IwlPrphR(IWL_SCD_QUEUE_WRPTR(IWL_DQA_BSS_CLIENT_QUEUE)) & 0xffu;
+        St = IwlPrphR(IWL_SCD_QUEUE_STATUS_BITS(IWL_DQA_BSS_CLIENT_QUEUE));
+        Ch = IwlPrphR(IWL_SCD_QUEUECHAIN_SEL);
+        IwlNicUnlock();
+    }
+    while (*P) {
+        Line[n++] = *P++;
+    }
+    HalSerialFormatHex(Hex, Rd, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = ' ';
+    Line[n++] = 'w';
+    Line[n++] = '=';
+    HalSerialFormatHex(Hex, Wr, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = ' ';
+    Line[n++] = 'a';
+    Line[n++] = '=';
+    HalSerialFormatHex(Hex, St, 8);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = Hex[4];
+    Line[n++] = Hex[5];
+    Line[n++] = Hex[6];
+    Line[n++] = Hex[7];
+    Line[n++] = Hex[8];
+    Line[n++] = Hex[9];
+    Line[n++] = ' ';
+    Line[n++] = 'c';
+    Line[n++] = '=';
+    HalSerialFormatHex(Hex, Ch, 8);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = Hex[4];
+    Line[n++] = Hex[5];
+    Line[n++] = Hex[6];
+    Line[n++] = Hex[7];
+    Line[n++] = Hex[8];
+    Line[n++] = Hex[9];
+    Line[n] = 0;
+    IwlLogStage(Line);
+    n = 0;
+    P = "q1r=";
+    Rd = 0;
+    Wr = 0;
+    if (IwlNicLock()) {
+        Rd = IwlPrphR(IWL_SCD_QUEUE_RDPTR(IWL_DQA_AUX_QUEUE)) & 0xffu;
+        Wr = IwlPrphR(IWL_SCD_QUEUE_WRPTR(IWL_DQA_AUX_QUEUE)) & 0xffu;
+        IwlNicUnlock();
+    }
+    while (*P) {
+        Line[n++] = *P++;
+    }
+    HalSerialFormatHex(Hex, Rd, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n++] = ' ';
+    Line[n++] = 'w';
+    Line[n++] = '=';
+    HalSerialFormatHex(Hex, Wr, 2);
+    Line[n++] = Hex[2];
+    Line[n++] = Hex[3];
+    Line[n] = 0;
+    IwlLogStage(Line);
 }
 
 int IwlPostAlive(void) {
@@ -524,6 +628,13 @@ int IwlTxInit(void) {
         IwlZero(Mem, 8 * PAGE_SIZE);
         gAuxTfd = (IWL_TFD *)Mem;
         gAuxTfdPhys = (UINT64)(UINTN)Mem;
+        Mem = PhysicalMemoryAllocatePages(8);
+        if (!Mem) {
+            return 0;
+        }
+        IwlZero(Mem, 8 * PAGE_SIZE);
+        gApTfd = (IWL_TFD *)Mem;
+        gApTfdPhys = (UINT64)(UINTN)Mem;
         Mem = PhysicalMemoryAllocatePages(2);
         if (!Mem) {
             return 0;
@@ -547,9 +658,11 @@ int IwlTxInit(void) {
     gCmdWrite = 0;
     gCmdRead = 0;
     gAuxWrite = 0;
+    gApWrite = 0;
     gPostAliveOk = 0;
     gAuxReady = 0;
     gApQReady = 0;
+    gEapAuxLogged = 0;
 
     if (!IwlNicLock()) {
         return 0;
@@ -563,6 +676,7 @@ int IwlTxInit(void) {
     IwlMmioSet(IWL_CSR_MAC_SHADOW_CTRL, 0x800fffff);
     IwlFlushDma(gKwPage, PAGE_SIZE);
     IwlFlushDma(gCmdTfd, 8 * PAGE_SIZE);
+    IwlFlushDma(gApTfd, 8 * PAGE_SIZE);
     IwlFlushDma(gBcTbl, 6 * PAGE_SIZE);
     return 1;
 }
@@ -663,13 +777,16 @@ int IwlSendCmd(UINT32 Id, const void *Data, UINT32 Len, int Sync) {
         for (Wait = 0; Wait < WaitMax; Wait++) {
         IWL_RX_PKT *Pkt;
         UINTN RLen;
+        int Took = 0;
 
         IwlRxPoll();
-        while (IwlRxTake(&Pkt, &RLen)) {
+        /* 刀 #145：不封顶时 beacon 灌满，Wait 永不加，te=ok 后无黄字 */
+        while (Took < 24 && IwlRxTake(&Pkt, &RLen)) {
             UINT8 Ridx = Pkt->Hdr.Idx;
             UINT8 Rqid = Pkt->Hdr.Qid;
             UINT8 Code = Pkt->Hdr.Code;
             const UINT8 *Pay;
+            Took++;
             LastCode = Code;
             RxHits++;
             if (Code == 0x02u && RLen >= sizeof(IWL_CMD_HDR) + 4 + 8) {
@@ -823,6 +940,7 @@ int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len) {
     UINT32 Need;
     UINT32 Flags;
     UINT32 Rate;
+    UINT32 Pad;
     UINT16 PmTo;
     UINT8 Subtype;
     UINT8 StaId;
@@ -833,23 +951,31 @@ int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len) {
     if (!Frame80211 || Len == 0 || Len > 400 || !gAuxReady || !gAuxBuf) {
         return -1;
     }
-    Need = 4u + IWL_TX_CMD_HDR_SIZE + (UINT32)Len;
+    /* QoS 头是 26 字节。固件要求在头后插入 2 字节填充，并用 MH_PAD 标明。 */
+    Pad = (Frame80211[0] == 0x88u) ? 2u : 0u;
+    Need = 4u + IWL_TX_CMD_HDR_SIZE + (UINT32)Len + Pad;
     if (Need > IWL_AUX_SLOT) {
         return -1;
     }
     /*
-     * 刀 #83/#84：TX_CMD 走数据队列；多槽不 Stall。
-     * 刀 #126：无 AP 队列时 AUX 强制 AUX_STA。
-     * 刀 #127：apqhw 后改走 q5 + AP_STA（BSS data/EAPOL）。
+     * 刀 #162：q1 是辅助队列，管理帧能走，数据帧停住。
+     * EAPOL 改走 q4 + 建站时就写好地址的 AP 站，FIFO 为 VO。
      */
-    if (gApQReady) {
-        Qid = IWL_DQA_MIN_MGMT_QUEUE;
+    if (gApQReady && ((Frame80211[0] >> 2) & 0x3u) == 2u) {
+        Qid = IWL_DQA_BSS_CLIENT_QUEUE;
+        StaId = (UINT8)IWL_AP_STA_ID;
+        if (!gEapAuxLogged) {
+            gEapAuxLogged = 1;
+            IwlLogStage("eapol=q4");
+        }
+    } else if (gApQReady) {
+        Qid = IWL_DQA_BSS_CLIENT_QUEUE;
         StaId = (UINT8)IWL_AP_STA_ID;
     } else {
         Qid = IWL_DQA_AUX_QUEUE;
         StaId = (UINT8)IWL_AUX_STA_ID;
     }
-    Idx = gAuxWrite & IWL_TFD_Q_MASK;
+    Idx = ((Qid == IWL_DQA_AUX_QUEUE) ? gAuxWrite : gApWrite) & IWL_TFD_Q_MASK;
     Slot = Idx % IWL_AUX_SLOTS;
     Buf = gAuxBuf + Slot * IWL_AUX_SLOT;
     Phys = gAuxBufPhys + (UINT64)Slot * IWL_AUX_SLOT;
@@ -859,7 +985,15 @@ int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len) {
     Subtype = (UINT8)((Frame80211[0] >> 4) & 0x0fu);
     Flags = IWL_TX_CMD_FLG_ACK | IWL_TX_CMD_FLG_SEQ_CTL
           | IWL_TX_CMD_FLG_BT_DIS;
-    Rate = IWL_RATE_1M_PLCP | IWL_RATE_MCS_CCK | IWL_RATE_MCS_ANT_A;
+    /* EAPOL 继续 1M。已加密的数据帧用 6M：HT 接入点经常不确认 1M 数据。 */
+    if ((Frame80211[1] & 0x40u) != 0) {
+        Rate = IWL_RATE_6M_PLCP | IWL_RATE_MCS_ANT_A;
+    } else if (Pad) {
+        Flags |= IWL_TX_CMD_FLG_MH_PAD;
+        Rate = IWL_RATE_6M_PLCP | IWL_RATE_MCS_ANT_A;
+    } else {
+        Rate = IWL_RATE_1M_PLCP | IWL_RATE_MCS_CCK | IWL_RATE_MCS_ANT_A;
+    }
     PmTo = (Subtype == 0u || Subtype == 2u)
            ? (UINT16)IWL_PM_FRAME_ASSOC : (UINT16)IWL_PM_FRAME_MGMT;
 
@@ -867,8 +1001,8 @@ int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len) {
     Buf[1] = 0;
     Buf[2] = (UINT8)Idx;
     Buf[3] = (UINT8)Qid;
-    Buf[4 + 0] = (UINT8)Len;
-    Buf[4 + 1] = (UINT8)(Len >> 8);
+    Buf[4 + 0] = (UINT8)(Len + Pad);
+    Buf[4 + 1] = (UINT8)((Len + Pad) >> 8);
     Buf[4 + 4] = (UINT8)Flags;
     Buf[4 + 5] = (UINT8)(Flags >> 8);
     Buf[4 + 6] = (UINT8)(Flags >> 16);
@@ -878,28 +1012,58 @@ int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len) {
     Buf[4 + 14] = (UINT8)(Rate >> 16);
     Buf[4 + 15] = (UINT8)(Rate >> 24);
     Buf[4 + 16] = StaId;
-    Buf[4 + 36] = (UINT8)IWL_TX_CMD_LIFE_INFINITE;
-    Buf[4 + 37] = (UINT8)(IWL_TX_CMD_LIFE_INFINITE >> 8);
-    Buf[4 + 38] = (UINT8)(IWL_TX_CMD_LIFE_INFINITE >> 16);
-    Buf[4 + 39] = (UINT8)(IWL_TX_CMD_LIFE_INFINITE >> 24);
-    Buf[4 + 44] = 3;
-    Buf[4 + 45] = 7;
-    Buf[4 + 46] = (UINT8)IWL_MAX_TID_COUNT;
-    Buf[4 + 48] = (UINT8)PmTo;
-    Buf[4 + 49] = (UINT8)(PmTo >> 8);
-    for (i = 0; i < Len; i++) {
-        Buf[4 + IWL_TX_CMD_HDR_SIZE + i] = Frame80211[i];
+    /* 已置 Protected 的数据帧：密钥放进 TX 命令，由固件加密并补 MIC。 */
+    if ((Frame80211[1] & 0x40u) != 0) {
+        Buf[4 + 17] = (UINT8)IWL_TX_CMD_SEC_CCM;
+        for (i = 0; i < 16u; i++) {
+            Buf[4 + 20 + i] = gIwlPtk[i];
+        }
+    }
+    /*
+     * 刀 #153：life/retry/tid 原先写在 reserved3（+36）。
+     * dram_lsb_ptr（+44）因此变成非 0，数据帧按垃圾地址回写 scratch。
+     * TX_CMD v6：life 在 +40，dram 保持 0，retry/tid/pm 从 +49 起。
+     */
+    Buf[4 + 40] = (UINT8)IWL_TX_CMD_LIFE_INFINITE;
+    Buf[4 + 41] = (UINT8)(IWL_TX_CMD_LIFE_INFINITE >> 8);
+    Buf[4 + 42] = (UINT8)(IWL_TX_CMD_LIFE_INFINITE >> 16);
+    Buf[4 + 43] = (UINT8)(IWL_TX_CMD_LIFE_INFINITE >> 24);
+    Buf[4 + 49] = 3;
+    Buf[4 + 50] = 7;
+    /* QoS 数据：tid 与帧头 QoS Control 一致。非 QoS（EAPOL）仍用 8。 */
+    if (Frame80211[0] == 0x88u) {
+        Buf[4 + 51] = (UINT8)(Frame80211[24] & 0x0Fu);
+    } else {
+        Buf[4 + 51] = (UINT8)IWL_MAX_TID_COUNT;
+    }
+    Buf[4 + 52] = (UINT8)PmTo;
+    Buf[4 + 53] = (UINT8)(PmTo >> 8);
+    if (Pad) {
+        for (i = 0; i < 26u && i < Len; i++) {
+            Buf[4 + IWL_TX_CMD_HDR_SIZE + i] = Frame80211[i];
+        }
+        for (i = 26u; i < Len; i++) {
+            Buf[4 + IWL_TX_CMD_HDR_SIZE + Pad + i] = Frame80211[i];
+        }
+    } else {
+        for (i = 0; i < Len; i++) {
+            Buf[4 + IWL_TX_CMD_HDR_SIZE + i] = Frame80211[i];
+        }
     }
 
-    Tfd = &gAuxTfd[Idx];
+    Tfd = (Qid == IWL_DQA_AUX_QUEUE) ? &gAuxTfd[Idx] : &gApTfd[Idx];
     IwlZero(Tfd, sizeof(*Tfd));
     IwlTfdSetTb(Tfd, 0, Phys, (UINT16)Need);
     IwlFlushDma(Buf, Need);
     IwlFlushDma(Tfd, sizeof(*Tfd));
-    IwlUpdateSched(Qid, Idx, StaId, (UINT16)Len);
+    IwlUpdateSched(Qid, Idx, StaId, (UINT16)(Len + Pad));
 
     Next = (Idx + 1u) & IWL_TFD_Q_MASK;
-    gAuxWrite = Next;
+    if (Qid == IWL_DQA_AUX_QUEUE) {
+        gAuxWrite = Next;
+    } else {
+        gApWrite = Next;
+    }
     if (!IwlNicLock()) {
         return -1;
     }
@@ -907,8 +1071,7 @@ int IwlSendFrameRaw(const UINT8 *Frame80211, UINTN Len) {
     IwlNicUnlock();
     if (gAuxTxLog < 4u) {
         gAuxTxLog++;
-        IwlLogVerb(gApQReady ? "tx=ap5" : (gIwlTxStaId == (UINT8)IWL_AUX_STA_ID
-                                          ? "tx=aux" : "tx=aux1"));
+        IwlLogVerb(Qid == IWL_DQA_AUX_QUEUE ? "tx=aux" : "tx=ap5");
     }
     return 0;
 }
