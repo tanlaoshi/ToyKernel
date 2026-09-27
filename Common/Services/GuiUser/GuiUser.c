@@ -158,6 +158,22 @@ int UserButtonHit(int Idx, UINT32 X, UINT32 Y) {
 }
 
 
+/* 贪吃蛇棋盘按格画死，改外框会清掉客户区且应用不会重画 */
+static int TitleIsSnake(const char *Title) {
+    static const char Name[] = "Snake";
+    int i;
+
+    if (!Title) {
+        return 0;
+    }
+    for (i = 0; Name[i] != 0; i++) {
+        if (Title[i] != Name[i]) {
+            return 0;
+        }
+    }
+    return Title[i] == 0;
+}
+
 int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     int Idx;
     UINT32 X;
@@ -184,6 +200,7 @@ int GuiOpenUser(const char *Title, UINT32 W, UINT32 H) {
     Y = (gScreenHeight > H + 40) ? (gScreenHeight - H) / 3 : Margin;
 
     gWindows[Idx].Active = 1;
+    gWindows[Idx].FixedSize = TitleIsSnake(Title);
     gWindows[Idx].Kind = GUI_WIN_USER;
     gWindows[Idx].X = X;
     gWindows[Idx].Y = Y;

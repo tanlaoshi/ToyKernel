@@ -12,7 +12,8 @@ int GuiResizeEdgeAt(const GUI_WINDOW *W, UINT32 X, UINT32 Y) {
     int OnRight;
     int OnBottom;
 
-    if (!W || !W->Active || W->Width < RESIZE_HOT || W->Height < RESIZE_HOT) {
+    if (!W || !W->Active || W->FixedSize ||
+        W->Width < RESIZE_HOT || W->Height < RESIZE_HOT) {
         return RESIZE_EDGE_NONE;
     }
     if (X < W->X || Y < W->Y || X >= W->X + W->Width || Y >= W->Y + W->Height) {

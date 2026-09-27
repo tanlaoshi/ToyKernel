@@ -49,6 +49,7 @@
 
 typedef struct {
     int      Active;
+    int      FixedSize; /* 1：不可拖边改大小（写死客户区的用户窗） */
     GUI_WIN_KIND Kind;
     UINT32   X;
     UINT32   Y;

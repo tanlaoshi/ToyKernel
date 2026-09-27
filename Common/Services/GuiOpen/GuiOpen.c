@@ -116,6 +116,7 @@ void CloseWindow(int Idx) {
         gWindows[Idx].ClosePending = 1;
     }
     gWindows[Idx].Active = 0;
+    gWindows[Idx].FixedSize = 0;
     gWindows[Idx].Kind = GUI_WIN_NONE;
     gWindows[Idx].TermSet = 0;
     gWindows[Idx].InputLen = 0;
