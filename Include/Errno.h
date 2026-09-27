@@ -21,6 +21,7 @@
 #define TOY_ENOSPC          28
 #define TOY_ESPIPE          29
 #define TOY_EPIPE           32
+#define TOY_ENOSYS          38
 #define TOY_ECHILD          10
 #define TOY_EBADF            9
 

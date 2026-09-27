@@ -62,6 +62,7 @@ run_one "smoke-virt" ./Scripts/smoke-virt.sh
 run_one "test-shell" ./Scripts/test-shell.sh
 run_one "test-user" ./Scripts/test-user.sh
 run_one "test-fs" ./Scripts/test-fs.sh
+run_one "test-enosys" ./Scripts/test-enosys.sh
 
 log "==== summary: ran=$Ran fail=$Fail ===="
 if [ "$Fail" -ne 0 ]; then

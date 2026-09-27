@@ -14,6 +14,7 @@
 #include "Console.h"
 #include "Scheduler.h"
 #include "Process.h"
+#include "Errno.h"
 
 void SyscallInit(void) {
     /* 硬件入口已由 HalSyscallInit 安装；保留符号供旧调用点 / 文档 */
@@ -21,6 +22,7 @@ void SyscallInit(void) {
 
 UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     UINT64 Ret = 0;
+    static UINT32 UnknownLogs;
 
     /* 保持 IF=0 直到 iretq 恢复用户 RFLAGS，避免在返回路径嵌套定时器抢占 */
     HalIrqDisable();
@@ -178,10 +180,17 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         }
         break;
     default:
-        ConsoleWrite("syscall: unknown ");
-        ConsoleWriteHex64(HalFrameSyscallNum(Frame));
-        ConsoleWrite("\n");
-        HalFrameSetReturn(Frame, (UINT64)-1);
+        /* 开课前冻结：未知号 → -ENOSYS；日志限次，避免每 tick 刷屏 */
+        if (UnknownLogs < 8) {
+            UnknownLogs++;
+            ConsoleWrite("syscall: unknown ");
+            ConsoleWriteHex64(HalFrameSyscallNum(Frame));
+            ConsoleWrite("\n");
+            if (UnknownLogs == 8) {
+                ConsoleWrite("syscall: unknown (further suppressed)\n");
+            }
+        }
+        HalFrameSetReturn(Frame, (UINT64)(INT64)(-(INT64)TOY_ENOSYS));
         break;
     }
 

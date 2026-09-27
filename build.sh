@@ -179,7 +179,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/cwddemo.elf" "$DEST/CWDDEMO.ELF"
     cp -f "$USER_OUT/netlibdemo.elf" "$DEST/NETLIB.ELF"
     cp -f "$USER_OUT/sockdemo.elf" "$DEST/SOCKDEMO.ELF"
-    echo "Synced Kernel/HELLO/... (+ Apps/hello、StoreCache、Apps/guidemo) -> $DEST/"
+    cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
+    echo "Synced Kernel/HELLO/... (+ Apps/hello、StoreCache、Apps/guidemo、ENOSYS) -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else

@@ -24,6 +24,7 @@ extern int errno;
 #define ENOSPC  28
 #define ESPIPE  29
 #define EPIPE   32
+#define ENOSYS  38
 
 #define ENETUNREACH  101
 #define ECONNRESET   104
