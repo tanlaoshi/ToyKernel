@@ -22,6 +22,7 @@ static int gRxMicU;
 static int gRxDiscLogged;
 static int gRxOffLogged;
 static int gRxLlcLogged;
+static int gRxStLogged;
 UINT16 gIwlDid;
 UINT8 gIwlBus;
 UINT8 gIwlDev;
@@ -31,6 +32,9 @@ UINT8 gIwlBssid[6];
 UINT16 gIwlAid;
 UINT8 gIwlPtk[16];
 UINT8 gIwlGtk[16];
+UINT8 gIwlGtkAlt[16];
+UINT8 gIwlGtkId;
+UINT8 gIwlGtkAltOk;
 UINT8 gIwlTxStaId = IWL_AUX_STA_ID;
 
 static void IwlAppend(char *Line, int *N, int Max, const char *S) {
@@ -370,14 +374,36 @@ int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     return 0;
 }
 
-static int IwlDecryptEither(UINT8 *Frame, UINT64 Pn, UINTN CryptHdr, UINTN CryptBody) {
-    if (IwlCcmpDecrypt(gIwlPtk, Pn, Frame, CryptHdr, CryptBody)) {
+/* KeyID≠0 优先 GTK（组播 Offer）；KeyID=0 优先 PTK；刀 #182 再试 GtkAlt */
+static int IwlDecryptEither(UINT8 *Frame, UINT64 Pn, UINTN MacHdr,
+                            UINTN CryptBody, UINT8 KeyId) {
+    if (KeyId != 0) {
+        if (IwlCcmpDecrypt(gIwlGtk, Pn, Frame, MacHdr, CryptBody)) {
+            return 1;
+        }
+        if (gIwlGtkAltOk
+            && IwlCcmpDecrypt(gIwlGtkAlt, Pn, Frame, MacHdr, CryptBody)) {
+            if (!gRxMicLogged) {
+                IwlLogStage("gtk=o16");
+            }
+            return 1;
+        }
+        return IwlCcmpDecrypt(gIwlPtk, Pn, Frame, MacHdr, CryptBody);
+    }
+    if (IwlCcmpDecrypt(gIwlPtk, Pn, Frame, MacHdr, CryptBody)) {
         return 1;
     }
-    return IwlCcmpDecrypt(gIwlGtk, Pn, Frame, CryptHdr, CryptBody);
+    if (IwlCcmpDecrypt(gIwlGtk, Pn, Frame, MacHdr, CryptBody)) {
+        return 1;
+    }
+    if (gIwlGtkAltOk
+        && IwlCcmpDecrypt(gIwlGtkAlt, Pn, Frame, MacHdr, CryptBody)) {
+        return 1;
+    }
+    return 0;
 }
 
-static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
+static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen, UINT32 St) {
     UINT16 Fc;
     UINTN HdrLen;
     UINTN BodyOff;
@@ -390,6 +416,7 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     int Qos;
     int FromDs;
     int ToDs;
+    int FwDec;
 
     if (!Frame || FLen < 24) {
         return;
@@ -402,6 +429,7 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     Qos = ((Fc & 0x008Cu) == 0x0088u);
     ToDs = (Fc & 0x0100u) != 0;
     FromDs = (Fc & 0x0200u) != 0;
+    FwDec = (St & IWL_RX_MPDU_MIC_OK) != 0 && (St & IWL_RX_MPDU_DEC_DONE) != 0;
     HdrLen = 24u;
     if ((Fc & 0x0300u) == 0x0300u) {
         HdrLen += 6u;
@@ -418,32 +446,52 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
     BodyOff = HdrLen;
     BodyLen = FLen - HdrLen;
     if (Prot) {
+        /*
+         * 刀 #180：固件已解（MIC_OK|DEC_DONE）→ 跳过主机 CCMP。
+         * 布局仍 [mac][ccmp8][明文]；MIC 多半被 RADA 剥掉。
+         */
+        if (FwDec) {
+            if (BodyLen < 8u) {
+                return;
+            }
+            BodyOff = HdrLen + 8u;
+            BodyLen = FLen - HdrLen - 8u;
+            if (BodyLen >= 8u
+                && !(Frame[BodyOff] == 0xAA && Frame[BodyOff + 1] == 0xAA)
+                && BodyLen >= 16u) {
+                BodyLen -= 8u; /* MIC 仍在 */
+            }
+        } else {
         if (BodyLen < 8u + 8u) {
             return; /* CCMP + MIC */
         }
-        /* PN from CCMP hdr */
+        /* PN + KeyID from CCMP hdr */
         Pn = (UINT64)Frame[BodyOff]
            | ((UINT64)Frame[BodyOff + 1] << 8)
            | ((UINT64)Frame[BodyOff + 4] << 16)
            | ((UINT64)Frame[BodyOff + 5] << 24)
            | ((UINT64)Frame[BodyOff + 6] << 32)
            | ((UINT64)Frame[BodyOff + 7] << 40);
-        BodyLen -= 8u; /* MIC */
-        BodyLen -= 8u; /* leave CCMP in place; decrypt uses HdrLen+8 style */
         /*
-         * Layout [hdr][ccmp8][body][mic8]. Decrypt with HdrLen'=HdrLen+8
-         * so crypto starts at body; BodyLen = ciphertext len.
+         * 刀 #178：MAC 头长单独传给 CCMP；勿把 CCMP 算进 HdrLen（QoS AAD）。
+         * Layout [mac][ccmp8][body][mic8]。
          */
         {
-            UINTN CryptHdr = HdrLen + 8u;
-            UINTN CryptBody = FLen - CryptHdr - 8u;
-            int Ok = IwlDecryptEither(Frame, Pn, CryptHdr, CryptBody);
+            UINT8 KeyId = (UINT8)((Frame[BodyOff + 3] >> 6) & 3u);
+            UINTN CryptBody = FLen - HdrLen - 8u - 8u;
+            int Ok = IwlDecryptEither(Frame, Pn, HdrLen, CryptBody, KeyId);
 
-            /* byte_count 若含了尾部状态字，MIC 在倒数 4 字节之前 */
+            /* 刀 #179：byte_count 可能含 FCS(4)；再试 -4/-8 */
             if (!Ok && CryptBody > 4u) {
-                Ok = IwlDecryptEither(Frame, Pn, CryptHdr, CryptBody - 4u);
+                Ok = IwlDecryptEither(Frame, Pn, HdrLen, CryptBody - 4u, KeyId);
                 if (Ok) {
                     CryptBody -= 4u;
+                }
+            }
+            if (!Ok && CryptBody > 8u) {
+                Ok = IwlDecryptEither(Frame, Pn, HdrLen, CryptBody - 8u, KeyId);
+                if (Ok) {
+                    CryptBody -= 8u;
                 }
             }
             if (!Ok) {
@@ -458,7 +506,7 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
                     }
                     if (Us) {
                         if (!gRxMicU) {
-                            char Line[12];
+                            char Line[16];
                             char Hex[12];
                             UINT16 FcLog;
                             int n = 0;
@@ -478,14 +526,43 @@ static void IwlRxDataToNet(UINT8 *Frame, UINTN FLen) {
                             IwlLogStage(Line);
                         }
                     } else if (!gRxMicLogged) {
+                        char Line[28];
+                        char Hex[12];
+                        UINT16 FcLog;
+                        int n = 0;
+                        const char *P = "rx=mic o f=";
+
                         gRxMicLogged = 1;
-                        IwlLogStage("rx=mic o");
+                        FcLog = (UINT16)Frame[0] | ((UINT16)Frame[1] << 8);
+                        while (*P) {
+                            Line[n++] = *P++;
+                        }
+                        HalSerialFormatHex(Hex, FcLog, 4);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n++] = Hex[4];
+                        Line[n++] = Hex[5];
+                        Line[n++] = ' ';
+                        Line[n++] = 'k';
+                        Line[n++] = '=';
+                        HalSerialFormatHex(Hex, KeyId, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n++] = ' ';
+                        Line[n++] = 'g';
+                        Line[n++] = '=';
+                        HalSerialFormatHex(Hex, gIwlGtkId, 2);
+                        Line[n++] = Hex[2];
+                        Line[n++] = Hex[3];
+                        Line[n] = 0;
+                        IwlLogStage(Line);
                     }
                 }
                 return;
             }
-            BodyOff = CryptHdr;
+            BodyOff = HdrLen + 8u;
             BodyLen = CryptBody;
+        }
         }
     }
     if (BodyLen < 8u) {
@@ -606,6 +683,7 @@ void IwlPoll(void) {
         if (Code == IWL_RX_MPDU_CMD && PayLen > 4) {
             UINT16 Bc;
             UINTN FLen = PayLen - 4;
+            UINT32 St = 0;
 
             /*
              * 刀 #170：byte_count 是 802.11 帧长。DMA 长度还含帧后的状态字
@@ -615,14 +693,46 @@ void IwlPoll(void) {
             if (Bc >= 24u && (UINTN)Bc <= FLen) {
                 FLen = Bc;
             }
+            /* 刀 #179：帧后 4B = RX_MPDU_RES_STATUS（MIC_OK bit6 / DEC_DONE bit11） */
+            if (4u + FLen + 4u <= PayLen) {
+                St = (UINT32)Payload[4 + FLen]
+                   | ((UINT32)Payload[4 + FLen + 1] << 8)
+                   | ((UINT32)Payload[4 + FLen + 2] << 16)
+                   | ((UINT32)Payload[4 + FLen + 3] << 24);
+            }
             if (FLen > sizeof(Mutable)) {
                 FLen = sizeof(Mutable);
             }
             for (i = 0; i < FLen; i++) {
                 Mutable[i] = Payload[4 + i];
             }
+            if (gIwlWpa2Ok && !gRxStLogged && FLen >= 24u
+                && (Mutable[1] & 0x40u) != 0) {
+                char Line[20];
+                char Hex[12];
+                int n = 0;
+                const char *P = "rx=st=";
+                gRxStLogged = 1;
+                while (*P) {
+                    Line[n++] = *P++;
+                }
+                HalSerialFormatHex(Hex, (St >> 24) & 0xffu, 2);
+                Line[n++] = Hex[2];
+                Line[n++] = Hex[3];
+                HalSerialFormatHex(Hex, (St >> 16) & 0xffu, 2);
+                Line[n++] = Hex[2];
+                Line[n++] = Hex[3];
+                HalSerialFormatHex(Hex, (St >> 8) & 0xffu, 2);
+                Line[n++] = Hex[2];
+                Line[n++] = Hex[3];
+                HalSerialFormatHex(Hex, St & 0xffu, 2);
+                Line[n++] = Hex[2];
+                Line[n++] = Hex[3];
+                Line[n] = 0;
+                IwlLogStage(Line);
+            }
             if (gIwlWpa2Ok) {
-                IwlRxDataToNet(Mutable, FLen);
+                IwlRxDataToNet(Mutable, FLen, St);
             }
         }
         (void)Code;

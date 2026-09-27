@@ -285,6 +285,13 @@ UINT8 IwlRxHoldCount(void) {
     return gMpduHoldCnt;
 }
 
+/* 刀 #176：post=sta 窗内 AP 可能已塞进旧 M1；握手前清空，迫使用 Start 后的新帧 */
+void IwlRxHoldFlush(void) {
+    gMpduHoldR = 0;
+    gMpduHoldW = 0;
+    gMpduHoldCnt = 0;
+}
+
 int IwlRxTakeHeld(IWL_RX_PKT **OutPkt, UINTN *OutLen) {
     if (!OutPkt || !OutLen || gMpduHoldCnt == 0) {
         return 0;

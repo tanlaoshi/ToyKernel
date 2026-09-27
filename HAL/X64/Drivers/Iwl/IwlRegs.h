@@ -168,6 +168,16 @@
 #define IWL_CMD_SCAN_REQ_UMAC         0x0du
 #define IWL_CMD_ADD_STA_KEY           0x17u
 #define IWL_CMD_ADD_STA               0x18u
+/* OpenBSD iwm_add_sta_key_cmd_v1 / Linux STA_KEY_FLG_*（刀 #180） */
+#define IWL_STA_KEY_FLG_CCM           0x0002u
+#define IWL_STA_KEY_FLG_WEP_KEY_MAP   0x0008u
+#define IWL_STA_KEY_FLG_KEYID_POS     8u
+#define IWL_STA_KEY_FLG_KEYID_MSK     0x0300u
+#define IWL_STA_KEY_MULTICAST         0x4000u
+#define IWL_ADD_STA_KEY_CMD_V1_SIZE   64u
+/* RX_MPDU_RES_STATUS（刀 #179/#180） */
+#define IWL_RX_MPDU_MIC_OK            (1u << 6)
+#define IWL_RX_MPDU_DEC_DONE          (1u << 11)
 #define IWL_CMD_SCD_QUEUE_CFG         0x1du
 #define IWL_CMD_TX                    0x1cu
 #define IWL_CMD_LQ                    0x4eu /* 数据帧前必须给 AP 站一张速率表 */

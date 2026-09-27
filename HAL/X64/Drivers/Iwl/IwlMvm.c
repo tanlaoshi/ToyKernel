@@ -248,8 +248,9 @@ int IwlPhyCtxtTune(UINT8 Chan) {
 
 /*
  * 刀 #105/#106：BSS_STA。Prep 用 is_assoc=0；Assoc 后 MODIFY=1。
+ * 刀 #180/#181：FwDecrypt — 0=全禁；1=单+组；2=仅单播（组仍 DIS_GRP，主机解）。
  */
-static int IwlMacCtxtSend(UINT32 Action, int IsAssoc, int Sync) {
+static int IwlMacCtxtSend(UINT32 Action, int IsAssoc, int Sync, int FwDecrypt) {
     UINT8 Cmd[IWL_MAC_CTX_CMD_SIZE];
     UINT32 MacId = IWL_FW_CMD_ID_AND_COLOR(0, 0);
     UINT32 Filter;
@@ -268,11 +269,14 @@ static int IwlMacCtxtSend(UINT32 Action, int IsAssoc, int Sync) {
     IwlPut32(Cmd + 44, IWL_MAC_FLG_SHORT_PREAMBLE);
     IwlPut32(Cmd + 48, IWL_MAC_FLG_SHORT_SLOT);
     Filter = IWL_MAC_FILTER_ACCEPT_GRP
-           | IWL_MAC_FILTER_DIS_DECRYPT
-           | IWL_MAC_FILTER_DIS_GRP_DECRYPT
            | IWL_MAC_FILTER_IN_CONTROL_AND_MGMT
            | IWL_MAC_FILTER_IN_PROMISC
            | IWL_MAC_FILTER_IN_BEACON; /* #120：assoc 后仍收 beacon；#119 去掉后 n=01 */
+    if (FwDecrypt == 0) {
+        Filter |= IWL_MAC_FILTER_DIS_DECRYPT | IWL_MAC_FILTER_DIS_GRP_DECRYPT;
+    } else if (FwDecrypt == 2) {
+        Filter |= IWL_MAC_FILTER_DIS_GRP_DECRYPT; /* 刀 #181 */
+    }
     IwlPut32(Cmd + 52, Filter);
     Ac = Cmd + 60;
     for (i = 0; i < 5; i++) {
@@ -361,7 +365,7 @@ int IwlMacCtxtPrep(void) {
     for (i = 0; i < 6; i++) {
         gIwlBssid[i] = gIwlTarget.Bssid[i];
     }
-    if (!IwlMacCtxtSend(IWL_FW_CTXT_ACTION_ADD, 0, 1)) {
+    if (!IwlMacCtxtSend(IWL_FW_CTXT_ACTION_ADD, 0, 1, 0)) {
         IwlLogCmdFail("macadd", IWL_CMD_MAC_CONTEXT);
         (void)IwlCmdqUnwedge();
         return 0;
@@ -415,7 +419,7 @@ int IwlMacCtxtAssoc(void) {
     if (!ApOk) {
         IwlLogStage("apsta=soft");
     }
-    if (IwlMacCtxtSend(IWL_FW_CTXT_ACTION_MODIFY, 1, 200)) {
+    if (IwlMacCtxtSend(IWL_FW_CTXT_ACTION_MODIFY, 1, 200, 0)) {
         IwlLogStage("macmod=ok");
     } else {
         IwlLogStage("macmod=soft");
@@ -429,6 +433,38 @@ int IwlMacCtxtAssoc(void) {
         IwlLogStage(IwlSendLq((UINT8)IWL_AP_STA_ID) ? "lq=ok" : "lq=fail");
         IwlLogStage(IwlStaEnableTx((UINT8)IWL_AP_STA_ID) ? "tid=ok" : "tid=fail");
     }
+    return 1;
+}
+
+/*
+ * 刀 #180：ADD_STA_KEY 通（key=ok），但 rx=st=00C07A1F = CCM+DEC_DONE 无 MIC_OK。
+ * 刀 #181：OpenBSD 模型——只把 PTK 交给固件；组播保留 DIS_GRP_DECRYPT，主机解 GTK。
+ * 固件用错 GTK 会把密文解坏，主机回退也救不了。
+ */
+static int IwlAddStaKey(UINT8 KeyOff, UINT16 Flags, const UINT8 Key[16]) {
+    UINT8 Cmd[IWL_ADD_STA_KEY_CMD_V1_SIZE];
+
+    IwlZero(Cmd, sizeof(Cmd));
+    Cmd[0] = (UINT8)IWL_AP_STA_ID;
+    Cmd[1] = KeyOff;
+    IwlPut16(Cmd + 2, Flags);
+    IwlCopy(Cmd + 4, Key, 16);
+    return IwlSendCmd(IWL_CMD_ADD_STA_KEY, Cmd, sizeof(Cmd), 200) == 0;
+}
+
+int IwlStaKeysInstall(void) {
+    /* 与 chitti 一致：CCM+KEYID，不置 WEP_KEY_MAP */
+    UINT16 PtkFlg = (UINT16)IWL_STA_KEY_FLG_CCM;
+
+    if (!IwlAddStaKey(0, PtkFlg, gIwlPtk)) {
+        IwlLogStage("key=ptk");
+        return 0;
+    }
+    /*
+     * 刀 #184：保持 DIS_DECRYPT|DIS_GRP（FwDecrypt=0）。
+     * 组播是 TKIP；单播 DHCP Offer 由主机用 PTK/CCMP 解，勿让固件先解坏。
+     */
+    IwlLogStage("key=ok");
     return 1;
 }
 

@@ -103,6 +103,12 @@ extern int gIwlPmkOk;
 extern UINT8 gIwlTxStaId;
 extern UINT8 gIwlPtk[16];
 extern UINT8 gIwlGtk[16];
+extern UINT8 gIwlGtkAlt[16]; /* 刀 #182：KdeLen 大时 +16 备选 */
+extern UINT8 gIwlGtkId; /* 刀 #179：GTK KDE KeyID（帧头 KeyID=2 常见） */
+extern UINT8 gIwlGtkAltOk; /* 1=Alt 有效 */
+/* 刀 #174：AssocReq 自建 STA RSN；M2 Key Data 必须同一份 */
+extern UINT8 gIwlStaRsn[32];
+extern UINT8 gIwlStaRsnLen;
 extern IWL_BSS gIwlTarget;
 extern IWL_FW_IMG gIwlImgRt;
 extern IWL_FW_IMG gIwlImgInit;
@@ -156,6 +162,7 @@ int IwlRxTake(IWL_RX_PKT **OutPkt, UINTN *OutLen);
 void IwlRxHoldMpdu(const IWL_RX_PKT *Pkt, UINTN Len);
 int IwlRxTakeHeld(IWL_RX_PKT **OutPkt, UINTN *OutLen);
 UINT8 IwlRxHoldCount(void); /* #130：EAPOL 前看暂存数 */
+void IwlRxHoldFlush(void);   /* #176：丢掉 assoc 后堆积的旧 M1 */
 void IwlRxRestock(void);
 UINT32 IwlRxDiagClosed(void);
 UINT32 IwlRxDiagRead(void);
@@ -184,6 +191,7 @@ void IwlReadHwMac(void);   /* #133：读 WFMP 并黄字；先不改 gIwlMac */
 void IwlApplyHwMac(void);  /* #136：MVM/扫描前换上芯片地址 */
 int IwlMacCtxtPrep(void);  /* #132：auth 后、assoc 前 mac0+bind+TE */
 int IwlMacCtxtAssoc(void); /* assoc 后：apsta+macmod+apqhw */
+int IwlStaKeysInstall(void); /* #180：ADD_STA_KEY PTK/GTK + 开固件解密 */
 int IwlMvmPostAlive(void);
 int IwlScanRun(void);
 int IwlAssocRun(void);

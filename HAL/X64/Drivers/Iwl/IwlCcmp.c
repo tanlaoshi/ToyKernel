@@ -223,6 +223,12 @@ int IwlCcmpEncrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame,
     return 1;
 }
 
+/*
+ * 刀 #178：收包布局是 [MAC HdrLen][CCMP 8][body][MIC 8]。
+ * 旧代码把 HdrLen 写成 MAC+CCMP，非 QoS 碰巧能解；QoS 时 AAD 去 CCMP 当
+ * QoS Control → 组播 Offer（常带 QoS）全 mic 失败 → no offer。
+ * HdrLen = 仅 MAC（24/26/…）；BodyLen = 密文长度（不含 MIC）。
+ */
 int IwlCcmpDecrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame,
                    UINTN HdrLen, UINTN BodyLen)
 {
@@ -234,26 +240,28 @@ int IwlCcmpDecrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame,
     UINTN AadLen;
     UINTN I;
     UINT8 Diff;
+    UINTN BodyOff;
 
     if (Key == NULL || Frame == NULL || HdrLen < 24) {
         return 0;
     }
+    BodyOff = HdrLen + 8u;
     AadLen = BuildAad(Frame, HdrLen, Aad, &Pri);
     if (AadLen == 0) {
         return 0;
     }
     for (I = 0; I < 8; I++) {
-        Got[I] = Frame[HdrLen + BodyLen + I];
+        Got[I] = Frame[BodyOff + BodyLen + I];
     }
     FillNonce(Nonce, Pri, Frame + 10, Pn);
-    CcmAuthCrypt(Key, Aad, AadLen, Nonce, Frame + HdrLen, BodyLen, Mic, 0);
+    CcmAuthCrypt(Key, Aad, AadLen, Nonce, Frame + BodyOff, BodyLen, Mic, 0);
     Diff = 0;
     for (I = 0; I < 8; I++) {
         Diff |= (UINT8)(Mic[I] ^ Got[I]);
     }
     if (Diff != 0) {
         /* 解密是就地的。MIC 不符时再跑一遍 CTR，把密文还原给下一把密钥。 */
-        CcmAuthCrypt(Key, Aad, AadLen, Nonce, Frame + HdrLen, BodyLen, Mic, 0);
+        CcmAuthCrypt(Key, Aad, AadLen, Nonce, Frame + BodyOff, BodyLen, Mic, 0);
         return 0;
     }
     return 1;

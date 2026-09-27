@@ -102,12 +102,18 @@ int IwlAesDecrypt(const UINT8 Key[16], const UINT8 In[16], UINT8 Out[16])
     return 1;
 }
 
-/* RFC 3394。WPA2 M3 的密钥数据用 KEK 包了组密钥。 */
+/*
+ * RFC 3394。WPA2 M3 的密钥数据用 KEK 包了组密钥。
+ * 刀 #177：旧实现明文最多 48B（密文 56）。Apple M3 常带 RSN+GTK(+IGTK) 更长 → gtk=bad。
+ * 扩到 24 个 8B 块（明文 192 / 密文 200），盖住 EAPOL Key Data 实际上限。
+ */
+#define IWL_AES_WRAP_MAX_N  24u
+
 int IwlAesUnwrap(const UINT8 Kek[16], const UINT8 *In, UINTN InLen,
                  UINT8 *Out, UINTN OutCap, UINTN *OutLen)
 {
     UINT8 A[8];
-    UINT8 R[6][8];
+    UINT8 R[IWL_AES_WRAP_MAX_N][8];
     UINTN N;
     UINTN K;
     int J;
@@ -116,11 +122,12 @@ int IwlAesUnwrap(const UINT8 Kek[16], const UINT8 *In, UINTN InLen,
     if (Kek == NULL || In == NULL || Out == NULL || OutLen == NULL) {
         return 0;
     }
-    if ((InLen & 7u) != 0 || InLen < 16 || InLen > 56) {
+    if ((InLen & 7u) != 0 || InLen < 16u
+        || InLen > 8u * (IWL_AES_WRAP_MAX_N + 1u)) {
         return 0;
     }
     N = InLen / 8u - 1u;
-    if (N > 6 || N * 8u > OutCap) {
+    if (N == 0 || N > IWL_AES_WRAP_MAX_N || N * 8u > OutCap) {
         return 0;
     }
     for (K = 0; K < 8; K++) {
