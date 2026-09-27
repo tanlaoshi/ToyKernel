@@ -59,10 +59,12 @@ run_one "runtests fs" ./Scripts/runtests.sh fs
 cd "$ImageRoot" || exit 2
 run_one "smoke-boot" ./Scripts/smoke-boot.sh
 run_one "smoke-virt" ./Scripts/smoke-virt.sh
-run_one "test-shell" ./Scripts/test-shell.sh
-run_one "test-user" ./Scripts/test-user.sh
-run_one "test-fs" ./Scripts/test-fs.sh
-run_one "test-enosys" ./Scripts/test-enosys.sh
+# expect 脚本用 dirname(pwd) 推 Image 根 → 必须在 Scripts/ 下跑
+cd "$ImageRoot/Scripts" || exit 2
+run_one "test-shell" ./test-shell.sh
+run_one "test-user" ./test-user.sh
+run_one "test-fs" ./test-fs.sh
+run_one "test-enosys" ./test-enosys.sh
 
 log "==== summary: ran=$Ran fail=$Fail ===="
 if [ "$Fail" -ne 0 ]; then
