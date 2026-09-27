@@ -174,6 +174,8 @@ int IwlPmkPrepare(void);
 int IwlAddApSta(void);
 int IwlPhyCtxtTune(UINT8 Chan);
 void IwlProtectSession(void);
+void IwlReadHwMac(void);   /* #133：读 WFMP 并黄字；先不改 gIwlMac */
+void IwlApplyHwMac(void);  /* #136：MVM/扫描前换上芯片地址 */
 int IwlMacCtxtPrep(void);  /* #132：auth 后、assoc 前 mac0+bind+TE */
 int IwlMacCtxtAssoc(void); /* assoc 后：apsta+macmod+apqhw */
 int IwlMvmPostAlive(void);

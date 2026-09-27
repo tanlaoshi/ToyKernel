@@ -114,6 +114,40 @@ static int IwlParseBeacon(const UINT8 *Frame, UINTN Len) {
     return 1;
 }
 
+/* 失败黄字只用前 8 个可见字符，避免一行撑过串口宽度 */
+static void IwlCopyVis(char *Dst, const UINT8 *Src, UINTN Len) {
+    UINTN i;
+    UINTN N = Len > 8u ? 8u : Len;
+
+    Dst[0] = 0;
+    for (i = 0; i < N; i++) {
+        UINT8 Ch = Src[i];
+        Dst[i] = (Ch >= 32u && Ch < 127u) ? (char)Ch : '.';
+    }
+    Dst[N] = 0;
+}
+
+static void IwlNoteBeacon(const UINT8 *Frame, UINTN Len, char *Heard) {
+    UINTN Pos;
+
+    if (Heard[0] != 0 || Len < 36u) {
+        return;
+    }
+    Pos = 36;
+    while (Pos + 2u <= Len) {
+        UINT8 Id = Frame[Pos];
+        UINT8 El = Frame[Pos + 1];
+        if (Pos + 2u + El > Len) {
+            break;
+        }
+        if (Id == 0) {
+            IwlCopyVis(Heard, Frame + Pos + 2, El);
+            return;
+        }
+        Pos += 2u + El;
+    }
+}
+
 /*
  * 刀 #74：#73 满尾 V1 仍无 ACK/0f。UCODE core33/API36 → OpenBSD 走 V7+ADAPTIVE；
  * 刀 #80：#79 uid 仍 to。UCODE TLV 0x1f=N_SCAN_CHANNELS=52，旧硬编码 40
@@ -245,6 +279,12 @@ int IwlScanRun(void) {
     UINT32 Ncode = 0;
     int GotAck = 0;
     int GotDone = 0;
+    int StopAt = -1;
+    UINT32 BeaconN = 0;
+    UINT8 FirstFc = 0;
+    char Heard[9];
+
+    Heard[0] = 0;
 
     gIwlScanCount = 0;
     gIwlSsidOk = 0;
@@ -430,6 +470,14 @@ int IwlScanRun(void) {
                     Frame = Payload + 4;
                     FLen = PayLen - 4;
                 }
+                if (Code == IWL_RX_MPDU_CMD && FLen > 0 && FirstFc == 0) {
+                    FirstFc = Frame[0];
+                }
+                if (FLen > 32 &&
+                    ((Frame[0] & 0xFCu) == 0x80u || (Frame[0] & 0xFCu) == 0x50u)) {
+                    BeaconN++;
+                    IwlNoteBeacon(Frame, FLen, Heard);
+                }
                 if (FLen > 32 && IwlParseBeacon(Frame, FLen)) {
                     IwlLogStage("scan=ok");
                     return 1;
@@ -445,12 +493,16 @@ int IwlScanRun(void) {
                     IwlLogStage("scan=ok");
                     return 1;
                 }
-                IwlLogVerb("scan=done");
-                i = 8000;
-                break;
+                /* 完成通知后面可能还有信标，先把本轮队列收完 */
+                if (StopAt < 0) {
+                    StopAt = (int)i + 400;
+                }
             }
         }
         IwlStallMs(1);
+        if (StopAt >= 0 && (int)i >= StopAt) {
+            break;
+        }
     }
     {
         char Line[56];
@@ -477,6 +529,48 @@ int IwlScanRun(void) {
             if (Codes[k] & 0x100u) {
                 Line[n++] = 'n';
             }
+        }
+        Line[n] = 0;
+        IwlLogStage(Line);
+    }
+    {
+        char Line[64];
+        char Hex[12];
+        char Want[9];
+        int n = 0;
+        const char *P = "scan=miss b=";
+        UINTN Wlen = 0;
+
+        while (gIwlSsid[Wlen] && Wlen < 8u) {
+            Wlen++;
+        }
+        IwlCopyVis(Want, (const UINT8 *)gIwlSsid, Wlen);
+        while (*P && n < 48) {
+            Line[n++] = *P++;
+        }
+        HalSerialFormatHex(Hex, BeaconN & 0xffu, 2);
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
+        Line[n++] = ' ';
+        Line[n++] = 'f';
+        Line[n++] = 'c';
+        Line[n++] = '=';
+        HalSerialFormatHex(Hex, FirstFc, 2);
+        Line[n++] = Hex[2];
+        Line[n++] = Hex[3];
+        Line[n++] = ' ';
+        Line[n++] = 'h';
+        Line[n++] = '=';
+        P = Heard[0] ? Heard : "-";
+        while (*P && n < 40) {
+            Line[n++] = *P++;
+        }
+        Line[n++] = ' ';
+        Line[n++] = 'w';
+        Line[n++] = '=';
+        P = Want[0] ? Want : "-";
+        while (*P && n < 56) {
+            Line[n++] = *P++;
         }
         Line[n] = 0;
         IwlLogStage(Line);

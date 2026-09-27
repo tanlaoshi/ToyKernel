@@ -139,11 +139,17 @@ static int IwlBringUpSta(void) {
         return 0;
     }
     (void)IwlPmkPrepare(); /* 扫描前算 PMK，握手窗口只做 PTK */
+    /*
+     * 刀 #136：#135 在 scan=ok 之后才 mac=use。
+     * 认证帧地址已是 94:B8:6D，SCAN_CFG 仍是本地地址 → auth=to n=18 f=80（只有 beacon）。
+     * 扫描配置和认证帧用同一块芯片地址。
+     */
+    IwlReadHwMac();
+    IwlApplyHwMac();
     if (!IwlMvmPostAlive()) {
         /* mvm=* 已打；仍尝试 scan 以观察 RX */
     }
     if (!IwlScanRun()) {
-        /* IwlScanRun 已打 scan=fail n=… */
         return 0;
     }
     /* 刀 #132：#131 auth 前 Prep → auth=to。Auth 仍无 MAC；Assoc 前再 Prep */
