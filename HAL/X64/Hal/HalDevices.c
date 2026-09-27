@@ -150,8 +150,9 @@ int HalWifiReady(void) {
     return WifiReady();
 }
 
-/* PR-N-wifi-1：NUC iwl8265；PCI 认卡 + 读 FW；无卡 0 */
+/* PR-N-wifi-1 / PR-BOOT-fast-3：放行后 PCI+BAR；FW/关联仍走 Worker BgPump；无卡 0 */
 int HalIwlClaim(void) {
+    IwlAllowBootClaim();
     return IwlSetup() ? 1 : 0;
 }
 

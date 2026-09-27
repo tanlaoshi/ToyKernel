@@ -10,6 +10,8 @@
 #define IWL_DID_8265   0x24FDu
 
 int IwlSetup(void);
+/* PR-BOOT-fast-3：允许开机 Claim（Worker 调用；FS/Net 早 Probe 勿进） */
+void IwlAllowBootClaim(void);
 int IwlReady(void);
 int IwlAssociated(void);
 void IwlGetMac(UINT8 Mac[6]);

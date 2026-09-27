@@ -12,7 +12,6 @@
 #include "Hal.h"
 #include "HalDevices.h"
 #include "CoreOps.h"
-#include "Driver.h"
 
 int FileSystemRemountVolumes(void) {
     /*
@@ -155,13 +154,11 @@ int FileSystemInitialize(void) {
     }
 
     /*
-     * PR-N-wifi-1：卷已挂后认 NUC iwl8265（读 FW/IWL8265.UCODE）再 Probe NET。
-     * 勿在此调 HalWifiClaim（USB 8188EU）：会 Address/Reset 旁路口，
-     * 已认 MSC hub 上易 AddressDev cc=0x04 → bulk 挂（NUC 真机已见）。
+     * PR-BOOT-fast-3：勿在此 HalIwlClaim / Probe NET。
+     * iwl BAR+FW/关联由 Worker（图标之后）HalIwlClaim → BgPump；
+     * 有线 NIC 仍在 Network 模块 NetInit Probe。
+     * 勿在此调 HalWifiClaim（USB 8188EU）：会踩已认 MSC hub。
      */
-    if (HalIwlClaim() == 1) {
-        (void)ToyDriverProbeClass(TOY_DRIVER_CLASS_NET);
-    }
 
     if (!HaveVols && !MuxOk) {
         if (HalBlockInit() <= 0) {

@@ -182,6 +182,12 @@ static int IwlBringUpSta(void) {
 static int gIwlBgPending;
 static int gIwlBgDone;
 static int gIwlBgPhase; /* 0=待起/读 FW；1=待 BringUpSta */
+/* PR-BOOT-fast-3：0=FS/Net 早 Probe 跳过；Worker HalIwlClaim 前打开 */
+static int gIwlBootClaimAllowed;
+
+void IwlAllowBootClaim(void) {
+    gIwlBootClaimAllowed = 1;
+}
 
 int IwlStartSta(void) {
     return IwlBringUpSta();
@@ -235,6 +241,13 @@ int IwlSetup(void) {
 
     if (gIwlReady) {
         return 1;
+    }
+    /*
+     * PR-BOOT-fast-3：勿在 FileSystem/Network 模块里 Claim。
+     * 早 Probe 会拖 I219 等同批 NET，且 BAR 认领应在桌面之后由 Worker 发起。
+     */
+    if (!gIwlBootClaimAllowed) {
+        return 0;
     }
     if (!IwlPciFind(&Bus, &Dev, &Fn, &Bar, &Did)) {
         return 0;

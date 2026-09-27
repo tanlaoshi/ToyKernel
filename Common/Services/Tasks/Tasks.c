@@ -76,11 +76,23 @@ void WorkerTask(void) {
     for (;;) {
         gWorkerCount++;
         /*
-         * PR-BOOT-fast-1：图标/菜单扫盘必须在 Worker、且先于 iwl FW 读。
+         * PR-BOOT-fast-1：图标/菜单扫盘必须在 Worker、且先于 iwl。
          * 若放 Gui TickClock：iwl 的 IoBreath→CondResched→Gui 再读盘会重入 FAT，
          * 真机曾见 #GP@IsrCommon iretq（rsp=0）。
          */
         DesktopEnsureIconsLoaded();
+        /*
+         * PR-BOOT-fast-3：桌面就绪后再 Claim iwl（BAR）；FW/关联仍走下方 BgPump。
+         * FS/Net 模块内不再 Claim，避免拖长进桌面。
+         */
+        {
+            static int sIwlClaimOnce;
+
+            if (!sIwlClaimOnce) {
+                (void)HalIwlClaim();
+                sIwlClaimOnce = 1;
+            }
+        }
         if (StoreJobUiIsBusy()) {
             (void)StoreJobStep();
             SchedulerIoBreath();
