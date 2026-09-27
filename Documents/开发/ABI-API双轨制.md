@@ -1,9 +1,9 @@
 # ABI / API 双轨制整理（分析稿）
 
-> **状态**：网-1 / A / B / **C ✅ TG**（2026-09-23）。正文 §1–§10 是当时的分析快照。  
-> **本次补充**：见下方「补充 POSIX」；**Syscall 号段**见「号段重排（SyscallABI）」——权威 [`SyscallABI.h`](../../Include/SyscallABI.h)。  
-> **范围**：用户态 `User/include/` + CRT/lib。  
-> **对照**：本文件相对任务书，已按**仓库实况**校正。
+> **状态**：网-1 / A / B / **C ✅ TG**（2026-09-23）。正文 §1–§10 是当时的分析快照；**课上日常请读** [`API速查.md`](API速查.md) / [`开课ABI冻结.md`](开课ABI冻结.md) / [`开发者接手指南.md`](开发者接手指南.md)。  
+> **现行 Net ABI = 2.0.1**（`ToyNetConnect` 主机序；POSIX `connect`+`sockaddr` 网络序）。文中若出现「保持 `connect(fd,ip,port)`」属决策对比，**非现行 API**。  
+> **Syscall 号段**权威 [`SyscallABI.h`](../../Include/SyscallABI.h)。  
+> **范围**：用户态 `User/include/` + CRT/lib。
 
 ---
 

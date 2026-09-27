@@ -21,7 +21,7 @@
 
 ## 1. `ToyNet.h` 现有结构
 
-路径：`User/include/ToyNet.h`（ABI **1.2.0**）。
+路径：`User/include/ToyNet.h`（现行 ABI **2.0.1**；下文分析稿写作时为 1.2.0，**仅作决策记录**）。
 
 | 内容 | 现状 |
 | ---- | ---- |

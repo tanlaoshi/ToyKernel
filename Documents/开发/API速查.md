@@ -7,7 +7,8 @@
 > | **第 1 轨** | POSIX / C 习惯名；语义尽量接近，差异写在「注意」 | `unistd.h` `stdio.h` `fcntl.h` …；网络 POSIX 目标头 `sys/socket.h` |
 > | **第 2 轨** | Toy 命名规范 | `ToyUi.h` `ToyGfx.h` `ToyNet.h` `FsUtil.h` `dirent.h` `toyos/` |
 >
-> **Syscall 号**：权威 [`SyscallABI.h`](../../Include/SyscallABI.h)（段内双轨）。用户 `toyos/syscall.h` 与汇编 demo 只用 `SYS_*`。速查表见 [`路线图 · PR-U-syscall-abi`](../路线图.md#pr-u-syscall-abi)。
+> **Syscall 号**：权威 [`SyscallABI.h`](../../Include/SyscallABI.h)（段内双轨）。用户 `toyos/syscall.h` **包含**该头。  
+> **开课版本**：[`开课ABI冻结.md`](开课ABI冻结.md)。自学入口：[`开发者接手指南.md`](开发者接手指南.md)。
 
 ---
 
@@ -19,7 +20,7 @@
 |------|--------|------|
 | `exit(int status)` | `<stdlib.h>` | → `SYS_EXIT`（50） |
 | `fork()` | `<unistd.h>` | 返回值当 pid（槽位+1）；`SYS_FORK`（51） |
-| `wait(int *status)` | `<unistd.h>` | **无 pid 参数**；`*status` 为 `(exit & 0xff) << 8`；`WEXITSTATUS`；`SYS_WAIT`（52） |
+| `wait(int *status)` | `<unistd.h>` | **无 pid**；`*status=(exit&0xff)<<8`；`WEXITSTATUS`；裸 syscall 退出码在 `rdx`；`SYS_WAIT`（52） |
 | `execve(path, argv, envp)` | `<unistd.h>` | `SYS_EXECVE`（53） |
 | `getpid` / `getppid` | `<unistd.h>` | `SYS_GETPID`（54）/ `SYS_GETPPID`（55）；无父时 ppid=0 |
 | `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM；`SYS_KILL`（151） |
@@ -33,7 +34,7 @@
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
 | `open(path, flags)` | `<fcntl.h>` | 内核**忽略** flags；`SYS_OPEN`（350） |
-| `read` / `write` / `close` | `<unistd.h>` | 351 / 352 / 353 |
+| `read` / `write` / `close` | `<unistd.h>` | 351 / 352 / 353；read EOF=`0`；**write=0 视为错误** |
 | `lseek(fd, off, whence)` | `<unistd.h>` | `SEEK_SET/CUR/END`；管道/套接字 `ESPIPE`；354 |
 | `truncate` / `ftruncate` | — | **尚未提供** |
 
@@ -41,8 +42,8 @@
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `fopen` / `fread` / `fwrite` / `fseek` / `ftell` / `fclose` | `<stdio.h>` | 无缓冲；**无 stdin `FILE*`**；`fopen("w")` **不截断** |
-| `printf` / `snprintf` | `<stdio.h>` | |
+| `fopen` / `fread` / `fwrite` / `fseek` / `ftell` / `fclose` | `<stdio.h>` | 无缓冲；**无 stdin `FILE*`**；`fopen("w")` **不截断**（先 `remove`） |
+| `printf` / `snprintf` | `<stdio.h>` | 格式子集；优先看串口 |
 
 ## 内存 / IPC
 
@@ -59,7 +60,7 @@
 |------|--------|------|
 | `strlen` / `strcmp` / `strstr` / `strchr` / `memcpy` … | `<string.h>` | |
 | `atoi` / `qsort` | `<stdlib.h>` | |
-| `errno` 等 | `<errno.h>` | |
+| `errno` 等 | `<errno.h>` | 常用：`ENOENT=2` `EBADF=9` `ENOMEM=12` `EINVAL=22` **`ENOSYS=38`** |
 
 ## 目录（POSIX 名）
 
@@ -82,13 +83,23 @@
 
 # 第 2 部分 · ToyOS 特色 API
 
-## GUI（`libToyUi`）
+## GUI（`libToyUi` **1.2.0**）
 
 | 函数 | 头文件 | 注意 |
 |------|--------|------|
-| `ToyUiCreateWindow` / `SetLabel` / `AddButton`(id 0..3) / `Poll` | `<ToyUi.h>` | Poll：`0` 无 / `1` 关窗 / `100+id` 按钮 / `200+` 复选 / `220+` 列表 / `240+` 输入 / **`300+HID` 键** / `400+` 客户区点；窗槽最多 6 |
+| `ToyUiCreateWindow` / `SetLabel` / `AddButton`(id 0..3) / `Poll` | `<ToyUi.h>` | Poll 见表；窗槽最多 6 |
 | `ToyUiAddCheckBox` / `AddList` / `AddTextField` | `<ToyUi.h>` | |
-| `create_window` / `damage` / `poll_input` / `ui_button` | `<unistd.h>` | **遗留**裸 syscall 名；**课用 `ToyUi*`**，勿新写 |
+| `create_window` / `damage` / `poll_input` / `ui_button` | `<unistd.h>` | **遗留**裸名；**课用 `ToyUi*`** |
+
+| `ToyUiPoll` | 含义 |
+|-------------|------|
+| `0` | 无事件 |
+| `1` | 关窗 |
+| `2` | 客户区点击未命中控件 |
+| `100+id` | 按钮 |
+| `200+id` / `220+id` / `240+id` | 复选 / 列表 / 输入焦点 |
+| `300+hid` | 按键（Enter `0x28` Esc `0x29` BS `0x2A` 空格 `0x2C` 方向 `0x4F`–`0x52`） |
+| `-1` | 无效 wid |
 
 ## 图形（`libToyGfx` **1.3.0**）
 
@@ -114,27 +125,25 @@
 |------|--------|------|
 | `OpenDirectory(path)` | `<dirent.h>` | 返回 **`TOY_DIR *`**，不是 int fd |
 | `ReadDirectory` / `CloseDirectory` | `<dirent.h>` | 写入调用方 `TOY_DIR_ENT *`；返回 1=有 / 0=结束 / -1=失败（≠ POSIX `readdir`） |
-| `FileStat(path, st)` | `<dirent.h>` | **不叫** `stat` |
+| `FileStat(path, st)` | `<dirent.h>` | 第 2 轨；POSIX 名见上表 `stat`/`fstat` |
 | `FsUtilJoin` / `ToyosPath` / `ListDir` | `<FsUtil.h>` | 卷前缀 `TOYOS:` / `ESP:` / `RES:` |
 
 ## 系统调用 / 版本
 
 | 符号 | 头文件 | 注意 |
 |------|--------|------|
-| `toy_yield()` | `<toyos/syscall.h>` | 宏 → `sched_yield()`；`SYS_YIELD`（150） |
-| 其它 `toy_*` | `<toyos/syscall.h>` | 内联包装；号见 `SyscallABI.h` / 同头 |
-| `TOYOS_CRT_VERSION_*` | `<toyos/version.h>` | |
-| `TOY_NET_ABI_VERSION_*` 等 | 各 `Toy*.h` / `FsUtil.h` | 破坏性改名升 MAJOR |
-
+| `toy_syscall(n,…)` / `toy_syscall2` | `<toyos/syscall.h>` | 未知 `n` → **-ENOSYS(-38)**；`wait` 用 `toy_syscall2` 取 rdx |
+| `TOYOS_CRT_VERSION_*` | `<toyos/version.h>` | **1.4.0** |
+| 各 `*_ABI_VERSION_*` | `Toy*.h` / `FsUtil.h` | 见 [`开课ABI冻结.md`](开课ABI冻结.md) |
 ---
 
 # 附录
 
 ## 已知缺口
 
-排队中：无本刀 POSIX 缺口。Gfx 位图仍缺，保持第 2 轨现状。
+排队中：无本刀 POSIX 缺口。Gfx **位图**仍缺。
 
-下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect` / `opendir`/`readdir`/`closedir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid` / `stat`/`fstat` / Syscall 段内双轨号（`SyscallABI.h`）。
+下列**已经有**，不要当成缺口：`fopen` / `lseek` / `realloc` / `sleep`/`msleep`/`clock_ms` / 点线矩形 / 复选框列表输入框 / `ToyNetConnect`（2.x）/ `opendir`/`readdir` / POSIX `connect`/`bind`+`sockaddr` / `getcwd`/`chdir` / `WEXITSTATUS` / `sched_yield` / `getpid`/`getppid` / `stat`/`fstat` / **`-ENOSYS`** / Syscall 段内双轨号。
 
 ## 商店（内核服务 · 非用户 API）
 

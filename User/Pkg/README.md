@@ -2,6 +2,9 @@
 
 用 ToyOS CRT（`<stdio.h>` / `libtoyos`）编一个可 `exec` 的 ELF。
 
+教程入口：[`Documents/开发/应用开发指南.md`](../../Documents/开发/应用开发指南.md) ·  
+自学总览：[`Documents/开发/开发者接手指南.md`](../../Documents/开发/开发者接手指南.md)。
+
 ## 快速开始
 
 ```bash
@@ -10,9 +13,10 @@ cd /path/to/ToyKernel && ./build.sh
 
 cd User/Pkg
 make                 # → build/MYAPP.ELF
-# 拷到 rootfs（FAT 8.3 大写）
-cp build/MYAPP.ELF ../../ToyImage/rootfs/MYAPP.ELF
-# QEMU 里：
+# 拷到 rootfs（FAT 8.3 大写；三仓同级时）
+cp build/MYAPP.ELF ../../../ToyImage/RootFs/X64/MYAPP.ELF
+# QEMU：
+#   cd ../../../ToyImage && ./Scripts/run-split.sh
 #   toyos> exec MYAPP.ELF
 ```
 
@@ -51,8 +55,8 @@ EXTRA_LIBS = $(TOYKERNEL)/User/Library/ToyUi/libToyUi.a \
              $(TOYKERNEL)/User/Library/ToyGfx/libToyGfx.a
 ```
 
-教程：[`Documents/技术手册.md`](../../Documents/技术手册.md)（**PR-L3**）。  
-网络模板：`User/Pkg/Net/`（**PR-L4**；默认内核已 `LWIP=1`，Guest 需 `lwip on`）。
+教程：[`Documents/技术手册.md`](../../Documents/技术手册.md#tm-iv-gui)（GUI）· [`应用开发指南`](../../Documents/开发/应用开发指南.md)。  
+网络模板：`User/Pkg/Net/`（**用 `ToyNetConnect`，勿写旧 `connect(fd,ip,port)`**；Guest 需 `lwip on`）。
 
 ## 不要做的事
 

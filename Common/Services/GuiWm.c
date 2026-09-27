@@ -19,6 +19,7 @@
 #include "TtyUi.h"
 #include "Locale.h"
 #include "CoreOps.h"
+#include "HalDevices.h"
 
 GUI_WINDOW gWindows[MAX_WINS];
 UINT32 gScreenWidth;
@@ -191,5 +192,8 @@ void GuiInit(void) {
     GuiRedraw();
     /* 桌面已铺满：停 GOP 叠字 boot log，避免「gui ready / ToyOS ready」留在壁纸上 */
     HalSerialGopMute(1);
+    /* #117：仅漏绑时补鼠；已绑则跳过，避免 hub 二次 Reset */
+    HalInputInitMouseDeferred();
+    HalInputMouseHandoffDesktop(gCursorX, gCursorY);
     DebugWrite("Gui: desktop ready (icons + no app windows)\n");
 }
