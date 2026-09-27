@@ -5,7 +5,14 @@
 
 本文件随 `./Tools/build-sdk.sh` 拷到 SDK **根目录**；链接按解压后的树写。
 
-`VERSION` 是 SDK **包**版本（与 CRT `TOYOS_CRT` 无关）。
+`VERSION` 是 SDK **包**版本（与 CRT `TOYOS_CRT` 无关）。开课冻结包：**`1.0.0-course`**。
+
+打包（产物在 `Dist/`，gitignore，勿提交二进制）：
+
+```bash
+./Tools/build-sdk.sh          # → Dist/ToySdk/ + Dist/ToySdk.tar.gz
+tar xzf Dist/ToySdk.tar.gz -C /tmp && make -C /tmp/ToySdk/Examples/Hello
+```
 
 ## 5 分钟：解压即可 make
 
