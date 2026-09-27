@@ -184,6 +184,7 @@ int DesktopNetTrayLabelChanged(void);
 int PathHasVolPrefix(const char *Path);
 int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax, const char *Tag);
 void LoadDesktopIcons(void);
+void DesktopIconsResetDeferred(void);
 /* PR-S-bundle-desktop：扫已装 app desktop=yes 填动态槽 */
 void DesktopLoadAppIcons(void);
 UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,

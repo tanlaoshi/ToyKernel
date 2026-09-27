@@ -72,6 +72,11 @@ void BuildWallScreen(void) {
 
 void LoadWallpaper(void) {
     FreeWallScreen();
+    /* PR-BOOT-fast-1：wallpaper=0 时不读 WALL.BMP（U 盘上曾数秒级） */
+    if (!ThemeWallpaperEnabled()) {
+        gWallReady = 0;
+        return;
+    }
     gWallReady = LoadBmpPath("Assets/Images/WALL.BMP", &gWall, WALL_FILE_MAX,
                              "desktop: wallpaper");
     if (gWallReady) {
@@ -84,6 +89,10 @@ UINT32 DesktopBgAt(UINT32 X, UINT32 Y) {
     UINT32 Sh;
 
     if (ThemeWallpaperEnabled()) {
+        /* Settings 开壁纸后懒加载（开机默认跳过读盘） */
+        if (!gWallReady) {
+            LoadWallpaper();
+        }
         BuildWallScreen();
         if (gWallScreen && gWallScreenW && gWallScreenH) {
             if (X >= gWallScreenW) {
@@ -116,6 +125,9 @@ void DesktopFillRect(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         return;
     }
     if (ThemeWallpaperEnabled()) {
+        if (!gWallReady) {
+            LoadWallpaper();
+        }
         BuildWallScreen();
         if (gWallScreen) {
             Sw = gWallScreenW;

@@ -9,6 +9,7 @@
 #include "HIDKeyboard.h"
 #include "Console.h"
 #include "Gui.h"
+#include "Desktop.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "EditUi.h"
@@ -74,6 +75,12 @@ void GuiTask(void) {
 void WorkerTask(void) {
     for (;;) {
         gWorkerCount++;
+        /*
+         * PR-BOOT-fast-1：图标/菜单扫盘必须在 Worker、且先于 iwl FW 读。
+         * 若放 Gui TickClock：iwl 的 IoBreath→CondResched→Gui 再读盘会重入 FAT，
+         * 真机曾见 #GP@IsrCommon iretq（rsp=0）。
+         */
+        DesktopEnsureIconsLoaded();
         if (StoreJobUiIsBusy()) {
             (void)StoreJobStep();
             SchedulerIoBreath();

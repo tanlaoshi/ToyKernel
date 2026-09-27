@@ -26,6 +26,9 @@ typedef enum {
 void DesktopNotifyAppsChanged(void);
 
 void DesktopInit(void);
+/* PR-BOOT-fast-1：Worker 补齐 BMP/菜单；Gui 只 Consume 后刷新（勿在 Gui 路径读盘） */
+void DesktopEnsureIconsLoaded(void);
+int DesktopIconsConsumeNeedRefresh(void);
 /* PR-G-hotres：分辨率热切后重建壁纸缓存/图标坐标，不重读 FAT（避免长循环重入） */
 void DesktopOnDisplayResize(void);
 /* Gui 注册：点是否被窗占用（图标避让）；菜单开合时请求刷新桌面 */

@@ -1,9 +1,15 @@
 /*
  * DesktopIcons.c — 图标 BMP / 布局 / 拖放移动（PR-S-desktop-split-3）
  *
- * 从 Desktop.c 迁出；只搬家、不改逻辑。
+ * PR-BOOT-fast-1：冷启动只占位；BMP/菜单由 Worker 补齐。
+ * 勿在 GuiPoll→TickClock 读盘：会与 Worker iwl/FW 的 IoBreath 重入 FAT → #GP@iretq。
  */
 #include "DesktopPrivate.h"
+
+/* 0=尚未加载资源；1=已加载（含失败回退纯色） */
+static int sDesktopIconsReady;
+/* Worker 加载完成后置位；Gui TickClock Consume 后 RequestRefresh */
+static int sDesktopIconsNeedRefresh;
 
 int PathHasVolPrefix(const char *Path) {
     int i;
@@ -125,6 +131,36 @@ void LoadDesktopIcons(void) {
                                  ICON_FILE_MAX, "desktop: power");
     gRebootBmpReady = LoadBmpPath("Assets/Icons/bmp48/REBOOT.BMP", &gRebootBmp,
                                   ICON_FILE_MAX, "desktop: reboot");
+}
+
+void DesktopIconsResetDeferred(void) {
+    sDesktopIconsReady = 0;
+    sDesktopIconsNeedRefresh = 0;
+}
+
+int DesktopIconsConsumeNeedRefresh(void) {
+    if (!sDesktopIconsNeedRefresh) {
+        return 0;
+    }
+    sDesktopIconsNeedRefresh = 0;
+    return 1;
+}
+
+void DesktopEnsureIconsLoaded(void) {
+    if (sDesktopIconsReady || gDesktopBusy) {
+        return;
+    }
+    gDesktopBusy = 1;
+    DesktopLoadAppIcons();
+    LoadIconLayout();
+    LoadDesktopIcons();
+    RebuildStartMenu();
+    sDesktopIconsReady = 1;
+    sDesktopIconsNeedRefresh = 1;
+    gDesktopBusy = 0;
+    ToyLogGui("Boot: Desktop Icons Loaded\n");
+    DebugWrite("desktop: deferred icons+menu loaded (worker)\n");
+    /* 不在此 RequestRefresh：Worker 上全量 Compose@4K 易打穿栈；交 Gui TickClock */
 }
 
 UINT32 BmpSampleScaled(const BMP_IMAGE *Img, UINT32 Dx, UINT32 Dy,

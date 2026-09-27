@@ -8,7 +8,7 @@
 
 static void SyncFontSmooth(void);
 
-UINT32 gDesktopBg = COLOR_DARK_GRAY;
+UINT32 gDesktopBg = COLOR_GRAY; /* PR-BOOT-fast-1：开机纯色 Grey，不默认 WALL.BMP */
 UINT32 gShellClientBg = COLOR_LIGHT_GRAY;
 UINT32 gFontId;
 UINT32 gModeW;
@@ -16,7 +16,7 @@ UINT32 gModeH;
 UINT32 gThemeUiScale = 100; /* 50 / 100 / 150 / 200 */
 UINT32 gFadeSteps = 6;      /* PR-GUI-l3-fade；0=关 */
 THEME_EFFECT_LEVEL gEffectLevel = THEME_EFFECT_LOW; /* PR-GUI-effects；课验默认 low */
-int gWallpaper = 1;         /* 默认 WALL.BMP；Settings 选色后关 */
+int gWallpaper = 0;         /* 默认关壁纸（纯色）；Settings 可选 Wallpaper */
 int gThemeId = THEME_PALETTE_DEFAULT;
 int gDesktopGrad = 0;       /* tech 对角渐变；默认关 */
 int gScalePrefSet = 0;      /* DB/CFG 是否写过 scale= */
@@ -24,7 +24,7 @@ int gScaleUserSet = 0;      /* Settings 显式选过缩放 */
 int gWallpaperPrefSet = 0;  /* DB/CFG 是否写过 wallpaper= */
 
 void ThemeInitialize(void) {
-    gDesktopBg = COLOR_DARK_GRAY;
+    gDesktopBg = COLOR_GRAY;
     gShellClientBg = COLOR_LIGHT_GRAY;
     /* 默认小字：16×32 会撑爆 Store 等窄按钮；有 Sun 8x16 则用它 */
     gFontId = 2; /* Terminus 10x18；ThemeLoad 后再选 Sun */
@@ -33,7 +33,7 @@ void ThemeInitialize(void) {
     gThemeUiScale = 100;
     gFadeSteps = 6;
     gEffectLevel = THEME_EFFECT_LOW;
-    gWallpaper = 1;
+    gWallpaper = 0;
     gThemeId = THEME_PALETTE_DEFAULT;
     gDesktopGrad = 0;
     gScalePrefSet = 0;
@@ -78,9 +78,9 @@ void ThemeSetThemeId(int Id) {
     if (Id == THEME_PALETTE_TECH) {
         ThemeTechApplyDefaults();
     } else {
-        gDesktopBg = COLOR_DARK_GRAY;
+        gDesktopBg = COLOR_GRAY;
         gShellClientBg = COLOR_LIGHT_GRAY;
-        gWallpaper = 1;
+        gWallpaper = 0;
         gDesktopGrad = 0;
     }
 }

@@ -148,18 +148,11 @@ int DesktopClickOnTaskbar(UINT32 X, UINT32 Y) {
 }
 
 void DesktopNotifyAppsChanged(void) {
-    gMenuCount = 0;
-    gMenuAppCount = 0;
-    gMenuGameCount = 0;
     gMenuAppsOpen = 0;
     gMenuGameOpen = 0;
-    DesktopLoadAppIcons();
-    LoadIconLayout();
-    LoadDesktopIcons();
-    if (gMenuOpen) {
-        RebuildStartMenu();
-    }
-    RequestRefresh();
+    /* 装卸后重扫；Ensure 内 Rebuild + RequestRefresh */
+    DesktopIconsResetDeferred();
+    DesktopEnsureIconsLoaded();
 }
 
 void DesktopInit(void) {
@@ -169,8 +162,9 @@ void DesktopInit(void) {
     }
     gDesktopBusy = 1;
 
+    /* PR-BOOT-fast-1：只占位+布局；BMP/动态图标/菜单扫盘见 DesktopEnsureIconsLoaded */
+    DesktopIconsResetDeferred();
     PlaceDesktopIcons();
-    DesktopLoadAppIcons();
     LoadIconLayout();
 
     gDeskSelected = -1;
@@ -187,13 +181,9 @@ void DesktopInit(void) {
     gIconDragIdx = -1;
     gIconDragMoved = 0;
     LoadWallpaper();
-    LoadDesktopIcons();
-    /* 预热开始菜单：首点勿再扫 Store/Apps（U 盘上曾明显卡顿） */
-    RebuildStartMenu();
     ToyLogGui("Boot: Desktop Ready\n");
-    DebugWrite("desktop: icons+taskbar ready (TOYOS Assets or solid)\n");
+    DebugWrite("desktop: solid ready (icons deferred)\n");
 #if TOY_KERNEL_DEBUG
-    /* PR-GUI-btn-action：桌面就绪后串口自检 SYNC/ASYNC 分发命中 */
     UiActionSelfCheck();
 #endif
     gDesktopBusy = 0;
@@ -246,6 +236,11 @@ void DesktopTickClock(void) {
     /* 拖窗/改大小时不读 CMOS、不重画任务栏，避免这一拍把鼠标卡住 */
     if (GuiDragActive() || DesktopIconDragActive()) {
         return;
+    }
+
+    /* Worker 已加载图标则只刷新；勿在 Gui 路径读盘（与 iwl IoBreath 重入） */
+    if (DesktopIconsConsumeNeedRefresh()) {
+        RequestRefresh();
     }
 
     Now = HalCpuTicks(0);
