@@ -4,7 +4,7 @@
 #include "Platform.h"
 #include "VirtualMemory.h"
 
-#define RUNTIME_RANGE_MAX 48
+#define RUNTIME_RANGE_MAX 96 /* Runtime + 高址 Boot/Loader（GOP SetMode） */
 #define EFI_MEMORY_RUNTIME (1ULL << 63)
 
 static UINT64 gXhciFallback;
@@ -75,8 +75,8 @@ void HalPlatformMapMmio(void) {
         MapIdentityRange(gXhciFallback, 0x1000000ULL);
     }
     /*
-     * UEFI Runtime：GetTime 实现落在 Attribute&RUNTIME 的固件页。
-     * 只映 ST/RT 表头而不映代码页 → 真机一调 GetTime 就缺页，屏停在 PHOTO。
+     * UEFI Runtime + 高址 Boot/Loader（Startup 记入）：GetTime / GOP SetMode
+     * 实现落在这些页。只映表头不映代码/数据 → 真机缺页。
      */
     for (i = 0; i < gRuntimeRangeCount; i++) {
         MapIdentityRange(gRuntimeRanges[i].Phys, gRuntimeRanges[i].Size);

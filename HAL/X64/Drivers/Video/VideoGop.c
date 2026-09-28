@@ -1,17 +1,19 @@
 /*
- * VideoGop.c — PR-G-hotres-pc：真机经 Boot 交接的 GOP SetMode 热切
+ * VideoGop.c — PR-G-hotres-pc：真机 GOP 热切策略
  *
- * UEFI 规范上 ExitBootServices 后 Boot 协议未定义；部分固件仍可 SetMode。
- * QEMU 有 Bochs 时勿走本路径（GTK 环风险）。失败则 Settings 回落写盘+重启。
+ * UEFI：ExitBootServices 后 Boot 协议（含 GOP SetMode）未定义。
+ * NUC 实测：强行 SetMode → 先 #PF（缺映），映足后变成 #UD @ ip=0（固件跳空）。
+ * 故真机**不做** live SetMode；Settings 写 THEME.CFG，下次 ToyBoot（EBS 前）切模式。
+ * QEMU 热切走 Bochs，不进本文件。
  *
- * 真机 GOP 协议/DXE 代码常在 512MB identity 窗外（如 0x86xxxxxx）→
- * 解引用前必须 MapRange，否则 #PF（Settings apply 4K 已见）。
+ * 仍保留 Map + Available：供「已是目标分辨率」时只同步内核 FB 视图，以及将来探测。
  */
 #include "VideoPrivate.h"
 #include "BootInfo.h"
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
 #include "Debug.h"
+#include "HalConsole.h"
 
 /* 最小 GOP 布局（与 UEFI 一致；调用约定 MS ABI） */
 typedef struct {
@@ -40,10 +42,9 @@ struct TOY_GOP {
     TOY_GOP_MODE *Mode;
 };
 
-#define TOY_GOP_PIXEL_RGB 0u /* PixelRedGreenBlueReserved8BitPerColor */
-#define TOY_GOP_PIXEL_BGR 1u /* PixelBlueGreenRedReserved8BitPerColor */
+#define TOY_GOP_PIXEL_RGB 0u
+#define TOY_GOP_PIXEL_BGR 1u
 
-/* 映 Phys..Phys+Bytes（页对齐）；供 BootServices 高址 GOP */
 static int MapPhysRw(UINT64 Phys, UINTN Bytes) {
     UINT64 Start;
     UINT64 End;
@@ -61,7 +62,6 @@ static int MapPhysRw(UINT64 Phys, UINTN Bytes) {
                                  PTE_PRESENT | PTE_WRITABLE);
 }
 
-/* 映指针所在页 + 后续 Span（DXE 代码/协议体常跨多页） */
 static int MapPtrSpan(const void *Ptr, UINTN Span) {
     if (Ptr == 0) {
         return -1;
@@ -98,18 +98,79 @@ static int FindModeNumber(UINT32 Width, UINT32 Height, UINT32 *OutMode) {
     return -1;
 }
 
-int VideoGopSetMode(UINT32 Width, UINT32 Height) {
+/*
+ * 已是目标分辨率：不调固件 SetMode，只按 GOP Mode 刷新内核 FB 视图。
+ * 返回 0=已对齐；-1=读不到 Mode / 几何不符（调用方再走「拒绝热切」）。
+ */
+static int VideoGopSyncIfAlready(UINT32 Width, UINT32 Height) {
     const BOOT_INFO *Info;
     TOY_GOP *Gop;
     TOY_GOP_MODE *Mode;
     TOY_GOP_MODE_INFO *Mi;
-    UINT32 ModeNumber = 0;
-    UINT64 Status;
     UINT64 Base;
     UINT64 Size;
     UINT64 MapBytes;
+    UINT64 Need;
     VIDEO_CONFIG Cfg;
     UINT32 Pf;
+
+    if (gPhysW == Width && gPhysH == Height && gScreen.FrameBufferBase != 0) {
+        return 0;
+    }
+
+    Info = BootInfoGet();
+    if (!Info || Info->GopProtocol == 0) {
+        return -1;
+    }
+    Gop = (TOY_GOP *)(UINTN)Info->GopProtocol;
+    if (MapPtrSpan(Gop, sizeof(TOY_GOP) + 0x1000) != 0 || !Gop->Mode) {
+        return -1;
+    }
+    Mode = Gop->Mode;
+    if (MapPtrSpan(Mode, sizeof(TOY_GOP_MODE) + 0x1000) != 0 || !Mode->Info) {
+        return -1;
+    }
+    Mi = Mode->Info;
+    if (MapPtrSpan(Mi, sizeof(TOY_GOP_MODE_INFO) + 0x1000) != 0) {
+        return -1;
+    }
+    if (Mi->HorizontalResolution != Width || Mi->VerticalResolution != Height) {
+        return -1;
+    }
+    Pf = Mi->PixelFormat;
+    if (Pf != TOY_GOP_PIXEL_BGR && Pf != TOY_GOP_PIXEL_RGB) {
+        return -1;
+    }
+    Base = Mode->FrameBufferBase;
+    Size = (UINT64)Mode->FrameBufferSize;
+    Need = (UINT64)Width * (UINT64)Height * 4ull;
+    if (Base == 0 || Size < Need) {
+        return -1;
+    }
+    MapBytes = Size;
+    if (MapBytes < Need) {
+        MapBytes = Need;
+    }
+    if (MapBytes < 16ull * 1024 * 1024) {
+        MapBytes = 16ull * 1024 * 1024;
+    }
+    if (VirtualMemoryMapRange(Base, Base, (UINTN)MapBytes,
+                              HalVideoFbMapFlags()) != 0) {
+        return -1;
+    }
+    VideoReleaseBackbuffer();
+    Cfg.FrameBufferBase = Base;
+    Cfg.FrameBufferSize = Size;
+    Cfg.HorizontalResolution = Width;
+    Cfg.VerticalResolution = Height;
+    Cfg.PixelsPerScanLine = Mi->PixelsPerScanLine;
+    VideoSet(&Cfg);
+    DebugWrite("video-gop: already at mode (no SetMode)\n");
+    return 0;
+}
+
+int VideoGopSetMode(UINT32 Width, UINT32 Height) {
+    UINT32 ModeNumber = 0;
 
     if (Width < 640 || Height < 480 || Width > 4096 || Height > 4096) {
         return -1;
@@ -122,98 +183,16 @@ int VideoGopSetMode(UINT32 Width, UINT32 Height) {
         return -1;
     }
 
-    Info = BootInfoGet();
-    Gop = (TOY_GOP *)(UINTN)Info->GopProtocol;
+    if (VideoGopSyncIfAlready(Width, Height) == 0) {
+        return 0;
+    }
+
     /*
-     * 协议体 + 附近 vtable/Mode；SetMode 实现再映 2MiB（DXE 驱动代码）。
-     * 不映则 mov 0x8(Gop) → #PF（cr2≈GopProtocol+8）。
+     * 拒绝 EBS 后 live SetMode（NUC：#PF → 映页后 #UD@0）。
+     * Settings 仍写 THEME；串口提示重启，ToyBoot 在 EBS 前切模式。
      */
-    if (MapPtrSpan(Gop, sizeof(TOY_GOP) + 0x1000) != 0) {
-        DebugWrite("video-gop: map protocol failed\n");
-        return -1;
-    }
-    if (!Gop->SetMode) {
-        return -1;
-    }
-    if (MapPtrSpan((const void *)(UINTN)Gop->SetMode, 2ull * 1024 * 1024) != 0) {
-        DebugWrite("video-gop: map SetMode code failed\n");
-        return -1;
-    }
-    if (Gop->QueryMode) {
-        (void)MapPtrSpan(Gop->QueryMode, 0x10000);
-    }
-    if (Gop->Blt) {
-        (void)MapPtrSpan(Gop->Blt, 0x10000);
-    }
-    if (Gop->Mode) {
-        (void)MapPtrSpan(Gop->Mode, sizeof(TOY_GOP_MODE) + 0x1000);
-        if (Gop->Mode->Info) {
-            (void)MapPtrSpan(Gop->Mode->Info, sizeof(TOY_GOP_MODE_INFO) + 0x1000);
-        }
-    }
-
-    Status = Gop->SetMode(Gop, ModeNumber);
-    if (Status != 0) {
-        DebugWrite("video-gop: SetMode failed\n");
-        return -1;
-    }
-
-    /* SetMode 后 Mode/Info/FB 指针可能换页 */
-    if (MapPtrSpan(Gop, sizeof(TOY_GOP) + 0x1000) != 0) {
-        return -1;
-    }
-    Mode = Gop->Mode;
-    if (!Mode || MapPtrSpan(Mode, sizeof(TOY_GOP_MODE) + 0x1000) != 0) {
-        DebugWrite("video-gop: Mode null after SetMode\n");
-        return -1;
-    }
-    Mi = Mode->Info;
-    if (!Mi || MapPtrSpan(Mi, sizeof(TOY_GOP_MODE_INFO) + 0x1000) != 0) {
-        DebugWrite("video-gop: Mode Info null\n");
-        return -1;
-    }
-    Pf = Mi->PixelFormat;
-    if (Pf != TOY_GOP_PIXEL_BGR && Pf != TOY_GOP_PIXEL_RGB) {
-        DebugWrite("video-gop: unsupported pixel format\n");
-        return -1;
-    }
-    if (Mi->HorizontalResolution != Width || Mi->VerticalResolution != Height) {
-        DebugWrite("video-gop: SetMode geometry mismatch\n");
-        return -1;
-    }
-
-    Base = Mode->FrameBufferBase;
-    Size = (UINT64)Mode->FrameBufferSize;
-    if (Base == 0 || Size < (UINT64)Width * (UINT64)Height * 4ull) {
-        DebugWrite("video-gop: bad framebuffer\n");
-        return -1;
-    }
-
-    MapBytes = Size;
-    if (MapBytes < 16ull * 1024 * 1024) {
-        MapBytes = 16ull * 1024 * 1024;
-    }
-    /* 4K ≈ 32MiB+；按实际 FB 与 Need 取大 */
-    {
-        UINT64 Need = (UINT64)Width * (UINT64)Height * 4ull;
-
-        if (Need > MapBytes) {
-            MapBytes = Need;
-        }
-    }
-    if (VirtualMemoryMapRange(Base, Base, (UINTN)MapBytes,
-                              HalVideoFbMapFlags()) != 0) {
-        DebugWrite("video-gop: map fb failed\n");
-        return -1;
-    }
-
-    VideoReleaseBackbuffer();
-    Cfg.FrameBufferBase = Base;
-    Cfg.FrameBufferSize = Size;
-    Cfg.HorizontalResolution = Width;
-    Cfg.VerticalResolution = Height;
-    Cfg.PixelsPerScanLine = Mi->PixelsPerScanLine;
-    VideoSet(&Cfg);
-    DebugWrite("video-gop: live SetMode ok\n");
-    return 0;
+    (void)ModeNumber;
+    HalConsoleWriteSerial("video-gop: live SetMode refused (reboot for THEME)\n");
+    DebugWrite("video-gop: live SetMode refused after EBS\n");
+    return -1;
 }

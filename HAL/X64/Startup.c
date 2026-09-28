@@ -17,8 +17,14 @@ extern void HalPlatformSetRsdp(UINT64 Address);
 extern void HalPlatformSetSystemTable(void *SystemTable);
 extern void HalPlatformNoteRuntimeRange(UINT64 Phys, UINT64 Size);
 
+#define EFI_LOADER_CODE         1
+#define EFI_LOADER_DATA         2
+#define EFI_BOOT_SERVICES_CODE  3
+#define EFI_BOOT_SERVICES_DATA  4
 #define EFI_MEMORY_CONVENTIONAL 7
 #define EFI_MEMORY_RUNTIME      (1ULL << 63)
+/* 低 512MB 已恒等映射；其上 Boot/Loader 固件页供 GOP SetMode 等回调 */
+#define TOY_IDENTITY_MB         512ull
 
 typedef struct {
     UINT32 Type;
@@ -89,6 +95,17 @@ static void BootInfoFromUefi(BOOT_CONFIG *Cfg, BOOT_INFO *Out, BOOT_CONFIG *CfgP
             EFI_MEMORY_DESCRIPTOR *Desc =
                 (EFI_MEMORY_DESCRIPTOR *)(Base + i * Map->DescriptorSize);
             if (Desc->Attribute & EFI_MEMORY_RUNTIME) {
+                HalPlatformNoteRuntimeRange(Desc->PhysicalStart,
+                                            Desc->NumberOfPages << 12);
+            } else if (Desc->PhysicalStart >= (TOY_IDENTITY_MB << 20) &&
+                       (Desc->Type == EFI_LOADER_CODE ||
+                        Desc->Type == EFI_LOADER_DATA ||
+                        Desc->Type == EFI_BOOT_SERVICES_CODE ||
+                        Desc->Type == EFI_BOOT_SERVICES_DATA)) {
+                /*
+                 * PR-G-hotres：EBS 后 BS/Loader 页仍可能被 GOP SetMode 摸到
+                 *（NUC apply 4K：ip≈DXE、cr2≈高址 LFB/数据）。记入同表开机映上。
+                 */
                 HalPlatformNoteRuntimeRange(Desc->PhysicalStart,
                                             Desc->NumberOfPages << 12);
             }
