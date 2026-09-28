@@ -9,8 +9,8 @@
 /* DEVICE_NODE 用于 DriverMatchesDevice 声明；Device.h 不回 include 本头，无环。 */
 #include "Device.h"
 
-#define TOY_DRIVER_MAX_DRIVERS  16
-#define TOY_DRIVER_MAX_INSTANCES 16
+#define TOY_DRIVER_MAX_DRIVERS  20
+#define TOY_DRIVER_MAX_INSTANCES 20
 
 typedef enum {
     TOY_DRIVER_CLASS_NONE = 0,

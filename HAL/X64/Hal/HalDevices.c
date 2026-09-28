@@ -19,6 +19,7 @@
 #include "XHCI.h"
 #include "Wifi.h"
 #include "Iwl.h"
+#include "Igpu.h"
 #include "Driver.h"
 
 #ifndef TOY_DEMO_DRIVER
@@ -35,6 +36,7 @@ void AlxDriverRegister(void); /* PR-N-alx-2：AR8161 L2；无卡/无链路不挡
 void RtlDriverRegister(void); /* PR-N-rtl-1：r8169 Probe/MAC；无卡不挡 */
 void WifiDriverRegister(void); /* USB 8188EU 骨架；无棒不挡 */
 void IwlDriverRegister(void);  /* PR-N-wifi-1：iwl8265；FS 后 Claim */
+void IgpuDriverRegister(void); /* PR-G-igpu-0：Intel display 认卡 */
 void DemoDriverRegister(void); /* PR-D-tpl-2 */
 void XhciDiagFormat(char *Buf, int Max);
 void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
@@ -55,6 +57,7 @@ void HalDriverRegister(void) {
     RtlDriverRegister();   /* PR-N-rtl-1：lsdev=r8169；rtl-2 再挂 L2 */
     WifiDriverRegister();  /* USB 8188EU 软失败骨架 */
     IwlDriverRegister();   /* PR-N-wifi-1：NUC 8265；HalIwlClaim 后再绑 */
+    IgpuDriverRegister();  /* PR-G-igpu-0：NUC UHD；QEMU 无卡软退 */
 #if TOY_DEMO_DRIVER
     DemoDriverRegister(); /* PR-D-tpl-2：课堂 Demo；-DTOY_DEMO_DRIVER=0 可关 */
 #endif
