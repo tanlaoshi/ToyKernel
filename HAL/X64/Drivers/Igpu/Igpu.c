@@ -102,7 +102,7 @@ static int IgpuBind(TOY_DRIVER_INSTANCE *Inst) {
         return -1;
     }
     DeviceBindDriver(gIgpuNode, Inst->Driver, Inst);
-    ToyLogBoot("Boot: igpu bound (probe-only)\n");
+    ToyLogBoot("Boot: igpu bound\n");
     return 0;
 }
 

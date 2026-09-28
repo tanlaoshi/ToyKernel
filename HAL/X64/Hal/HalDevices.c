@@ -171,6 +171,10 @@ void HalIwlBgPump(void) {
     IwlNetBgPump();
 }
 
+void HalIgpuMmioInit(void) {
+    (void)IgpuMmioInit();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

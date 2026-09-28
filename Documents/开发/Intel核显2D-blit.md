@@ -3,7 +3,7 @@
 > **目的**：拖窗 / Present 少靠 CPU `memcpy` 往 GOP 搬像素；用 NUC 核显 Blitter 做矩形拷贝。  
 > **排期指针**：路线图 ★ [`PR-G-igpu-0`](../路线图.md#pr-g-igpu-0)；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
 > **权威代码**：`HAL/X64/Drivers/Igpu/` +（后续）`HalVideoCopyRect` / Present 分支。  
-> **日期**：2026-09-29 · **igpu-0 ✅ TG**（NUC `0x5917`）· **★ igpu-1 JX**。
+> **日期**：2026-09-29 · **igpu-0/1 ✅ TG** · **★ igpu-2 JX**。
 
 ---
 
@@ -106,30 +106,31 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 
 ## 6. PR-G-igpu-1 · MMIO 指纹
 
-> **状态**：**★ JX 中**（2026-09-29）。  
-> **一句话**：VMM 后映 BAR0 **只读**指纹；错代/拒映 → 软退。
+> **状态**：**✅ TG**（2026-09-29；NUC `bar=0xDE000000 sz=2MiB ts=0`）。  
+> **一句话**：VMM 后映 BAR0 **只读**指纹；`ts=0`（无 forcewake）可接受。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `IgpuMmio.c`；Video 模块末调用；UC 映；读 Gen6 TIMESTAMP 等 |
-| 不改 | 提交；GGTT 写；`IgpuReady` 仍 0 |
+| 改 | `IgpuMmio.c`；Video 模块末调用；UC 映；读 TIMESTAMP |
+| 不改 | 提交；GGTT 写；可 blit Ready |
 | 验收 | NUC `Boot: igpu mmio …`；屏不黑；QEMU skip；`smoke-boot` 绿 |
 | 工期 | Agent **1 日** + 手测 **1 轮** → **1～2 日** |
 | 下一刀 | igpu-2 |
 
 ---
 
-## 7. PR-G-igpu-2 · GGTT 映帧缓冲
+## 7. PR-G-igpu-2 · GGTT / 固件 scanout 观察
 
-> **一句话**：GOP FB（或后缓冲页）挂进 GGTT/aperture，GPU 与 CPU 同看一块像素。  
-> **不做**：blit 提交。
+> **状态**：**★ JX 中**（2026-09-29）。  
+> **一句话**：**不写 GGTT PTE**；扩映 BAR、读固件 plane SURF，确认 GOP FB 已在 GPU 地址空间，供 blit 复用。  
+> **不做**：改 PTE；blit 提交。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | GGTT PTE；WC 与现有 `HalVideoEnableFbWc` 对齐；失败整柱禁用 |
-| 不改 | 分辨率；ToyBoot modeset |
-| 验收 | `igpu gtt ok`；屏不花不黑；键鼠仍可用 |
-| 工期 | Agent **2～3 日** + 手测 **2～4 轮** → **5～10 日**（最肥） |
+| 改 | `IgpuGtt.c`；扩 BAR；只读 DSPSURF；对照 FB phys |
+| 不改 | 分辨率；Gui |
+| 验收 | NUC `Boot: igpu gtt …`；屏不黑；失败软退；`smoke-boot` 绿 |
+| 工期 | Agent **2～3 日** + 手测 **2～4 轮** → **5～10 日** |
 | 下一刀 | igpu-3 |
 
 ---

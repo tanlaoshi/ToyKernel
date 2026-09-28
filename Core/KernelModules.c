@@ -92,6 +92,8 @@ static int InitializeVideo(void) {
     HalSerialGopEnable();
     /* PR-G-fb-pte：映后核验；期望 cache=WC */
     HalVideoLogFbPte();
+    /* PR-G-igpu-1：VMM 已开；核显 BAR 只读指纹（无卡/失败软退） */
+    HalIgpuMmioInit();
     return 0;
 }
 
