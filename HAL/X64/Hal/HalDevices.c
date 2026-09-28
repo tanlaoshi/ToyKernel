@@ -175,6 +175,10 @@ void HalIgpuMmioInit(void) {
     (void)IgpuMmioInit();
 }
 
+void HalIgpuGttInit(void) {
+    (void)IgpuGttInit();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

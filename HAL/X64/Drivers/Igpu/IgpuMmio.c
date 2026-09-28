@@ -46,6 +46,10 @@ static UINT32 MmioR32(UINT32 Off) {
     return *P;
 }
 
+UINT32 IgpuMmioRead32(UINT32 Off) {
+    return MmioR32(Off);
+}
+
 static int ReadBar0(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 *BarOut) {
     UINT32 Lo;
     UINT32 Hi;

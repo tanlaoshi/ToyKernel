@@ -1,9 +1,9 @@
 # Intel 核显 2D blit（PR-G-igpu · 活文档）
 
 > **目的**：拖窗 / Present 少靠 CPU `memcpy` 往 GOP 搬像素；用 NUC 核显 Blitter 做矩形拷贝。  
-> **排期指针**：路线图 ★ [`PR-G-igpu-0`](../路线图.md#pr-g-igpu-0)；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
+> **排期指针**：路线图 ★ [`PR-G-igpu-3`](../路线图.md#pr-g-igpu-3)；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
 > **权威代码**：`HAL/X64/Drivers/Igpu/` +（后续）`HalVideoCopyRect` / Present 分支。  
-> **日期**：2026-09-29 · **igpu-0/1 ✅ TG** · **★ igpu-2 JX**。
+> **日期**：2026-09-29 · **igpu-0/1/2 ✅ TG** · **★ igpu-3 JX**。
 
 ---
 
@@ -121,29 +121,32 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 
 ## 7. PR-G-igpu-2 · GGTT / 固件 scanout 观察
 
-> **状态**：**★ JX 中**（2026-09-29）。  
-> **一句话**：**不写 GGTT PTE**；扩映 BAR、读固件 plane SURF，确认 GOP FB 已在 GPU 地址空间，供 blit 复用。  
-> **不做**：改 PTE；blit 提交。
+> **状态**：**✅ TG**（2026-09-29；NUC `surf=0` + `fb=0xC0000000` 软退）。  
+> **NUC**：`gtt surf=0 (observe-only, soft)` + `gtt fb=0xC0000000`（与 `FB-PTE Phys` 一致）；屏未黑。  
+> **解读**：同 igpu-1 的 `ts=0`——**无 forcewake 时 PLANE_SURF 常读 0**；本刀**禁止写 PTE**，软退即验收。确认 GPU 可见地址推迟到 **igpu-3**（forcewake + blitter）。  
+> **一句话**：**不写 GGTT PTE**；只读 plane SURF / 记 FB phys。  
+> **不做**：改 PTE；blit 提交；forcewake。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `IgpuGtt.c`；扩 BAR；只读 DSPSURF；对照 FB phys |
-| 不改 | 分辨率；Gui |
-| 验收 | NUC `Boot: igpu gtt …`；屏不黑；失败软退；`smoke-boot` 绿 |
+| 改 | `IgpuGtt.c`；只读 `0x7019C/7119C/7219C`；对照 `HalVideoFrameBufferBase` |
+| 不改 | 分辨率；Gui；PTE |
+| 验收 | ✅ NUC `Boot: igpu gtt …`；屏不黑；`surf=0` 软退 OK；`smoke-boot` 绿 |
 | 工期 | Agent **2～3 日** + 手测 **2～4 轮** → **5～10 日** |
 | 下一刀 | igpu-3 |
 
 ---
 
-## 8. PR-G-igpu-3 · Blitter 自测
+## 8. PR-G-igpu-3 · forcewake + Blitter 自测
 
-> **一句话**：Blitter ring + 一次 `XY_SRC_COPY`（或 Gen9 等价）；色块 A→B；超时则复位并禁用。
+> **状态**：**★ JX**（2026-09-29）。  
+> **一句话**：forcewake 后再读 SURF；Blitter ring + 一次 `XY_SRC_COPY`（或 Gen9 等价）；色块 A→B；超时则复位并禁用。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | ring；提交/等待；Shell/`igpu blit-test` |
-| 不改 | Gui 拖窗（igpu-5 再接） |
-| 验收 | 目视色块动；连续 10 次无挂；失败回 CPU |
+| 改 | forcewake；ring；提交/等待；Shell/`igpu blit-test` |
+| 不改 | Gui 拖窗（igpu-5 再接）；盲目写 GGTT |
+| 验收 | NUC：SURF 非 0 或明确软退；目视色块动；连续 10 次无挂；失败回 CPU |
 | 工期 | Agent **3～4 日** + 手测 **2～4 轮** → **6～12 日** |
 | 下一刀 | igpu-4 |
 

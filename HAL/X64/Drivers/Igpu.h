@@ -20,5 +20,11 @@ int IgpuMmioInit(void);
 int IgpuMmioOk(void);
 UINT64 IgpuMmioBarPhys(void);
 volatile UINT8 *IgpuMmioBase(void);
+UINT32 IgpuMmioRead32(UINT32 Off);
+
+/* PR-G-igpu-2：观察固件 scanout（不写 PTE） */
+int IgpuGttInit(void);
+int IgpuGttOk(void);
+UINT32 IgpuGttSurf(void);
 
 #endif
