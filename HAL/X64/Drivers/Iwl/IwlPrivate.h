@@ -226,12 +226,12 @@ int IwlCcmpEncrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame, UINTN HdrLen, U
 int IwlCcmpDecrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame, UINTN HdrLen, UINTN BodyLen);
 
 #ifndef IWL_LOG_VERBOSE
-#define IWL_LOG_VERBOSE 0 /* 1=FH/rxraw/cmdq 等啰嗦黄字 */
+#define IWL_LOG_VERBOSE 0 /* 1=成功里程碑/FH/rxraw/cmdq 等全开黄字 */
 #endif
 
 void IwlLogBound(void);
+/* 默认仅异常（fail/miss/soft…）；成功看 Bound；VERBOSE=1 才打里程碑 */
 void IwlLogStage(const char *Tag);
-/* #129：成功路径啰嗦；IWL_LOG_VERBOSE=1 才打。失败/里程碑仍用 Stage */
 void IwlLogVerb(const char *Tag);
 
 /* PR-S-iwl-split-1：IwlEapol* 搬家后的跨文件辅助 */

@@ -52,7 +52,39 @@ void IwlLogBound(void) {
     ToyLogBoot(Line);
 }
 
-void IwlLogStage(const char *Tag) {
+/* 安静默认：成功路径只留 IwlLogBound；异常仍黄字；VERBOSE=1 全开 */
+static int IwlTagAlert(const char *Tag) {
+    static const char *const Keys[] = {
+        "fail", "miss", "soft", "stall", "bad", "nocfg",
+        "deauth", "disassoc", "oom", "=none", "=disc",
+        "=norsn", "=wpa3", "=to", "=skip", "gtk=no", "bar=novm",
+        0
+    };
+    int i;
+
+    if (!Tag) {
+        return 0;
+    }
+    for (i = 0; Keys[i]; i++) {
+        const char *K = Keys[i];
+        const char *P = Tag;
+        while (*P) {
+            const char *A = P;
+            const char *B = K;
+            while (*A && *B && *A == *B) {
+                A++;
+                B++;
+            }
+            if (!*B) {
+                return 1;
+            }
+            P++;
+        }
+    }
+    return 0;
+}
+
+static void IwlLogEmit(const char *Tag) {
     char Line[80];
     int n = 0;
     IwlAppend(Line, &n, 70, "Boot: iwl8265 ");
@@ -62,9 +94,19 @@ void IwlLogStage(const char *Tag) {
     ToyLogBoot(Line);
 }
 
+void IwlLogStage(const char *Tag) {
+#if IWL_LOG_VERBOSE
+    IwlLogEmit(Tag);
+#else
+    if (IwlTagAlert(Tag)) {
+        IwlLogEmit(Tag);
+    }
+#endif
+}
+
 void IwlLogVerb(const char *Tag) {
 #if IWL_LOG_VERBOSE
-    IwlLogStage(Tag);
+    IwlLogEmit(Tag);
 #else
     (void)Tag;
 #endif
