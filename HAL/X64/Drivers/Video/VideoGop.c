@@ -3,10 +3,14 @@
  *
  * UEFI 规范上 ExitBootServices 后 Boot 协议未定义；部分固件仍可 SetMode。
  * QEMU 有 Bochs 时勿走本路径（GTK 环风险）。失败则 Settings 回落写盘+重启。
+ *
+ * 真机 GOP 协议/DXE 代码常在 512MB identity 窗外（如 0x86xxxxxx）→
+ * 解引用前必须 MapRange，否则 #PF（Settings apply 4K 已见）。
  */
 #include "VideoPrivate.h"
 #include "BootInfo.h"
 #include "VirtualMemory.h"
+#include "PhysicalMemory.h"
 #include "Debug.h"
 
 /* 最小 GOP 布局（与 UEFI 一致；调用约定 MS ABI） */
@@ -38,6 +42,32 @@ struct TOY_GOP {
 
 #define TOY_GOP_PIXEL_RGB 0u /* PixelRedGreenBlueReserved8BitPerColor */
 #define TOY_GOP_PIXEL_BGR 1u /* PixelBlueGreenRedReserved8BitPerColor */
+
+/* 映 Phys..Phys+Bytes（页对齐）；供 BootServices 高址 GOP */
+static int MapPhysRw(UINT64 Phys, UINTN Bytes) {
+    UINT64 Start;
+    UINT64 End;
+
+    if (Phys == 0 || Bytes == 0) {
+        return -1;
+    }
+    Start = Phys & ~((UINT64)PAGE_SIZE - 1ull);
+    End = Phys + (UINT64)Bytes;
+    if (End < Phys) {
+        return -1;
+    }
+    End = (End + PAGE_SIZE - 1ull) & ~((UINT64)PAGE_SIZE - 1ull);
+    return VirtualMemoryMapRange(Start, Start, (UINTN)(End - Start),
+                                 PTE_PRESENT | PTE_WRITABLE);
+}
+
+/* 映指针所在页 + 后续 Span（DXE 代码/协议体常跨多页） */
+static int MapPtrSpan(const void *Ptr, UINTN Span) {
+    if (Ptr == 0) {
+        return -1;
+    }
+    return MapPhysRw((UINT64)(UINTN)Ptr, Span);
+}
 
 int VideoGopAvailable(void) {
     const BOOT_INFO *Info = BootInfoGet();
@@ -94,8 +124,32 @@ int VideoGopSetMode(UINT32 Width, UINT32 Height) {
 
     Info = BootInfoGet();
     Gop = (TOY_GOP *)(UINTN)Info->GopProtocol;
-    if (!Gop || !Gop->SetMode) {
+    /*
+     * 协议体 + 附近 vtable/Mode；SetMode 实现再映 2MiB（DXE 驱动代码）。
+     * 不映则 mov 0x8(Gop) → #PF（cr2≈GopProtocol+8）。
+     */
+    if (MapPtrSpan(Gop, sizeof(TOY_GOP) + 0x1000) != 0) {
+        DebugWrite("video-gop: map protocol failed\n");
         return -1;
+    }
+    if (!Gop->SetMode) {
+        return -1;
+    }
+    if (MapPtrSpan((const void *)(UINTN)Gop->SetMode, 2ull * 1024 * 1024) != 0) {
+        DebugWrite("video-gop: map SetMode code failed\n");
+        return -1;
+    }
+    if (Gop->QueryMode) {
+        (void)MapPtrSpan(Gop->QueryMode, 0x10000);
+    }
+    if (Gop->Blt) {
+        (void)MapPtrSpan(Gop->Blt, 0x10000);
+    }
+    if (Gop->Mode) {
+        (void)MapPtrSpan(Gop->Mode, sizeof(TOY_GOP_MODE) + 0x1000);
+        if (Gop->Mode->Info) {
+            (void)MapPtrSpan(Gop->Mode->Info, sizeof(TOY_GOP_MODE_INFO) + 0x1000);
+        }
     }
 
     Status = Gop->SetMode(Gop, ModeNumber);
@@ -104,12 +158,20 @@ int VideoGopSetMode(UINT32 Width, UINT32 Height) {
         return -1;
     }
 
+    /* SetMode 后 Mode/Info/FB 指针可能换页 */
+    if (MapPtrSpan(Gop, sizeof(TOY_GOP) + 0x1000) != 0) {
+        return -1;
+    }
     Mode = Gop->Mode;
-    if (!Mode || !Mode->Info) {
+    if (!Mode || MapPtrSpan(Mode, sizeof(TOY_GOP_MODE) + 0x1000) != 0) {
         DebugWrite("video-gop: Mode null after SetMode\n");
         return -1;
     }
     Mi = Mode->Info;
+    if (!Mi || MapPtrSpan(Mi, sizeof(TOY_GOP_MODE_INFO) + 0x1000) != 0) {
+        DebugWrite("video-gop: Mode Info null\n");
+        return -1;
+    }
     Pf = Mi->PixelFormat;
     if (Pf != TOY_GOP_PIXEL_BGR && Pf != TOY_GOP_PIXEL_RGB) {
         DebugWrite("video-gop: unsupported pixel format\n");
@@ -130,6 +192,14 @@ int VideoGopSetMode(UINT32 Width, UINT32 Height) {
     MapBytes = Size;
     if (MapBytes < 16ull * 1024 * 1024) {
         MapBytes = 16ull * 1024 * 1024;
+    }
+    /* 4K ≈ 32MiB+；按实际 FB 与 Need 取大 */
+    {
+        UINT64 Need = (UINT64)Width * (UINT64)Height * 4ull;
+
+        if (Need > MapBytes) {
+            MapBytes = Need;
+        }
     }
     if (VirtualMemoryMapRange(Base, Base, (UINTN)MapBytes,
                               HalVideoFbMapFlags()) != 0) {

@@ -7,8 +7,8 @@ cd "$(dirname "$0")"
 #   ./build.sh DEBUG=1
 #   ./build.sh SERIAL=0              # 总开关：不 Init UART、无串口 TX
 #   ./build.sh SERIAL_USB=0          # 仅 USB/xHCI 串口 quiet
-#   ./build.sh SCREEN_LOG=0          # boot GOP 不上字（串口仍可开）
-#   ./build.sh SCREEN_LOG_SMP=1      # 屏上也打 SMP（默认不上）
+#   ./build.sh SCREEN_LOG=1          # 打开 boot GOP 上滚（默认关，省 4K blit）
+#   ./build.sh SCREEN_LOG_SMP=1      # 屏上也打 SMP（需先 SCREEN_LOG=1）
 #   ./build.sh NO_COM1=1             # 兼容旧名，等价 SERIAL=0
 #   ./build.sh arm64        # PR-A7：完整 Common → KernelMain（默认 BRINGUP=0；无 LwIp 端口时自动 LWIP=0）
 #   ./build.sh riscv
@@ -33,7 +33,8 @@ SERIAL_FS=1
 SERIAL_MEM=1
 SERIAL_DRV=1
 SERIAL_MISC=1
-SCREEN_LOG=1
+SCREEN_LOG=0
+# 下列为 SCREEN_LOG=1 时的课堂默认；总关时 Makefile/脚本会强制清零
 SCREEN_LOG_BOOT=1
 SCREEN_LOG_USB=1
 SCREEN_LOG_SMP=0

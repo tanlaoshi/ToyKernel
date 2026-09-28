@@ -15,11 +15,12 @@
  * 构建：
  *   ./build.sh SERIAL=0
  *   ./build.sh SERIAL_USB=0 SERIAL_SMP=0
- *   ./build.sh SCREEN_LOG=0
- *   ./build.sh SCREEN_LOG_SMP=1          # 课堂默认 SMP 不上屏；可打开
+ *   ./build.sh                       # 默认 SCREEN_LOG=0（boot GOP 不上字）
+ *   ./build.sh SCREEN_LOG=1          # 打开屏上滚动；再按模块 SCREEN_LOG_*=1
+ *   ./build.sh SCREEN_LOG=1 SCREEN_LOG_SMP=1
  *   NO_COM1=1 仍可用，等价于 SERIAL=0（兼容旧课堂开关）
  *
- * 说明：SERIAL=0 只关 UART；SCREEN_LOG=0 关 boot GOP 上滚。
+ * 说明：SERIAL=0 只关 UART；SCREEN_LOG 默认 0（省 4K blit）；UART 仍可由 SERIAL 控制。
  * ring 始终收。运行时 Mute / Mirror 仍是真机安全阀。
  * Shell 回显走 HalSerialWrite（MISC）+ Console FB，不纳入 SCREEN_LOG（本柱不做）。
  */
@@ -98,11 +99,11 @@
 #endif
 
 /*
- * 屏幕：课堂默认 BOOT/USB/FS/GUI 上屏；SMP/MEM/NET/DRV/MISC 默认 quiet，
- * 避免 MADT/细日志刷满 bring-up 视口（与 cont 同文策略一致）。
+ * 屏幕：默认总关（SCREEN_LOG=0）。打开后 BOOT/USB/FS/GUI 默认真；
+ * SMP/MEM/NET/DRV/MISC 默认 quiet，避免 MADT/细日志刷满 bring-up 视口。
  */
 #ifndef TOY_SCREEN_LOG
-#define TOY_SCREEN_LOG 1
+#define TOY_SCREEN_LOG 0
 #endif
 
 #if !TOY_SCREEN_LOG

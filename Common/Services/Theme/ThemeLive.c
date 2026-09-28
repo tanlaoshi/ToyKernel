@@ -43,7 +43,7 @@ int ThemeApplyDisplayLive(UINT32 Width, UINT32 Height) {
     }
 
     Need = (UINT64)Width * (UINT64)Height * sizeof(UINT32);
-    /* 映射到至少 16MiB，覆盖 Settings 最大档 1600x900 */
+    /* 至少 16MiB；4K ≈ 32MiB+（Settings 可到 3840×2160） */
     MapBytes = 16ull * 1024 * 1024;
     if (Info && Info->FrameBufferSize > MapBytes) {
         MapBytes = Info->FrameBufferSize;
