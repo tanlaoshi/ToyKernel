@@ -101,6 +101,18 @@ extern char gIwlPsk[IWL_PSK_MAX + 1];
 extern UINT8 gIwlPmk[32];
 extern int gIwlPmkOk;
 extern UINT8 gIwlTxStaId;
+/* PR-S-iwl-split-2：数据面一次性黄字开关 */
+extern int gDatTxLogged;
+extern int gDatRxLogged;
+extern int gDtxLogged;
+extern int gRxMicLogged;
+extern int gRxMicU;
+extern int gRxDiscLogged;
+extern int gRxOffLogged;
+extern int gRxLlcLogged;
+extern int gRxStLogged;
+void IwlRxDataToNet(UINT8 *Frame, UINTN FLen, UINT32 St);
+void IwlLogDataTx(const IWL_RX_PKT *Pkt, UINTN Len);
 extern UINT8 gIwlPtk[16];
 extern UINT8 gIwlGtk[16];
 extern UINT8 gIwlGtkAlt[16]; /* 刀 #182：KdeLen 大时 +16 备选 */
@@ -222,4 +234,31 @@ void IwlLogStage(const char *Tag);
 /* #129：成功路径啰嗦；IWL_LOG_VERBOSE=1 才打。失败/里程碑仍用 Stage */
 void IwlLogVerb(const char *Tag);
 
-#endif
+/* PR-S-iwl-split-1：IwlEapol* 搬家后的跨文件辅助 */
+extern int gIwlTxRsp;
+extern int gIwlRxCode;
+void IwlEapolZero(void *P, UINTN N);
+void IwlEapolCopyN(UINT8 *D, const UINT8 *S, UINTN N);
+int IwlEapolMemCmp(const UINT8 *A, const UINT8 *B, UINTN N);
+UINTN IwlDot11DataHdrLen(UINT16 Fc);
+int IwlFindEapol(UINT8 *Dot11, UINTN FLen, UINT8 **OutEap, UINTN *OutLen);
+int IwlAddr1IsUs(const UINT8 *Dot11);
+UINT16 IwlBe16(const UINT8 *P);
+void IwlPutBe16(UINT8 *P, UINT16 V);
+void IwlPrf384(const UINT8 Pmk[32], const UINT8 *A, UINTN Alen,
+               const UINT8 *B, UINTN Blen, UINT8 Out[48]);
+void IwlBuildPtk(const UINT8 Pmk[32], const UINT8 *Anon, const UINT8 *Snon,
+                 UINT8 Ptk[48], UINT8 Ver);
+void IwlEapolMic(UINT8 Ver, const UINT8 Kck[16], UINT8 *Eapol,
+                 UINTN EapolLen, UINT8 Mic[16]);
+void IwlInstallGtk(const UINT8 *Eapol, UINTN EapLen, const UINT8 Kek[16]);
+int IwlRxDrainForEapol(UINT8 *EapOut, UINTN *EapLenOut, UINTN Cap,
+                       UINT32 *MpduN, UINT32 *DataN, UINT32 *UniN,
+                       UINT32 *BeaconN);
+int IwlSendEapol(const UINT8 *Eapol, UINTN EapolLen);
+int IwlEapolWaitMsg1(UINT8 *Eapol, UINTN *EapLen, UINT8 *Anonce, UINT8 *Replay,
+                     UINT8 *KeyDescOut);
+int IwlEapolFinishHandshake(UINT8 *Eapol, UINTN EapLen, UINT8 *Anonce, UINT8 *Replay,
+                            UINT8 KeyDesc);
+
+#endif /* IWL_PRIVATE_H */
