@@ -27,6 +27,7 @@
 | `toy_thread_create` / `join` / `exit` | `<toyos/thread.h>` | `SYS_THREAD_*`（0/1/2）；经 `ToyThreadRoot`；多线程 `fork`→`-EAGAIN` |
 | `pthread_create` / `join` / `exit` | `<pthread.h>` | thr-4 薄封装；非 Linux ABI |
 | `pthread_mutex_*` | `<pthread.h>` | 自旋教学版（`sched_yield` 忙等） |
+| `THREADDEMO.ELF` | Apps | thr-5 课堂 demo：`exec THREADDEMO.ELF` → `threaddemo: ok` |
 | `ToyThreadRoot` / `toy_tls_tid` | `<toyos/thread.h>` | 入口桩 + TLS tid（`%fs:0` / TP） |
 | `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM；`SYS_KILL`（151） |
 | `signal(sig, handler)` | `<signal.h>` | 教学级；无 `sigaction`；`SYS_SIGNAL`（152） |

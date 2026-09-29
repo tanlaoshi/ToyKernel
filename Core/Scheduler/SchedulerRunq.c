@@ -155,17 +155,24 @@ static int TaskFitsCpu(const TASK *T, UINT32 Cpu) {
 
 /* PR-K-preempt-enter-5a：T 必须落在 gTasks[] 槽 */
 static int TaskPtrOk(const TASK *T) {
-    UINTN Base = (UINTN)(UINT64)(UINTN)&gTasks[0];
-    UINTN Off;
+    UINTN Base = (UINTN)&gTasks[0];
+    UINTN End = (UINTN)&gTasks[MAX_TASKS];
+    UINTN P = (UINTN)T;
+    UINTN Idx;
 
-    if (!T || (UINTN)(UINT64)(UINTN)T < Base) {
+    /*
+     * 勿用 Off%sizeof(TASK)：gcc -O2 会把「% + /≥MAX」收成错误范围，
+     * 误杀槽 0 与下标≥16（MAX_TASKS=32 后半表废 → PickNext bad → exec 挂）。
+     * 用下标还原再比指针，语义直观且躲过该优化坑。
+     */
+    if (!T || P < Base || P >= End) {
         return 0;
     }
-    Off = (UINTN)(UINT64)(UINTN)T - Base;
-    if (Off % sizeof(TASK) != 0 || Off / sizeof(TASK) >= (UINTN)MAX_TASKS) {
+    Idx = (P - Base) / sizeof(TASK);
+    if (Idx >= (UINTN)MAX_TASKS) {
         return 0;
     }
-    return 1;
+    return T == &gTasks[Idx];
 }
 
 static void PickNextBadPtr(UINT32 Cpu, const char *Where, const TASK *T) {
