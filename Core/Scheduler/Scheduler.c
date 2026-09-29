@@ -109,6 +109,7 @@ void SchedulerInitialize(void) {
         gTasks[i].GroupId = -1;
         gTasks[i].LeaderId = -1;
         gTasks[i].IsThread = 0;
+        gTasks[i].TlsBase = 0;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -210,6 +211,7 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].GroupId = -1;
         gTasks[i].LeaderId = -1;
         gTasks[i].IsThread = 0;
+        gTasks[i].TlsBase = 0;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -273,6 +275,7 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].GroupId = (INT32)gTasks[i].Id; /* 新进程：自为组主 */
         gTasks[i].LeaderId = (INT32)gTasks[i].Id;
         gTasks[i].IsThread = 0;
+        gTasks[i].TlsBase = 0;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -292,7 +295,11 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         TaskClearFds(&gTasks[i]);
         CopyName(&gTasks[i], Name);
         gTaskCount++;
-        {
+        /* 先不入队，EnsureTls 后再挂 READY（与 CreateThread 同） */
+        SpinLockRelease(&gSchedulerLock);
+        (void)SchedulerThreadEnsureTls(&gTasks[i]);
+        SpinLockAcquire(&gSchedulerLock);
+        if (gTasks[i].State == TASK_READY && !gTasks[i].InRunQueue) {
             UINT32 Home = SchedulerOpsGet()->PickHome(&gTasks[i]);
             RunQueueEnqueue(Home, &gTasks[i]);
         }
@@ -390,6 +397,7 @@ void ActivateTask(TASK *T) {
     T->OnCpu = (INT32)Cpu;
     if (T->IsUser) {
         HalSetKernelStack((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
+        HalSetTlsBase(T->TlsBase);
     }
     if (T->PageRoot != 0) {
         VirtualMemoryLoadPageTable(T->PageRoot);

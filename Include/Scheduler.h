@@ -58,6 +58,7 @@ typedef struct TASK {
     INT32                  GroupId;    /* PR-U-thread：进程组 = 主线程 Id；内核任务 -1 */
     INT32                  LeaderId;   /* PR-U-thread：主线程 Id（单线程时 = 本 Id） */
     int                    IsThread;   /* PR-U-thread：0=主执行流；1=同组额外线程 */
+    UINT64                 TlsBase;    /* PR-U-thread-2：用户 TLS 基（0=未设） */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
     UINT64                 SleepWakeTick; /* sleep 截止 HalCpuTicks(0)；0=未睡 */
@@ -86,12 +87,15 @@ int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateKernel(const char *Name, void (*Fn)(void *), void *Ctx);
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
-/* PR-U-thread-1：同 Leader 的 UserSpace/PageRoot；成功返回槽 Id，失败 -1 */
-int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Rsp);
-/* thr-1 调试：映 spin+栈后 CreateThread；成功返回槽 Id */
+/* PR-U-thread-1/2：同 Leader VAS；Rsp=0 则自动映栈；Arg→首参寄存器 */
+int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg,
+                          UINT64 Rsp);
+/* thr-1 调试：映 spin 入口后 CreateThread（自动栈+TLS） */
 int SchedulerCreateThreadSpin(TASK *Leader);
-/* 组内存活用户任务数（State≠UNUSED） */
 int SchedulerGroupAliveCount(INT32 GroupId);
+/* thr-2：为任务映 TLS 页（幂等）；主线程 CreateUser/fork 后调用 */
+int SchedulerThreadEnsureTls(TASK *T);
+int SchedulerThreadAllocStack(TASK *Owner, UINT64 *OutTop);
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);
 /* PR-S-lock：pid=槽位+1（与 kill/ps 一致）；成功 0，失败 -1 */
 int SchedulerSetPriority(INT32 Pid, INT32 Priority);

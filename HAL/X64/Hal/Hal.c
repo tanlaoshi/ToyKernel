@@ -248,6 +248,19 @@ void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStack
     F->ErrorCode = 0;
 }
 
+void HalSetTlsBase(UINT64 UserTlsBase) {
+    UINT32 Lo = (UINT32)UserTlsBase;
+    UINT32 Hi = (UINT32)(UserTlsBase >> 32);
+
+    /* IA32_FS_BASE — 用户 FS；与 KERNEL_GS（swapgs）无关 */
+    __asm__ volatile("wrmsr" :: "c"(0xC0000100u), "a"(Lo), "d"(Hi) : "memory");
+}
+
+void HalFrameSetTls(HAL_INTERRUPT_FRAME *F, UINT64 UserTlsBase) {
+    (void)F;
+    (void)UserTlsBase;
+}
+
 void HalFrameCopy(HAL_INTERRUPT_FRAME *Dst, const HAL_INTERRUPT_FRAME *Src) {
     UINTN j;
     if (!Dst || !Src) {

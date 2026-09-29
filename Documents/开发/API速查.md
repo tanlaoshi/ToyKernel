@@ -25,6 +25,7 @@
 | `getpid` / `getppid` | `<unistd.h>` | `SYS_GETPID`（54）/ `SYS_GETPPID`（55）；无父时 ppid=0 |
 | `gettid` | （预留） | `SYS_GETTID`（56）；→ `TASK.Id`；**thr-3 接线** |
 | `toy_thread_create` / `join` / `exit` | （预留） | `SYS_THREAD_*`（0/1/2）；**thr-3+CRT**；多线程 `fork` 失败 |
+| `ToyThreadRoot` / `toy_tls_tid` | `<toyos/thread.h>` | thr-2：入口桩 + TLS tid（`%fs:0` / TP） |
 | `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM；`SYS_KILL`（151） |
 | `signal(sig, handler)` | `<signal.h>` | 教学级；无 `sigaction`；`SYS_SIGNAL`（152） |
 | `sched_yield()` / `toy_yield()` | `<sched.h>` / 宏别名 | `SYS_YIELD`（150） |

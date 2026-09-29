@@ -93,6 +93,7 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].GroupId = (INT32)gTasks[Child].Id; /* 新进程：自为组主 */
     gTasks[Child].LeaderId = (INT32)gTasks[Child].Id;
     gTasks[Child].IsThread = 0;
+    gTasks[Child].TlsBase = 0;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
     gTasks[Child].SleepWakeTick = 0;
@@ -116,11 +117,16 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     TaskCloneFds(&gTasks[Child], Parent);
     CopyName(&gTasks[Child], Parent->Name);
     gTaskCount++;
-    RunQueueEnqueue(SchedulerOpsGet()->PickHome(&gTasks[Child]), &gTasks[Child]);
-
+    /* 先不入队；松锁 EnsureTls 后再挂 */
     HalFrameSetReturn(Frame, (UINT64)(UINT32)(Child + 1));
     Parent->Frame = Frame;
     VirtualMemoryLoadPageTable(Parent->PageRoot);
+    SpinLockRelease(&gSchedulerLock);
+    (void)SchedulerThreadEnsureTls(&gTasks[Child]);
+    SpinLockAcquire(&gSchedulerLock);
+    if (gTasks[Child].State == TASK_READY && !gTasks[Child].InRunQueue) {
+        RunQueueEnqueue(SchedulerOpsGet()->PickHome(&gTasks[Child]), &gTasks[Child]);
+    }
     SpinLockRelease(&gSchedulerLock);
     return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * ShellCommandsThread.c — PR-U-thread-1：test thread（同 CR3 spin 孪生）
+ * ShellCommandsThread.c — PR-U-thread：test thread（栈+TLS+同 CR3）
  */
 #include "ShellPrivate.h"
 #include "Console.h"
@@ -27,7 +27,7 @@ static void WriteSpinErr(int Err) {
     ConsoleWriteHex32((UINT32)Err);
     ConsoleWrite(" (1=arg 2=busy 3=nomem 4=nova 5=map 6=create)\n");
     if (Err == 2) {
-        ConsoleWrite("  hint: leader on other CPU — use: exec SLEEPDEMO.ELF\n");
+        ConsoleWrite("  hint: TOY_SMP=0 + SNAKE；串口敲命令\n");
     }
 }
 
@@ -38,11 +38,11 @@ static void CommandTestThread(int Argc, char **Argv) {
     int Slot;
     int i;
     int Same;
+    UINT64 LeaderTls;
 
     if (Argc < 2) {
         ConsoleWrite("usage: test thread <pid>\n");
-        ConsoleWrite("  pid = ps 里十进制（pid=0x7 → 7）；须 user 且非别核 RUNNING\n");
-        ConsoleWrite("  推荐: exec SLEEPDEMO.ELF → ps → test thread <pid>\n");
+        ConsoleWrite("  TOY_SMP=0；ps 十进制 pid；SNAKE 挂住后测\n");
         return;
     }
     if (ParseDecInt(Argv[1], &Pid) != 0 || Pid <= 0 || Pid > MAX_TASKS) {
@@ -55,6 +55,8 @@ static void CommandTestThread(int Argc, char **Argv) {
         return;
     }
     Leader = (TASK *)(UINTN)T;
+    (void)SchedulerThreadEnsureTls(Leader);
+    LeaderTls = Leader->TlsBase;
     Slot = SchedulerCreateThreadSpin(Leader);
     if (Slot < 0) {
         WriteSpinErr(-Slot);
@@ -74,17 +76,29 @@ static void CommandTestThread(int Argc, char **Argv) {
         }
         ConsoleWrite("  tid=");
         ConsoleWriteHex32((UINT32)U->Id);
-        ConsoleWrite(" name=");
-        ConsoleWrite(U->Name);
         ConsoleWrite(" thr=");
         ConsoleWriteHex32((UINT32)U->IsThread);
+        ConsoleWrite(" tls=");
+        ConsoleWriteHex64(U->TlsBase);
         ConsoleWrite(" root=");
         ConsoleWriteHex64(U->PageRoot);
         ConsoleWrite("\n");
     }
     ConsoleWrite("test thread: twin slot=");
     ConsoleWriteHex32((UINT32)Slot);
-    ConsoleWrite(Same ? " same-CR3 ok\n" : " CR3 mismatch\n");
+    if (Same) {
+        ConsoleWrite(" same-CR3 ok");
+    } else {
+        ConsoleWrite(" CR3 mismatch");
+    }
+    {
+        const TASK *Twin = SchedulerTaskByIndex(Slot);
+        if (LeaderTls != 0 && Twin && Twin->TlsBase != 0 && LeaderTls != Twin->TlsBase) {
+            ConsoleWrite(" tls-distinct ok\n");
+        } else {
+            ConsoleWrite(" tls-check fail\n");
+        }
+    }
 }
 
 void ShellCommandsThreadRegister(void) {

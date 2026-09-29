@@ -282,6 +282,15 @@ void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStack
     F->Vec = VEC_SYSCALL;
 }
 
+void HalSetTlsBase(UINT64 UserTlsBase) {
+    __asm__ volatile("msr tpidr_el0, %0" :: "r"(UserTlsBase) : "memory");
+}
+
+void HalFrameSetTls(HAL_INTERRUPT_FRAME *F, UINT64 UserTlsBase) {
+    (void)F;
+    (void)UserTlsBase;
+}
+
 void HalFrameCopy(HAL_INTERRUPT_FRAME *Dst, const HAL_INTERRUPT_FRAME *Src) {
     UINTN j;
     if (!Dst || !Src) {

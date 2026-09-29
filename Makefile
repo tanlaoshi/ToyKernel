@@ -399,7 +399,7 @@ USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
 USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 	User/crt/errno.o User/crt/unistd.o User/crt/sleep.o User/crt/stdlib.o User/crt/signal.o \
 	User/crt/dirent.o User/crt/stdio.o User/crt/socket.o User/crt/cwd.o User/crt/sched.o \
-	User/crt/proc.o User/crt/stat.o
+	User/crt/proc.o User/crt/stat.o User/crt/thread_root.o
 USER_LD = User/user.ld
 USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
@@ -450,7 +450,7 @@ USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
 	$(USER_VIRT_DIR)/signal.o $(USER_VIRT_DIR)/dirent.o \
 	$(USER_VIRT_DIR)/stdio.o $(USER_VIRT_DIR)/socket.o \
 	$(USER_VIRT_DIR)/cwd.o $(USER_VIRT_DIR)/sched.o $(USER_VIRT_DIR)/proc.o \
-	$(USER_VIRT_DIR)/stat.o
+	$(USER_VIRT_DIR)/stat.o $(USER_VIRT_DIR)/thread_root.o
 endif
 
 SCHEDULER ?= round-robin
@@ -969,6 +969,9 @@ $(USER_VIRT_DIR)/proc.o: User/crt/proc.c | $(USER_VIRT_DIR)
 
 $(USER_VIRT_DIR)/stat.o: User/crt/stat.c | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c User/crt/stat.c -o $@
+
+$(USER_VIRT_DIR)/thread_root.o: User/crt/thread_root.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c User/crt/thread_root.c -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)

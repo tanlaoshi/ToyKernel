@@ -92,6 +92,9 @@ void HalUserSelfTest(void);
  */
 void HalFrameSetKernelEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 StackTop);
 void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStackTop);
+/* PR-U-thread-2：用户 TLS 基（x86=FS，Arm64=TPIDR_EL0，RiscV=tp/X4） */
+void HalSetTlsBase(UINT64 UserTlsBase);
+void HalFrameSetTls(HAL_INTERRUPT_FRAME *F, UINT64 UserTlsBase);
 void HalFrameCopy(HAL_INTERRUPT_FRAME *Dst, const HAL_INTERRUPT_FRAME *Src);
 UINT64 HalFrameGetInstructionPointer(const HAL_INTERRUPT_FRAME *F);
 UINT64 HalFrameSyscallNum(const HAL_INTERRUPT_FRAME *F);

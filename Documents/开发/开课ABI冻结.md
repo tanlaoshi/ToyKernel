@@ -6,7 +6,7 @@
 
 | 组件 | 宏前缀 | 冻结版本 | 头文件 |
 | ---- | ------ | -------- | ------ |
-| CRT / libtoyos | `TOYOS_CRT_VERSION_*` | **1.4.0** | `toyos/version.h` |
+| CRT / libtoyos | `TOYOS_CRT_VERSION_*` | **1.5.0** | `toyos/version.h` |
 | libToyGfx | `TOY_GFX_ABI_VERSION_*` | **1.3.0** | `ToyGfx.h` |
 | libToyUi | `TOY_UI_ABI_VERSION_*` | **1.2.0** | `ToyUi.h` |
 | libToyNet | `TOY_NET_ABI_VERSION_*` | **2.0.1** | `ToyNet.h` |
@@ -25,7 +25,7 @@
 | `DamageRect` | 单次 ≤64×64 |
 | 网络 | POSIX `connect`/`bind`+`sockaddr` **网络序**；`ToyNetConnect(fd,ip,port)` **主机序** |
 | 任务快照 | `SYS_TASK_SNAP`=**1200**；`TOY_TASK_SNAP_VER`=**1**（`toyos/task.h`）；范例 `TASKMGR.ELF` |
-| 线程子集（thr-0） | `SYS_THREAD_CREATE/JOIN/EXIT`=**0/1/2**；`SYS_GETTID`=**56**；`MAX_TASKS`=**32**；实现 thr-3 起 |
+| 线程子集（thr-0…2） | `SYS_THREAD_*=0/1/2`；`GETTID=56`；`MAX_TASKS=32`；TLS=`FS`/`TPIDR_EL0`/`tp`；CRT `ToyThreadRoot`（1.5.0） |
 
 **核对（开课前再跑一遍）**：
 
