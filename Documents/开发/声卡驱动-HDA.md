@@ -1,9 +1,9 @@
 # 声卡驱动 · Intel HDA（PR-G-audio · 活文档）
 
 > **目的**：NUC / QEMU 能 **播一段 PCM**（蜂鸣 / `play` / 课堂演示），补齐「能看见也能听见」。  
-> **排期指针**：路线图 ★ [`PR-G-audio-5`](../路线图.md#pr-g-audio-5)；柱总览活文档本文。  
+> **排期指针**：路线图（HDA 柱收官）[`PR-G-audio-5`](../路线图.md#pr-g-audio-5)；柱总览活文档本文。  
 > **权威代码**：`HAL/X64/Drivers/Hda/` +（后续）`HalAudio*`。  
-> **日期**：2026-09-29 · **★ audio-5**；audio-0…4 ✅ TG（0/1 已 GD）。
+> **日期**：2026-09-29 · audio-0…5 ✅ TG；**柱收官**（0/1 已 GD）。
 
 ---
 
@@ -157,25 +157,26 @@
 
 ## 10. PR-G-audio-5 · shell/play + 验收
 
-> **状态**：**★ JX 待做**（2026-09-29）。  
+> **状态**：**✅ TG**（2026-09-29；`play`/`beep`/`BEEP.WAV`；声卡 HDA 柱收官）。  
 > **一句话**：Shell `play` / 短 WAV；文档验收清单勾完。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `ShellCommandsAudio.c`；`play [path]`；RootFs `BEEP.WAV` |
+| 改 | `ShellCommandsAudio.c`；`play [path]`；`Assets/BEEP.WAV` |
 | 不改 | 商店/流媒体；任意采样率混音 |
-| 验收 | NUC：`play` 蜂鸣 + WAV；smoke 绿；清单勾完 |
-| 下一刀 | 柱收官（★ 另选题） |
+| 验收 | NUC：`play` 与 `play BEEP.WAV`（✅）；smoke 绿（✅）；清单勾完（✅） |
+| 下一刀 | ★ 空（另选题 / 可 GD 归档） |
 
 ---
 
 ## 11. 验收总清单（柱完）
 
-- [ ] NUC/QEMU 串口有 hda 认卡或明确软退  
-- [ ] codec 枚举看得到输出路径  
-- [ ] 耳机/音箱能听见短 PCM  
-- [ ] `smoke-boot` 绿；无卡机器行为与今日一致  
-- [ ] 失败软退：桌面/就绪不挡  
+- [x] NUC/QEMU 串口有 hda 认卡或明确软退  
+- [x] codec 枚举看得到输出路径  
+- [x] 耳机/音箱能听见短 PCM（开机/桌面蜂鸣）  
+- [x] Shell `play` / WAV  
+- [x] `smoke-boot` 绿；无卡机器行为与今日一致  
+- [x] 失败软退：桌面/就绪不挡  
 
 ---
 
