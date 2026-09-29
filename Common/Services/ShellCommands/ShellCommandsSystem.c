@@ -279,6 +279,8 @@ static const char *DriverClassName(TOY_DRIVER_CLASS Class) {
         return "net";
     case TOY_DRIVER_CLASS_DISPLAY:
         return "display";
+    case TOY_DRIVER_CLASS_AUDIO:
+        return "audio";
     default:
         return "?";
     }
