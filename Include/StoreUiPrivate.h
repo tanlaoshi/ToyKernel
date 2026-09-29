@@ -106,4 +106,30 @@ void StoreJobStatusCopy(const char *Id, UINTN Got, UINTN Size);
 void StoreJobBusyRepaint(void);
 void StoreJobFinishStatus(STORE_JOB_KIND Kind, int Err, int PlanN);
 
+/* ===== StoreJob.c / StoreJobStep.c（作业态共享） ===== */
+typedef enum {
+    JP_IDLE = 0,
+    JP_PLAN,
+    JP_PKG,
+    JP_FONT,
+    JP_RELOAD,
+    JP_FINISH
+} STORE_JOB_PHASE;
+
+extern STORE_JOB_KIND gJobPendingKind;
+extern STORE_JOB_KIND gJobKind;
+extern STORE_JOB_PHASE gJobPhase;
+extern int gJobRunning;
+extern int gJobInStep;
+extern int gJobCancel;
+extern char gJobId[STORE_ID_MAX];
+extern char gJobPlan[STORE_ENTRIES_MAX][STORE_ID_MAX];
+extern int gJobPlanN;
+extern int gJobPlanI;
+extern int gJobErr;
+extern int gJobLastErr;
+extern int gJobBatch;
+
+void JobApplyCancel(void);
+
 #endif
