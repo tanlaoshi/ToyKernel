@@ -127,6 +127,15 @@ extern int gE1000UseIrq;
 extern UINT32 gE1000TxOk;
 extern UINT32 gE1000TxFail;
 extern INT32 gE1000TxLastRc;
+/* PR-S3-e1000-2：Setup / 收发共用环态 */
+extern E1000_RX_DESC *gE1000RxRing;
+extern E1000_TX_DESC *gE1000TxRing;
+extern UINT8 *gE1000RxBufs;
+extern UINT8 *gE1000TxBuf;
+extern UINT16 gE1000RxTail;
+extern UINT16 gE1000TxTail;
+extern int gE1000Ready;
+extern int gE1000SetupOnce;
 
 static inline UINT32 MmioR32(UINT32 Off) {
     return *(volatile UINT32 *)(gBar + Off);
