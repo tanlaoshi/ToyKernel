@@ -156,6 +156,8 @@ void SnapIconToGrid(UINT32 *X, UINT32 *Y);
 void ClampAllIcons(void);
 void RedrawIconIndex(int Idx);
 void SelectIcon(int Hit, UINT32 X, UINT32 Y, UINT64 Now);
+int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
+                       char *OutExecPath, UINTN ExecPathMax);
 
 void MenuCopyStr(char *Dst, int Max, const char *Src);
 int MenuNameEqIgnoreCase(const char *A, const char *B);
