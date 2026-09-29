@@ -5,7 +5,7 @@
 | **[`开发者接手指南.md`](开发者接手指南.md)** | **开课后自学入口**：文档地图、冻结面、命令、缺口 |
 | [`开机流程与加速.md`](开机流程与加速.md) | 冷启动链路 / `worker` 泵什么 / 慢点；排期 → 路线图 **PR-BOOT-fast-*** |
 | [`Intel核显2D-blit.md`](Intel核显2D-blit.md) | NUC7 核显 2D blit（**✅ TG igpu-0…5**） |
-| [`声卡驱动-HDA.md`](声卡驱动-HDA.md) | Intel HDA 播放柱；**★ audio-2**（audio-0/1 ✅ TG） |
+| [`声卡驱动-HDA.md`](声卡驱动-HDA.md) | Intel HDA 播放柱；**★ audio-3**（0…2 ✅ TG） |
 | [`用户态线程.md`](用户态线程.md) | **规划**：pthread 教学子集（工期/六刀）；未钉 ★ |
 | [`应用开发指南.md`](应用开发指南.md) | 用户态 5～30 分钟上手；商店 Job；FAQ |
 | [`API速查.md`](API速查.md) | 双轨 API 一页表 |

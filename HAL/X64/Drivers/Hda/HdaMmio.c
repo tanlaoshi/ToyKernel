@@ -83,6 +83,36 @@ UINT8 HdaMmioRead8(UINT32 Off) {
     return MmioR8(Off);
 }
 
+void HdaMmioWrite32(UINT32 Off, UINT32 Val) {
+    volatile UINT32 *P;
+
+    if (!gHdaMmio || Off + 4u > gHdaMapBytes) {
+        return;
+    }
+    P = (volatile UINT32 *)(UINTN)(gHdaMmio + Off);
+    *P = Val;
+    __asm__ volatile ("mfence" ::: "memory");
+}
+
+void HdaMmioWrite16(UINT32 Off, UINT16 Val) {
+    volatile UINT16 *P;
+
+    if (!gHdaMmio || Off + 2u > gHdaMapBytes) {
+        return;
+    }
+    P = (volatile UINT16 *)(UINTN)(gHdaMmio + Off);
+    *P = Val;
+    __asm__ volatile ("mfence" ::: "memory");
+}
+
+void HdaMmioWrite8(UINT32 Off, UINT8 Val) {
+    if (!gHdaMmio || Off >= gHdaMapBytes) {
+        return;
+    }
+    gHdaMmio[Off] = Val;
+    __asm__ volatile ("mfence" ::: "memory");
+}
+
 static int ReadBar0(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 *BarOut) {
     UINT32 Lo;
     UINT32 Hi;

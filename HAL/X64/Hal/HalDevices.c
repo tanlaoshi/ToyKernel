@@ -182,6 +182,10 @@ void HalHdaMmioInit(void) {
     (void)HdaMmioInit();
 }
 
+void HalHdaCodecInit(void) {
+    (void)HdaCodecInit();
+}
+
 void HalIgpuGttInit(void) {
     (void)IgpuGttInit();
 }

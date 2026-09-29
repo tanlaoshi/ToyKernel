@@ -141,6 +141,9 @@ void HalIgpuMmioInit(void) {
 void HalHdaMmioInit(void) {
 }
 
+void HalHdaCodecInit(void) {
+}
+
 void HalIgpuGttInit(void) {
 }
 

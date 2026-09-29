@@ -1,9 +1,9 @@
 # 声卡驱动 · Intel HDA（PR-G-audio · 活文档）
 
 > **目的**：NUC / QEMU 能 **播一段 PCM**（蜂鸣 / `play` / 课堂演示），补齐「能看见也能听见」。  
-> **排期指针**：路线图 ★ [`PR-G-audio-2`](../路线图.md#pr-g-audio-2)；柱总览活文档本文。  
+> **排期指针**：路线图 ★ [`PR-G-audio-3`](../路线图.md#pr-g-audio-3)；柱总览活文档本文。  
 > **权威代码**：`HAL/X64/Drivers/Hda/` +（后续）`HalAudio*`。  
-> **日期**：2026-09-29 · **★ audio-2**；audio-0/1 ✅ TG。
+> **日期**：2026-09-29 · **★ audio-3**；audio-0…2 ✅ TG（0/1 已 GD）。
 
 ---
 
@@ -39,10 +39,10 @@
 
 | 项 | 值 |
 | -- | -- |
-| 机型 | Intel **NUC7i7DN H** |
+| 机型 | Intel **NUC7i7DN H**（**无 3.5mm**；课堂听音走 **HDMI**） |
 | 预期 PCI | Vendor `8086` + class `0403`；NUC7 **DID=`0x9D71`** @`00:1F.3` |
 | MMIO | BAR0=`0xDF240000` sz=`0x4000`；`gcap=0x9701` `v=1.0` `outpay=0x3C` `inpay=0x1D` |
-| Codec | 板载 Realtek / 类似；用 **verb 探测**，不写死唯一 codec 全表 |
+| Codec | **Intel HDMI** `8086:280B` @ CAD=`2` AFG=`1`；输出 pin **nid=`3`** cfg=`0x18560010`（2026-09-29）；无模拟孔 |
 | QEMU | `-device intel-hda -device hda-duplex`（或项目现有 run 脚本等价项）；无设备 → 软退 |
 
 ---
@@ -52,7 +52,7 @@
 | 角色 | 做啥 |
 | ---- | ---- |
 | Agent | 实现、`./build.sh`、QEMU 冒烟（能出波形/日志）；改文档 |
-| 你 | NUC 插听手测；无声时看串口 / 断电 |
+| 你 | NUC **HDMI 接显示器/音箱**手测；无声时看串口 / 断电 |
 
 | 单位 | 含义 |
 | ---- | ---- |
@@ -86,7 +86,7 @@
 
 ## 5. PR-G-audio-0 · PCI 认卡
 
-> **状态**：**✅ TG**（2026-09-29；NUC `did=0x9D71 @00:1F.3` + bound）。  
+> **状态**：**✅ GD**（原 TG；2026-09-29；NUC `did=0x9D71 @00:1F.3` + bound）。  
 > **一句话**：扫到 Intel HDA（或 QEMU intel-hda）→ 串口 DID + `lsdev=hda`；**不**映 BAR。
 
 | 项 | 内容 |
@@ -100,7 +100,7 @@
 
 ## 6. PR-G-audio-1 · MMIO / 控制器指纹
 
-> **状态**：**✅ TG**（2026-09-29；NUC `bar=0xDF240000 gcap=0x9701 v=1.0 outpay=0x3C`；屏不黑）。  
+> **状态**：**✅ GD**（原 TG；2026-09-29；NUC `bar=0xDF240000 gcap=0x9701 v=1.0 outpay=0x3C`；屏不黑）。  
 > **一句话**：VMM 后 UC 映 BAR0；只读 GCAP / VMAJ / OUTPAY 等指纹黄字。
 
 | 项 | 内容 |
@@ -114,27 +114,28 @@
 
 ## 7. PR-G-audio-2 · CORB / RIRB / codec 枚举
 
-> **状态**：**★**（排队；下一 JX）。  
+> **状态**：**✅ TG**（2026-09-29；NUC `corb entries=0x100`；`codec a=2 vend=8086280B` pin=`3` cfg=`0x18560010`）。  
 > **一句话**：建 CORB/RIRB；发 GET 类 verb；列出 codec addr + 输出 pin/DAC widget（打表，不追求全图）。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `HdaCorb.c` / `HdaCodec.c`；DMA 缓冲身份映 |
-| 不改 | 播放流；IRQ 可先 poll |
-| 验收 | NUC：`hda codec … pins=…`；能指认至少 1 个输出路径；挂则软退 |
+| 改 | `HdaCorb.c` / `HdaCodec.c`；DMA 缓冲身份映；`HalHdaCodecInit` |
+| 不改 | 播放流；IRQ（poll） |
+| 验收 | NUC corb+HDMI pin（✅）；屏不黑；QEMU skip（✅） |
 | 下一刀 | audio-3 |
 
 ---
 
 ## 8. PR-G-audio-3 · 输出流 + DMA
 
-> **一句话**：配置输出 Stream；BDL 环；把一块 PCM 推到 DAC；先 **poll 完成**，再可选 IRQ。
+> **状态**：**★ JX**（2026-09-29）。  
+> **一句话**：配置输出 Stream；BDL 环；把一块 PCM 推到 **HDMI** converter；先 **poll 完成**。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `HdaStream.c`；格式钉死（建议 48k/16/2ch） |
-| 不改 | 多流混音；采样率协商 UI |
-| 验收 | QEMU 能录到/听到；NUC 耳机有声（或明确 codec 路径失败软退） |
+| 改 | `HdaStream.c`；格式钉死 48kHz/16bit/立体声 |
+| 不改 | 多流混音；HalAudio API（→audio-4） |
+| 验收 | NUC HDMI 短声或软退黄字；屏不黑；smoke 绿 |
 | 下一刀 | audio-4 |
 
 ---

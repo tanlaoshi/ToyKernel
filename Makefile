@@ -222,7 +222,7 @@ LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 BUILDDIR = Build
 HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
-# Common/Core/User/Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
+# Common / Core / User / Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
 # （如 EM:62 x86_64 → aarch64/riscv）。勿只清 Common。
 ARCH_STAMP := $(BUILDDIR)/.toy_arch
 _STAMP_ARCH := $(shell cat $(ARCH_STAMP) 2>/dev/null)
@@ -317,8 +317,6 @@ ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/St
 CORE_OBJS     := $(patsubst Core/%.c,$(BUILDDIR)/Core/%.o,$(CORE_SRCS))
 SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
-KT_SRCS       := $(wildcard Common/Core/*.c)
-KT_OBJS       := $(patsubst Common/Core/%.c,$(BUILDDIR)/Common/Core/%.o,$(KT_SRCS))
 FONT_OBJS     := $(patsubst Common/Fonts/%.c,$(BUILDDIR)/Common/Fonts/%.o,$(FONT_SRCS))
 DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
 ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(HALDIR)/%.o,$(ARCH_SRCS))
@@ -492,7 +490,7 @@ $(error Unknown FS: $(FS))
 endif
 FS_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(FS_SRCS))
 
-OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(KT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(MEMORY_OBJS) $(FS_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
+OBJS = $(CORE_OBJS) $(SERVICES_OBJS) $(LIB_OBJS) $(FONT_OBJS) $(DRIVER_OBJS) $(ARCH_OBJS) $(ARCH_ASM_OBJS) $(EXTRA_OBJS) $(SCHED_OBJS) $(MEMORY_OBJS) $(FS_OBJS) $(LWIPOBJS) $(LWIP_PORT_OBJS)
 TARGET = $(HALDIR)/Kernel.elf
 
 ifeq ($(BRINGUP),1)
@@ -619,9 +617,6 @@ $(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
-
-$(BUILDDIR)/Common/Core/%.o: Common/Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Fonts/%.o: Common/Fonts/%.c | $(BUILDDIR)

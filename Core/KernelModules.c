@@ -96,6 +96,8 @@ static int InitializeVideo(void) {
     HalIgpuMmioInit();
     /* PR-G-audio-1：HDA BAR 只读指纹（无卡/失败软退） */
     HalHdaMmioInit();
+    /* PR-G-audio-2：CORB/RIRB + codec/pin 枚举（无卡/失败软退） */
+    HalHdaCodecInit();
     /* PR-G-igpu-3：forcewake → 再读 SURF；blit 骨架软退 */
     HalIgpuForcewakeInit();
     HalIgpuGttInit();

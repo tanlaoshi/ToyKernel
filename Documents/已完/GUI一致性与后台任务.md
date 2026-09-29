@@ -128,7 +128,7 @@
 
 任务书第 3 部分假设「慢操作卡 UI」——Store 已用 `WorkerTask`+`StoreJob` 解决。**不重写 Store**。本柱第 3 刀只做：
 
-- `KernelTask.h`/`Common/Core/KernelTask.c`：通用注册表（`Name/State/Progress/Message` + `Fn/Ctx`），≤4 槽。
+- `KernelTask.h`/`Core/KernelTask.c`：通用注册表（`Name/State/Progress/Message` + `Fn/Ctx`），≤4 槽。
 - `Scheduler.h`/`Scheduler.c`：加 `SchedulerCreateKernel(Name, void (*Fn)(void*), void *Ctx)`；现有 `SchedulerCreate` 不动。
 - **不**强制 Store 改用；留 demo/未来慢操作用。Store 迁移**另柱**（可选）。
 
@@ -163,7 +163,7 @@
 | **2** | **PR-GUI-btn-action** | `UiAction.h`/`UiAction.c`（`UI_BUTTON_ACTION` + `UiActionDispatch`，SYNC/ASYNC 两型） | build + smoke；桩证明 dispatch 命中 |
 | **3** | **PR-GUI-migrate-edit** | 迁 **EditUi** Save 钮到 `UI_BUTTON_ACTION`（SYNC） | EditUi Save 行为不变；4 态可见 |
 | **4** | **PR-GUI-migrate-store** | 迁 **StoreUi** 钮到 `UI_BUTTON_ACTION`（ASYNC 走 `StoreJobEnqueue`） | StoreUi Install/Remove/Sync 行为不变 |
-| **5** | **PR-GUI-kerneltask** | `KernelTask.h`/`Common/Core/KernelTask.c` + `SchedulerCreateKernel(Name,Fn,Ctx)`；一个 demo 慢任务 | build + smoke；demo 任务跑完不卡 UI |
+| **5** | **PR-GUI-kerneltask** | `KernelTask.h`/`Core/KernelTask.c` + `SchedulerCreateKernel(Name,Fn,Ctx)`；一个 demo 慢任务 | build + smoke；demo 任务跑完不卡 UI |
 
 **依赖**：1 → 2 → 3 → 4；5 独立（可插在 2 之后或最后）。  
 **勿**在刀 3/4 一次迁多页。  
@@ -194,7 +194,7 @@
 
 ### 第 4 步：通用后台任务（刀 5）
 
-1. `KernelTask.h` / `Common/Core/KernelTask.c`
+1. `KernelTask.h` / `Core/KernelTask.c`
 2. `SchedulerCreateKernel(Name, Fn, Ctx)`
 3. demo 慢任务验证不卡 UI
 4. Store **不**强制迁移
