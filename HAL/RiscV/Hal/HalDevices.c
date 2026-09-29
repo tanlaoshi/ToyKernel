@@ -138,6 +138,9 @@ void HalIwlBgPump(void) {
 void HalIgpuMmioInit(void) {
 }
 
+void HalHdaMmioInit(void) {
+}
+
 void HalIgpuGttInit(void) {
 }
 

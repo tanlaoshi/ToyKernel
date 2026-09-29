@@ -178,6 +178,10 @@ void HalIgpuMmioInit(void) {
     (void)IgpuMmioInit();
 }
 
+void HalHdaMmioInit(void) {
+    (void)HdaMmioInit();
+}
+
 void HalIgpuGttInit(void) {
     (void)IgpuGttInit();
 }

@@ -1,9 +1,9 @@
 # 声卡驱动 · Intel HDA（PR-G-audio · 活文档）
 
 > **目的**：NUC / QEMU 能 **播一段 PCM**（蜂鸣 / `play` / 课堂演示），补齐「能看见也能听见」。  
-> **排期指针**：路线图 ★ [`PR-G-audio-1`](../路线图.md#pr-g-audio-1)；柱总览活文档本文。  
+> **排期指针**：路线图 ★ [`PR-G-audio-2`](../路线图.md#pr-g-audio-2)；柱总览活文档本文。  
 > **权威代码**：`HAL/X64/Drivers/Hda/` +（后续）`HalAudio*`。  
-> **日期**：2026-09-29 · **★ audio-1 JX**（MMIO 指纹）；audio-0 ✅ TG。
+> **日期**：2026-09-29 · **★ audio-2**；audio-0/1 ✅ TG。
 
 ---
 
@@ -40,7 +40,8 @@
 | 项 | 值 |
 | -- | -- |
 | 机型 | Intel **NUC7i7DN H** |
-| 预期 PCI | Vendor `8086` + class `0403`；NUC7 **DID=`0x9D71`** @`00:1F.3`（2026-09-29 手测） |
+| 预期 PCI | Vendor `8086` + class `0403`；NUC7 **DID=`0x9D71`** @`00:1F.3` |
+| MMIO | BAR0=`0xDF240000` sz=`0x4000`；`gcap=0x9701` `v=1.0` `outpay=0x3C` `inpay=0x1D` |
 | Codec | 板载 Realtek / 类似；用 **verb 探测**，不写死唯一 codec 全表 |
 | QEMU | `-device intel-hda -device hda-duplex`（或项目现有 run 脚本等价项）；无设备 → 软退 |
 
@@ -99,20 +100,21 @@
 
 ## 6. PR-G-audio-1 · MMIO / 控制器指纹
 
-> **状态**：**★ JX**（2026-09-29）。  
+> **状态**：**✅ TG**（2026-09-29；NUC `bar=0xDF240000 gcap=0x9701 v=1.0 outpay=0x3C`；屏不黑）。  
 > **一句话**：VMM 后 UC 映 BAR0；只读 GCAP / VMAJ / OUTPAY 等指纹黄字。
 
 | 项 | 内容 |
 | -- | ---- |
 | 改 | `HdaMmio.c`；`HalHdaMmioInit`（Video 模块末，同 igpu-1） |
 | 不改 | CORB 提交；DMA；写 GCTL |
-| 验收 | `Boot: hda mmio bar=… gcap=…`；屏不黑；软退 |
+| 验收 | NUC mmio 指纹（✅）；屏不黑（✅）；smoke 绿（✅） |
 | 下一刀 | audio-2 |
 
 ---
 
 ## 7. PR-G-audio-2 · CORB / RIRB / codec 枚举
 
+> **状态**：**★**（排队；下一 JX）。  
 > **一句话**：建 CORB/RIRB；发 GET 类 verb；列出 codec addr + 输出 pin/DAC widget（打表，不追求全图）。
 
 | 项 | 内容 |
