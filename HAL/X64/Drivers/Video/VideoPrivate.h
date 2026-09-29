@@ -92,10 +92,14 @@ static inline UINT32 CodepointAdvance(UINT32 Cp) {
 UINT32 NormalizeUiScale(UINT32 Percent);
 void ApplyLogicalFromPhys(void);
 
-/* Dirty / Present（VideoPresent.c；Draw* 经 DirtyUnion 记账） */
+/* Dirty / Present（VideoPresent*.c；Draw* 经 DirtyUnion 记账） */
 void DirtyUnionInto(int *Dirty, UINT32 *Dx0, UINT32 *Dy0, UINT32 *Dx1,
                     UINT32 *Dy1, UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void DirtyUnionCursor(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
+void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
+                     UINT64 FbBytes, int *DirtyOut, UINT32 *Dx0,
+                     UINT32 *Dy0, UINT32 *Dx1, UINT32 *Dy1,
+                     int *OutPartial);
 
 #endif
