@@ -5,6 +5,7 @@
  */
 #include "VideoPrivate.h"
 #include "Scheduler.h"
+#include "HalDevices.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
@@ -99,8 +100,24 @@ static void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
         return;
     }
 
+    if (Scaled) {
+        HalIgpuNotePresentSkipScale();
+    }
+
     if (!Scaled) {
         RowBytes = (UINT64)(X1 - X0) * 4ull;
+        /*
+         * igpu-4：大矩形且 blit 就绪时一次 SRC_COPY；失败仍走下方 memcpy。
+         * 缩放路径保持 CPU（最近邻）。
+         */
+        if (gBack && gBackOn && HalIgpuReady()
+            && ((UINT64)(X1 - X0) * (UINT64)(Y1 - Y0)
+                >= (UINT64)HalIgpuBlitMinPixels())
+            && HalIgpuPresentRect(gBack, gBackPitch, gFrontPitch,
+                               gPhysH ? gPhysH : gScreen.Height,
+                               X0, Y0, X1, Y1)) {
+            return;
+        }
         Y = Y0;
         while (Y < Y1) {
             /* 勿 Y+ChunkRows：ChunkRows=0xFFFFFFFF 会回绕 → Y 不前进死循环 */

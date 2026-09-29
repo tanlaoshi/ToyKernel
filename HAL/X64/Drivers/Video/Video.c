@@ -76,6 +76,18 @@ UINT64 VideoFrameBufferSize(void) {
     return gScreen.FrameBufferSize;
 }
 
+void VideoSetScanout(UINT32 *Va, UINT32 PitchPx, UINT64 Phys, UINT64 Size) {
+    if (!Va || PitchPx == 0 || Phys == 0) {
+        return;
+    }
+    gFront = Va;
+    gFrontPitch = PitchPx;
+    gScreen.FrameBufferBase = Phys;
+    if (Size != 0) {
+        gScreen.FrameBufferSize = Size;
+    }
+}
+
 /*
  * 启用与屏同尺寸的后缓冲（紧密 pitch=Width）。Buf 由调用方 PMM 分配。
  * Pages 仅记录；失败/空指针则保持直写 GOP。
@@ -101,6 +113,10 @@ void VideoSetBackbuffer(UINT32 *Buf, UINT32 Pages) {
 
 int VideoBackbufferEnabled(void) {
     return gBackOn;
+}
+
+UINT64 VideoBackbufferBase(void) {
+    return gBackOn ? (UINT64)(UINTN)gBack : 0;
 }
 
 UINT32 VideoBackbufferPages(void) {

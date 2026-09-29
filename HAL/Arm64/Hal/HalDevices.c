@@ -128,6 +128,51 @@ void HalIgpuBlitInit(void) {
 void HalIgpuBlitColorTest(void) {
 }
 
+void HalIgpuPresentPrepare(void) {
+}
+
+void HalIgpuPresentInvalidate(void) {
+}
+
+int HalIgpuReady(void) {
+    return 0;
+}
+
+UINT32 HalIgpuBlitMinPixels(void) {
+    return 0;
+}
+
+void HalIgpuNotePresentSkipScale(void) {
+}
+
+int HalIgpuPresentRect(const UINT32 *Back, UINT32 BackPitchPx, UINT32 FrontPitchPx,
+                       UINT32 BackH, UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1) {
+    (void)Back;
+    (void)BackPitchPx;
+    (void)FrontPitchPx;
+    (void)BackH;
+    (void)X0;
+    (void)Y0;
+    (void)X1;
+    (void)Y1;
+    return 0;
+}
+
+int HalIgpuCopyRectBack(const UINT32 *Back, UINT32 PitchPx, UINT32 BufH,
+                        UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
+                        UINT32 W, UINT32 H) {
+    (void)Back;
+    (void)PitchPx;
+    (void)BufH;
+    (void)SrcX;
+    (void)SrcY;
+    (void)DstX;
+    (void)DstY;
+    (void)W;
+    (void)H;
+    return 0;
+}
+
 void HalInputArmIrq(void) {
 }
 

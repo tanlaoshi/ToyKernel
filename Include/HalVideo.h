@@ -12,6 +12,8 @@ void HalVideoInitBackbuffer(void);
 void HalVideoPresent(void);
 /* 刷完所有脏区（关窗/主题全屏合成后用） */
 void HalVideoPresentFlush(void);
+/* 标记脏矩形（拖窗并旧∪新 footprint） */
+void HalVideoMarkDirty(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /* 拖窗：Rows 极大 → 整脏区一次 blit，减轻左右条带频闪；0=恢复默认 64 */
 void HalVideoSetPresentChunkRows(UINT32 Rows);
 /* PR-GUI-l2-font：1=点阵边缘灰度；0=硬 1bpp */
@@ -19,6 +21,8 @@ void HalVideoSetGlyphSmooth(int On);
 void HalVideoDrawBeginFront(void);
 void HalVideoDrawEndFront(void);
 int HalVideoBackbufferEnabled(void);
+/* 后缓冲物理/恒等虚址；未启用则 0（igpu Present 用） */
+UINT64 HalVideoBackbufferBase(void);
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height);
 /* UI 整体缩放（50/100/150/200）；成功 0，重配后缓冲 */
 UINT32 HalVideoGetUiScale(void);
@@ -36,6 +40,8 @@ UINT32 HalVideoModeCount(void);
 int HalVideoModeGet(UINT32 Index, UINT32 *Width, UINT32 *Height);
 UINT64 HalVideoFrameBufferBase(void);
 UINT64 HalVideoFrameBufferSize(void);
+/* GPU 翻页后切换 CPU gFront 与 FrameBufferBase */
+void HalVideoSetScanout(UINT32 *Va, UINT32 PitchPx, UINT64 Phys, UINT64 Size);
 /* PR-G-fb-pte：boot 一行 FB phys + PWT/PCD(/PAT) + 推导 cache；不改映射。x86 有内容，其它 HAL 空实现 */
 void HalVideoLogFbPte(void);
 /* 填入一行（无尾 '\n'）；成功返回长度，无 FB 返回 0 */

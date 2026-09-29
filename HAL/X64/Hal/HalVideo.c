@@ -5,6 +5,7 @@
 #include "Video.h"
 #include "PhysicalMemory.h"
 #include "Hal.h"
+#include "HalDevices.h"
 #include "HalSerial.h"
 #include "VirtualMemory.h"
 
@@ -242,6 +243,7 @@ void HalVideoInitBackbuffer(void) {
     UINT32 Pages;
     UINT32 *Buf;
 
+    HalIgpuPresentInvalidate();
     VideoReleaseBackbuffer();
     VideoGetSize(&W, &H);
     if (W == 0 || H == 0) {
@@ -257,6 +259,7 @@ void HalVideoInitBackbuffer(void) {
         return;
     }
     VideoSetBackbuffer(Buf, Pages);
+    HalIgpuPresentPrepare();
 }
 
 int HalVideoCanHotSetMode(void) {
@@ -317,12 +320,20 @@ UINT64 HalVideoFrameBufferSize(void) {
     return VideoFrameBufferSize();
 }
 
+void HalVideoSetScanout(UINT32 *Va, UINT32 PitchPx, UINT64 Phys, UINT64 Size) {
+    VideoSetScanout(Va, PitchPx, Phys, Size);
+}
+
 void HalVideoPresent(void) {
     VideoPresent();
 }
 
 void HalVideoPresentFlush(void) {
     VideoPresentFlush();
+}
+
+void HalVideoMarkDirty(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    DirtyUnion(X, Y, W, H);
 }
 
 void HalVideoSetPresentChunkRows(UINT32 Rows) {
@@ -343,6 +354,10 @@ void HalVideoDrawEndFront(void) {
 
 int HalVideoBackbufferEnabled(void) {
     return VideoBackbufferEnabled();
+}
+
+UINT64 HalVideoBackbufferBase(void) {
+    return VideoBackbufferBase();
 }
 
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height) {

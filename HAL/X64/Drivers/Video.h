@@ -23,11 +23,13 @@ void VideoSetBackbuffer(UINT32 *Buf, UINT32 Pages);
 /* PR-G-hotres：释放后缓冲页（切分辨率前调用） */
 void VideoReleaseBackbuffer(void);
 int VideoBackbufferEnabled(void);
+UINT64 VideoBackbufferBase(void);
 UINT32 VideoBackbufferPages(void);
 /* 脏矩形 blit 到 GOP；无后缓冲时为空操作 */
 void VideoPresent(void);
 /* 循环 Present 直到脏区清空（4K 全屏合成勿半截留下任务栏空洞） */
 void VideoPresentFlush(void);
+void DirtyUnion(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 /* Rows=0 → 默认 64；拖窗可传极大值整块 blit */
 void VideoSetPresentChunkRows(UINT32 Rows);
 /* PR-G-hotres：Bochs/QEMU VGA DISPI；成功 0，无 Bochs/失败 -1 */
@@ -38,6 +40,8 @@ int VideoGopSetMode(UINT32 Width, UINT32 Height);
 int VideoGopAvailable(void);
 UINT64 VideoFrameBufferBase(void);
 UINT64 VideoFrameBufferSize(void);
+/* GPU 翻页后切换 CPU 所见 scanout（与 PLANE_SURF 一致） */
+void VideoSetScanout(UINT32 *Va, UINT32 PitchPx, UINT64 Phys, UINT64 Size);
 /* 直写 scanout（boot 进度，勿与 Present 混用长路径） */
 /* PR-GUI-l2-font：1=点阵边缘灰度；0=硬 1bpp */
 void VideoSetGlyphSmooth(int On);

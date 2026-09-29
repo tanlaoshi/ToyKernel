@@ -74,6 +74,13 @@ UINT64 HalVideoFrameBufferSize(void) {
     return VideoFrameBufferSize();
 }
 
+void HalVideoSetScanout(UINT32 *Va, UINT32 PitchPx, UINT64 Phys, UINT64 Size) {
+    (void)Va;
+    (void)PitchPx;
+    (void)Phys;
+    (void)Size;
+}
+
 /* PR-G-fb-pte：x86 才有 PWT/PCD；virt 空实现 */
 void HalVideoLogFbPte(void) {
 }
@@ -100,7 +107,11 @@ void HalVideoPresentFlush(void) {
     VideoPresentFlush();
 }
 
-/* 拖窗条带：Virt/arm64/riscv Present 无分块；空实现满足链接 */
+void HalVideoMarkDirty(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
+    DirtyUnion(X, Y, W, H);
+}
+
+/* 拖窗条带：Virt Present 无分块；空实现满足链接 */
 void HalVideoSetPresentChunkRows(UINT32 Rows) {
     (void)Rows;
 }
@@ -117,6 +128,10 @@ void HalVideoDrawEndFront(void) {
 
 int HalVideoBackbufferEnabled(void) {
     return VideoBackbufferEnabled();
+}
+
+UINT64 HalVideoBackbufferBase(void) {
+    return VideoBackbufferBase();
 }
 
 void HalVideoGetSize(UINT32 *Width, UINT32 *Height) {

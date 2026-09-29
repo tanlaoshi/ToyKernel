@@ -2,6 +2,7 @@
  * VideoBlit.c — 矩形拷贝（PR-S-video-1）
  */
 #include "VideoPrivate.h"
+#include "HalDevices.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 extern void *memmove(void *Dst, const void *Src, UINTN Len);
@@ -39,6 +40,15 @@ void VideoCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
     W = (INT32)CopyW;
     H = (INT32)CopyH;
     if (W <= 0 || H <= 0) {
+        return;
+    }
+
+    /* igpu-4：大且不重叠的后缓冲内拷贝可走 SRC_COPY */
+    if (gBackOn && Fb == gBack && HalIgpuReady()
+        && ((UINT64)CopyW * (UINT64)CopyH >= (UINT64)HalIgpuBlitMinPixels())
+        && HalIgpuCopyRectBack(gBack, gBackPitch, gScreen.Height,
+                            SrcX, SrcY, DstX, DstY, CopyW, CopyH)) {
+        DirtyUnion(DstX, DstY, CopyW, CopyH);
         return;
     }
 

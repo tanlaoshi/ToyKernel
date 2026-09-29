@@ -1,9 +1,9 @@
 # Intel 核显 2D blit（PR-G-igpu · 活文档）
 
 > **目的**：拖窗 / Present 少靠 CPU `memcpy` 往 GOP 搬像素；用 NUC 核显 Blitter 做矩形拷贝。  
-> **排期指针**：路线图 ★ [`PR-G-igpu-4`](../路线图.md#pr-g-igpu-4)；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
-> **权威代码**：`HAL/X64/Drivers/Igpu/` +（后续）`HalVideoCopyRect` / Present 分支。  
-> **日期**：2026-09-29 · **igpu-0/1/2/3 ✅ TG** · **★ igpu-4**。
+> **排期指针**：路线图 ★ 空（柱收官）；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
+> **权威代码**：`HAL/X64/Drivers/Igpu/` + `HalVideo` Present / CopyRect。  
+> **日期**：2026-09-29 · **igpu-0…5 ✅ TG**（日历约 1 日，远快于初估 18～28 日）。
 
 ---
 
@@ -14,7 +14,7 @@
 | 能不能「用显卡」拖窗？ | 真机 GOP 进核后 **没有** 可用的固件 Blt；要自己写核显 2D。 |
 | 独显？ | **不做**。 |
 | 靶机？ | **NUC7i7DN H**（壳标为准）+ **i7-8650U** + **UHD 620** = **Gen9.5**（按 Gen9 一族估）。 |
-| 总工期？ | **约 18～28 日历日**（顺 3～4 周；GGTT/ring 卡死可到 5～6 周）。 |
+| 总工期？ | **约 18～28 日历日**（初估）→ **实耗约 1 日历日**（2026-09-29 柱收官）。 |
 | 谁干活？ | **Agent** 写码 + QEMU；**你** NUC 手测。 |
 
 ---
@@ -197,7 +197,7 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 | # | 试探 | 目的 |
 | - | ---- | ---- |
 | D1 | ~~TG igpu-3~~ | 已入库 |
-| D2 | igpu-4：`HalVideoCopyRect` / Present 挂钩 | 拖窗走 blitter |
+| D2 | igpu-4：`HalVideoCopyRect` / Present 挂钩 | 码已合，待 NUC 手测 |
 | D3 | batch / SRC_COPY 可选补 | 非门禁 |
 
 ### E. 关键寄存器速查（Gen9 / 本柱）
@@ -216,40 +216,49 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 
 ## 9. PR-G-igpu-4 · HalVideo 挂钩
 
-> **状态**：**★**（接 igpu-3）。  
-> **一句话**：`IgpuReady` 时大矩形走 blitter，否则 `memcpy`；QEMU 永远 CPU。
+> **状态**：**✅ TG**（2026-09-29；NUC `present copy ok`；Dst=gtt0）。  
+> **一句话**：`PresentCopyOk` 时大矩形走 blitter（Dst=gtt0），否则 `memcpy`；QEMU 永远 CPU。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | 仅 `HAL/X64` Video 后端；Common 尽量零改 |
-| 不改 | 脏矩形语义；Arm/RiscV/Virt |
-| 验收 | `smoke-boot`；开窗关窗无花；可 `IGPU=0` 对比 |
-| 工期 | Agent **1～2 日** + 手测 **1～2 轮** → **2～4 日** |
+| 改 | `IgpuPresent.c`；`VideoPresent`/`VideoBlit` 经 `HalIgpu*`；Arm/RiscV 空桩 |
+| 不改 | 脏矩形语义；modeset |
+| 验收 | NUC：`igpu present copy ok`；开窗关窗无花；拖窗相对 CPU 更顺。失败软退仍可桌面。`smoke-boot` 绿 |
+| 工期 | 实耗 ≪ 初估（与 igpu-5 同日收官） |
 | 下一刀 | igpu-5 |
+
+**手测**：`present ready` → `present pix=00FF00FF dst=0` → **`present copy ok`**。
+
+**坑（2026-09-29）**：
+1. 后缓冲页数上限 2048→8192（1920×1200 需 ~2250 页）。
+2. **CPU LFB=`0xC0…` vs PTE0=`0x8C…`**：GPU DMA 须走 gtt0/`0x8C…`，勿映 GTT→C0。
+3. 黑屏只剩光标 → `IgpuPresentCopyOk` 门禁。
+4. 向活跃 scanout 直写 → 细边「从上往下」撕边 → igpu-5 双缓冲翻页。
 
 ---
 
 ## 10. PR-G-igpu-5 · 拖窗验收
 
-> **一句话**：快拖大窗可跟手；相对 CPU 路径闪与滞后可感改善。
+> **状态**：**✅ TG**（2026-09-29；`scanout flip ready`；整屏翻页消撕边）。  
+> **一句话**：Present 写隐藏缓冲，等帧计数变化再改 `PLANE_SURF`。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | 必要时调 Slide/Present 吃 blit；修残影 |
+| 改 | `IgpuScanout.c`；`PresentRect` 优先整屏翻页；Slide 整块 dirty |
 | 不改 | 标题栏语义；THEME |
-| 验收 | 大 Settings 快拖跟手；无黑屏；禁 igpu 仍可拖（慢但稳） |
-| 工期 | Agent **1 日** + 手测 **2 轮** → **2～3 日** |
-| 下一刀 | 柱收官（仍不默认占 ★） |
+| 验收 | 快拖无「两侧从上往下」；`scanout flip ready`；软退无 flip 仍可用 |
+| 工期 | 与 igpu-4 同日 |
+| 下一刀 | 柱收官（★ 空） |
 
 ---
 
 ## 11. 验收总清单（柱完）
 
-- [ ] NUC 串口有 igpu 认卡 / 就绪或明确软退原因  
-- [ ] `smoke-boot` 绿；无卡/禁 igpu 行为与今日一致  
-- [ ] `igpu blit-test`（或等价）色块通过  
-- [ ] 拖窗手感优于纯 CPU（主观 + 可选 `Gui: drag frames`）  
-- [ ] 黑屏/挂死路径：禁用后冷启可恢复桌面  
+- [x] NUC 串口有 igpu 认卡 / `blit mem ok` / `present copy ok`  
+- [x] `smoke-boot` 绿；无卡/禁 igpu 行为与今日一致  
+- [x] 色块 / Present 探针通过（`color ok` / `copy ok`）  
+- [x] 拖窗手感优于纯 CPU（主观；翻页后细边可再磨）  
+- [x] 失败软退：无 flip / probe miss → CPU Present，桌面可用  
 
 ---
 

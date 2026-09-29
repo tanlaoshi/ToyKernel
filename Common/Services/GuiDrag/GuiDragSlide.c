@@ -100,10 +100,33 @@ void RedrawDragFrameSlide(int DragIdx, UINT32 OldX, UINT32 OldY) {
     DrawWindowShadowAt(DragIdx);
 
     /*
-     * 后缓冲已是这一帧终稿。勿 GfxIrqEnter：它会把 Present 整段关中断，
-     * 64 行条带间的开中断失效，大窗一次 cli 就是拖窗顿挫。
-     * 也不要把条带抬成整脏区：左右条和窗体分块刷，避免两侧整块闪。
+     * igpu-5：旧∪新（含右下影）并成一块脏区再 Present。
+     * GPU 路径一次 SRC_COPY；CPU 回退时抬高条带，减轻左右细闪。
      */
+    {
+        UINT32 Ux = (OldX < Nx) ? OldX : Nx;
+        UINT32 Uy = (OldY < Ny) ? OldY : Ny;
+        UINT32 Ur = (OldX + Ww > Nx + Ww) ? (OldX + Ww) : (Nx + Ww);
+        UINT32 Ub = (OldY + Wh > Ny + Wh) ? (OldY + Wh) : (Ny + Wh);
+        UINT32 Shadow = ThemeWindowShadowSize();
+
+        if (Ur + Shadow < gScreenWidth) {
+            Ur += Shadow;
+        } else {
+            Ur = gScreenWidth;
+        }
+        if (Ub + Shadow < gScreenHeight) {
+            Ub += Shadow;
+        } else {
+            Ub = gScreenHeight;
+        }
+        if (Ur > Ux && Ub > Uy) {
+            HalVideoMarkDirty(Ux, Uy, Ur - Ux, Ub - Uy);
+        }
+        /* 整块 Present：GPU 翻页或 CPU 一次性 memcpy，避免 64 行条带 */
+        HalVideoSetPresentChunkRows(16384u);
+    }
     GuiDragFrameAccount();
     HalVideoPresent();
+    HalVideoSetPresentChunkRows(0);
 }

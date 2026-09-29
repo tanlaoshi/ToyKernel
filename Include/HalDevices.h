@@ -83,6 +83,17 @@ void HalIgpuForcewakeInit(void);
 void HalIgpuBlitInit(void);
 /* 桌面 Ready 后：右上角 XY_COLOR_BLT 自测（非 x86 空） */
 void HalIgpuBlitColorTest(void);
+/* PR-G-igpu-4：大矩形 Present/CopyRect；非 x86 恒失败→CPU */
+void HalIgpuPresentPrepare(void);
+void HalIgpuPresentInvalidate(void);
+int HalIgpuReady(void);
+UINT32 HalIgpuBlitMinPixels(void);
+void HalIgpuNotePresentSkipScale(void);
+int HalIgpuPresentRect(const UINT32 *Back, UINT32 BackPitchPx, UINT32 FrontPitchPx,
+                       UINT32 BackH, UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1);
+int HalIgpuCopyRectBack(const UINT32 *Back, UINT32 PitchPx, UINT32 BufH,
+                        UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
+                        UINT32 W, UINT32 H);
 /* 真机：usb 模块末尾开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：键鼠 ready 后再枚举鼠标，避免踩键盘 IN */

@@ -191,6 +191,38 @@ void HalIgpuBlitColorTest(void) {
     (void)IgpuBlitColorTest();
 }
 
+void HalIgpuPresentPrepare(void) {
+    IgpuPresentPrepare();
+}
+
+void HalIgpuPresentInvalidate(void) {
+    IgpuPresentInvalidate();
+}
+
+int HalIgpuReady(void) {
+    /* 仅 SRC_COPY 探针通过才走 GPU Present；否则 CPU memcpy，避免黑屏只剩光标 */
+    return IgpuReady() && IgpuPresentCopyOk();
+}
+
+UINT32 HalIgpuBlitMinPixels(void) {
+    return IgpuBlitMinPixels();
+}
+
+void HalIgpuNotePresentSkipScale(void) {
+    IgpuNotePresentSkipScale();
+}
+
+int HalIgpuPresentRect(const UINT32 *Back, UINT32 BackPitchPx, UINT32 FrontPitchPx,
+                       UINT32 BackH, UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1) {
+    return IgpuPresentRect(Back, BackPitchPx, FrontPitchPx, BackH, X0, Y0, X1, Y1);
+}
+
+int HalIgpuCopyRectBack(const UINT32 *Back, UINT32 PitchPx, UINT32 BufH,
+                        UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
+                        UINT32 W, UINT32 H) {
+    return IgpuCopyRectBack(Back, PitchPx, BufH, SrcX, SrcY, DstX, DstY, W, H);
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

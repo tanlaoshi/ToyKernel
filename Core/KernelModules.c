@@ -98,6 +98,7 @@ static int InitializeVideo(void) {
     HalIgpuForcewakeInit();
     HalIgpuGttInit();
     HalIgpuBlitInit();
+    HalIgpuPresentPrepare();
     return 0;
 }
 

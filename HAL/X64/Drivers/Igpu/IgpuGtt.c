@@ -17,6 +17,7 @@
 
 static int gIgpuGttOk;
 static UINT32 gIgpuSurf;
+static UINT32 gIgpuSurfReg = IGPU_REG_PLANE_SURF_A;
 static UINT64 gIgpuFbPhys;
 
 int IgpuGttOk(void) {
@@ -27,9 +28,16 @@ UINT32 IgpuGttSurf(void) {
     return gIgpuSurf;
 }
 
+UINT32 IgpuGttSurfReg(void) {
+    return gIgpuSurfReg;
+}
+
 static UINT32 PickSurf(UINT32 *CtlOut) {
     UINT32 Surf[3];
     UINT32 Ctl[3];
+    static const UINT32 SurfReg[3] = {
+        IGPU_REG_PLANE_SURF_A, IGPU_REG_PLANE_SURF_B, IGPU_REG_PLANE_SURF_C
+    };
     int i;
 
     Surf[0] = IgpuMmioRead32(IGPU_REG_PLANE_SURF_A);
@@ -52,6 +60,7 @@ static UINT32 PickSurf(UINT32 *CtlOut) {
         if (CtlOut) {
             *CtlOut = Ctl[i];
         }
+        gIgpuSurfReg = SurfReg[i];
         return Surf[i]; /* 可为 0 = GGTT 根 */
     }
     if (CtlOut) {

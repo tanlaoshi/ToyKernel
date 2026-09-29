@@ -57,8 +57,21 @@ static UINT32 *gRing;
 static UINT64 gRingPhys;
 static UINT32 gRingTail;
 
+static int EmitDwords(const UINT32 *Words, UINT32 Count);
+
 int IgpuBlitOk(void) {
     return gIgpuBlitOk;
+}
+
+/* igpu-4：Present/CopyRect 共用 BCS 提交 */
+int IgpuBlitEmit(const UINT32 *Words, UINT32 Count) {
+    if (!gIgpuRingOk || !Words || Count == 0) {
+        return 0;
+    }
+    if (!IgpuForcewakeGet()) {
+        return 0;
+    }
+    return EmitDwords(Words, Count);
 }
 
 static void FlushCpu(const void *Ptr, UINTN Size) {
@@ -388,8 +401,8 @@ int IgpuBlitColorTest(void) {
     Words[1] = IGPU_ROP_COLOR_COPY | IGPU_BR13_DEPTH_32 | (PitchB & 0xFFFFu);
     Words[2] = (Y1 << 16) | (X1 & 0xFFFFu);
     Words[3] = (Y2 << 16) | (X2 & 0xFFFFu);
-    Words[4] = (UINT32)IgpuGttSurf();
-    Words[5] = 0;
+    Words[4] = (UINT32)IgpuScanoutShownGtt();
+    Words[5] = (UINT32)(IgpuScanoutShownGtt() >> 32);
     Words[6] = IGPU_TEST_COLOR;
 
     if (!EmitDwords(Words, 7)) {

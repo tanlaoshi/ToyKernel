@@ -38,7 +38,7 @@ UINT64 IgpuGsmPteRead(UINT64 GttOff) {
     return gIgpuGsm[Idx];
 }
 
-int IgpuGsmMap(UINT64 GttOff, UINT64 Phys) {
+int IgpuGsmMapQuiet(UINT64 GttOff, UINT64 Phys) {
     UINTN Idx;
 
     if (!gIgpuGsmOk) {
@@ -62,7 +62,21 @@ int IgpuGsmMap(UINT64 GttOff, UINT64 Phys) {
         Pw[1] = (UINT32)(Pte >> 32);
     }
     __asm__ volatile ("mfence" ::: "memory");
+    return 1;
+}
+
+void IgpuGsmFlush(void) {
+    if (!gIgpuGsmOk) {
+        return;
+    }
     FlushGtt();
+}
+
+int IgpuGsmMap(UINT64 GttOff, UINT64 Phys) {
+    if (!IgpuGsmMapQuiet(GttOff, Phys)) {
+        return 0;
+    }
+    IgpuGsmFlush();
     return 1;
 }
 
