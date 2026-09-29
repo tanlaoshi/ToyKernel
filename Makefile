@@ -262,6 +262,7 @@ CORE_SRCS     += $(wildcard Core/Syscall/*.c)
 CORE_SRCS     += $(wildcard Core/VirtualMemory/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
+SERVICES_SRCS += $(wildcard Common/Services/Locale/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/GuiDraw/*.c)
 SERVICES_SRCS += $(wildcard Common/Services/GuiPointer/*.c)
