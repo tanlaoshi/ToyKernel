@@ -444,6 +444,9 @@ int EnumHubChildrenForMsc(void);
  */
 int ProbeSecondHubForMsc(UINT32 HubSlot, UINT32 RootPort, UINT8 Speed);
 int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed);
+int ParseMscBulk(UINT8 *Cfg, UINT16 Total, UINT8 *OutIface,
+                 UINT8 *EpIn, UINT16 *MpsIn, UINT8 *EpOut, UINT16 *MpsOut);
+void LogMscCfgIfaces(UINT8 *Cfg, UINT16 Total);
 int MscClaimForceUntilPed(UINT32 P, int *Force);
 int MscClaimAddressPort(UINT32 P, int Force, UINT8 *Speed);
 int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok);
