@@ -9,6 +9,9 @@
 void ShellCommandsUsbRegister(void);
 void ShellCommandsNetRegister(void);
 void ShellCommandsNetAddrRegister(void);
+void ShellCommandsNetUdpRegister(void);
+void ShellCommandsNetTcpRegister(void);
+void ShellCommandsNetLwipRegister(void);
 void ShellCommandsSystemRegister(void);
 void ShellCommandsSystemRegisterVirtMin(void);
 void ShellCommandsThemeRegister(void);
