@@ -15,5 +15,6 @@ void ShellCommandsThemeRegister(void);
 void ShellCommandsFsUiRegister(void);
 void ShellCommandsInstallRegister(void);
 void ShellCommandsAudioRegister(void);
+void ShellCommandsThreadRegister(void);
 
 #endif

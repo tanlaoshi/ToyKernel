@@ -16,4 +16,5 @@ void ShellCommandsRegister(void) {
     ShellCommandsNetRegister();
     ShellCommandsFsUiRegister();
     ShellCommandsAudioRegister();
+    ShellCommandsThreadRegister();
 }

@@ -13,6 +13,7 @@
 #include "PhysicalMemory.h"
 #include "SpinLock.h"
 #include "ToySerialLog.h"
+#include "Errno.h"
 
 UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     VIRTUAL_ADDRESS_SPACE *ChildSpace;
@@ -27,6 +28,12 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     ParentSlot = TaskSlot(Parent);
     if (Parent == 0 || ParentSlot < 0 || !Parent->IsUser || !Parent->UserSpace) {
         HalFrameSetReturn(Frame, (UINT64)(INT64)-1);
+        SpinLockRelease(&gSchedulerLock);
+        return 0;
+    }
+    /* PR-U-thread：组内 >1 线程则拒绝（thr-0 钉死；避免半拷贝） */
+    if (SchedulerGroupAliveCount(Parent->GroupId) > 1) {
+        HalFrameSetReturn(Frame, (UINT64)(INT64)(-(INT64)TOY_EAGAIN));
         SpinLockRelease(&gSchedulerLock);
         return 0;
     }

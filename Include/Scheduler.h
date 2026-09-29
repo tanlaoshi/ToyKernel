@@ -86,6 +86,12 @@ int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateKernel(const char *Name, void (*Fn)(void *), void *Ctx);
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
+/* PR-U-thread-1：同 Leader 的 UserSpace/PageRoot；成功返回槽 Id，失败 -1 */
+int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Rsp);
+/* thr-1 调试：映 spin+栈后 CreateThread；成功返回槽 Id */
+int SchedulerCreateThreadSpin(TASK *Leader);
+/* 组内存活用户任务数（State≠UNUSED） */
+int SchedulerGroupAliveCount(INT32 GroupId);
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);
 /* PR-S-lock：pid=槽位+1（与 kill/ps 一致）；成功 0，失败 -1 */
 int SchedulerSetPriority(INT32 Pid, INT32 Priority);

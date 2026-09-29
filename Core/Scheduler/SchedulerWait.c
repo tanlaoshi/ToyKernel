@@ -18,8 +18,13 @@
 static void ReapZombie(TASK *Z) {
     SchedulerOpsGet()->Remove(Z);
     SchedulerFdCloseAll(Z);
+    /*
+     * TerminateUserLocked 通常已卸 UserSpace；若仍挂着，仅当组内最后一份才 Destroy。
+     */
     if (Z->UserSpace) {
-        VirtualMemorySpaceDestroy(Z->UserSpace);
+        if (SchedulerGroupAliveCount(Z->GroupId) <= 1) {
+            VirtualMemorySpaceDestroy(Z->UserSpace);
+        }
         Z->UserSpace = 0;
     }
     Z->State = TASK_UNUSED;
@@ -104,6 +109,8 @@ static int WakeWaitingParent(TASK *Zombie) {
  */
 int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
                                VIRTUAL_ADDRESS_SPACE **OutSpace) {
+    int LastInGroup;
+
     if (OutSpace) {
         *OutSpace = 0;
     }
@@ -114,12 +121,17 @@ int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
         *ShowPrompt = 0;
     }
 
+    LastInGroup = (SchedulerGroupAliveCount(Exiting->GroupId) <= 1);
+
     SchedulerFdCloseAll(Exiting);
-    if (OutSpace) {
-        *OutSpace = Exiting->UserSpace;
-    } else if (Exiting->UserSpace) {
-        VirtualMemorySpaceDestroy(Exiting->UserSpace);
+    if (LastInGroup) {
+        if (OutSpace) {
+            *OutSpace = Exiting->UserSpace;
+        } else if (Exiting->UserSpace) {
+            VirtualMemorySpaceDestroy(Exiting->UserSpace);
+        }
     }
+    /* 非末线程：共享 VAS 留给组员；勿 Destroy */
     Exiting->UserSpace = 0;
     Exiting->ExitCode = Code;
     Exiting->PageRoot = VirtualMemoryKernelRoot();
@@ -129,18 +141,30 @@ int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
     Exiting->OnCpu = -1;
     SchedulerOpsGet()->Remove(Exiting);
 
-    if (ParentIsUserWaiter(Exiting->ParentId)) {
+    if (LastInGroup && ParentIsUserWaiter(Exiting->ParentId)) {
         Exiting->State = TASK_ZOMBIE;
         if (!WakeWaitingParent(Exiting)) {
             /* 父用户进程稍后 wait */
         }
-    } else {
+    } else if (LastInGroup) {
         if (ShowPrompt) {
             *ShowPrompt = 1;
         }
         Exiting->State = TASK_UNUSED;
         Exiting->Frame = 0;
         Exiting->ParentId = -1;
+        Exiting->GroupId = -1;
+        Exiting->LeaderId = -1;
+        Exiting->IsThread = 0;
+        gTaskCount--;
+    } else {
+        /* 组内仍有兄弟：立即收槽，不 zombie、不杀页表 */
+        Exiting->State = TASK_UNUSED;
+        Exiting->Frame = 0;
+        Exiting->ParentId = -1;
+        Exiting->GroupId = -1;
+        Exiting->LeaderId = -1;
+        Exiting->IsThread = 0;
         gTaskCount--;
     }
 
