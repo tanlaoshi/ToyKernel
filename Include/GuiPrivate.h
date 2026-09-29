@@ -109,6 +109,9 @@ extern UINT32 gResizeOrigW;
 extern UINT32 gResizeOrigH;
 extern INT32  gResizeAnchorX;
 extern INT32  gResizeAnchorY;
+extern int    gResizeBandOn;
+extern UINT32 gResizeBandW;
+extern UINT32 gResizeBandH;
 extern GUI_WINDOW gWinSwap;
 
 extern int      gDragHasBackup;
@@ -263,6 +266,11 @@ int GuiResizeCursorKindAt(UINT32 X, UINT32 Y);
 void GuiResizeBegin(int Idx, UINT32 X, UINT32 Y);
 void GuiResizeUpdate(UINT32 X, UINT32 Y);
 void GuiResizeEnd(void);
+void EraseResizeBand(int Idx, UINT32 Bw, UINT32 Bh);
+void DrawResizeBand(int Idx, UINT32 Bw, UINT32 Bh);
+void ComputeResizeSize(int Idx, int Edge, UINT32 X, UINT32 Y,
+                       UINT32 *OutW, UINT32 *OutH);
+void RepaintAfterResize(int Idx);
 
 /* Wm helpers */
 void WinCopy(GUI_WINDOW *Dst, const GUI_WINDOW *Src);

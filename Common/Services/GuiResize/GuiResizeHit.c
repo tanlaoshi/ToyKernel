@@ -1,5 +1,5 @@
 /*
- * GuiResizeHit.c — 改大小热区命中与光标外形
+ * GuiResizeHit.c — 改大小热区命中与光标外形（PR-S3-guiresize-1）
  */
 #include "GuiPrivate.h"
 #include "Desktop.h"
