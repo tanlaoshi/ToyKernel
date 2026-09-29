@@ -1,47 +1,22 @@
 /*
- * Dtb.c — FDT memory 节点 reg（PR-S3-dtb-1）
- *
- * fw-cfg / cpu@ 见 DtbProbe.c。
+ * DtbProbe.c — FDT fw-cfg 基址与 cpu@ 计数（PR-S3-dtb-1）
  */
 #include "Dtb.h"
 #include "DtbPrivate.h"
 
-UINT32 DtbBe32(const void *P) {
-    const UINT8 *B = (const UINT8 *)P;
-    return ((UINT32)B[0] << 24) | ((UINT32)B[1] << 16) |
-           ((UINT32)B[2] << 8) | (UINT32)B[3];
-}
-
-int DtbStrEq(const char *A, const char *B) {
-    if (!A || !B) {
-        return 0;
-    }
-    while (*A && *A == *B) {
-        A++;
-        B++;
-    }
-    return *A == *B;
-}
-
-UINT32 DtbAlign4(UINT32 Off) {
-    return (Off + 3u) & ~3u;
-}
-
-
-static int NameIsMemory(const char *Name) {
-    /* "memory" 或 "memory@..." */
+static int NameIsFwCfg(const char *Name) {
+    /* "fw-cfg" 或 "fw-cfg@..." */
     if (!Name) {
         return 0;
     }
-    if (Name[0] != 'm' || Name[1] != 'e' || Name[2] != 'm' ||
-        Name[3] != 'o' || Name[4] != 'r' || Name[5] != 'y') {
+    if (Name[0] != 'f' || Name[1] != 'w' || Name[2] != '-' ||
+        Name[3] != 'c' || Name[4] != 'f' || Name[5] != 'g') {
         return 0;
     }
     return Name[6] == 0 || Name[6] == '@';
 }
 
-
-int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize) {
+int DtbFwCfgBase(UINT64 DtbPhys, UINT64 *OutBase) {
     const UINT8 *Blob;
     const FDT_HEADER *Hdr;
     UINT32 Total;
@@ -53,12 +28,11 @@ int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize) {
     UINT32 Depth;
     UINT32 AddrCells;
     UINT32 SizeCells;
-    int InMemory;
-    UINT64 MemBase;
-    UINT64 MemSize;
-    int HaveMem;
+    int InFwCfg;
+    int Have;
+    UINT64 Base;
 
-    if (!OutBase || !OutSize || DtbPhys == 0) {
+    if (!OutBase || DtbPhys == 0) {
         return -1;
     }
     Blob = (const UINT8 *)(UINTN)DtbPhys;
@@ -79,10 +53,9 @@ int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize) {
     AddrCells = 2;
     SizeCells = 1;
     Depth = 0;
-    InMemory = 0;
-    HaveMem = 0;
-    MemBase = 0;
-    MemSize = 0;
+    InFwCfg = 0;
+    Have = 0;
+    Base = 0;
     Off = StructOff;
     End = StructOff + StructSize;
 
@@ -98,15 +71,14 @@ int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize) {
             }
             Off = DtbAlign4(Off + Len + 1);
             Depth++;
-            /* QEMU virt：memory@… 在根下；也接受名恰为 memory */
-            InMemory = NameIsMemory(Name) ? 1 : 0;
+            InFwCfg = NameIsFwCfg(Name) ? 1 : 0;
             continue;
         }
         if (Token == FDT_END_NODE) {
             if (Depth > 0) {
                 Depth--;
             }
-            InMemory = 0;
+            InFwCfg = 0;
             continue;
         }
         if (Token == FDT_NOP) {
@@ -137,17 +109,16 @@ int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize) {
             Val = Blob + Off;
             Off = DtbAlign4(Off + PropLen);
 
-            /* 根节点上的 #address-cells / #size-cells（Depth==1） */
-            if (Depth == 1 && !InMemory && DtbStrEq(PName, "#address-cells") &&
+            if (Depth == 1 && !InFwCfg && DtbStrEq(PName, "#address-cells") &&
                 PropLen >= 4) {
                 AddrCells = DtbBe32(Val);
-            } else if (Depth == 1 && !InMemory && DtbStrEq(PName, "#size-cells") &&
+            } else if (Depth == 1 && !InFwCfg && DtbStrEq(PName, "#size-cells") &&
                        PropLen >= 4) {
                 SizeCells = DtbBe32(Val);
-            } else if (InMemory && DtbStrEq(PName, "reg") && !HaveMem) {
+            } else if (InFwCfg && DtbStrEq(PName, "reg") && !Have) {
                 UINT32 Need = (AddrCells + SizeCells) * 4u;
-                UINT64 Base = 0;
-                UINT64 Size = 0;
+                UINT64 B = 0;
+                UINT64 Sz = 0;
                 UINT32 i;
                 UINT32 P = 0;
 
@@ -156,28 +127,97 @@ int DtbMemoryRegion(UINT64 DtbPhys, UINT64 *OutBase, UINT64 *OutSize) {
                     continue;
                 }
                 for (i = 0; i < AddrCells; i++) {
-                    Base = (Base << 32) | (UINT64)DtbBe32(Val + P);
+                    B = (B << 32) | (UINT64)DtbBe32(Val + P);
                     P += 4;
                 }
                 for (i = 0; i < SizeCells; i++) {
-                    Size = (Size << 32) | (UINT64)DtbBe32(Val + P);
+                    Sz = (Sz << 32) | (UINT64)DtbBe32(Val + P);
                     P += 4;
                 }
-                if (Size == 0) {
-                    continue;
-                }
-                MemBase = Base;
-                MemSize = Size;
-                HaveMem = 1;
+                (void)Sz;
+                Base = B;
+                Have = 1;
             }
         }
     }
 
-    if (!HaveMem) {
+    if (!Have) {
         return -1;
     }
-    *OutBase = MemBase;
-    *OutSize = MemSize;
+    *OutBase = Base;
     return 0;
 }
 
+static int NameIsCpuAt(const char *Name) {
+    if (!Name || Name[0] != 'c' || Name[1] != 'p' || Name[2] != 'u' ||
+        Name[3] != '@') {
+        return 0;
+    }
+    return 1;
+}
+
+int DtbCpuCount(UINT64 DtbPhys) {
+    const UINT8 *Blob;
+    const FDT_HEADER *Hdr;
+    UINT32 Total;
+    UINT32 StructOff;
+    UINT32 StructSize;
+    UINT32 Off;
+    UINT32 End;
+    int Count;
+
+    if (DtbPhys == 0) {
+        return 1;
+    }
+    Blob = (const UINT8 *)(UINTN)DtbPhys;
+    Hdr = (const FDT_HEADER *)Blob;
+    if (DtbBe32(&Hdr->Magic) != FDT_MAGIC) {
+        return 1;
+    }
+    Total = DtbBe32(&Hdr->Totalsize);
+    StructOff = DtbBe32(&Hdr->OffDtStruct);
+    StructSize = DtbBe32(&Hdr->SizeDtStruct);
+    if (Total < sizeof(FDT_HEADER) || StructOff >= Total || StructSize == 0 ||
+        StructOff + StructSize > Total) {
+        return 1;
+    }
+
+    Count = 0;
+    Off = StructOff;
+    End = StructOff + StructSize;
+    while (Off + 4 <= End) {
+        UINT32 Token = DtbBe32(Blob + Off);
+        Off += 4;
+        if (Token == FDT_BEGIN_NODE) {
+            const char *Name = (const char *)(Blob + Off);
+            UINT32 Len = 0;
+            while (Off + Len < End && Name[Len]) {
+                Len++;
+            }
+            Off = DtbAlign4(Off + Len + 1);
+            if (NameIsCpuAt(Name)) {
+                Count++;
+            }
+            continue;
+        }
+        if (Token == FDT_END_NODE || Token == FDT_NOP) {
+            continue;
+        }
+        if (Token == FDT_END) {
+            break;
+        }
+        if (Token != FDT_PROP) {
+            break;
+        }
+        {
+            UINT32 PropLen;
+            if (Off + 8 > End) {
+                break;
+            }
+            PropLen = DtbBe32(Blob + Off);
+            Off += 8;
+            Off = DtbAlign4(Off + PropLen);
+        }
+    }
+    return Count > 0 ? Count : 1;
+}
