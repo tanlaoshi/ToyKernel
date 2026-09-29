@@ -25,6 +25,7 @@
 | `DamageRect` | 单次 ≤64×64 |
 | 网络 | POSIX `connect`/`bind`+`sockaddr` **网络序**；`ToyNetConnect(fd,ip,port)` **主机序** |
 | 任务快照 | `SYS_TASK_SNAP`=**1200**；`TOY_TASK_SNAP_VER`=**1**（`toyos/task.h`）；范例 `TASKMGR.ELF` |
+| 线程子集（thr-0） | `SYS_THREAD_CREATE/JOIN/EXIT`=**0/1/2**；`SYS_GETTID`=**56**；`MAX_TASKS`=**32**；实现 thr-3 起 |
 
 **核对（开课前再跑一遍）**：
 

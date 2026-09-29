@@ -83,6 +83,9 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].Started = 1;
     gTasks[Child].UserSpace = ChildSpace;
     gTasks[Child].ParentId = ParentSlot;
+    gTasks[Child].GroupId = (INT32)gTasks[Child].Id; /* 新进程：自为组主 */
+    gTasks[Child].LeaderId = (INT32)gTasks[Child].Id;
+    gTasks[Child].IsThread = 0;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
     gTasks[Child].SleepWakeTick = 0;

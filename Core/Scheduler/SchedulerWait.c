@@ -28,6 +28,9 @@ static void ReapZombie(TASK *Z) {
     Z->IsUser = 0;
     Z->Started = 0;
     Z->ParentId = -1;
+    Z->GroupId = -1;
+    Z->LeaderId = -1;
+    Z->IsThread = 0;
     Z->Waiting = 0;
     Z->SleepWakeTick = 0;
     Z->PendingKill = 0;

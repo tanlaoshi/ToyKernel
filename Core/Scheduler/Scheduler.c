@@ -106,6 +106,9 @@ void SchedulerInitialize(void) {
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = 0;
         gTasks[i].ParentId = -1;
+        gTasks[i].GroupId = -1;
+        gTasks[i].LeaderId = -1;
+        gTasks[i].IsThread = 0;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -204,6 +207,9 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = 0;
         gTasks[i].ParentId = -1;
+        gTasks[i].GroupId = -1;
+        gTasks[i].LeaderId = -1;
+        gTasks[i].IsThread = 0;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -264,6 +270,9 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].Started = 0;
         gTasks[i].UserSpace = Space;
         gTasks[i].ParentId = Cur ? TaskSlot(Cur) : -1;
+        gTasks[i].GroupId = (INT32)gTasks[i].Id; /* 新进程：自为组主 */
+        gTasks[i].LeaderId = (INT32)gTasks[i].Id;
+        gTasks[i].IsThread = 0;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;

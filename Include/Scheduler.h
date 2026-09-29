@@ -9,7 +9,7 @@
 #include "Hal.h"
 #include "Fat.h"
 
-#define MAX_TASKS 16
+#define MAX_TASKS 32 /* PR-U-thread-0：方案 A（原 16） */
 #define MAX_FDS   8
 /* 历史：整文件缓冲上限；PR-U-stream-1 起文件 FD 按偏移流式，写上限 = FAT_WRITE_MAX */
 #define FD_MAX_BYTES (64 * 1024)
@@ -55,6 +55,9 @@ typedef struct TASK {
     int                    Started;
     VIRTUAL_ADDRESS_SPACE         *UserSpace;
     INT32                  ParentId;   /* -1 = 无父进程 */
+    INT32                  GroupId;    /* PR-U-thread：进程组 = 主线程 Id；内核任务 -1 */
+    INT32                  LeaderId;   /* PR-U-thread：主线程 Id（单线程时 = 本 Id） */
+    int                    IsThread;   /* PR-U-thread：0=主执行流；1=同组额外线程 */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
     UINT64                 SleepWakeTick; /* sleep 截止 HalCpuTicks(0)；0=未睡 */

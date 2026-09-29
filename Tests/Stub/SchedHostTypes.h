@@ -8,7 +8,7 @@ typedef unsigned int UINT32;
 typedef int INT32;
 
 #define HAL_MAX_CPUS 8
-#define MAX_TASKS 16
+#define MAX_TASKS 32
 
 typedef struct TASK {
     INT32 Affinity;

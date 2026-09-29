@@ -18,7 +18,11 @@
 /* ============================================================
  * 段 0-99：进程控制
  * ============================================================ */
-/* ToyOS 子段 0-49：预留（当前无 ToyOS 独有进程 API） */
+/* ToyOS 子段 0-49：线程子集（PR-U-thread；thr-3 起实现） */
+#define SYS_THREAD_CREATE  0
+#define SYS_THREAD_JOIN    1
+#define SYS_THREAD_EXIT    2
+/* 3-49 预留 */
 
 /* POSIX 子段 50-99 */
 #define SYS_EXIT     50
@@ -27,7 +31,8 @@
 #define SYS_EXECVE   53
 #define SYS_GETPID   54
 #define SYS_GETPPID  55
-/* 56-99 预留 */
+#define SYS_GETTID   56 /* 任务槽 Id（同 TASK.Id）；进程组见 getpid→GroupId（thr-1） */
+/* 57-99 预留 */
 
 /* ============================================================
  * 段 100-199：信号 / 调度

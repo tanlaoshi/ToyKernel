@@ -23,6 +23,8 @@
 | `wait(int *status)` | `<unistd.h>` | **无 pid**；`*status=(exit&0xff)<<8`；`WEXITSTATUS`；裸 syscall 退出码在 `rdx`；`SYS_WAIT`（52） |
 | `execve(path, argv, envp)` | `<unistd.h>` | `SYS_EXECVE`（53） |
 | `getpid` / `getppid` | `<unistd.h>` | `SYS_GETPID`（54）/ `SYS_GETPPID`（55）；无父时 ppid=0 |
+| `gettid` | （预留） | `SYS_GETTID`（56）；→ `TASK.Id`；**thr-3 接线** |
+| `toy_thread_create` / `join` / `exit` | （预留） | `SYS_THREAD_*`（0/1/2）；**thr-3+CRT**；多线程 `fork` 失败 |
 | `kill(pid, sig)` | `<signal.h>` | 仅 SIGINT / KILL / TERM；`SYS_KILL`（151） |
 | `signal(sig, handler)` | `<signal.h>` | 教学级；无 `sigaction`；`SYS_SIGNAL`（152） |
 | `sched_yield()` / `toy_yield()` | `<sched.h>` / 宏别名 | `SYS_YIELD`（150） |
