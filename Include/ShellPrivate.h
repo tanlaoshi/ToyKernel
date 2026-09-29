@@ -16,6 +16,8 @@ void ShellCommandsNetTcpRegister(void);
 void ShellCommandsNetLwipRegister(void);
 void ShellCommandsSystemRegister(void);
 void ShellCommandsSystemRegisterVirtMin(void);
+void ShellCommandsSystemProcRegister(void);
+void ShellCommandsSystemProcRegisterVirtMin(void);
 void ShellCommandsThemeRegister(void);
 void ShellCommandsFsUiRegister(void);
 void ShellCommandsFsUiStoreRegister(void);
