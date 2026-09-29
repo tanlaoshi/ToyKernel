@@ -31,6 +31,15 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     case SYS_EXIT:
         Ret = SchedulerExitUser(Frame);
         break;
+    case SYS_THREAD_CREATE:
+        Ret = SchedulerThreadCreate(Frame);
+        break;
+    case SYS_THREAD_JOIN:
+        Ret = SchedulerThreadJoin(Frame);
+        break;
+    case SYS_THREAD_EXIT:
+        Ret = SchedulerThreadExit(Frame);
+        break;
     case SYS_WRITE:
         HalFrameSetReturn(Frame, (UINT64)(long)SysWrite(
             (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
@@ -168,6 +177,9 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
         break;
     case SYS_GETPPID:
         HalFrameSetReturn(Frame, (UINT64)(long)SysGetPpid());
+        break;
+    case SYS_GETTID:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysGetTid());
         break;
     case SYS_CLOCK_MS:
         {

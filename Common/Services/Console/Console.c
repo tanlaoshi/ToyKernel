@@ -285,6 +285,9 @@ void ConsoleInitialize(void) {
     gAtLineStart = 1;
     HalConsoleWriteSerial(LocStr(MSG_CON_READY));
     HalConsoleWriteSerial("\n");
+    /* 串口始终可敲：开机即给提示符（勿等 GUI Shell；SNAKE 占焦点也在本终端输入） */
+    HalConsoleWriteSerial("hint: type commands in THIS terminal (not QEMU window)\n");
+    Prompt();
 }
 
 void ConsoleOnShellOpened(void) {

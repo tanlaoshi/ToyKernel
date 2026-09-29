@@ -32,9 +32,10 @@
 #define DESKTOP_ORIGIN_X      36
 #define DESKTOP_ORIGIN_Y      36
 #define DESKTOP_LABEL_PAD     6
-#define DESKTOP_DBLCLICK_SLOP 16u
+/* QEMU 绝对指针单击常带数像素抖动；过紧会拖坏双击、过松才进拖放 */
+#define DESKTOP_DBLCLICK_SLOP 24u
 #define DESKTOP_DBLCLICK_MAX  2000000ULL
-#define DESKTOP_DRAG_THRESH   6u
+#define DESKTOP_DRAG_THRESH   12u
 
 #define TASKBAR_H             32u
 #define START_BTN_PAD_X       8u

@@ -3,6 +3,7 @@
  */
 #include "Scheduler.h"
 #include "SchedulerPrivate.h"
+#include "SchedulerOps.h"
 #include "Hal.h"
 #include "VirtualMemory.h"
 #include "PhysicalMemory.h"
@@ -28,6 +29,24 @@ int SchedulerCreateThreadSpin(TASK *Leader) {
         return -THR_SPIN_ERR_ARG;
     }
 
+    /*
+     * Leader 在别核 RUNNING 时改页表不安全。短等几拍（UP/刚切走常见）；
+     * 仍 busy 则让调用方换 TOY_SMP=1 或 THREADSMOKE。
+     */
+    for (i = 0; i < 64; i++) {
+        SpinLockAcquire(&gSchedulerLock);
+        if (Leader->State == TASK_UNUSED || !Leader->UserSpace) {
+            SpinLockRelease(&gSchedulerLock);
+            return -THR_SPIN_ERR_ARG;
+        }
+        if (Leader->OnCpu < 0 || Leader == CurrentTask()) {
+            SpinLockRelease(&gSchedulerLock);
+            break;
+        }
+        SpinLockRelease(&gSchedulerLock);
+        HalCpuRelax();
+        (void)SchedulerCondResched();
+    }
     SpinLockAcquire(&gSchedulerLock);
     if (Leader->State == TASK_UNUSED || !Leader->UserSpace) {
         SpinLockRelease(&gSchedulerLock);
@@ -83,9 +102,42 @@ int SchedulerCreateThreadSpin(TASK *Leader) {
     Leader->MmapNext = CodeVa + PAGE_SIZE;
 
     /* Rsp=0 → thr-2 自动映栈 + TLS */
-    Slot = SchedulerCreateThread(Leader, "thspin", CodeVa, 0, 0);
+    Slot = SchedulerCreateThread(Leader, "thspin", CodeVa, 0, 0, 0);
     if (Slot < 0) {
         return -THR_SPIN_ERR_CREATE;
     }
     return Slot;
+}
+
+void SchedulerDropDiagThread(int Slot) {
+    TASK *T;
+
+    if (Slot < 0 || Slot >= MAX_TASKS) {
+        return;
+    }
+    SpinLockAcquire(&gSchedulerLock);
+    T = &gTasks[Slot];
+    if (T->State == TASK_UNUSED || !T->IsUser || !T->IsThread) {
+        SpinLockRelease(&gSchedulerLock);
+        return;
+    }
+    SchedulerOpsGet()->Remove(T);
+    T->UserSpace = 0; /* 共享 VAS 留给组主 */
+    T->State = TASK_UNUSED;
+    T->Frame = 0;
+    T->PageRoot = 0;
+    T->IsUser = 0;
+    T->Started = 0;
+    T->ParentId = -1;
+    T->GroupId = -1;
+    T->LeaderId = -1;
+    T->IsThread = 0;
+    T->TlsBase = 0;
+    T->JoinerSlot = -1;
+    T->JoinTid = -1;
+    T->Waiting = 0;
+    T->OnCpu = -1;
+    T->InRunQueue = 0;
+    gTaskCount--;
+    SpinLockRelease(&gSchedulerLock);
 }

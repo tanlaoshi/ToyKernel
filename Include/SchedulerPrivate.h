@@ -50,9 +50,10 @@ void RunQueueRemove(TASK *T);
 TASK *PickNext(UINT32 Cpu);
 void SchedulerRunQueueView(UINT32 Cpu, TASK ***Slots, int **Count);
 
-/* 定义在 SchedulerWait.c */
+/* 定义在 SchedulerTerminate.c（thr-3 自 Wait 拆出） */
 int TerminateUserLocked(TASK *Exiting, INT32 Code, int *ShowPrompt,
                         VIRTUAL_ADDRESS_SPACE **OutSpace);
 void SchedulerDestroyDetached(VIRTUAL_ADDRESS_SPACE *Space);
+void SchedulerReapZombie(TASK *Z); /* join / wait 收尸 */
 
 #endif

@@ -7,6 +7,7 @@
 #include "UI.h"
 #include "Hal.h"
 #include "Gui.h"
+#include "GuiPrivate.h"
 #include "Font.h"
 #include "SettingsUi.h"
 #include "Locale.h"
@@ -16,14 +17,29 @@
 
 /*
  * 空桌面按键自动开 Shell。
- * 返回：0 失败；1 已有可输入 Shell；2 刚打开（调用方应吞掉触发键，勿写入行缓冲）。
+ * FromSerial：串口始终可敲（不抢 GUI 焦点、不开窗）；键盘仍受焦点约束。
+ * 返回：0 失败；1 已可输入；2 刚打开（调用方应吞掉触发键，勿写入行缓冲）。
  */
-static int ConsoleEnsureShell(void) {
+static int ConsoleEnsureShell(int FromSerial) {
     /* PR-B1：HalConsoleOnly — 串口子集不要求 GUI Shell 窗 */
     if (HalConsoleOnly()) {
         return 1;
     }
     if (GuiShellAcceptsInput()) {
+        return 1;
+    }
+    if (FromSerial) {
+        /*
+         * 串口：SNAKE 等占焦点时也会丢键（旧逻辑）。
+         * 有 Shell 则置顶；没有则开一个——勿静默收键却不给窗。
+         */
+        if (FocusExistingKind(GUI_WIN_SHELL, 0, "shell-serial") >= 0) {
+            return 1;
+        }
+        if (GuiOpenShell() < 0) {
+            HalConsoleWriteSerial("shell: no free window\n");
+            return 1; /* 仍收串口到行缓冲 */
+        }
         return 1;
     }
     if (GuiFocusKind() != GUI_WIN_NONE) {
@@ -37,11 +53,11 @@ static int ConsoleEnsureShell(void) {
     return 2;
 }
 
-/* 处理可打印字符输入 */
-void ConsoleOnChar(char C) {
+/* 处理可打印字符输入；FromSerial=1 时只回显串口，不往非 Shell 窗上画 */
+void ConsoleOnCharEx(char C, int FromSerial) {
     int Ensured;
 
-    Ensured = ConsoleEnsureShell();
+    Ensured = ConsoleEnsureShell(FromSerial);
     if (Ensured == 0) {
         return;
     }
@@ -55,28 +71,40 @@ void ConsoleOnChar(char C) {
     if (gLen >= LINE_MAX - 1) {
         return;
     }
-    ConsoleSbBindFocus();
-    ConsoleSbEnsureLive();
+    if (!FromSerial || GuiShellAcceptsInput()) {
+        ConsoleSbBindFocus();
+        ConsoleSbEnsureLive();
+    }
     gLine[gLen++] = C;
-    ConsoleSbFeedChar(C);
+    if (!FromSerial || GuiShellAcceptsInput()) {
+        ConsoleSbFeedChar(C);
+    }
     HalConsolePutChar(C);
-    if (HalConsoleVideoReady()) {
+    if (HalConsoleVideoReady() && GuiShellAcceptsInput()) {
         ConsoleDrawChar(C, ThemeShellText());
     }
 }
 
+void ConsoleOnChar(char C) {
+    ConsoleOnCharEx(C, 0);
+}
+
 /* 处理退格键 */
-void ConsoleOnBackspace(void) {
-    if (!HalConsoleOnly() && !GuiShellAcceptsInput()) {
+void ConsoleOnBackspaceEx(int FromSerial) {
+    if (!HalConsoleOnly() && !GuiShellAcceptsInput() && !FromSerial) {
         return;
     }
     if (gLen <= 0) {
         return;
     }
-    ConsoleSbEnsureLive();
+    if (!FromSerial || GuiShellAcceptsInput()) {
+        ConsoleSbEnsureLive();
+    }
     gLen--;
-    ConsoleSbBackspace();
-    if (HalConsoleVideoReady()) {
+    if (!FromSerial || GuiShellAcceptsInput()) {
+        ConsoleSbBackspace();
+    }
+    if (HalConsoleVideoReady() && GuiShellAcceptsInput()) {
         GuiFrameBufferBegin();
         GuiFocusApplyClip();
         HalConsoleEraseLastChar();
@@ -92,6 +120,10 @@ void ConsoleOnBackspace(void) {
         GuiFrameBufferEnd();
     }
     HalConsoleBackspaceSerial();
+}
+
+void ConsoleOnBackspace(void) {
+    ConsoleOnBackspaceEx(0);
 }
 
 void ConsoleDiscardInput(void) {
@@ -120,14 +152,14 @@ void ConsoleForceResumePrompt(void) {
 }
 
 /* 命令可能把焦点切走（settings）；提示符只能画在 Shell 上 */
-static void ConsolePromptAfterCommand(void) {
+static void ConsolePromptAfterCommand(int FromSerial) {
     if (ConsoleJobConsumeSkipAfterCommand()) {
         return;
     }
     if (gWaitPrompt != 0 || ConsolePromptSuspended() || ConsoleJobPromptPending()) {
         return;
     }
-    if (HalConsoleOnly() || GuiShellAcceptsInput()) {
+    if (HalConsoleOnly() || GuiShellAcceptsInput() || FromSerial) {
         Prompt();
         return;
     }
@@ -136,10 +168,10 @@ static void ConsolePromptAfterCommand(void) {
 }
 
 /* 处理回车：执行命令并重新显示提示符 */
-void ConsoleOnEnter(void) {
+void ConsoleOnEnterEx(int FromSerial) {
     int Ensured;
 
-    Ensured = ConsoleEnsureShell();
+    Ensured = ConsoleEnsureShell(FromSerial);
     if (Ensured == 0) {
         return;
     }
@@ -163,7 +195,11 @@ void ConsoleOnEnter(void) {
     ConsoleCmdOutEnd();
     GuiPresentDeferPop();
     gLen = 0;
-    ConsolePromptAfterCommand();
+    ConsolePromptAfterCommand(FromSerial);
+}
+
+void ConsoleOnEnter(void) {
+    ConsoleOnEnterEx(0);
 }
 
 /* PR-A9/V3：virt 串口 + virtio-input 键盘（Common 调 Hal*；不进 HAL） */
@@ -187,21 +223,21 @@ void ConsoleSerialRun(void) {
             char C = HalSerialReadChar();
             if (C == '\r') {
                 SkipLf = 1;
-                ConsoleOnEnter();
+                ConsoleOnEnterEx(1);
             } else if (C == '\n') {
                 if (SkipLf) {
                     SkipLf = 0;
                 } else {
-                    ConsoleOnEnter();
+                    ConsoleOnEnterEx(1);
                 }
             } else {
                 SkipLf = 0;
                 if (C == '\b' || C == 127) {
-                    ConsoleOnBackspace();
+                    ConsoleOnBackspaceEx(1);
                 } else if (C == 3) {
                     ShellOnInterrupt();
                 } else {
-                    ConsoleOnChar(C);
+                    ConsoleOnCharEx(C, 1);
                 }
             }
         }

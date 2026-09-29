@@ -43,6 +43,15 @@ void ProcessStopAllUsers(void) {
             Spaces[N++] = Det;
         }
     }
+    /* thr-3：未 join 的线程尸 ProcessStop 必须强收，勿留给 ReapOrphan 跳过 */
+    for (I = 0; I < MAX_TASKS; I++) {
+        TASK *Z = &gTasks[I];
+
+        if (Z->State == TASK_ZOMBIE && Z->IsUser && Z != CurrentTask()) {
+            Z->UserSpace = 0;
+            SchedulerReapZombie(Z);
+        }
+    }
     SpinLockRelease(&gSchedulerLock);
 
     VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());

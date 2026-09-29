@@ -29,8 +29,11 @@ void ConsoleWriteLen(const char *Data, UINTN Len);
 void ConsoleWriteHex32(UINT32 Value);
 void ConsoleWriteHex64(UINT64 Value);
 void ConsoleOnChar(char C);
+void ConsoleOnCharEx(char C, int FromSerial);
 void ConsoleOnEnter(void);
+void ConsoleOnEnterEx(int FromSerial);
 void ConsoleOnBackspace(void);
+void ConsoleOnBackspaceEx(int FromSerial);
 void ConsoleCancelInput(void);
 /* 丢弃输入行缓冲（不擦屏）；listen 中断后防 Enter 重跑旧命令 */
 void ConsoleDiscardInput(void);

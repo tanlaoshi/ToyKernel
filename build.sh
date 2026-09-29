@@ -175,6 +175,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/blitdemo.elf" "$DEST/BLITDEMO.ELF"
     cp -f "$USER_OUT/libcdemo.elf" "$DEST/LIBCDEMO.ELF"
     cp -f "$USER_OUT/sleepdemo.elf" "$DEST/SLEEPDEMO.ELF"
+    cp -f "$USER_OUT/threadsmoke.elf" "$DEST/THREADSMOKE.ELF"
     cp -f "$USER_OUT/snake.elf" "$DEST/SNAKE.ELF"
     cp -f "$USER_OUT/taskmgr.elf" "$DEST/TASKMGR.ELF"
     mkdir -p "$DEST/Apps"

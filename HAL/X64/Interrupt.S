@@ -167,9 +167,10 @@ KernelEnter:
 SchedulerEnter:
     jmp KernelEnter
 
-/* 用户态首次进入：rdi=HAL_INTERRUPT_FRAME*，构造 iretq 帧 */
+/* 用户态首次进入：rdi=HAL_INTERRUPT_FRAME*，构造 iretq 帧并恢复 Arg0(Rdi) */
 .global UserEnter
 UserEnter:
+    mov r12, [rdi + 40]     /* 用户 Rdi（线程 Arg0）；Frame* 稍后覆盖 */
     mov rax, [rdi + 136]    /* InstructionPointer */
     mov rcx, [rdi + 144]    /* Cs */
     mov rdx, [rdi + 152]    /* Rflags */
@@ -182,6 +183,7 @@ UserEnter:
     mov [rsp + 16], rdx
     mov [rsp + 24], r11
     mov [rsp + 32], r10
+    mov rdi, r12
     iretq
 
 .section .rodata

@@ -156,7 +156,12 @@ void SchedulerStart(void) {
                 SchedulerOpsGet()->Remove(&gTasks[i]);
                 gTasks[i].Affinity = 0;
                 gTasks[i].HomeCpu = 0;
-                gTasks[i].Priority = SCHED_PRIORITY_DEFAULT;
+                /*
+                 * UP：与 shell/gui 同核；prio=DEFAULT 会被 SHELL(8) 饿死，
+                 * 图标/Store/iwl 后台泵永不跑。同级让 RR 有机会切到 worker。
+                 */
+                gTasks[i].Priority = (Cpus <= 1) ? SCHED_PRIORITY_SHELL
+                                                 : SCHED_PRIORITY_DEFAULT;
                 RunQueueEnqueue(0, &gTasks[i]);
             }
         }

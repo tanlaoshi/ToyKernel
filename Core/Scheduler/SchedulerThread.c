@@ -31,6 +31,25 @@ int SchedulerGroupAliveCount(INT32 GroupId) {
     return N;
 }
 
+int SchedulerGroupLiveCount(INT32 GroupId) {
+    int N = 0;
+    int i;
+
+    if (GroupId < 0) {
+        return 0;
+    }
+    for (i = 0; i < MAX_TASKS; i++) {
+        if (!gTasks[i].IsUser || gTasks[i].GroupId != GroupId) {
+            continue;
+        }
+        if (gTasks[i].State == TASK_READY || gTasks[i].State == TASK_RUNNING ||
+            gTasks[i].State == TASK_BLOCKED) {
+            N++;
+        }
+    }
+    return N;
+}
+
 static int VaFree(VIRTUAL_ADDRESS_SPACE *Space, UINT64 Va) {
     UINT64 Pte = HalPageGetEntry(Space->Root, Va);
     return !(Pte & HAL_PAGE_PRESENT);
@@ -135,6 +154,8 @@ int SchedulerThreadEnsureTls(TASK *T) {
 
 int SchedulerThreadAllocStack(TASK *Owner, UINT64 *OutTop) {
     UINT64 Base;
+    UINT64 Top;
+    UINT64 Zero = 0;
 
     if (!Owner || !OutTop) {
         return -1;
@@ -143,12 +164,21 @@ int SchedulerThreadAllocStack(TASK *Owner, UINT64 *OutTop) {
     if (Base == 0) {
         return -1;
     }
-    *OutTop = Base + (UINT64)THREAD_STACK_PAGES * PAGE_SIZE;
+    /*
+     * 映射上沿不可作 RSP：下一 push 会写未映页 → #PF → QEMU 像重启。
+     * 再减 8：SysV 函数入口 RSP≡8(mod16)（iret 非 call，须自备）。
+     */
+    Top = Base + (UINT64)THREAD_STACK_PAGES * PAGE_SIZE;
+    Top = (Top & ~0xFULL) - 8ULL;
+    if (VirtualMemoryCopyToSpace(Owner->UserSpace, Top, &Zero, sizeof(Zero)) < 0) {
+        return -1;
+    }
+    *OutTop = Top;
     return 0;
 }
 
 int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg,
-                          UINT64 Rsp) {
+                          UINT64 Rsp, int StartReady) {
     int i;
     int Slot = -1;
     UINT8 *Top;
@@ -204,11 +234,13 @@ int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg
     gTasks[Slot].IsUser = 1;
     gTasks[Slot].Started = 0;
     gTasks[Slot].UserSpace = Leader->UserSpace;
-    gTasks[Slot].ParentId = Leader->ParentId;
+    gTasks[Slot].ParentId = LeaderId; /* 组内挂靠主线程；勿当进程 wait 子 */
     gTasks[Slot].GroupId = GroupId;
     gTasks[Slot].LeaderId = LeaderId;
     gTasks[Slot].IsThread = 1;
     gTasks[Slot].TlsBase = 0;
+    gTasks[Slot].JoinerSlot = -1;
+    gTasks[Slot].JoinTid = -1;
     gTasks[Slot].ExitCode = 0;
     gTasks[Slot].Waiting = 0;
     gTasks[Slot].SleepWakeTick = 0;
@@ -229,7 +261,7 @@ int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg
     TaskCloneFds(&gTasks[Slot], Leader);
     CopyName(&gTasks[Slot], Name);
     gTaskCount++;
-    /* 先不入队：EnsureTls 完成后再 READY，避免 FS=0 首入 #PF */
+    /* 先不入队：EnsureTls 完成后再按 StartReady 挂 READY，避免 FS=0 首入 #PF */
     SpinLockRelease(&gSchedulerLock);
 
     if (SchedulerThreadEnsureTls(&gTasks[Slot]) != 0) {
@@ -247,8 +279,14 @@ int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg
     }
 
     SpinLockAcquire(&gSchedulerLock);
-    if (gTasks[Slot].State == TASK_READY && !gTasks[Slot].InRunQueue) {
-        RunQueueEnqueue(SchedulerOpsGet()->PickHome(&gTasks[Slot]), &gTasks[Slot]);
+    if (gTasks[Slot].State == TASK_READY) {
+        if (StartReady && !gTasks[Slot].InRunQueue) {
+            RunQueueEnqueue(SchedulerOpsGet()->PickHome(&gTasks[Slot]), &gTasks[Slot]);
+        } else if (!StartReady) {
+            /* 调试孪生：BLOCKED 不入队，避免 jmp $ 饿死 XHCI */
+            gTasks[Slot].State = TASK_BLOCKED;
+            gTasks[Slot].Waiting = 1;
+        }
     }
     SpinLockRelease(&gSchedulerLock);
     return Slot;

@@ -59,6 +59,8 @@ typedef struct TASK {
     INT32                  LeaderId;   /* PR-U-thread：主线程 Id（单线程时 = 本 Id） */
     int                    IsThread;   /* PR-U-thread：0=主执行流；1=同组额外线程 */
     UINT64                 TlsBase;    /* PR-U-thread-2：用户 TLS 基（0=未设） */
+    INT32                  JoinerSlot; /* PR-U-thread-3：谁在 join 本任务；-1=无 */
+    INT32                  JoinTid;    /* 阻塞 join 的目标 tid；-1=未 join */
     INT32                  ExitCode;
     int                    Waiting;    /* wait() 阻塞中 */
     UINT64                 SleepWakeTick; /* sleep 截止 HalCpuTicks(0)；0=未睡 */
@@ -87,15 +89,22 @@ int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateKernel(const char *Name, void (*Fn)(void *), void *Ctx);
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
-/* PR-U-thread-1/2：同 Leader VAS；Rsp=0 则自动映栈；Arg→首参寄存器 */
+/* PR-U-thread-1/2：同 Leader VAS；Rsp=0 则自动映栈；Arg→首参寄存器；StartReady=0 仅建槽不跑 */
 int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg,
-                          UINT64 Rsp);
-/* thr-1 调试：映 spin 入口后 CreateThread（自动栈+TLS） */
+                          UINT64 Rsp, int StartReady);
+/* thr-1 调试：映 spin 入口后 CreateThread（自动栈+TLS；不调度，防饿死键鼠） */
 int SchedulerCreateThreadSpin(TASK *Leader);
+/* thr-1：丢掉调试孪生槽（不拆共享 VAS） */
+void SchedulerDropDiagThread(int Slot);
 int SchedulerGroupAliveCount(INT32 GroupId);
 /* thr-2：为任务映 TLS 页（幂等）；主线程 CreateUser/fork 后调用 */
 int SchedulerThreadEnsureTls(TASK *T);
 int SchedulerThreadAllocStack(TASK *Owner, UINT64 *OutTop);
+/* PR-U-thread-3 */
+UINT64 SchedulerThreadCreate(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerThreadJoin(HAL_INTERRUPT_FRAME *Frame);
+UINT64 SchedulerThreadExit(HAL_INTERRUPT_FRAME *Frame);
+int SchedulerGroupLiveCount(INT32 GroupId); /* 不含 ZOMBIE */
 void SchedulerSetAffinity(int TaskId, INT32 Cpu);
 /* PR-S-lock：pid=槽位+1（与 kill/ps 一致）；成功 0，失败 -1 */
 int SchedulerSetPriority(INT32 Pid, INT32 Priority);

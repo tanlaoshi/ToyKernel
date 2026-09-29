@@ -113,13 +113,13 @@ void ShellTask(void) {
                     continue;
                 }
                 if (SerialIsEnter(C)) {
-                    ConsoleOnEnter();
+                    ConsoleOnEnterEx(1);
                 } else if (C == 3) {
                     ShellOnInterrupt();
                 } else if (C == '\b' || C == 127) {
-                    ConsoleOnBackspace();
+                    ConsoleOnBackspaceEx(1);
                 } else if (C >= 32 && C <= 126) {
-                    ConsoleOnChar(C);
+                    ConsoleOnCharEx(C, 1);
                 }
             }
         }

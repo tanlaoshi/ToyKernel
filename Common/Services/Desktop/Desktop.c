@@ -191,6 +191,12 @@ void DesktopInit(void) {
     UiActionSelfCheck();
 #endif
     gDesktopBusy = 0;
+    /*
+     * PR-BOOT-fast-1 本意 defer 给 Worker；但 UP（TOY_SMP=1）上 worker 与
+     * shell/gui 同核且 prio 更低，Halt 后仍优先交互任务 → Icons Loaded 永不出现。
+     * 在 Init 末同步加载：首帧 Compose 前就有 BMP；Worker 再 Ensure 即 no-op。
+     */
+    DesktopEnsureIconsLoaded();
 }
 
 /* 热切分辨率：只重算壁纸缓存与图标坐标，不重读 BMP（防 FAT/长循环重入） */

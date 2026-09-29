@@ -72,6 +72,9 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
                     DebugWrite(ExecPath);
                     DebugWrite("\n");
                     (void)ProcessExec(ExecPath);
+                    /* 用户 ELF 往串口打字会冲掉 toyos>；补一行提示，宿主仍可敲 */
+                    ConsoleWrite("\n");
+                    ConsoleShowPrompt();
                 }
             } else if (Act == DESKTOP_ACTION_SHUTDOWN) {
                 HalCpuShutdown();
@@ -249,12 +252,14 @@ int GuiHandleClick(UINT32 X, UINT32 Y) {
         } else if (Act == DESKTOP_ACTION_DEVICES) {
             (void)GuiOpenDevices();
         } else if (Act == DESKTOP_ACTION_EXEC) {
-            /* PR-G-desk-2：与 Files 双击 ELF 同路径；阻塞至进程退出 */
+            /* PR-G-desk-2：与 Files 双击 ELF 同路径；启动后即返回（不等退出） */
             if (ExecPath[0]) {
                 DebugWrite("desktop: exec ");
                 DebugWrite(ExecPath);
                 DebugWrite("\n");
                 (void)ProcessExec(ExecPath);
+                ConsoleWrite("\n");
+                ConsoleShowPrompt();
             }
         } else if (Act == DESKTOP_ACTION_SHUTDOWN) {
             HalCpuShutdown();

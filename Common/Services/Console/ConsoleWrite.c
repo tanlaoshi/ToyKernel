@@ -94,11 +94,11 @@ void ConsoleWrite(const char *Text) {
     if (Text == 0) {
         return;
     }
-    HalConsoleWriteSerial(Text);
     for (P = Text; *P; P++) {
         gAtLineStart = (*P == '\n');
     }
     if (!HalConsoleVideoReady()) {
+        HalConsoleWriteSerial(Text);
         return;
     }
     /*
@@ -109,6 +109,7 @@ void ConsoleWrite(const char *Text) {
     if (Owner >= 0) {
         int Cur = GuiFocusIndex();
 
+        HalConsoleWriteSerial(Text);
         if (Cur == Owner && GuiFocusKind() == GUI_WIN_SHELL &&
             GuiShellWindowActive(Owner)) {
             ConsoleSbBindFocus();
@@ -129,12 +130,13 @@ void ConsoleWrite(const char *Text) {
      */
     if (GuiFocusKind() != GUI_WIN_SHELL) {
         /*
-         * 用户窗（Snake/GuiDemo）跑着时焦点在 USER：stdout 只走串口，
-         * 勿 Feed 到上一扇 Shell（否则 shell2 会冒出 snake: 日志）。
+         * 用户窗（Snake/GuiDemo）焦点在 USER：stdout 不进教学串口、也不 Feed Shell。
+         * 旧逻辑「只走串口」会把 snake: 打进宿主 toyos>，看起来像占住终端。
          */
         if (GuiFocusKind() == GUI_WIN_USER) {
             return;
         }
+        HalConsoleWriteSerial(Text);
         {
             int i;
             int HasShell;
@@ -156,6 +158,7 @@ void ConsoleWrite(const char *Text) {
         }
         return;
     }
+    HalConsoleWriteSerial(Text);
     ConsoleSbBindFocus();
     ConsoleSbEnsureLive();
     ConsoleSbFeed(Text);

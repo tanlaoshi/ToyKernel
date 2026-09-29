@@ -27,7 +27,7 @@ static void WriteSpinErr(int Err) {
     ConsoleWriteHex32((UINT32)Err);
     ConsoleWrite(" (1=arg 2=busy 3=nomem 4=nova 5=map 6=create)\n");
     if (Err == 2) {
-        ConsoleWrite("  hint: TOY_SMP=0 + SNAKE；串口敲命令\n");
+        ConsoleWrite("  hint: TOY_SMP=1 + SNAKE；串口敲命令（0 非法会变成双核）\n");
     }
 }
 
@@ -42,7 +42,7 @@ static void CommandTestThread(int Argc, char **Argv) {
 
     if (Argc < 2) {
         ConsoleWrite("usage: test thread <pid>\n");
-        ConsoleWrite("  TOY_SMP=0；ps 十进制 pid；SNAKE 挂住后测\n");
+        ConsoleWrite("  TOY_SMP=1；ps 十进制 pid；SNAKE 挂住后测\n");
         return;
     }
     if (ParseDecInt(Argv[1], &Pid) != 0 || Pid <= 0 || Pid > MAX_TASKS) {
@@ -94,11 +94,13 @@ static void CommandTestThread(int Argc, char **Argv) {
     {
         const TASK *Twin = SchedulerTaskByIndex(Slot);
         if (LeaderTls != 0 && Twin && Twin->TlsBase != 0 && LeaderTls != Twin->TlsBase) {
-            ConsoleWrite(" tls-distinct ok\n");
+            ConsoleWrite(" tls-distinct ok");
         } else {
-            ConsoleWrite(" tls-check fail\n");
+            ConsoleWrite(" tls-check fail");
         }
     }
+    ConsoleWrite(" (parked)\n");
+    SchedulerDropDiagThread(Slot);
 }
 
 void ShellCommandsThreadRegister(void) {

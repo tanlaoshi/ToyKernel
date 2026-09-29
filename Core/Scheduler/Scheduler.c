@@ -110,6 +110,8 @@ void SchedulerInitialize(void) {
         gTasks[i].LeaderId = -1;
         gTasks[i].IsThread = 0;
         gTasks[i].TlsBase = 0;
+        gTasks[i].JoinerSlot = -1;
+        gTasks[i].JoinTid = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -212,6 +214,8 @@ int SchedulerCreate(const char *Name, void (*Entry)(void)) {
         gTasks[i].LeaderId = -1;
         gTasks[i].IsThread = 0;
         gTasks[i].TlsBase = 0;
+        gTasks[i].JoinerSlot = -1;
+        gTasks[i].JoinTid = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;
@@ -276,6 +280,8 @@ int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoo
         gTasks[i].LeaderId = (INT32)gTasks[i].Id;
         gTasks[i].IsThread = 0;
         gTasks[i].TlsBase = 0;
+        gTasks[i].JoinerSlot = -1;
+        gTasks[i].JoinTid = -1;
         gTasks[i].ExitCode = 0;
         gTasks[i].Waiting = 0;
         gTasks[i].SleepWakeTick = 0;

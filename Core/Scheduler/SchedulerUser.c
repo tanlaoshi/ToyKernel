@@ -94,6 +94,8 @@ UINT64 SchedulerFork(HAL_INTERRUPT_FRAME *Frame) {
     gTasks[Child].LeaderId = (INT32)gTasks[Child].Id;
     gTasks[Child].IsThread = 0;
     gTasks[Child].TlsBase = 0;
+    gTasks[Child].JoinerSlot = -1;
+    gTasks[Child].JoinTid = -1;
     gTasks[Child].ExitCode = 0;
     gTasks[Child].Waiting = 0;
     gTasks[Child].SleepWakeTick = 0;

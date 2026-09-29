@@ -37,6 +37,7 @@ int CwdResolve(TASK *T, char *Path, int Max);
 int SysGetcwd(UINT64 UserBuf, UINTN Len);
 int SysChdir(UINT64 UserPath);
 int SysGetPid(void);
+int SysGetTid(void);
 int SysGetPpid(void);
 int SysTaskSnap(UINT64 UserOut, UINTN Cap);
 
