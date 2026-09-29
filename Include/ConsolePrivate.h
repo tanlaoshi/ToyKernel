@@ -115,12 +115,15 @@ void ConsoleSbBindFocus(void);
 void ConsoleSbFeedLiveIfBound(const char *Text);
 int ConsoleJobPromptPending(void);
 void ConsoleJobShiftRaise(int Idx, int Top);
-/* 视图度量 / 滚动条（ConsoleSbBar.c） */
+/* 视图度量 / 滚动条（ConsoleSbBar.c）；行缓冲读口给 ConsoleSbPaint.c */
 int ConsoleSbLineCount(void);
 int ConsoleSbAccLen(void);
+const char *ConsoleSbAcc(void);
 int ConsoleSbViewOff(void);
 int ConsoleSbMaxOff(int Vis);
 void ConsoleSbSetViewOff(int Next, int MaxOff);
+const char *ConsoleSbLine(int OldestIndex);
+void ConsoleSbPushLine(void);
 void ConsoleSbBarReset(void);
 void ConsoleSbBarReapplyClip(void);
 void ConsoleSbBarPrepare(UINT32 Cx, UINT32 Cy, UINT32 Cw, UINT32 Ch, UINT32 Bg,

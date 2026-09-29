@@ -1,15 +1,12 @@
 /*
- * ConsoleScroll.c — PR-S-console-split-1：Shell 行缓冲 / 历史 / Paint / 滚轮
+ * ConsoleScroll.c — Shell 行缓冲 / 历史 / 滚轮（PR-S3-consolescroll-1）
  *
- * 从 Console.c 原样搬家；不改语义。绘制经 ConsoleDraw*（Console.c）。
+ * 重画见 ConsoleSbPaint.c。不改语义。
  */
 #include "Console.h"
 #include "ConsolePrivate.h"
-#include "Hal.h"
-#include "HalVideo.h"
 #include "Gui.h"
 #include "Font.h"
-#include "UI.h"
 
 static char gSb[SB_LINES][SB_COLS];
 static int gSbCount;
@@ -79,6 +76,10 @@ int ConsoleSbLineCount(void) {
 
 int ConsoleSbAccLen(void) {
     return gAccLen;
+}
+
+const char *ConsoleSbAcc(void) {
+    return gAcc;
 }
 
 int ConsoleSbViewOff(void) {
@@ -163,7 +164,7 @@ void ConsoleSbBackspace(void) {
     }
 }
 
-static const char *ConsoleSbLine(int OldestIndex) {
+const char *ConsoleSbLine(int OldestIndex) {
     int Idx;
 
     if (OldestIndex < 0 || OldestIndex >= gSbCount) {
@@ -179,114 +180,6 @@ static const char *ConsoleSbLine(int OldestIndex) {
 
 int ConsoleSbHasContent(void) {
     return (gSbCount > 0 || gAccLen > 0) ? 1 : 0;
-}
-
-void ConsoleSbRepaint(void) {
-    UINT32 Cx;
-    UINT32 Cy;
-    UINT32 Cw;
-    UINT32 Ch;
-    UINT32 Bg;
-    UINT32 LineH;
-    int Vis;
-    int VisRows;
-    int Start;
-    int End;
-    int MaxOff;
-    int i;
-
-    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg) || Ch == 0) {
-        return;
-    }
-    LineH = FontAdvanceY();
-    if (LineH < 8) {
-        LineH = 16;
-    }
-    Vis = (int)(Ch / LineH);
-    if (Vis < 1) {
-        Vis = 1;
-    }
-
-    /*
-     * 安静清客户区：勿走 GuiFocusClearClient（内含 GfxPresent），
-     * 否则滚轮每格 Present 极慢。
-     */
-    HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
-    GuiFocusHome();
-
-    End = gSbCount - gViewOff;
-    if (End < 0) {
-        End = 0;
-    }
-    if (End > gSbCount) {
-        End = gSbCount;
-    }
-    VisRows = Vis;
-    if (gViewOff == 0 && gAccLen > 0) {
-        VisRows = Vis - 1;
-    }
-    if (VisRows < 1) {
-        VisRows = 1;
-    }
-    Start = End - VisRows;
-    if (Start < 0) {
-        Start = 0;
-    }
-    MaxOff = ConsoleSbMaxOff(Vis);
-    if (MaxOff > 0) {
-        ConsoleSbBarPrepare(Cx, Cy, Cw, Ch, Bg, LineH, VisRows, Start, gSbCount);
-    } else {
-        ConsoleSbBarReset();
-        HalVideoSetClipOrigin(Cx, Cy, Cw, Ch, Bg);
-    }
-
-    for (i = Start; i < End; i++) {
-        const char *L = ConsoleSbLine(i);
-        /* 历史行里的提示符也保持青色 */
-        if (L[0] == 't' && L[1] == 'o' && L[2] == 'y' && L[3] == 'o' &&
-            L[4] == 's' && L[5] == '>' && L[6] == ' ') {
-            ConsoleDrawString("toyos> ", ThemeShellPrompt());
-            if (L[7]) {
-                ConsoleDrawString(L + 7, ThemeShellText());
-            }
-        } else {
-            ConsoleDrawString(L, ThemeShellText());
-        }
-        ConsoleDrawString("\n", ThemeShellText());
-    }
-    if (gViewOff == 0 && gAccLen > 0) {
-        if (gAcc[0] == 't' && gAcc[1] == 'o' && gAcc[2] == 'y' && gAcc[3] == 'o' &&
-            gAcc[4] == 's' && gAcc[5] == '>' && gAcc[6] == ' ') {
-            ConsoleDrawString("toyos> ", ThemeShellPrompt());
-            if (gAcc[7]) {
-                ConsoleDrawString(gAcc + 7, ThemeShellText());
-            }
-        } else {
-            ConsoleDrawString(gAcc, ThemeShellText());
-        }
-    }
-
-    if (MaxOff > 0) {
-        ConsoleSbBarFinishRepaint(Cx, Cy, Cw, Ch, Bg);
-    }
-    GuiFocusSave();
-    GuiBackupFocusWindow();
-}
-
-void ConsoleSbPaint(void) {
-    if (!GuiShellAcceptsInput()) {
-        return;
-    }
-    ConsoleSbRepaint();
-}
-
-/* 若正在看历史，先回到底部再继续输出/输入 */
-void ConsoleSbEnsureLive(void) {
-    if (gViewOff == 0) {
-        return;
-    }
-    gViewOff = 0;
-    ConsoleSbPaint();
 }
 
 void ConsoleOnWheel(INT8 Wheel) {
