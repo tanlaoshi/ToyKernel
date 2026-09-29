@@ -186,6 +186,10 @@ void HalHdaCodecInit(void) {
     (void)HdaCodecInit();
 }
 
+void HalHdaStreamInit(void) {
+    (void)HdaStreamInit();
+}
+
 void HalIgpuGttInit(void) {
     (void)IgpuGttInit();
 }

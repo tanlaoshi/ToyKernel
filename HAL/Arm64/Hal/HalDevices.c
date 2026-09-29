@@ -122,6 +122,9 @@ void HalHdaMmioInit(void) {
 void HalHdaCodecInit(void) {
 }
 
+void HalHdaStreamInit(void) {
+}
+
 void HalIgpuGttInit(void) {
 }
 

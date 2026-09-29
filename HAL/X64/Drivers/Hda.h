@@ -34,8 +34,18 @@ int HdaCorbOk(void);
 int HdaCorbVerb(UINT8 Cad, UINT8 Nid, UINT32 VerbPayload, UINT32 *RespOut);
 int HdaCodecInit(void);
 int HdaCodecOk(void);
-UINT8 HdaCodecAddr(void);     /* 首个 AFG codec CAD；无则 0xFF */
-UINT8 HdaCodecOutPins(void);  /* 输出 pin 计数（Line/Speaker/HP） */
+UINT8 HdaCodecAddr(void);     /* 选用的 codec CAD；无则 0xFF */
+UINT8 HdaCodecAfg(void);      /* AFG nid */
+UINT8 HdaCodecOutPins(void);  /* 输出 pin 计数 */
 UINT8 HdaCodecFirstOutNid(void);
+
+/* PR-G-audio-3：输出 Stream + BDL；开机短 PCM（HDMI） */
+int HdaStreamInit(void);
+int HdaStreamOk(void);
+/* Intel HDMI/DP：开全 pin、选路、DIP InfoFrame、显示侧 AUD */
+int HdaHdmiEnableAllPins(UINT8 Cad, UINT8 Afg);
+int HdaHdmiPickPath(UINT8 Cad, UINT8 *PinOut, UINT8 *CvtOut);
+int HdaHdmiInfoframe(UINT8 Cad, UINT8 Pin);
+int HdaHdmiDisplayAudioEnable(void);
 
 #endif

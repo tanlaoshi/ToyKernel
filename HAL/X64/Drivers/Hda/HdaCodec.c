@@ -33,6 +33,7 @@ typedef struct {
 
 static int gHdaCodecOk;
 static UINT8 gCodecCad = 0xFFu;
+static UINT8 gCodecAfg;
 static UINT8 gOutPins;
 static UINT8 gFirstOutNid;
 static UINT32 gVendor;
@@ -43,6 +44,10 @@ int HdaCodecOk(void) {
 
 UINT8 HdaCodecAddr(void) {
     return gCodecCad;
+}
+
+UINT8 HdaCodecAfg(void) {
+    return gCodecAfg;
 }
 
 UINT8 HdaCodecOutPins(void) {
@@ -189,6 +194,9 @@ static int ProbeCad(UINT8 Cad, HDA_CODEC_PROBE *Out) {
     ToyLogBoot(" afg=");
     ToyLogBootHex32((UINT32)Afg);
     ToyLogBoot("\n");
+    if ((Vend >> 16) == 0x8086u && ((Vend >> 8) & 0xFFu) == 0x28u) {
+        (void)HdaHdmiEnableAllPins(Cad, Afg);
+    }
     if (!ScanAfgWidgets(Cad, Afg, Out)) {
         ToyLogBoot("Boot: hda codec no out pin\n");
         return 0;
@@ -248,6 +256,7 @@ int HdaCodecInit(void) {
     Best.DigPins = 0;
     Best.FirstOutNid = 0;
     Best.FirstCfg = 0;
+    Best.Afg = 0;
     Best.Vendor = 0;
     for (Cad = 0; Cad < 15u; Cad++) {
         int Sc;
@@ -270,6 +279,7 @@ int HdaCodecInit(void) {
     }
 
     gCodecCad = Best.Cad;
+    gCodecAfg = Best.Afg;
     gVendor = Best.Vendor;
     gOutPins = (UINT8)(Best.AnalogPins + Best.DigPins);
     gFirstOutNid = Best.FirstOutNid;

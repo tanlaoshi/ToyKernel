@@ -1,9 +1,9 @@
 # 声卡驱动 · Intel HDA（PR-G-audio · 活文档）
 
 > **目的**：NUC / QEMU 能 **播一段 PCM**（蜂鸣 / `play` / 课堂演示），补齐「能看见也能听见」。  
-> **排期指针**：路线图 ★ [`PR-G-audio-3`](../路线图.md#pr-g-audio-3)；柱总览活文档本文。  
+> **排期指针**：路线图 ★ [`PR-G-audio-4`](../路线图.md#pr-g-audio-4)；柱总览活文档本文。  
 > **权威代码**：`HAL/X64/Drivers/Hda/` +（后续）`HalAudio*`。  
-> **日期**：2026-09-29 · **★ audio-3**；audio-0…2 ✅ TG（0/1 已 GD）。
+> **日期**：2026-09-29 · **★ audio-4**；audio-0…3 ✅ TG（0/1 已 GD）。
 
 ---
 
@@ -39,10 +39,11 @@
 
 | 项 | 值 |
 | -- | -- |
-| 机型 | Intel **NUC7i7DN H**（**无 3.5mm**；课堂听音走 **HDMI**） |
+| 机型 | Intel **NUC7i7DN H**（机身无 3.5mm；听音 = **HDMI → 显示器耳机孔**） |
 | 预期 PCI | Vendor `8086` + class `0403`；NUC7 **DID=`0x9D71`** @`00:1F.3` |
 | MMIO | BAR0=`0xDF240000` sz=`0x4000`；`gcap=0x9701` `v=1.0` `outpay=0x3C` `inpay=0x1D` |
-| Codec | **Intel HDMI** `8086:280B` @ CAD=`2` AFG=`1`；输出 pin **nid=`3`** cfg=`0x18560010`（2026-09-29）；无模拟孔 |
+| Codec | **Intel HDMI** `8086:280B`；须 `EN_ALL_PIN_CVTS`+`DP12`；pin **5/6/7**=PORT B/C/D；本课活跃 **pin=6 cvt=2**（DP，DELL U2415） |
+| 听音 | 显示器耳机孔；Ubuntu=`DP-2`→pin6；无 sense 时强制 pin6/cvt2；显示侧 `AUD_PIN_ELD_CP_VLD` |
 | QEMU | `-device intel-hda -device hda-duplex`（或项目现有 run 脚本等价项）；无设备 → 软退 |
 
 ---
@@ -52,7 +53,7 @@
 | 角色 | 做啥 |
 | ---- | ---- |
 | Agent | 实现、`./build.sh`、QEMU 冒烟（能出波形/日志）；改文档 |
-| 你 | NUC **HDMI 接显示器/音箱**手测；无声时看串口 / 断电 |
+| 你 | NUC HDMI 接显示器，**耳机插显示器孔**手测；无声时看串口 / 断电 |
 
 | 单位 | 含义 |
 | ---- | ---- |
@@ -128,27 +129,28 @@
 
 ## 8. PR-G-audio-3 · 输出流 + DMA
 
-> **状态**：**★ JX**（2026-09-29）。  
-> **一句话**：配置输出 Stream；BDL 环；把一块 PCM 推到 **HDMI** converter；先 **poll 完成**。
+> **状态**：**✅ TG**（2026-09-29；NUC 显示器耳机孔有蜂鸣；`aud eld=0x444` pin6/cvt2）。  
+> **一句话**：配置输出 Stream；BDL 环；PCM→HDMI/DP converter；DIP InfoFrame + 显示侧 AUD；poll 完成。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `HdaStream.c`；格式钉死 48kHz/16bit/立体声 |
+| 改 | `HdaStream.c` / `HdaHdmi.c`；48k/16/2；`HalHdaStreamInit`；`AUD_PIN_ELD_CP_VLD` |
 | 不改 | 多流混音；HalAudio API（→audio-4） |
-| 验收 | NUC HDMI 短声或软退黄字；屏不黑；smoke 绿 |
+| 验收 | NUC `stream ok` + **耳机孔听见**（✅）；smoke 绿（✅） |
 | 下一刀 | audio-4 |
 
 ---
 
 ## 9. PR-G-audio-4 · HalAudio + 播 PCM
 
+> **状态**：**★ JX 待做**（2026-09-29）。  
 > **一句话**：`HalAudioProbe/PlayPcm/Stop`；内核侧播内置短蜂鸣或 RootFs `BEEP.WAV`（小文件）。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `Include/HalDevices.h` / `HalAudio*`；Arm/RiscV/Virt 空桩 |
+| 改 | `Include/HalDevices.h` / `HalAudio*`；Arm/RiscV 空桩；复用 HdaStream |
 | 不改 | 用户态完整 mixer；阻塞策略可先「播完返回」 |
-| 验收 | 开机后路径可触发一短声（调试开关或桌面 Ready 可选）；软退静音 |
+| 验收 | 可触发一短声；软退静音；smoke 绿 |
 | 下一刀 | audio-5 |
 
 ---
@@ -182,7 +184,7 @@
 | ---- | ---- |
 | 录音 / 回声消除 | 课演示「有声」即可 |
 | 软件混音多 App 抢声卡 | 单流；多源以后另柱 |
-| HDMI / DisplayPort 音频 | 路径与管脚不同；后挂 |
+| DisplayPort 专用 infoframe | 本靶 HDMI；DP 另测 |
 | USB Audio Class | 另一套驱动 |
 | Windows/Linux 兼容声栈 | 教学 HAL，不是 ALSA |
 

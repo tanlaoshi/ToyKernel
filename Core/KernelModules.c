@@ -98,8 +98,10 @@ static int InitializeVideo(void) {
     HalHdaMmioInit();
     /* PR-G-audio-2：CORB/RIRB + codec/pin 枚举（无卡/失败软退） */
     HalHdaCodecInit();
-    /* PR-G-igpu-3：forcewake → 再读 SURF；blit 骨架软退 */
+    /* PR-G-igpu-3：forcewake 须在显示侧 AUD / Stream 之前 */
     HalIgpuForcewakeInit();
+    /* PR-G-audio-3：Stream 短 PCM（DP；须 igpu AUD 使能） */
+    HalHdaStreamInit();
     HalIgpuGttInit();
     HalIgpuBlitInit();
     HalIgpuPresentPrepare();

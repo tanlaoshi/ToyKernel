@@ -80,6 +80,8 @@ void HalIgpuMmioInit(void);
 void HalHdaMmioInit(void);
 /* PR-G-audio-2：CORB/RIRB + codec 枚举；非 x86 空操作 */
 void HalHdaCodecInit(void);
+/* PR-G-audio-3：输出 Stream DMA；非 x86 空操作 */
+void HalHdaStreamInit(void);
 /* PR-G-igpu-2：观察固件 GGTT/scanout；非 x86 空操作 */
 void HalIgpuGttInit(void);
 /* PR-G-igpu-3：forcewake + blit 骨架；非 x86 空操作 */
