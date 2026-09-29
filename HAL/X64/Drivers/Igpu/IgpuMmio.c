@@ -14,8 +14,8 @@
 #define PTE_PCD HAL_PAGE_PCD
 #endif
 
-/* Gen9 BAR0 常 16MiB；指纹只读低部寄存器，先映 2MiB 够用 */
-#define IGPU_MMIO_MAP_BYTES  (2u * 1024u * 1024u)
+/* Gen8+ GTTMMADR 16MiB；GSM（PTE）在后半 8MiB。须映满才能 blit。 */
+#define IGPU_MMIO_MAP_BYTES  (16u * 1024u * 1024u)
 /* i915 GEN6_TIMESTAMP — Gen6+ 只读，未 forcewake 时也可能非 0xFFFFFFFF */
 #define IGPU_REG_TIMESTAMP   0x2358u
 
@@ -36,6 +36,10 @@ volatile UINT8 *IgpuMmioBase(void) {
     return gIgpuMmio;
 }
 
+UINTN IgpuMmioMapBytes(void) {
+    return gIgpuMapBytes;
+}
+
 static UINT32 MmioR32(UINT32 Off) {
     volatile UINT32 *P;
 
@@ -48,6 +52,40 @@ static UINT32 MmioR32(UINT32 Off) {
 
 UINT32 IgpuMmioRead32(UINT32 Off) {
     return MmioR32(Off);
+}
+
+void IgpuMmioWrite32(UINT32 Off, UINT32 Val) {
+    volatile UINT32 *P;
+
+    if (!gIgpuMmio || Off + 4u > gIgpuMapBytes) {
+        return;
+    }
+    P = (volatile UINT32 *)(UINTN)(gIgpuMmio + Off);
+    *P = Val;
+    __asm__ volatile ("mfence" ::: "memory");
+}
+
+void IgpuStallUs(UINT32 Us) {
+    UINT32 Lo;
+    UINT32 Hi;
+    UINT64 T0;
+    UINT64 Need;
+    UINT64 Now;
+
+    if (Us == 0) {
+        return;
+    }
+    __asm__ volatile ("rdtsc" : "=a"(Lo), "=d"(Hi));
+    T0 = ((UINT64)Hi << 32) | Lo;
+    Need = (UINT64)Us * 3000ULL; /* ~3GHz 估 */
+    for (;;) {
+        __asm__ volatile ("rdtsc" : "=a"(Lo), "=d"(Hi));
+        Now = ((UINT64)Hi << 32) | Lo;
+        if (Now - T0 >= Need) {
+            break;
+        }
+        __asm__ volatile ("pause");
+    }
 }
 
 static int ReadBar0(UINT8 Bus, UINT8 Dev, UINT8 Fn, UINT64 *BarOut) {
@@ -114,8 +152,8 @@ int IgpuMmioInit(void) {
     if (Sz != 0 && Sz < MapBytes) {
         MapBytes = (UINTN)Sz;
     }
-    if (MapBytes < 0x1000u) {
-        ToyLogBoot("Boot: igpu mmio BAR too small\n");
+    if (MapBytes < (8u * 1024u * 1024u)) {
+        ToyLogBoot("Boot: igpu mmio BAR<8MiB (need GSM)\n");
         return 0;
     }
 

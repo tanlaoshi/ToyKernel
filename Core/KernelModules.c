@@ -94,8 +94,10 @@ static int InitializeVideo(void) {
     HalVideoLogFbPte();
     /* PR-G-igpu-1：VMM 已开；核显 BAR 只读指纹（无卡/失败软退） */
     HalIgpuMmioInit();
-    /* PR-G-igpu-2：只读固件 plane SURF（不写 GGTT PTE） */
+    /* PR-G-igpu-3：forcewake → 再读 SURF；blit 骨架软退 */
+    HalIgpuForcewakeInit();
     HalIgpuGttInit();
+    HalIgpuBlitInit();
     return 0;
 }
 

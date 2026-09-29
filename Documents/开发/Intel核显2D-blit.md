@@ -1,9 +1,9 @@
 # Intel 核显 2D blit（PR-G-igpu · 活文档）
 
 > **目的**：拖窗 / Present 少靠 CPU `memcpy` 往 GOP 搬像素；用 NUC 核显 Blitter 做矩形拷贝。  
-> **排期指针**：路线图 ★ [`PR-G-igpu-3`](../路线图.md#pr-g-igpu-3)；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
+> **排期指针**：路线图 ★ [`PR-G-igpu-4`](../路线图.md#pr-g-igpu-4)；柱总览 [`#pr-g-igpu`](../路线图.md#pr-g-igpu)。  
 > **权威代码**：`HAL/X64/Drivers/Igpu/` +（后续）`HalVideoCopyRect` / Present 分支。  
-> **日期**：2026-09-29 · **igpu-0/1/2 ✅ TG** · **★ igpu-3 JX**。
+> **日期**：2026-09-29 · **igpu-0/1/2/3 ✅ TG** · **★ igpu-4**。
 
 ---
 
@@ -139,21 +139,84 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 
 ## 8. PR-G-igpu-3 · forcewake + Blitter 自测
 
-> **状态**：**★ JX**（2026-09-29）。  
-> **一句话**：forcewake 后再读 SURF；Blitter ring + 一次 `XY_SRC_COPY`（或 Gen9 等价）；色块 A→B；超时则复位并禁用。
+> **状态**：**✅ TG**（2026-09-29；NUC `blit mem ok`）。  
+> **通关**：B13 `fence=0xB13B13B1` `blt=0x00FF00FF` → **`igpu blit mem ok`**。  
+> **根因**：C4——旧 `WaitHead(~0x3F)` + TAIL 未 64B 对齐 → B4～B11 假完成；包本身（BR13 depth32）无误。  
+> **一句话**：forcewake → GSM → BCS；ring 上 `XY_COLOR_BLT` 已写通 scratch。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | forcewake；ring；提交/等待；Shell/`igpu blit-test` |
-| 不改 | Gui 拖窗（igpu-5 再接）；盲目写 GGTT |
-| 验收 | NUC：SURF 非 0 或明确软退；目视色块动；连续 10 次无挂；失败回 CPU |
-| 工期 | Agent **3～4 日** + 手测 **2～4 轮** → **6～12 日** |
+| 改 | BAR 16MiB；`IgpuForcewake` / `IgpuGsm` / `IgpuBlit`（64B 对齐 WaitHead） |
+| 不改 | Gui 拖窗；改 gtt0 PTE；batch（暂搁） |
+| 验收（本刀） | ✅ NUC：`blit mem ok`；屏不黑；`smoke-boot` 绿 |
 | 下一刀 | igpu-4 |
+
+---
+
+## 8.1 短刀试探台账（igpu-3 · 2026-09-29）
+
+> 凡 NUC 手测过的试探都记；避免重复踩坑。状态：✅过 / ❌否 / 🟡部分 / ⏳未上盘。
+
+### A. 基础设施（已过）
+
+| # | 试探 | 结果 | 串口/现象 | 结论 |
+| - | ---- | ---- | --------- | ---- |
+| A1 | forcewake GT ACK=`0x0D88`（误 Media） | ❌ | `fw gt ack to` | ACK 应用 **`0x130044`**（i915 `FORCEWAKE_ACK_GT_GEN9`） |
+| A2 | forcewake GT=`0x130044` + Render；已醒则跳过 clr | ✅ | `fw ok ts=非0` | 无 wake 时 `ts=0` 正常；wake 后 TIMESTAMP 有效 |
+| A3 | 无 wake 读 PLANE_SURF | 🟡 | `surf=0`，`ctl=0x84000000` | plane **已开**；SURF=0 = **GGTT 偏移 0**，非失败 |
+| A4 | 接受 gtt0 + 记 FB phys `C0000000` | ✅ | `gtt ok … (gtt0)` | scanout 走 GTT[0] |
+| A5 | BAR 映 2MiB → 扩 **16MiB**（GSM 在 +8MiB） | ✅ | `mmio sz=0x01000000` | Gen8+ GTTMMADR=16MiB；GSM=`BAR+size/2` |
+| A6 | 读 GSM PTE0 | ✅ | `pte0=0x8C000001` | 固件把 GTT0 → phys **`0x8C000000`**（非 CPU LFB `C0000000`；后者多为 aperture） |
+| A7 | BCS ring @`0x22000`，ring 缓冲 GTT`0x01000000`，MI_NOOP | ✅ | `blit ring ok` | HEAD 能追上 TAIL；ring 通路通 |
+| A8 | ring 启用时写 HEAD 复位再发色块 | ❌ | `color to` | **禁止**运行中改 HEAD；须停 CTL 或追加 TAIL |
+| A9 | Gen8+ `XY_COLOR_BLT` 7 dword（BR13 depth32） | ✅ | 见 B13 | 包正确；旧「未写」是 WaitHead 假完成 |
+
+### B. 像素写验证
+
+| # | 试探 | 结果 | 串口/现象 | 结论 |
+| - | ---- | ---- | --------- | ---- |
+| B1 | Video 模块内对 **GTT0/scanout** 填品红 @(16,16) | 🟡 | 曾 `color ok pix=FA398DA4` | 后缓冲/桌面覆盖；**不能当验收** |
+| B2 | 桌面 Ready 后再画 **右上角** 160×80 | ❌/未见 | 常无 `color at` | 同上 |
+| B3～B7 | scratch COLOR / depth / SRC_COPY（**旧 WaitHead**） | ⚠作废 | 曾见 `blt=A5` | 假完成；**以 B13 为准** |
+| B8 | `MI_FLUSH_DW\|USE_GTT\|STOREDW` | ❌ | `ipehr=0x13004006` | **禁用该 FLUSH 编码** |
+| B9～B11 | BB_START / len 试探 | ⚠作废 | 见 C4 | 被假 WaitHead 污染 |
+| B12 | 64B 对齐真 WaitHead；BB_START | 🟡 | store✅；`bbstart to`；ipehr 垃圾 | **环同步✅**；batch 暂搁 |
+| B13 | ring **COLOR + STORE fence**（真等 HEAD） | ✅ | `fence=0xB13B13B1` `blt=0x00FF00FF` → **`blit mem ok`** | **2D 写通**；igpu-3 mem 验收过 |
+
+### C. 工程坑（非硬件）
+
+| # | 试探/事故 | 结果 | 结论 |
+| - | --------- | ---- | ---- |
+| C1 | `KernelModules.c` 已加 `GttInit` 但 `.o` 未重编就 sync | ❌ | 真机无 `gtt` 行；**改调用链要 `rm` 对应 `.o` 或确认 elf 反汇编** |
+| C2 | U 盘未挂仍以为 TBU 成功 | ❌ | sync 脚本报错；手测前对 md5 |
+| C3 | 屏上色块当验收 | ❌ | 桌面必盖；改 **mem 回读** |
+| C4 | `WaitHead` 掩 `~0x3F` + TAIL 未对齐 | ❌→✅已修 | **提交垫 64B 再等 HEAD**；B12/B13 验证 |
+
+### D. 下一步
+
+| # | 试探 | 目的 |
+| - | ---- | ---- |
+| D1 | ~~TG igpu-3~~ | 已入库 |
+| D2 | igpu-4：`HalVideoCopyRect` / Present 挂钩 | 拖窗走 blitter |
+| D3 | batch / SRC_COPY 可选补 | 非门禁 |
+
+### E. 关键寄存器速查（Gen9 / 本柱）
+
+| 名 | 偏移 | 备注 |
+| -- | ---- | ---- |
+| TIMESTAMP | `0x2358` | 需 forcewake 才非 0 |
+| FORCEWAKE_GT / ACK | `0xa188` / **`0x130044`** | 勿用 `0x0D88`（Media） |
+| FORCEWAKE_RENDER / ACK | `0xa278` / `0x0D84` | |
+| PLANE_CTL/SURF_A | `0x70180` / `0x7019C` | ctl bit31=enable |
+| GSM | BAR+8MiB | 16MiB BAR 后半 |
+| GFX_FLSH_CNTL_GEN6 | `0x101008` | PTE 写后 flush |
+| BCS RING_* | base `0x22000` +`0x30/34/38/3c` | |
 
 ---
 
 ## 9. PR-G-igpu-4 · HalVideo 挂钩
 
+> **状态**：**★**（接 igpu-3）。  
 > **一句话**：`IgpuReady` 时大矩形走 blitter，否则 `memcpy`；QEMU 永远 CPU。
 
 | 项 | 内容 |

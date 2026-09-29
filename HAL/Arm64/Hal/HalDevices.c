@@ -119,6 +119,15 @@ void HalIgpuMmioInit(void) {
 void HalIgpuGttInit(void) {
 }
 
+void HalIgpuForcewakeInit(void) {
+}
+
+void HalIgpuBlitInit(void) {
+}
+
+void HalIgpuBlitColorTest(void) {
+}
+
 void HalInputArmIrq(void) {
 }
 

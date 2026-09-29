@@ -179,6 +179,18 @@ void HalIgpuGttInit(void) {
     (void)IgpuGttInit();
 }
 
+void HalIgpuForcewakeInit(void) {
+    (void)IgpuForcewakeInit();
+}
+
+void HalIgpuBlitInit(void) {
+    (void)IgpuBlitInit();
+}
+
+void HalIgpuBlitColorTest(void) {
+    (void)IgpuBlitColorTest();
+}
+
 void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }

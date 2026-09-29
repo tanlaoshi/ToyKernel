@@ -182,6 +182,8 @@ void DesktopInit(void) {
     gIconDragMoved = 0;
     LoadWallpaper();
     ToyLogGui("Boot: Desktop Ready\n");
+    /* PR-G-igpu-3：桌面铺完再色块，避免被壁纸盖掉；看右上角 */
+    HalIgpuBlitColorTest();
     DebugWrite("desktop: solid ready (icons deferred)\n");
 #if TOY_KERNEL_DEBUG
     UiActionSelfCheck();

@@ -1,17 +1,19 @@
 /*
- * IgpuGtt.c — PR-G-igpu-2：观察固件留下的 scanout（不写 GGTT PTE）
+ * IgpuGtt.c — PR-G-igpu-2/3：观察固件 scanout（不写 GGTT PTE）
  *
- * Gen9 上 UEFI GOP 已把帧缓冲挂进显示引擎；读 PLANE_SURF 确认 GPU 可见地址，
- * 供后续 blit 复用。写 PTE 风险高，本刀禁止。
+ * NUC：PLANE_CTL 已开而 SURF=0 → GGTT 偏移 0（固件恒等映）仍可复用。
  */
 #include "Igpu.h"
 #include "HalVideo.h"
 #include "ToySerialLog.h"
 
-/* SKL/KBL PIPE_A primary plane SURF（i915 PLANE_SURF / 旧 DSPSURF） */
 #define IGPU_REG_PLANE_SURF_A  0x7019Cu
 #define IGPU_REG_PLANE_SURF_B  0x7119Cu
 #define IGPU_REG_PLANE_SURF_C  0x7219Cu
+#define IGPU_REG_PLANE_CTL_A   0x70180u
+#define IGPU_REG_PLANE_CTL_B   0x71180u
+#define IGPU_REG_PLANE_CTL_C   0x72180u
+#define IGPU_PLANE_CTL_ENABLE  0x80000000u
 
 static int gIgpuGttOk;
 static UINT32 gIgpuSurf;
@@ -25,29 +27,42 @@ UINT32 IgpuGttSurf(void) {
     return gIgpuSurf;
 }
 
-static UINT32 PickSurf(void) {
-    UINT32 A;
-    UINT32 B;
-    UINT32 C;
+static UINT32 PickSurf(UINT32 *CtlOut) {
+    UINT32 Surf[3];
+    UINT32 Ctl[3];
+    int i;
 
-    A = IgpuMmioRead32(IGPU_REG_PLANE_SURF_A);
-    B = IgpuMmioRead32(IGPU_REG_PLANE_SURF_B);
-    C = IgpuMmioRead32(IGPU_REG_PLANE_SURF_C);
-    /* 优先非空、非全 F 的 SURF（4K 对齐） */
-    if (A != 0 && A != 0xFFFFFFFFu && (A & 0xFFFu) == 0) {
-        return A;
+    Surf[0] = IgpuMmioRead32(IGPU_REG_PLANE_SURF_A);
+    Surf[1] = IgpuMmioRead32(IGPU_REG_PLANE_SURF_B);
+    Surf[2] = IgpuMmioRead32(IGPU_REG_PLANE_SURF_C);
+    Ctl[0] = IgpuMmioRead32(IGPU_REG_PLANE_CTL_A);
+    Ctl[1] = IgpuMmioRead32(IGPU_REG_PLANE_CTL_B);
+    Ctl[2] = IgpuMmioRead32(IGPU_REG_PLANE_CTL_C);
+
+    for (i = 0; i < 3; i++) {
+        if ((Ctl[i] & IGPU_PLANE_CTL_ENABLE) == 0) {
+            continue;
+        }
+        if (Surf[i] == 0xFFFFFFFFu) {
+            continue;
+        }
+        if ((Surf[i] & 0xFFFu) != 0) {
+            continue;
+        }
+        if (CtlOut) {
+            *CtlOut = Ctl[i];
+        }
+        return Surf[i]; /* 可为 0 = GGTT 根 */
     }
-    if (B != 0 && B != 0xFFFFFFFFu && (B & 0xFFFu) == 0) {
-        return B;
+    if (CtlOut) {
+        *CtlOut = Ctl[0];
     }
-    if (C != 0 && C != 0xFFFFFFFFu && (C & 0xFFFu) == 0) {
-        return C;
-    }
-    return 0;
+    return 0xFFFFFFFFu; /* 无启用 plane */
 }
 
 int IgpuGttInit(void) {
     UINT32 Surf;
+    UINT32 Ctl;
     UINT64 Fb;
 
     if (gIgpuGttOk) {
@@ -57,36 +72,33 @@ int IgpuGttInit(void) {
         return 0;
     }
 
+    (void)IgpuForcewakeGet();
+
     Fb = HalVideoFrameBufferBase();
     gIgpuFbPhys = Fb;
-    Surf = PickSurf();
-    gIgpuSurf = Surf;
-
-    if (Surf == 0) {
-        /*
-         * 无 forcewake 时部分机读 SURF=0；不写 PTE、不挡桌面。
-         * blit 刀再考虑 forcewake / 显式挂 FB。
-         */
-        ToyLogBoot("Boot: igpu gtt surf=0 (observe-only, soft)\n");
-        ToyLogBoot("Boot: igpu gtt fb=");
-        ToyLogBootHex32((UINT32)Fb);
-        if (Fb > 0xFFFFFFFFu) {
-            ToyLogBoot(":");
-            ToyLogBootHex32((UINT32)(Fb >> 32));
-        }
+    Surf = PickSurf(&Ctl);
+    if (Surf == 0xFFFFFFFFu) {
+        ToyLogBoot("Boot: igpu gtt soft (no plane) ctl=");
+        ToyLogBootHex32(Ctl);
         ToyLogBoot("\n");
         return 0;
     }
+    gIgpuSurf = Surf;
 
     gIgpuGttOk = 1;
     ToyLogBoot("Boot: igpu gtt ok surf=");
     ToyLogBootHex32(Surf);
+    ToyLogBoot(" ctl=");
+    ToyLogBootHex32(Ctl);
     ToyLogBoot(" fb=");
     ToyLogBootHex32((UINT32)Fb);
     if (Fb > 0xFFFFFFFFu) {
         ToyLogBoot(":");
         ToyLogBootHex32((UINT32)(Fb >> 32));
     }
-    ToyLogBoot(" (reuse firmware)\n");
+    if (Surf == 0) {
+        ToyLogBoot(" (gtt0)");
+    }
+    ToyLogBoot("\n");
     return 1;
 }

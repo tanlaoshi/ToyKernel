@@ -78,6 +78,11 @@ void HalIwlBgPump(void);
 void HalIgpuMmioInit(void);
 /* PR-G-igpu-2：观察固件 GGTT/scanout；非 x86 空操作 */
 void HalIgpuGttInit(void);
+/* PR-G-igpu-3：forcewake + blit 骨架；非 x86 空操作 */
+void HalIgpuForcewakeInit(void);
+void HalIgpuBlitInit(void);
+/* 桌面 Ready 后：右上角 XY_COLOR_BLT 自测（非 x86 空） */
+void HalIgpuBlitColorTest(void);
 /* 真机：usb 模块末尾开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：键鼠 ready 后再枚举鼠标，避免踩键盘 IN */
