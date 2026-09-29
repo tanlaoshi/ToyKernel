@@ -1,8 +1,7 @@
 /*
- * HalDevices.c — x86：Input / Net 经 Driver 类门面（PR-D3）
+ * HalDevices.c — x86：注册 / USB·MSC / Wifi·Iwl / Igpu·Hda（PR-S3-haldev-1）
  *
- * Common 只见 HalInput* / HalNet*；本文件不 include XHCI/Net 私有实现细节以外的
- * 注册入口头（仍经 Drivers/ 薄包装注册）。
+ * Common 只见 Hal*；Input/Net 门面见 HalDevicesInput.c / HalDevicesNet.c。
  */
 #include "Hal.h"
 #include "DriverInput.h"
@@ -11,11 +10,9 @@
 #include "InputPs2.h"
 #include "InputEhci.h"
 #include "InputUhci.h"
-#include "Net.h"
 #include "UsbMsc.h"
-#include "E1000.h"
+#include "Net.h"
 #include "Ehci.h"
-#include "Uhci.h"
 #include "XHCI.h"
 #include "Wifi.h"
 #include "Iwl.h"
@@ -40,8 +37,6 @@ void IwlDriverRegister(void);  /* PR-N-wifi-1：iwl8265；FS 后 Claim */
 void IgpuDriverRegister(void); /* PR-G-igpu-0：Intel display 认卡 */
 void HdaDriverRegister(void);  /* PR-G-audio-0：Intel HDA 认卡 */
 void DemoDriverRegister(void); /* PR-D-tpl-2 */
-void XhciDiagFormat(char *Buf, int Max);
-void XhciMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 
 void HalDriverRegister(void) {
     /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
@@ -253,146 +248,4 @@ int HalIgpuCopyRectBack(const UINT32 *Back, UINT32 PitchPx, UINT32 BufH,
                         UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
                         UINT32 W, UINT32 H) {
     return IgpuCopyRectBack(Back, PitchPx, BufH, SrcX, SrcY, DstX, DstY, W, H);
-}
-
-void HalInputArmIrq(void) {
-    InputXhciArmIrq();
-}
-
-void HalInputInitMouseDeferred(void) {
-    /*
-     * 刀 #117：勿在 MSC 认盘后再扫 hub 鼠（会 Reset 子口 → 桌面假死）。
-     * 枚举期已绑则此处为空操作；仅漏绑时补一次（少见）。
-     */
-    if (!XhciMousePresent()) {
-        XhciInitMouseDeferred();
-    }
-}
-
-void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {
-    XhciMouseHandoffDesktop(CursorX, CursorY);
-    Ps2MouseHandoffDesktop(CursorX, CursorY);
-}
-
-void HalInputPoll(void) {
-    ToyDriverInputPoll();
-}
-
-void HalInputDiagFormat(char *Buf, int Max) {
-    XhciDiagFormat(Buf, Max);
-}
-
-void HalEhciDiagFormat(char *Buf, int Max) {
-    EhciDiagFormat(Buf, Max);
-}
-
-int HalEhciHidRetry(void) {
-    return EhciHidBringup() ? 0 : -1;
-}
-
-/* 1=Bulk 已发出；0=未认；-1=Bulk 失败（见 ehci err=） */
-int HalEhciFtdiPing(void) {
-    if (!EhciFtdiReady()) {
-        return 0;
-    }
-    if (EhciFtdiWrite("\r\n*** FTDI 115200 ***\r\n") < 0) {
-        return -1;
-    }
-    return 1;
-}
-
-void HalUhciDiagFormat(char *Buf, int Max) {
-    UhciDiagFormat(Buf, Max);
-}
-
-void HalPs2DiagFormat(char *Buf, int Max) {
-    Ps2DiagFormat(Buf, Max);
-}
-
-int HalPs2AuxRetry(void) {
-    return Ps2AuxRetry();
-}
-
-int HalKeyboardDequeue(HAL_KEYBOARD_REPORT *Report) {
-    return ToyDriverInputKeyboardDequeue(Report);
-}
-
-int HalKeyboardSetLeds(UINT8 Leds) {
-    return ToyDriverInputKeyboardSetLeds(Leds);
-}
-
-int HalMousePresent(void) {
-    return ToyDriverInputMousePresent();
-}
-
-int HalMouseDequeue(HAL_MOUSE_REPORT *Report) {
-    return ToyDriverInputMouseDequeue(Report);
-}
-
-int HalNetInit(void) {
-    return NetInit();
-}
-
-int HalNetReady(void) {
-    return ToyDriverNetReady();
-}
-
-UINT32 HalNetNicEpoch(void) {
-    return NetNicEpoch();
-}
-
-void HalNetPoll(void) {
-    ToyDriverNetPoll();
-}
-
-void HalNetGetMacAddress(UINT8 Mac[6]) {
-    ToyDriverNetGetMac(Mac);
-}
-
-UINT32 HalNetGetIpAddress(void) {
-    return ToyDriverNetGetIp();
-}
-
-void HalNetSetIpAddress(UINT32 Ip) {
-    ToyDriverNetSetIp(Ip);
-}
-
-void HalNetFormatIp(UINT32 Ip, char *Buf, int BufLen) {
-    ToyDriverNetFormatIp(Ip, Buf, BufLen);
-}
-
-int HalNetParseIp(const char *Text, UINT32 *Ip) {
-    return ToyDriverNetParseIp(Text, Ip);
-}
-
-int HalNetPing(const char *Host, int TimeoutMs) {
-    return ToyDriverNetPing(Host, TimeoutMs);
-}
-
-void HalNetGetStats(UINT32 *TxDone, UINT32 *RxFrames) {
-    ToyDriverNetGetStats(TxDone, RxFrames);
-}
-
-/* PR-N-nic：链路走已挂 NIC_L2（e1000 等）；virtio / 无 L2 → 0 */
-int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
-    if (NetNicGetLink(Up, Mbps, FullDuplex) != 0) {
-        return 0;
-    }
-    return 1;
-}
-
-void HalNetDumpNicNote(void (*Write)(const char *Text)) {
-    E1000DumpNote(Write);
-}
-
-int HalNetSendIp(UINT32 DstIp, UINT8 Proto, const void *Payload, UINTN PayloadLen) {
-    return ToyDriverNetSendIp(DstIp, Proto, Payload, PayloadLen);
-}
-
-UINT16 HalNetChecksum(const void *Data, UINTN Len) {
-    return ToyDriverNetChecksum(Data, Len);
-}
-
-void HalNetSetLwipReceive(int Enable) {
-    ToyDriverNetSetLwIpRx(Enable);
 }
