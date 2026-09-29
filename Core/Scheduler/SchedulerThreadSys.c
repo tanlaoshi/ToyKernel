@@ -12,7 +12,8 @@
 UINT64 SchedulerThreadCreate(HAL_INTERRUPT_FRAME *Frame) {
     TASK *Self;
     UINT64 Entry;
-    UINT64 Arg;
+    UINT64 Arg0;
+    UINT64 Arg1;
     int Slot;
 
     SpinLockAcquire(&gSchedulerLock);
@@ -23,7 +24,8 @@ UINT64 SchedulerThreadCreate(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
     Entry = HalFrameGetArgument0(Frame);
-    Arg = HalFrameGetArgument1(Frame);
+    Arg0 = HalFrameGetArgument1(Frame);
+    Arg1 = HalFrameGetArgument2(Frame);
     SpinLockRelease(&gSchedulerLock);
 
     if (Entry == 0) {
@@ -31,7 +33,7 @@ UINT64 SchedulerThreadCreate(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
 
-    Slot = SchedulerCreateThread(Self, "thread", Entry, Arg, 0, 1);
+    Slot = SchedulerCreateThread(Self, "thread", Entry, Arg0, Arg1, 0, 1);
     if (Slot < 0) {
         HalFrameSetReturn(Frame, (UINT64)(INT64)(-(INT64)TOY_EAGAIN));
         return 0;

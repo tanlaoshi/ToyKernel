@@ -113,6 +113,7 @@ int HalFrameSignalSetup(HAL_INTERRUPT_FRAME *F, UINT64 Handler, UINT64 Sig,
                         UINT64 *OutResumeIp, UINT64 *OutPushSp);
 void HalFrameSetStackPointer(HAL_INTERRUPT_FRAME *F, UINT64 Sp);
 void HalFrameSetArgument0(HAL_INTERRUPT_FRAME *F, UINT64 Value);
+void HalFrameSetArgument1(HAL_INTERRUPT_FRAME *F, UINT64 Value);
 UINT64 HalFrameGetStackPointer(const HAL_INTERRUPT_FRAME *F);
 void HalFrameSetInstructionPointer(HAL_INTERRUPT_FRAME *F, UINT64 Ip);
 

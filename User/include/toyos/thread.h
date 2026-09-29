@@ -1,5 +1,5 @@
 /*
- * toyos/thread.h — PR-U-thread：线程入口 + thr-3 syscall 薄封装
+ * toyos/thread.h — PR-U-thread：入口桩 + create/join/exit/gettid
  */
 #ifndef TOYOS_THREAD_H
 #define TOYOS_THREAD_H
@@ -12,13 +12,9 @@
 void ToyThreadRoot(void *(*Start)(void *), void *Arg);
 
 static inline long toy_thread_create(void *(*Start)(void *), void *Arg) {
-    /*
-     * 内核入口 = ToyThreadRoot；Arg0=Start，Arg1=Arg。
-     * 帧约定：CreateThread 把 Arg 写入首参寄存器 = Start；
-     * 第二参需另约定——简化：Start 与 Arg 打成栈上结构由用户自备。
-     * thr-3 最小：entry 直接为 Start，arg 为 Arg（不经 ToyThreadRoot）。
-     */
-    return toy_syscall(SYS_THREAD_CREATE, (long)Start, (long)Arg, 0);
+    /* entry=ToyThreadRoot；Arg0=Start，Arg1=Arg（thr-4） */
+    return toy_syscall(SYS_THREAD_CREATE, (long)ToyThreadRoot, (long)Start,
+                       (long)Arg);
 }
 
 static inline long toy_thread_join(long tid, int *status) {

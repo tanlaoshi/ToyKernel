@@ -388,6 +388,12 @@ void HalFrameSetArgument0(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
     }
 }
 
+void HalFrameSetArgument1(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
+    if (F) {
+        F->X[11] = Value;
+    }
+}
+
 /* RiscV：a0=sig，ra=返回点，sepc=handler */
 int HalFrameSignalSetup(HAL_INTERRUPT_FRAME *F, UINT64 Handler, UINT64 Sig,
                         UINT64 *OutResumeIp, UINT64 *OutPushSp) {

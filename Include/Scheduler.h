@@ -89,9 +89,9 @@ int SchedulerCreate(const char *Name, void (*Entry)(void));
 int SchedulerCreateKernel(const char *Name, void (*Fn)(void *), void *Ctx);
 int SchedulerCreateUser(const char *Name, UINT64 Rip, UINT64 Rsp, UINT64 PageRoot,
                     VIRTUAL_ADDRESS_SPACE *Space, UINT64 BrkBase);
-/* PR-U-thread-1/2：同 Leader VAS；Rsp=0 则自动映栈；Arg→首参寄存器；StartReady=0 仅建槽不跑 */
-int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg,
-                          UINT64 Rsp, int StartReady);
+/* PR-U-thread-1/2：同 Leader VAS；Rsp=0 则自动映栈；Arg0/1→首/次参；StartReady=0 仅建槽不跑 */
+int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg0,
+                          UINT64 Arg1, UINT64 Rsp, int StartReady);
 /* thr-1 调试：映 spin 入口后 CreateThread（自动栈+TLS；不调度，防饿死键鼠） */
 int SchedulerCreateThreadSpin(TASK *Leader);
 /* thr-1：丢掉调试孪生槽（不拆共享 VAS） */

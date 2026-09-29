@@ -326,6 +326,12 @@ void HalFrameSetArgument0(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
     }
 }
 
+void HalFrameSetArgument1(HAL_INTERRUPT_FRAME *F, UINT64 Value) {
+    if (F) {
+        F->Rsi = Value;
+    }
+}
+
 /* x86：压返回地址到用户栈，形如 call；入口 RSP≡8 (mod 16) */
 int HalFrameSignalSetup(HAL_INTERRUPT_FRAME *F, UINT64 Handler, UINT64 Sig,
                         UINT64 *OutResumeIp, UINT64 *OutPushSp) {

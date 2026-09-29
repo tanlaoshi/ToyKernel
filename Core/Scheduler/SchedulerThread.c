@@ -177,8 +177,8 @@ int SchedulerThreadAllocStack(TASK *Owner, UINT64 *OutTop) {
     return 0;
 }
 
-int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg,
-                          UINT64 Rsp, int StartReady) {
+int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg0,
+                          UINT64 Arg1, UINT64 Rsp, int StartReady) {
     int i;
     int Slot = -1;
     UINT8 *Top;
@@ -225,7 +225,8 @@ int SchedulerCreateThread(TASK *Leader, const char *Name, UINT64 Rip, UINT64 Arg
     Top = gTasks[Slot].Stack + sizeof(gTasks[Slot].Stack);
     F = (HAL_INTERRUPT_FRAME *)(Top - sizeof(HAL_INTERRUPT_FRAME));
     HalFrameSetUserEntry(F, Rip, StackTop);
-    HalFrameSetArgument0(F, Arg);
+    HalFrameSetArgument0(F, Arg0);
+    HalFrameSetArgument1(F, Arg1);
 
     gTasks[Slot].Frame = F;
     gTasks[Slot].State = TASK_READY;

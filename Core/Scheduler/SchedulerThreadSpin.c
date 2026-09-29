@@ -102,7 +102,7 @@ int SchedulerCreateThreadSpin(TASK *Leader) {
     Leader->MmapNext = CodeVa + PAGE_SIZE;
 
     /* Rsp=0 → thr-2 自动映栈 + TLS */
-    Slot = SchedulerCreateThread(Leader, "thspin", CodeVa, 0, 0, 0);
+    Slot = SchedulerCreateThread(Leader, "thspin", CodeVa, 0, 0, 0, 0);
     if (Slot < 0) {
         return -THR_SPIN_ERR_CREATE;
     }
