@@ -37,7 +37,12 @@ typedef struct {
 typedef struct TOY_GOP TOY_GOP;
 struct TOY_GOP {
     void *QueryMode;
+    /* UEFI GOP 为 MS ABI；仅 x86 真机路径可能用到约定，virt 编译勿告警告 */
+#if defined(__x86_64__) || defined(_M_X64)
     UINT64 (__attribute__((ms_abi)) *SetMode)(TOY_GOP *This, UINT32 ModeNumber);
+#else
+    UINT64 (*SetMode)(TOY_GOP *This, UINT32 ModeNumber);
+#endif
     void *Blt;
     TOY_GOP_MODE *Mode;
 };

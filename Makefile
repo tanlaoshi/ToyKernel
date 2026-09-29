@@ -450,6 +450,10 @@ USER_LDFLAGS = -m elf64lriscv -z noexecstack
 endif
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
 	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include -IInclude
+ifeq ($(ARCH),arm64)
+# pthread __sync_*：内联原子，避免裸链依赖 __aarch64_swp4_sync（libgcc）
+USER_CFLAGS += -mno-outline-atomics
+endif
 USER_HELLO_ELF = $(USER_VIRT_DIR)/hello.elf
 USER_HELLO_OBJ = $(USER_VIRT_DIR)/hello.o
 USER_CRT_OBJS = $(USER_VIRT_DIR)/crt0.o $(USER_VIRT_DIR)/syscall.o \
@@ -1001,7 +1005,8 @@ $(USER_VIRT_DIR)/pthread.o: User/crt/pthread.c | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c User/crt/pthread.c -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
-	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
+	# 与 Kernel.elf 同：arm64 __sync_* 可能仍需 libgcc（与 -mno-outline-atomics 双保险）
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(LIBGCC)
 endif
 endif
 
