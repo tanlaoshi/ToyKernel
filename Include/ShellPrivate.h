@@ -19,6 +19,8 @@ void ShellCommandsSystemRegisterVirtMin(void);
 void ShellCommandsThemeRegister(void);
 void ShellCommandsFsUiRegister(void);
 void ShellCommandsFsUiStoreRegister(void);
+void ShellCommandsFsExtraRegister(void);
+void ShellFatReport(const char *Cmd, int Err);
 /* FsUi store 内部分文件共用（仅 ShellCommands） */
 int ShellStoreJob(STORE_JOB_KIND Kind, const char *Id);
 void ShellStoreQueued(const char *Verb, const char *Id);
