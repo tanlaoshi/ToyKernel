@@ -1,6 +1,6 @@
 /*
- * HdaStream.c — PR-G-audio-3：Stream+BDL+PCM（HDMI/DP→显示器耳机孔）
- * 48k/16/2；PCH Tag=SDCTL[23:20]；选路/InfoFrame→HdaHdmi。
+ * HdaStream.c — Stream+BDL+DMA（HDMI/DP）；audio-3 建路，audio-4 复用播放
+ * 48k/16/2；PCH Tag=SDCTL[23:20]。
  */
 #include "Hda.h"
 #include "PhysicalMemory.h"
@@ -37,6 +37,9 @@
 
 static int gHdaStreamOk;
 static UINT32 gSdBase;
+static UINT8 *gDma;
+static UINT64 gPhys;
+static UINT8 gCad, gPin, gCvt;
 
 static void StallUs(UINT32 Us) {
     UINT32 Lo, Hi;
@@ -121,32 +124,27 @@ static void FillSquare(INT16 *Pcm, UINTN Frames) {
     }
 }
 
-static int PlayOnce(UINT8 *Dma, UINT64 Phys) {
-    UINT32 *Bdl = (UINT32 *)(UINTN)Dma;
-    INT16 *Pcm = (INT16 *)(UINTN)(Dma + PAGE_SIZE);
-    UINTN PcmBytes = HDA_PCM_PAGES * PAGE_SIZE;
-    UINTN Frames = PcmBytes / 4u;
-    UINT32 Half = (UINT32)(PcmBytes / 2u);
+static int RunDma(UINT32 PcmBytes) {
+    UINT32 *Bdl = (UINT32 *)(UINTN)gDma;
+    UINT32 Half = PcmBytes / 2u;
     UINT32 I, Ctl, Lpib;
     UINT8 Sts;
 
-    FillSquare(Pcm, Frames);
     Zero(Bdl, PAGE_SIZE);
-    Bdl[0] = (UINT32)(Phys + PAGE_SIZE);
+    Bdl[0] = (UINT32)(gPhys + PAGE_SIZE);
     Bdl[1] = 0;
     Bdl[2] = Half;
     Bdl[3] = 0;
-    Bdl[4] = (UINT32)(Phys + PAGE_SIZE + Half);
+    Bdl[4] = (UINT32)(gPhys + PAGE_SIZE + Half);
     Bdl[5] = 0;
     Bdl[6] = Half;
     Bdl[7] = 1u;
     if (!StreamReset()) {
-        ToyLogBoot("Boot: hda stream reset fail\n");
         return 0;
     }
-    HdaMmioWrite32(SdOff(0x18), (UINT32)Phys);
+    HdaMmioWrite32(SdOff(0x18), (UINT32)gPhys);
     HdaMmioWrite32(SdOff(0x1C), 0);
-    HdaMmioWrite32(SdOff(0x08), (UINT32)PcmBytes);
+    HdaMmioWrite32(SdOff(0x08), PcmBytes);
     HdaMmioWrite16(SdOff(0x0C), (UINT16)(HDA_BDL_ENTRIES - 1u));
     HdaMmioWrite16(SdOff(0x12), HDA_FMT_48K_16_2);
     HdaMmioWrite8(SdOff(0x03), 0x1Cu);
@@ -162,7 +160,7 @@ static int PlayOnce(UINT8 *Dma, UINT64 Phys) {
     for (I = 0; I < 5000u; I++) {
         Sts = HdaMmioRead8(SdOff(0x03));
         Lpib = HdaMmioRead32(SdOff(0x04));
-        if ((Sts & HDA_SD_STS_BCIS) || Lpib >= (UINT32)PcmBytes - 64u) {
+        if ((Sts & HDA_SD_STS_BCIS) || Lpib >= PcmBytes - 64u) {
             if (Sts & HDA_SD_STS_BCIS) {
                 HdaMmioWrite8(SdOff(0x03), HDA_SD_STS_BCIS);
             }
@@ -171,13 +169,7 @@ static int PlayOnce(UINT8 *Dma, UINT64 Phys) {
         }
         StallUs(100);
     }
-    Lpib = HdaMmioRead32(SdOff(0x04));
     HdaMmioWrite32(SdOff(0x00), 0);
-    ToyLogBoot("Boot: hda stream timeout sts=");
-    ToyLogBootHex32((UINT32)HdaMmioRead8(SdOff(0x03)));
-    ToyLogBoot(" lpib=");
-    ToyLogBootHex32(Lpib);
-    ToyLogBoot("\n");
     return 0;
 }
 
@@ -185,12 +177,67 @@ int HdaStreamOk(void) {
     return gHdaStreamOk;
 }
 
+void HdaAudioStop(void) {
+    if (gSdBase != 0) {
+        HdaMmioWrite32(SdOff(0x00), 0);
+    }
+    if (gCad != 0xFFu && gCvt != 0) {
+        (void)Verb12(gCad, gCvt, AC_VERB_SET_CHANNEL_STREAMID, 0);
+    }
+}
+
+int HdaAudioPlayPcm(const void *Samples, UINTN Bytes, UINT32 RateHz,
+                    UINT32 Channels, UINT32 Bits) {
+    INT16 *Pcm;
+    UINTN Cap, Frames, N, I;
+    const UINT8 *Src;
+    UINT8 *Dst;
+    UINT32 R, Times;
+
+    if (!gHdaStreamOk || gDma == 0) {
+        return 0;
+    }
+    if (RateHz != 48000u || Channels != 2u || Bits != 16u) {
+        return 0;
+    }
+    Cap = HDA_PCM_PAGES * PAGE_SIZE;
+    Pcm = (INT16 *)(UINTN)(gDma + PAGE_SIZE);
+    Zero(Pcm, Cap);
+    if (Samples == 0 || Bytes == 0) {
+        Frames = Cap / 4u;
+        FillSquare(Pcm, Frames);
+        Times = HDA_BEEP_REPEATS;
+    } else {
+        N = Bytes > Cap ? Cap : Bytes;
+        Src = (const UINT8 *)Samples;
+        Dst = (UINT8 *)Pcm;
+        for (I = 0; I < N; I++) {
+            Dst[I] = Src[I];
+        }
+        Times = 1u;
+    }
+    (void)Verb12(gCad, gCvt, AC_VERB_SET_CHANNEL_STREAMID,
+                 (UINT8)((HDA_STREAM_TAG << 4) | 0));
+    for (R = 0; R < Times; R++) {
+        if (!RunDma((UINT32)Cap)) {
+            HdaAudioStop();
+            return 0;
+        }
+    }
+    HdaAudioStop();
+    return 1;
+}
+
+int HdaAudioProbe(void) {
+    if (gHdaStreamOk) {
+        return 1;
+    }
+    return HdaStreamInit();
+}
+
 int HdaStreamInit(void) {
     UINT16 Gcap;
-    UINT8 Iss, Cad, Afg, Pin, Cvt;
-    UINT8 *Dma;
-    UINT64 Phys;
-    UINT32 R;
+    UINT8 Iss, Afg;
 
     if (gHdaStreamOk) {
         return 1;
@@ -198,13 +245,15 @@ int HdaStreamInit(void) {
     if (!HdaCodecOk()) {
         return 0;
     }
-    Cad = HdaCodecAddr();
+    gCad = HdaCodecAddr();
     Afg = HdaCodecAfg();
-    if (Cad == 0xFFu || Afg == 0) {
+    gPin = 0;
+    gCvt = 0;
+    if (gCad == 0xFFu || Afg == 0) {
         ToyLogBoot("Boot: hda stream no path\n");
         return 0;
     }
-    if (!HdaHdmiPickPath(Cad, &Pin, &Cvt)) {
+    if (!HdaHdmiPickPath(gCad, &gPin, &gCvt)) {
         ToyLogBoot("Boot: hda stream no pin/cvt\n");
         return 0;
     }
@@ -212,34 +261,31 @@ int HdaStreamInit(void) {
     Gcap = HdaMmioRead16(HDA_REG_GCAP);
     Iss = (UINT8)((Gcap >> 8) & 0x0Fu);
     gSdBase = 0x80u + (UINT32)Iss * 0x20u;
-    if (!CodecPathSetup(Cad, Afg, Pin, Cvt)) {
+    if (!CodecPathSetup(gCad, Afg, gPin, gCvt)) {
         return 0;
     }
-    Dma = (UINT8 *)PhysicalMemoryAllocatePages(1u + HDA_PCM_PAGES);
-    if (!Dma) {
+    gDma = (UINT8 *)PhysicalMemoryAllocatePages(1u + HDA_PCM_PAGES);
+    if (!gDma) {
         ToyLogBoot("Boot: hda stream dma fail\n");
         return 0;
     }
-    Phys = (UINT64)(UINTN)Dma;
-    if (Phys > 0xFFFFFFFFu) {
+    gPhys = (UINT64)(UINTN)gDma;
+    if (gPhys > 0xFFFFFFFFu) {
         ToyLogBoot("Boot: hda stream dma >4G\n");
         return 0;
     }
-    Zero(Dma, (1u + HDA_PCM_PAGES) * PAGE_SIZE);
-    if (VirtualMemoryMapRange(Phys, Phys, (1u + HDA_PCM_PAGES) * PAGE_SIZE,
+    Zero(gDma, (1u + HDA_PCM_PAGES) * PAGE_SIZE);
+    if (VirtualMemoryMapRange(gPhys, gPhys, (1u + HDA_PCM_PAGES) * PAGE_SIZE,
                               PTE_PRESENT | PTE_WRITABLE | PTE_PWT | PTE_PCD) != 0) {
         ToyLogBoot("Boot: hda stream map fail\n");
         return 0;
     }
-    for (R = 0; R < HDA_BEEP_REPEATS; R++) {
-        if (!PlayOnce(Dma, Phys)) {
-            (void)Verb12(Cad, Pin, AC_VERB_SET_PIN_WIDGET_CONTROL, 0);
-            (void)Verb12(Cad, Cvt, AC_VERB_SET_CHANNEL_STREAMID, 0);
-            return 0;
-        }
-    }
-    (void)Verb12(Cad, Cvt, AC_VERB_SET_CHANNEL_STREAMID, 0);
     gHdaStreamOk = 1;
+    /* 开机自测蜂鸣（与 HalAudioPlayPcm(NULL) 同路径） */
+    if (!HdaAudioPlayPcm(0, 0, 48000u, 2u, 16u)) {
+        gHdaStreamOk = 0;
+        return 0;
+    }
     ToyLogBoot("Boot: hda stream ok tag=");
     ToyLogBootHex32(HDA_STREAM_TAG);
     ToyLogBoot(" sd=");

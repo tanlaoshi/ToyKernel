@@ -82,6 +82,12 @@ void HalHdaMmioInit(void);
 void HalHdaCodecInit(void);
 /* PR-G-audio-3：输出 Stream DMA；非 x86 空操作 */
 void HalHdaStreamInit(void);
+/* PR-G-audio-4：播 PCM；非 x86 恒失败；Samples=NULL→内置蜂鸣 */
+int HalAudioProbe(void);
+int HalAudioPlayPcm(const void *Samples, UINTN Bytes, UINT32 RateHz,
+                    UINT32 Channels, UINT32 Bits);
+void HalAudioStop(void);
+void HalAudioBeep(void); /* PlayPcm(NULL) 快捷 */
 /* PR-G-igpu-2：观察固件 GGTT/scanout；非 x86 空操作 */
 void HalIgpuGttInit(void);
 /* PR-G-igpu-3：forcewake + blit 骨架；非 x86 空操作 */

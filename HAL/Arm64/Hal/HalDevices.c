@@ -125,6 +125,26 @@ void HalHdaCodecInit(void) {
 void HalHdaStreamInit(void) {
 }
 
+int HalAudioProbe(void) {
+    return 0;
+}
+
+int HalAudioPlayPcm(const void *Samples, UINTN Bytes, UINT32 RateHz,
+                    UINT32 Channels, UINT32 Bits) {
+    (void)Samples;
+    (void)Bytes;
+    (void)RateHz;
+    (void)Channels;
+    (void)Bits;
+    return 0;
+}
+
+void HalAudioStop(void) {
+}
+
+void HalAudioBeep(void) {
+}
+
 void HalIgpuGttInit(void) {
 }
 

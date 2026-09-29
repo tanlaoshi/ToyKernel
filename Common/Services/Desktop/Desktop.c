@@ -184,6 +184,8 @@ void DesktopInit(void) {
     ToyLogGui("Boot: Desktop Ready\n");
     /* PR-G-igpu-3：桌面铺完再色块，避免被壁纸盖掉；看右上角 */
     HalIgpuBlitColorTest();
+    /* PR-G-audio-4：桌面 Ready 后再短鸣，验收 HalAudio API */
+    HalAudioBeep();
     DebugWrite("desktop: solid ready (icons deferred)\n");
 #if TOY_KERNEL_DEBUG
     UiActionSelfCheck();

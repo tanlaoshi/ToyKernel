@@ -1,9 +1,9 @@
 # 声卡驱动 · Intel HDA（PR-G-audio · 活文档）
 
 > **目的**：NUC / QEMU 能 **播一段 PCM**（蜂鸣 / `play` / 课堂演示），补齐「能看见也能听见」。  
-> **排期指针**：路线图 ★ [`PR-G-audio-4`](../路线图.md#pr-g-audio-4)；柱总览活文档本文。  
+> **排期指针**：路线图 ★ [`PR-G-audio-5`](../路线图.md#pr-g-audio-5)；柱总览活文档本文。  
 > **权威代码**：`HAL/X64/Drivers/Hda/` +（后续）`HalAudio*`。  
-> **日期**：2026-09-29 · **★ audio-4**；audio-0…3 ✅ TG（0/1 已 GD）。
+> **日期**：2026-09-29 · **★ audio-5**；audio-0…4 ✅ TG（0/1 已 GD）。
 
 ---
 
@@ -143,27 +143,28 @@
 
 ## 9. PR-G-audio-4 · HalAudio + 播 PCM
 
-> **状态**：**★ JX 待做**（2026-09-29）。  
-> **一句话**：`HalAudioProbe/PlayPcm/Stop`；内核侧播内置短蜂鸣或 RootFs `BEEP.WAV`（小文件）。
+> **状态**：**✅ TG**（2026-09-29；开机+Desktop Ready 两声；`pick pin=6 cvt=2`）。  
+> **一句话**：`HalAudioProbe/PlayPcm/Stop`；内核侧播内置短蜂鸣（Samples=NULL）；48k/16/2。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `Include/HalDevices.h` / `HalAudio*`；Arm/RiscV 空桩；复用 HdaStream |
-| 不改 | 用户态完整 mixer；阻塞策略可先「播完返回」 |
-| 验收 | 可触发一短声；软退静音；smoke 绿 |
+| 改 | `HalDevices.h` / `HalAudio*`；`HdaAudio*` 复用 Stream；Arm/RiscV 空桩；Desktop Ready |
+| 不改 | 用户态 mixer；Shell `play`（→audio-5）；任意采样率 |
+| 验收 | 开机蜂鸣 + 进桌面再鸣（✅）；无卡软退；smoke 绿（✅） |
 | 下一刀 | audio-5 |
 
 ---
 
 ## 10. PR-G-audio-5 · shell/play + 验收
 
-> **一句话**：Shell `play <file>` 或小 `PLAY.ELF`；文档验收清单勾完。
+> **状态**：**★ JX 待做**（2026-09-29）。  
+> **一句话**：Shell `play` / 短 WAV；文档验收清单勾完。
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | Shell 命令或 Apps；可选极简 syscall（若必须用户态播） |
-| 不改 | 商店/流媒体 |
-| 验收 | NUC 插听：蜂鸣 + 短 WAV；QEMU smoke 不回归；柱收官可 TG |
+| 改 | `ShellCommandsAudio.c`；`play [path]`；RootFs `BEEP.WAV` |
+| 不改 | 商店/流媒体；任意采样率混音 |
+| 验收 | NUC：`play` 蜂鸣 + WAV；smoke 绿；清单勾完 |
 | 下一刀 | 柱收官（★ 另选题） |
 
 ---
