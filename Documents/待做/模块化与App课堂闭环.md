@@ -1,6 +1,6 @@
 # ToyOS 模块化与 App 课堂闭环
 
-> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-app-verify`](../路线图.md#pr-mod-app-verify)（bundle 冒烟）。  
+> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-drv-norm`](../路线图.md#pr-mod-drv-norm)（驱动一设备一夹规范）。  
 > **定位**：目录/文件结构模块化 + 驱动一设备一目录 + App「开发→打包→安装」课堂叙事。  
 > **相关**：[`可替换模块化架构规划.md`](../已完/可替换模块化架构规划.md)（SCHED/MEM/FS **政策**可替换 · 已 GD）· [`应用资源自包含与字体共享.md`](../已完/应用资源自包含与字体共享.md)（目录包代码 · 已 GD）· [`开发/应用开发指南.md`](../开发/应用开发指南.md) · [`驱动/驱动开发指南.md`](../驱动/驱动开发指南.md) · [`路线图.md`](../路线图.md)  
 > **命名**：PascalCase；新 `.c` ≤300；搬家刀不改行为。
@@ -274,3 +274,4 @@
 | 2026-09-30 | inventory：ROOTFS-ELF.md 全表；★ 待 TG |
 | 2026-09-30 | sample：hello/guidemo/cat 包内 ELF；build.sh PackStore；pack-app.sh |
 | 2026-09-30 | repack：taskmgr/snake/windemo/blitdemo 入店；废扁平 Apps |
+| 2026-09-30 | trim TG；★→verify；手测清单 `Assets/Store/HANDTEST-MOD.md` |

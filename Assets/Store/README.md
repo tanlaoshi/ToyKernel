@@ -16,7 +16,8 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 - **S3 ✅**：`type=font` → `Assets/Fonts/`；`type=asset` → `Assets/Packs/`；安装后字库自动 `FontReloadAssets`  
 
 总规划 [`Documents/路线图.md`](../../Documents/路线图.md)。
-RootFs 根 ELF 处置表：[`ROOTFS-ELF.md`](ROOTFS-ELF.md)。
+RootFs 根 ELF 处置表：[`ROOTFS-ELF.md`](ROOTFS-ELF.md)。  
+真机/手测清单：[`HANDTEST-MOD.md`](HANDTEST-MOD.md)（`test-mod-verify.sh`）。
 
 ## catalog.txt
 
