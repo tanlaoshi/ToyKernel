@@ -18,7 +18,7 @@
 #include "Db.h"
 
 /* ===== 宏（从 StoreNet.c 搬入；值不变） ===== */
-#define STORE_HTTP_MAX      (48u * 1024u) /* 连续页易碎，教学包够用 */
+#define STORE_HTTP_MAX      (256u * 1024u) /* PR-LAN-store-httpmax：整响应连续页 */
 #define STORE_HTTP_TRIES    2000000       /* 紧循环；需覆盖对端 RTO 重传 */
 #define STORE_HTTP_IDLE_ACK 4000          /* 无新数据时周期性 dup ACK */
 #define STORE_ERR_NET       (-40)
