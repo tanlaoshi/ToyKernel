@@ -1,6 +1,6 @@
 # ToyOS 模块化与 App 课堂闭环
 
-> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-drv-block`](../路线图.md#pr-mod-drv-block)（Block/Ata/UsbMsc 归夹）。  
+> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-drv-netglue`](../路线图.md#pr-mod-drv-netglue)（Net L2 胶水归设备夹）。  
 > **定位**：目录/文件结构模块化 + 驱动一设备一目录 + App「开发→打包→安装」课堂叙事。  
 > **相关**：[`可替换模块化架构规划.md`](../已完/可替换模块化架构规划.md)（SCHED/MEM/FS **政策**可替换 · 已 GD）· [`应用资源自包含与字体共享.md`](../已完/应用资源自包含与字体共享.md)（目录包代码 · 已 GD）· [`开发/应用开发指南.md`](../开发/应用开发指南.md) · [`驱动/驱动开发指南.md`](../驱动/驱动开发指南.md) · [`路线图.md`](../路线图.md)  
 > **命名**：PascalCase；新 `.c` ≤300；搬家刀不改行为。
@@ -128,8 +128,8 @@
 | 簇 | 根/旁路文件 | 目标（原则） |
 | -- | ----------- | ------------ |
 | Input | ~~根 `Input*`~~ → 已迁 `XHCI/` `Ehci/` `Uhci/` `Ps2/`（✅ TG） | 并入控制器目录 |
-| Block | `BlockAhci.c` → `Ahci/`；`BlockNvme.c` → `Nvme/`；`BlockAta.c`/`Ata.*` → `Ata/`；`BlockMsc.c`/`UsbMsc.*` → `Msc/`（双后端门面，刀内写死） | 一设备一夹 |
-| Net glue | `Net/NetE1000.c` 等 | 进 `E1000/`/`Iwl/`/… |
+| Block | ~~根 `Block*`/`Ata*`/`UsbMsc*`~~ → 已迁 `Ahci/` `Nvme/` `Ata/` `Msc/`（✅ TG） | 一设备一夹 |
+| Net glue | `NetE1000`→`E1000/`；`NetAlx`→`Alx/`；`NetRtl`→`Rtl/`；`NetIwl`→`Iwl/`；`NetWifi`→`Wifi/`；`NetVirtio*`/`NetDriver`→`VirtioNet/`；协议核留 `Net/` | 进设备目录 |
 | Demo/Serial | `DemoDriver.c`、`Serial.c` | norm 刀定：Demo 近 `_template`；Serial 独立 `Serial/` |
 
 ### 5.3 PR 表
@@ -280,3 +280,5 @@
 | 2026-09-30 | verify TG；★→drv-norm；指南/_template 一设备一夹 |
 | 2026-09-30 | drv-norm TG；★→drv-input；Input* 迁入控制器夹；三 arch + smoke 键鼠 PASS |
 | 2026-09-30 | drv-input TG；★→drv-block；MSC 写死 `Msc/`（非塞 XHCI） |
+| 2026-09-30 | drv-block JX：Block/Ata/UsbMsc 归夹；三 arch + smoke 挂 3 卷 PASS |
+| 2026-09-30 | drv-block TG；★→drv-netglue |

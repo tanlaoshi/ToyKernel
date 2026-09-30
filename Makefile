@@ -127,6 +127,8 @@ INCLUDES_HAL    = $(INCLUDES_COMMON) \
                   -IHAL/$(HAL_ARCH)/Drivers/Ehci \
                   -IHAL/$(HAL_ARCH)/Drivers/Uhci \
                   -IHAL/$(HAL_ARCH)/Drivers/Ps2 \
+                  -IHAL/$(HAL_ARCH)/Drivers/Ata \
+                  -IHAL/$(HAL_ARCH)/Drivers/Msc \
                   -IHAL/$(HAL_ARCH)/Drivers/Iwl
 
 # PR-B2：非 x86 必须选中 Board 包（默认 virt）；Common 不 -I 板目录
@@ -310,6 +312,8 @@ DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Uhci/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ps2/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Nvme/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ahci/*.c)
+DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ata/*.c)
+DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Msc/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Igpu/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Hda/*.c)
 # PR-H-xhci-split-8：Drivers/XHCI/*.c（Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c
