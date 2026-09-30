@@ -16,6 +16,7 @@ Guest 路径：`Assets/Store/`。与 `Assets/Icons` / `Fonts` / `Locale` / `Pack
 - **S3 ✅**：`type=font` → `Assets/Fonts/`；`type=asset` → `Assets/Packs/`；安装后字库自动 `FontReloadAssets`  
 
 总规划 [`Documents/路线图.md`](../../Documents/路线图.md)。
+局域网台式机仓库 / NUC 下载：[`Documents/开发/局域网商店与聊天.md`](../../Documents/开发/局域网商店与聊天.md)。  
 RootFs 根 ELF 处置表：[`ROOTFS-ELF.md`](ROOTFS-ELF.md)。  
 真机/手测清单：[`HANDTEST-MOD.md`](HANDTEST-MOD.md)（`test-mod-verify.sh`）。
 
@@ -63,8 +64,14 @@ store uncombo guidemo    # -guidemo → -sun8 → -demopack（无引用才卸）
 
 课堂跟做步骤见 [`Documents/开发/应用开发指南.md`](../../Documents/开发/应用开发指南.md) §十四。
 
-若卷上已有 `StoreCache/catalog.txt`（`store sync` 缓存），它会**优先于** `Assets/Store/catalog.txt`；课堂更新 catalog 时请一并刷新 `StoreCache/catalog.txt`，或删掉该缓存文件。
+**现状**：`StoreCache/catalog.txt` 非空时会**整表盖掉** `Assets/Store/catalog.txt`（本地预置从列表消失）。  
+**[`PR-LAN-store-src`](../../Documents/路线图.md#pr-lan-store-src)**：改为**合并**两表；同 `id` 以网络为准；Store 列表行标「本地 / 网络」。细节见 [`局域网商店与聊天.md` §2.8](../../Documents/开发/局域网商店与聊天.md)。  
+在 store-src 落地前，课堂更新 catalog 仍请一并刷新或删掉 `StoreCache/catalog.txt`。
 
 ## S2 联网
 
-宿主静态树见 [`ToyImage/store-repo/`](../../../ToyImage/store-repo/)；Guest 默认 `store.repo=10.0.2.2:8080`。
+- **QEMU 课**：宿主 [`ToyImage/store-repo/`](../../../ToyImage/store-repo/)（或 `Fixtures/store-repo/`）+ `python3 -m http.server 8080`；Guest 默认 `store.repo=10.0.2.2:8080`。  
+- **局域网（台式机 → NUC）**：见 [`Documents/开发/局域网商店与聊天.md`](../../Documents/开发/局域网商店与聊天.md)  
+  - 导出：`./Tools/Scripts/export-store-lan.sh` → `Build/store-lan/`  
+  - 一键服务：`./Tools/Scripts/serve-store-lan.sh`  
+  - NUC：`store repo <台式机IP>:8080` → `sync` / `fetch` / `install`  
