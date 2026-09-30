@@ -173,9 +173,9 @@
 
 | id | 现状 | 目标 |
 | -- | ---- | ---- |
-| `guidemo` | 有 PKG+Assets，**包内无 ELF**（靠根 `GUIDEMO.ELF`） | 包内带 ELF，拷包即可装 |
-| `hello` | catalog 有；常无完整 `packages/hello/` | 完整 `packages/hello/` |
-| `cat` | catalog 有；**无** `packages/cat/`；另扁平 `Apps/CAT.ELF` | 标准目录包；去掉扁平 |
+| `guidemo` | ✅ 包内 `GUIDEMO.ELF`+PKG+Assets（sample） | 保持自包含；扁平根可后续 trim |
+| `hello` | ✅ `packages/hello/` PKG+ELF（sample） | 同上 |
+| `cat` | ✅ `packages/cat/` PKG+ELF（sample）；扁平 `Apps/CAT.ELF` 仍在 | repack/trim 去扁平 |
 | `sun8` / `demopack` | 字体/asset 较完整 | 作非 app 对照样例 |
 
 ### 6.4 RootFs 根目录 ELF 债（盘点 2026-09-30）
@@ -272,3 +272,4 @@
 | 2026-09-30 | 补 §6.4–6.6：RootFs 根 ELF 过时/未入店/未标准打包；增 inventory/repack/rootfs-trim；估工上调 |
 | 2026-09-30 | 升星：★ = PR-MOD-app-doc；排队 inventory…verify |
 | 2026-09-30 | inventory：ROOTFS-ELF.md 全表；★ 待 TG |
+| 2026-09-30 | sample：hello/guidemo/cat 包内 ELF；build.sh PackStore；pack-app.sh |

@@ -187,7 +187,24 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/netlibdemo.elf" "$DEST/NETLIB.ELF"
     cp -f "$USER_OUT/sockdemo.elf" "$DEST/SOCKDEMO.ELF"
     cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
-    echo "Synced Kernel/HELLO/... (+ Apps/hello、StoreCache、Apps/guidemo、ENOSYS) -> $DEST/"
+    # PR-MOD-app-sample：hello/guidemo/cat 包内自含 ELF + 同步镜像 packages/
+    PackStore() {
+        local Id="$1" Src="$2" File="$3"
+        mkdir -p "Assets/Store/packages/$Id" "$DEST/Assets/Store/packages/$Id"
+        cp -f "$Src" "Assets/Store/packages/$Id/$File"
+        if [ -f "Assets/Store/packages/$Id/PKG.TXT" ]; then
+            cp -f "Assets/Store/packages/$Id/PKG.TXT" "$DEST/Assets/Store/packages/$Id/"
+        fi
+        cp -f "$Src" "$DEST/Assets/Store/packages/$Id/$File"
+        if [ -d "Assets/Store/packages/$Id/Assets" ]; then
+            rm -rf "$DEST/Assets/Store/packages/$Id/Assets"
+            cp -a "Assets/Store/packages/$Id/Assets" "$DEST/Assets/Store/packages/$Id/"
+        fi
+    }
+    PackStore hello "$USER_OUT/hello.elf" HELLO.ELF
+    PackStore guidemo "$USER_OUT/guidemo.elf" GUIDEMO.ELF
+    PackStore cat "$USER_OUT/catfile.elf" CAT.ELF
+    echo "Synced Kernel/HELLO/... (+ packages hello/guidemo/cat、Apps、StoreCache、ENOSYS) -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else
