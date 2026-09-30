@@ -2,7 +2,7 @@
 
 > **状态**：网-1 / A / B / **C ✅ TG**（2026-09-23）。正文 §1–§10 是当时的分析快照；**课上日常请读** [`API速查.md`](API速查.md) / [`开课ABI冻结.md`](开课ABI冻结.md) / [`开发者接手指南.md`](开发者接手指南.md)。  
 > **现行 Net ABI = 2.0.1**（`ToyNetConnect` 主机序；POSIX `connect`+`sockaddr` 网络序）。文中若出现「保持 `connect(fd,ip,port)`」属决策对比，**非现行 API**。  
-> **Syscall 号段**权威 [`SyscallABI.h`](../../Include/SyscallABI.h)。  
+> **Syscall 号段**权威 [`SyscallABI.h`](../../Include/Abi/SyscallABI.h)。  
 > **范围**：用户态 `User/include/` + CRT/lib。
 
 ---
@@ -16,7 +16,7 @@ ToyOS 未发布，syscall 号已按**段内双轨**重排（[`PR-U-syscall-abi`]
 | 大段 | 功能族，每段 100 号（0–99 进程、100–199 信号/调度、…） |
 | ToyOS 子段 | 段内前 50（×00–×49）：Toy 独有 API |
 | POSIX 子段 | 段内后 50（×50–×99）：POSIX 标准 API；两轨都有的归此 |
-| 权威头 | 内核 `Include/SyscallABI.h`；用户 `toyos/syscall.h` `#include` 之 |
+| 权威头 | 内核 `Include/Abi/SyscallABI.h`；用户 `toyos/syscall.h` `#include` 之 |
 | 汇编 | `User/Apps/*.S` 用 `#include <toyos/syscall.h>` + `SYS_*`（`__ASSEMBLER__` 只暴露宏） |
 
 **常用号（勿再写旧线性号 0/1/5/7…）**：

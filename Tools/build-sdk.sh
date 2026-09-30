@@ -22,10 +22,10 @@ rm -rf "$DEST"
 mkdir -p "$DEST/include" "$DEST/Library" "$DEST/Documents" "$DEST/Examples"
 
 cp -a "$SRC_INC"/. "$DEST/include/"
-# 树内 toyos/syscall.h 用 ../../../Include/SyscallABI.h；包内改为公开头
-cp -f Include/SyscallABI.h "$DEST/include/SyscallABI.h"
+# 树内 toyos/syscall.h 用 ../../../Include/Abi/SyscallABI.h；包内改为公开头
+cp -f Include/Abi/SyscallABI.h "$DEST/include/SyscallABI.h"
 if [ -f "$DEST/include/toyos/syscall.h" ]; then
-	sed -i 's|#include "../../../Include/SyscallABI.h"|#include <SyscallABI.h>|' \
+	sed -i 's|#include "../../../Include/Abi/SyscallABI.h"|#include <SyscallABI.h>|' \
 		"$DEST/include/toyos/syscall.h"
 fi
 

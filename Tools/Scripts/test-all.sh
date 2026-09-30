@@ -5,10 +5,10 @@
 #       + runtests scheduler|memory|fs
 # 每条 timeout 180s；超时记 FAIL 并继续；最终汇总非零退出。
 #
-# 用法（在 ToyKernel 根）：./Scripts/test-all.sh
+# 用法（在 ToyKernel 根）：./Tools/Scripts/test-all.sh
 set -u
 
-Root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+Root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 ImageRoot="${TOY_IMAGE_ROOT:-$Root/../ToyImage}"
 TimeoutSec="${TOY_TEST_TIMEOUT:-180}"
 Fail=0
@@ -52,9 +52,9 @@ fi
 
 cd "$Root" || exit 2
 
-run_one "runtests scheduler" ./Scripts/runtests.sh scheduler
-run_one "runtests memory" ./Scripts/runtests.sh memory
-run_one "runtests fs" ./Scripts/runtests.sh fs
+run_one "runtests scheduler" ./Tools/Scripts/runtests.sh scheduler
+run_one "runtests memory" ./Tools/Scripts/runtests.sh memory
+run_one "runtests fs" ./Tools/Scripts/runtests.sh fs
 
 cd "$ImageRoot" || exit 2
 run_one "smoke-boot" ./Scripts/smoke-boot.sh

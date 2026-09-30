@@ -1,7 +1,7 @@
 # 网卡扩展规划：高通 Atheros / Realtek / 无线
 
 > **状态**：规划稿（有线 alx/rtl ✅；**无线已改钉 iwl** → [`§3`](#3-无线选型--已钉pr-n-wifi-0-改钉-iwl--2026-09-26)）。  
-> **栈契约**：只实现 [`NIC_L2`](../Include/DriverNic.h) → `NetAttachNic`；勿碰 Common 协议 / lwIP。  
+> **栈契约**：只实现 [`NIC_L2`](../Include/Driver/DriverNic.h) → `NetAttachNic`；勿碰 Common 协议 / lwIP。  
 > **活范例**：[`驱动开发范例-网卡L2.md`](驱动开发范例-网卡L2.md)（e1000 路径）。  
 > **排期正文**：[`路线图.md`](../路线图.md) ★ [`wifi-1`](../路线图.md#pr-n-wifi-1)（NUC `Iwl` · `8086:24fd`）。
 

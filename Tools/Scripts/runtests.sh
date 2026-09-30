@@ -1,7 +1,7 @@
 #!/bin/sh
-# Host 单测。用法：./Scripts/runtests.sh scheduler|memory|fs
+# Host 单测。用法：./Tools/Scripts/runtests.sh scheduler|memory|fs
 set -e
-Root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+Root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$Root"
 case "${1:-}" in
 scheduler)

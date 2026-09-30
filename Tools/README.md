@@ -21,6 +21,9 @@ Unix CRT 头（`include/stdio.h`）与链接脚本 `user.ld` 仍保持小写惯�
 
 ## 目录约定
 
+- `Scripts/` — 仓内辅助脚本（`runtests.sh` / `test-all.sh` / `pack-app.sh`）
+- `Tests/` — Host 单测与 Stub（`make runtests*`）
+- `Sdk/` — 用户态 SDK 模板与示例
 - `Tarballs/` — 下载的压缩包
 - `Extract/` — 解压后的 xPack 工具链（Makefile 会自动探测）
 - `Debs/` / `Root/` — 可选：与本机同版本的 QEMU deb 及解压树（`run-virt-*.sh` 可选用）

@@ -52,7 +52,7 @@
 | 框架 | `Core/` | Device 表、Module runner、调度框架壳 | 设备私有探测细节 |
 | 硬件 | `HAL/<Arch>/Drivers/<Device>/` | 一设备一目录的实现 | Common `#include` 驱动私头 |
 | Virt 共享 | `HAL/Virt/` | 跨 arch MMIO virtio / DTB / ramfb | X64 专用 PCI 细节 |
-| 学生替换 | `Student/` | 课设模板（默认不链） | 上游默认路径 |
+| 学生替换 | `Common/Modules/Student/` | 课设模板（默认不链） | 上游默认路径 |
 
 **Services 根散落（轨 A 债，盘点 2026-09-30）**
 

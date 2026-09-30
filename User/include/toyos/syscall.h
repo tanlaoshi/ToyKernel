@@ -7,7 +7,7 @@
 #define TOYOS_SYSCALL_H
 
 /* SYS_* 号段定义见 SyscallABI.h（段内双轨 + 预留区） */
-#include "../../../Include/SyscallABI.h"
+#include "../../../Include/Abi/SyscallABI.h"
 
 #ifndef __ASSEMBLER__
 

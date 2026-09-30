@@ -49,9 +49,9 @@ Shell 里敲 `ps`（实现：`Common/Services/ShellCommands/ShellCommandsSystem.
 
 ## 2. 开课接口：新增 `SYS_TASK_SNAP`
 
-用户态**禁止** `#include` `Include/Scheduler.h`。要把 `ps` 数据交给 App，只能：
+用户态**禁止** `#include` `Include/Core/Scheduler.h`。要把 `ps` 数据交给 App，只能：
 
-1. 在 **`Include/SyscallABI.h`** 系统信息段占号（本范例 **`SYS_TASK_SNAP = 1200`**）。  
+1. 在 **`Include/Abi/SyscallABI.h`** 系统信息段占号（本范例 **`SYS_TASK_SNAP = 1200`**）。  
 2. 定义 **稳定布局** 的用户头：`User/include/toyos/task.h`（`TOY_TASK_SNAP` / `TOY_TASK_ENTRY` + `toy_task_snap()`）。  
 3. 内核实现：`SysTaskSnap`（`Core/Syscall/SyscallProc.c`），在 `SyscallDispatch` 里分发。  
 4. **同步文档**：开课 ABI / API 速查 / 本指南（改字段须升 `TOY_TASK_SNAP_VER`）。
@@ -213,7 +213,7 @@ toyos> exec TASKMGR.ELF
 | ---- | ---- |
 | App | `User/Apps/TaskMgr.c` |
 | 用户 ABI 头 | `User/include/toyos/task.h` |
-| 号段 | `Include/SyscallABI.h`（`SYS_TASK_SNAP`） |
+| 号段 | `Include/Abi/SyscallABI.h`（`SYS_TASK_SNAP`） |
 | 内核实现 | `Core/Syscall/SyscallProc.c` → `SysTaskSnap` |
 | 分发 | `Core/Syscall/Syscall.c` |
 | Shell 对照 | `ShellCommandsSystem.c` → `CommandPs` |

@@ -7,7 +7,7 @@
 > | **第 1 轨** | POSIX / C 习惯名；语义尽量接近，差异写在「注意」 | `unistd.h` `stdio.h` `fcntl.h` …；网络 POSIX 目标头 `sys/socket.h` |
 > | **第 2 轨** | Toy 命名规范 | `ToyUi.h` `ToyGfx.h` `ToyNet.h` `FsUtil.h` `dirent.h` `toyos/` |
 >
-> **Syscall 号**：权威 [`SyscallABI.h`](../../Include/SyscallABI.h)（段内双轨）。用户 `toyos/syscall.h` **包含**该头。  
+> **Syscall 号**：权威 [`SyscallABI.h`](../../Include/Abi/SyscallABI.h)（段内双轨）。用户 `toyos/syscall.h` **包含**该头。  
 > **开课版本**：[`开课ABI冻结.md`](开课ABI冻结.md)。自学入口：[`开发者接手指南.md`](开发者接手指南.md)。
 
 ---

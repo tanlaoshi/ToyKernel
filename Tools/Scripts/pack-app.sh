@@ -1,11 +1,11 @@
 #!/bin/bash
 # pack-app.sh — 把已编好的 ELF 填进 Assets/Store/packages/<id>/（PR-MOD-app-sample）
 # 用法:
-#   ./Scripts/pack-app.sh <id> <elf-path> [file-name]
+#   ./Tools/Scripts/pack-app.sh <id> <elf-path> [file-name]
 # 例:
-#   ./Scripts/pack-app.sh hello Build/User/hello.elf HELLO.ELF
+#   ./Tools/Scripts/pack-app.sh hello Build/User/hello.elf HELLO.ELF
 set -e
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 Id="$1"
 Elf="$2"
 File="${3:-$(basename "$Elf" | tr 'a-z' 'A-Z')}"

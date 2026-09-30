@@ -117,6 +117,12 @@ endif
 endif
 
 INCLUDES_COMMON = -IInclude \
+                  -IInclude/Abi \
+                  -IInclude/Hal \
+                  -IInclude/Core \
+                  -IInclude/Driver \
+                  -IInclude/Library \
+                  -IInclude/Services \
                   -ICommon/Library \
                   -IFonts \
                   -IHAL/$(HAL_ARCH) \
@@ -262,11 +268,14 @@ $(DEMO_STAMP): FORCE
 	@if [ ! -f $@ ] || ! cmp -s $@.new $@; then mv $@.new $@; else rm -f $@.new; fi
 
 CORE_SRCS     := $(wildcard Core/*.c)
+CORE_SRCS     += $(wildcard Core/Kernel/*.c)
 CORE_SRCS     += $(wildcard Core/Scheduler/*.c)
 CORE_SRCS     += $(wildcard Core/Process/*.c)
 CORE_SRCS     += $(wildcard Core/TaskFd/*.c)
 CORE_SRCS     += $(wildcard Core/Syscall/*.c)
 CORE_SRCS     += $(wildcard Core/VirtualMemory/*.c)
+CORE_SRCS     += $(wildcard Core/PhysicalMemory/*.c)
+CORE_SRCS     += $(wildcard Core/Device/*.c)
 SERVICES_SRCS := $(wildcard Common/Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
 SERVICES_SRCS += $(wildcard Common/Services/Locale/*.c)
@@ -427,8 +436,8 @@ USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
 USER_LD = User/user.ld
 USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
-	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include -IInclude
-USER_ASFLAGS = -IUser/include -IInclude
+	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include -IInclude -IInclude/Abi
+USER_ASFLAGS = -IUser/include -IInclude -IInclude/Abi
 USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
 else
 EXTRA_OBJS = $(HALDIR)/Startup_asm.o
@@ -464,7 +473,7 @@ USER_SYSCALL_SRC = User/crt/syscall_riscv.S
 USER_LDFLAGS = -m elf64lriscv -z noexecstack
 endif
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
-	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include -IInclude
+	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include -IInclude -IInclude/Abi
 ifeq ($(ARCH),arm64)
 # pthread __sync_*：内联原子，避免裸链依赖 __aarch64_swp4_sync（libgcc）
 USER_CFLAGS += -mno-outline-atomics
@@ -485,7 +494,7 @@ SCHEDULER ?= round-robin
 ifeq ($(SCHEDULER),round-robin)
 SCHED_SRCS := Common/Modules/SchedulerRoundRobin/SchedulerRoundRobin.c
 else ifeq ($(SCHEDULER),priority)
-SCHED_SRCS := Student/SchedulerPriority/SchedulerPriority.c
+SCHED_SRCS := Common/Modules/Student/SchedulerPriority/SchedulerPriority.c
 CFLAGS_COMMON += -DTOY_SCHED_PRIORITY
 else
 $(error unknown SCHEDULER=$(SCHEDULER))
@@ -496,7 +505,7 @@ MEMORY ?= bitmap
 ifeq ($(MEMORY),bitmap)
 MEMORY_SRCS := Common/Modules/PhysicalMemoryBitmap/PhysicalMemoryBitmap.c
 else ifeq ($(MEMORY),bestfit)
-MEMORY_SRCS := Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c
+MEMORY_SRCS := Common/Modules/Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c
 CFLAGS_COMMON += -DTOY_MEM_BESTFIT
 else
 $(error Unknown MEMORY: $(MEMORY))
@@ -510,8 +519,8 @@ FS_SRCS := Common/Modules/FileSystemFat/FatFsOps.c \
            Common/Modules/FileSystemFat/FatIo.c \
            Common/Modules/FileSystemFat/FatFormat.c
 else ifeq ($(FS),ram)
-FS_SRCS := Student/FileSystemRam/FileSystemRam.c \
-           Student/FileSystemRam/FileSystemRamCompat.c
+FS_SRCS := Common/Modules/Student/FileSystemRam/FileSystemRam.c \
+           Common/Modules/Student/FileSystemRam/FileSystemRamCompat.c
 CFLAGS_COMMON += -DTOY_FS_RAM
 else
 $(error Unknown FS: $(FS))
@@ -540,22 +549,22 @@ ASFLAGS_ARCH = -DTOY_BRINGUP=$(BRINGUP)
 .DEFAULT_GOAL := all
 
 HOSTCC ?= gcc
-TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_SCHED_HOST -I Tests/Stub -I Include
+TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_SCHED_HOST -I Tools/Tests/Stub -I Include -I Include/Abi -I Include/Core -I Include/Driver -I Include/Library -I Include/Services -I Include/Hal
 ifeq ($(SCHEDULER),priority)
 TEST_CFLAGS += -DTOY_SCHED_PRIORITY
 endif
 
-MEM_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_MEM_HOST -I Tests/Stub -I Include
+MEM_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_MEM_HOST -I Tools/Tests/Stub -I Include -I Include/Abi -I Include/Core -I Include/Driver -I Include/Library -I Include/Services -I Include/Hal
 ifeq ($(MEMORY),bestfit)
 MEM_TEST_CFLAGS += -DTOY_MEM_BESTFIT
 endif
 
-FS_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_FS_HOST -I Tests/Stub -I Include
+FS_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_FS_HOST -I Tools/Tests/Stub -I Include -I Include/Abi -I Include/Core -I Include/Driver -I Include/Library -I Include/Services -I Include/Hal
 ifeq ($(FS),ram)
 FS_TEST_CFLAGS += -DTOY_FS_RAM
-FS_TEST_POLICY := Student/FileSystemRam/FileSystemRam.c
+FS_TEST_POLICY := Common/Modules/Student/FileSystemRam/FileSystemRam.c
 else
-FS_TEST_POLICY := Tests/Stub/FsStub.c
+FS_TEST_POLICY := Tools/Tests/Stub/FsStub.c
 endif
 
 scheduler: runtests
@@ -564,17 +573,17 @@ runtests:
 	@mkdir -p Build/Tests
 	$(HOSTCC) $(TEST_CFLAGS) -c $(SCHED_SRCS) -o Build/Tests/policy.o
 	$(HOSTCC) $(TEST_CFLAGS) -c Core/Scheduler/SchedulerOps.c -o Build/Tests/ops.o
-	$(HOSTCC) $(TEST_CFLAGS) -c Tests/Stub/SchedulerStub.c -o Build/Tests/stub.o
-	$(HOSTCC) $(TEST_CFLAGS) -c Tests/TestScheduler.c -o Build/Tests/test.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/Stub/SchedulerStub.c -o Build/Tests/stub.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/TestScheduler.c -o Build/Tests/test.o
 	$(HOSTCC) -o Build/Tests/TestScheduler Build/Tests/policy.o Build/Tests/ops.o Build/Tests/stub.o Build/Tests/test.o
 	./Build/Tests/TestScheduler
 
 runtests-memory:
 	@mkdir -p Build/Tests
 	$(HOSTCC) $(MEM_TEST_CFLAGS) -c $(MEMORY_SRCS) -o Build/Tests/mem_policy.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Core/PhysicalMemoryOps.c -o Build/Tests/mem_ops.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tests/Stub/MemoryStub.c -o Build/Tests/mem_stub.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tests/TestMemory.c -o Build/Tests/mem_test.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Core/PhysicalMemory/PhysicalMemoryOps.c -o Build/Tests/mem_ops.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/Stub/MemoryStub.c -o Build/Tests/mem_stub.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/TestMemory.c -o Build/Tests/mem_test.o
 	$(HOSTCC) -o Build/Tests/TestMemory Build/Tests/mem_policy.o Build/Tests/mem_ops.o Build/Tests/mem_stub.o Build/Tests/mem_test.o
 	./Build/Tests/TestMemory
 
@@ -582,7 +591,7 @@ runtests-fs:
 	@mkdir -p Build/Tests
 	$(HOSTCC) $(FS_TEST_CFLAGS) -c Common/Library/Vfs.c -o Build/Tests/fs_vfs.o
 	$(HOSTCC) $(FS_TEST_CFLAGS) -c $(FS_TEST_POLICY) -o Build/Tests/fs_policy.o
-	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tests/TestFs.c -o Build/Tests/fs_test.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tools/Tests/TestFs.c -o Build/Tests/fs_test.o
 	$(HOSTCC) -o Build/Tests/TestFs Build/Tests/fs_vfs.o Build/Tests/fs_policy.o Build/Tests/fs_test.o
 	./Build/Tests/TestFs
 
@@ -636,9 +645,6 @@ $(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Modules/%.o: Common/Modules/%.c | $(BUILDDIR)
-	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
-
-$(BUILDDIR)/Student/%.o: Student/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
