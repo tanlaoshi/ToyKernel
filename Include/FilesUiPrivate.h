@@ -136,9 +136,13 @@ int ReloadList(void);
 int IsMostlyText(const char *Buf, UINTN Len);
 void UpdatePreview(void);
 
-/* ===== Paint（FilesUiPaint.c） ===== */
+/* ===== Paint（FilesUiPaint.c / FilesUiList*.c） ===== */
 void PaintOverlay(const char *Line1, const char *Line2, const char *Line3);
 void PaintList(void);
+void PaintListDrawSide(UINT32 X, UINT32 Y, UINT32 H, UINT32 LineH, UINT32 SideW);
+void PaintListDrawHeader(UINT32 Cx, UINT32 Y, UINT32 LineH, UINT32 Cw);
+void PaintListDrawRows(UINT32 ListX, UINT32 ListW, UINT32 Y, UINT32 H, UINT32 LineH);
+void PaintListDrawPreview(UINT32 Cx, UINT32 Y, UINT32 H, UINT32 LineH, UINT32 Cw);
 void PaintView(void);
 void PaintConfirm(void);
 void PaintPrompt(void);
