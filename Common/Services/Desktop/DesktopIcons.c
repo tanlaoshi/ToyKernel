@@ -107,7 +107,7 @@ void LoadDesktopIcons(void) {
     int i;
     static const char *const SysTags[DESKTOP_SYS_ICON_COUNT] = {
         "desktop: shell", "desktop: set", "desktop: files", "desktop: store",
-        "desktop: info", "desktop: game"
+        "desktop: info"
     };
 
     for (i = 0; i < DESKTOP_ICON_COUNT; i++) {

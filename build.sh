@@ -164,13 +164,14 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/threaddemo.elf" "$DEST/THREADDEMO.ELF"
     cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
 
-    # 课堂预装目录包（非扁平）；仍禁止 Apps/*.ELF
+    # 课堂预装目录包（非扁平）；仍禁止 Apps/*.ELF。Snake 不预装，须 store install。
     mkdir -p "$DEST/Apps/hello" "$DEST/Apps/guidemo" "$DEST/Apps/taskmgr" "$DEST/StoreCache"
     cp -f "$USER_OUT/hello.elf" "$DEST/Apps/hello/HELLO.ELF"
     cp -f "$USER_OUT/hello.elf" "$DEST/StoreCache/HELLO.ELF"
     cp -f "$USER_OUT/guidemo.elf" "$DEST/Apps/guidemo/GUIDEMO.ELF"
     cp -f "$USER_OUT/taskmgr.elf" "$DEST/Apps/taskmgr/TASKMGR.ELF"
-    rm -f "$DEST/Apps/TASKMGR.ELF" "$DEST/Apps/CAT.ELF"
+    rm -f "$DEST/Apps/TASKMGR.ELF" "$DEST/Apps/CAT.ELF" "$DEST/Apps/SNAKE.ELF"
+    rm -rf "$DEST/Apps/snake"
 
     PackStore() {
         local Id="$1" Src="$2" File="$3"

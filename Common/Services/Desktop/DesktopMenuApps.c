@@ -151,7 +151,7 @@ static void AddApp(DESKTOP_ACTION Act, const char *Label, const char *Path,
 
 /*
  * 先 INST（taskbar=yes / 无 PKG 旧包），再扁平 Apps 下 ELF。
- * 跳过 SNAKE（Game 专用）；扁平与 INST 同名 ELF 去重。
+ * category=game（及遗留 SNAKE）进 Game，不进 Apps；扁平与 INST 同名 ELF 去重。
  */
 void FillStartMenuAppRows(int AppCap) {
     int AppN = 0;
@@ -189,6 +189,11 @@ void FillStartMenuAppRows(int AppCap) {
                 continue;
             }
             HavePkg = (StoreReadAppDesktopMeta(In->Id, &Meta) == FAT_OK);
+            /* category=game → 只进 Game；旧 snake 包同 */
+            if ((HavePkg && Meta.CategoryGame) ||
+                MenuNameEqIgnoreCase(In->Id, "snake")) {
+                continue;
+            }
             if (HavePkg && !Meta.TaskbarYes) {
                 continue;
             }

@@ -20,6 +20,7 @@
 #define STORE_ENTRIES_MAX    32
 #define STORE_INSTALLED_MAX  24
 #define STORE_ICON_REL_MAX   64
+#define STORE_CATEGORY_MAX   16 /* PKG category=；如 game → 开始菜单 Game */
 
 typedef struct STORE_ENTRY {
     char Id[STORE_ID_MAX];
@@ -43,10 +44,12 @@ typedef struct STORE_INSTALLED {
 typedef struct STORE_APP_DESKTOP_META {
     int DesktopYes;
     int TaskbarYes;
+    int CategoryGame; /* category=game → 开始菜单 Game，不进 Apps */
     char Title[STORE_TITLE_MAX];
     char IconRel[STORE_ICON_REL_MAX];
     /* PR-S-app-font：相对应用目录的私有 .fnt；空 = 系统字 */
     char FontRel[STORE_ICON_REL_MAX];
+    char Category[STORE_CATEGORY_MAX];
 } STORE_APP_DESKTOP_META;
 
 /* 加载 catalog；优先 StoreCache/（S2 同步后），再 Assets/；成功返回条目数 */

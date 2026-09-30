@@ -226,5 +226,4 @@ void DesktopRefreshLabels(void) {
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
     gIcons[3].Label = LocStr(MSG_ICON_STORE);
     gIcons[4].Label = LocStr(MSG_ICON_DEVICES);
-    gIcons[5].Label = LocStr(MSG_ICON_SNAKE);
 }

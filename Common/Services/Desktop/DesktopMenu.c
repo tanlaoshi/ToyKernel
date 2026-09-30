@@ -96,17 +96,8 @@ void RebuildStartMenu(void) {
     L = LocStr(MSG_ICON_APPS);
     MenuAddRow(DESKTOP_ACTION_APPS, L ? L : "Apps", 0, 1, 3);
     L = LocStr(MSG_ICON_GAME);
-    MenuAddRow(DESKTOP_ACTION_GAME, L ? L : "Game", 0, 1, 5);
-    if (gMenuGameCount < MENU_GAME_MAX) {
-        MENU_ROW *Gr = &gMenuGameRows[gMenuGameCount++];
-
-        L = LocStr(MSG_ICON_SNAKE);
-        Gr->Action = DESKTOP_ACTION_EXEC;
-        Gr->Enabled = 1;
-        Gr->IconSrc = 5;
-        MenuCopyStr(Gr->Label, sizeof(Gr->Label), L ? L : "Snake");
-        MenuCopyStr(Gr->Path, sizeof(Gr->Path), "SNAKE.ELF");
-    }
+    MenuAddRow(DESKTOP_ACTION_GAME, L ? L : "Game", 0, 1, 3); /* Store 图标；无系统 Snake 槽 */
+    FillStartMenuGameRows();
 
     FillStartMenuAppRows(MenuMaxAppSlots());
 

@@ -241,7 +241,7 @@ void DrawStartMenuRaw(void) {
         UINT32 Fh;
 
         GameFlyoutGeom(&Fx, &Fy, &Fw, &Fh);
-        DrawFlyoutBox(Fx, Fy, Fw, Fh, gMenuGameRows, gMenuGameCount, 5);
+        DrawFlyoutBox(Fx, Fy, Fw, Fh, gMenuGameRows, gMenuGameCount, 3);
     }
 
     DesktopMenuCoverUpdate();

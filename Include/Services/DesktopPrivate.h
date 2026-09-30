@@ -24,7 +24,7 @@
 #include "ToySerialLog.h"
 
 /* ===== 宏（从 Desktop.c 搬入；值不变） ===== */
-#define DESKTOP_SYS_ICON_COUNT 6
+#define DESKTOP_SYS_ICON_COUNT 5 /* Shell/Settings/Files/Store/Devices；Snake 只经 Store */
 #define DESKTOP_APP_ICON_MAX   8
 #define DESKTOP_ICON_COUNT     (DESKTOP_SYS_ICON_COUNT + DESKTOP_APP_ICON_MAX)
 #define DESKTOP_ICON_SIZE     48
@@ -163,6 +163,7 @@ void MenuCopyStr(char *Dst, int Max, const char *Src);
 int MenuNameEqIgnoreCase(const char *A, const char *B);
 void RebuildStartMenu(void);
 void FillStartMenuAppRows(int AppCap);
+void FillStartMenuGameRows(void);
 void AppsFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh);
 void GameFlyoutGeom(UINT32 *Fx, UINT32 *Fy, UINT32 *Fw, UINT32 *Fh);
 
