@@ -93,7 +93,7 @@ void HalIgpuGttInit(void);
 /* PR-G-igpu-3：forcewake + blit 骨架；非 x86 空操作 */
 void HalIgpuForcewakeInit(void);
 void HalIgpuBlitInit(void);
-/* 桌面 Ready 后：右上角 XY_COLOR_BLT 自测（非 x86 空） */
+/* 可选自测：右上角 XY_COLOR_BLT（非 x86 空）；桌面不再自动调用（PR-G-igpu-corner） */
 void HalIgpuBlitColorTest(void);
 /* PR-G-igpu-4：大矩形 Present/CopyRect；非 x86 恒失败→CPU */
 void HalIgpuPresentPrepare(void);

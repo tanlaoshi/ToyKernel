@@ -182,8 +182,7 @@ void DesktopInit(void) {
     gIconDragMoved = 0;
     LoadWallpaper();
     ToyLogGui("Boot: Desktop Ready\n");
-    /* PR-G-igpu-3：桌面铺完再色块，避免被壁纸盖掉；看右上角 */
-    HalIgpuBlitColorTest();
+    /* PR-G-igpu-corner：不再画右上角品红自测块（原 PR-G-igpu-3） */
     /* PR-G-audio-4：桌面 Ready 后再短鸣，验收 HalAudio API */
     HalAudioBeep();
     DebugWrite("desktop: solid ready (icons deferred)\n");
