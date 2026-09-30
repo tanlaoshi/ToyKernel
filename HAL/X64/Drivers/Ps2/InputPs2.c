@@ -8,7 +8,7 @@
 #include "InputPs2.h"
 #include "VirtualMemory.h"
 #include "Hal.h"
-#include "Ps2/Ps2Private.h"
+#include "Ps2Private.h"
 
 static void Ps2Poll(void) {
     int Guard = 64;

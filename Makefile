@@ -123,6 +123,10 @@ INCLUDES_COMMON = -IInclude \
                   -IHAL/$(HAL_ARCH)/Hal
 INCLUDES_HAL    = $(INCLUDES_COMMON) \
                   -IHAL/$(HAL_ARCH)/Drivers \
+                  -IHAL/$(HAL_ARCH)/Drivers/XHCI \
+                  -IHAL/$(HAL_ARCH)/Drivers/Ehci \
+                  -IHAL/$(HAL_ARCH)/Drivers/Uhci \
+                  -IHAL/$(HAL_ARCH)/Drivers/Ps2 \
                   -IHAL/$(HAL_ARCH)/Drivers/Iwl
 
 # PR-B2：非 x86 必须选中 Board 包（默认 virt）；Common 不 -I 板目录

@@ -84,7 +84,7 @@
 
 ## 进阶
 
-- 简单参考：`HAL/X64/Drivers/InputPs2.c`（遗留根 → 目标 `Ps2/`）
+- 简单参考：`HAL/X64/Drivers/Ps2/InputPs2.c`
 - 复杂参考：`HAL/X64/Drivers/XHCI/`（已一夹）
 - 网卡 L2：`HAL/X64/Drivers/E1000/` + `Include/DriverNic.h`
 - 网卡骨架：同目录 `TemplateNetL2.c`（注释草稿，不链入）
