@@ -271,3 +271,4 @@
 | 2026-09-30 | 初稿：三轨 + PR 表 + 估工；对应 Untitled-1 模块化愿景 |
 | 2026-09-30 | 补 §6.4–6.6：RootFs 根 ELF 过时/未入店/未标准打包；增 inventory/repack/rootfs-trim；估工上调 |
 | 2026-09-30 | 升星：★ = PR-MOD-app-doc；排队 inventory…verify |
+| 2026-09-30 | inventory：ROOTFS-ELF.md 全表；★ 待 TG |
