@@ -129,6 +129,7 @@ INCLUDES_HAL    = $(INCLUDES_COMMON) \
                   -IHAL/$(HAL_ARCH)/Drivers/Ps2 \
                   -IHAL/$(HAL_ARCH)/Drivers/Ata \
                   -IHAL/$(HAL_ARCH)/Drivers/Msc \
+                  -IHAL/$(HAL_ARCH)/Drivers/Net \
                   -IHAL/$(HAL_ARCH)/Drivers/Iwl
 
 # PR-B2：非 x86 必须选中 Board 包（默认 virt）；Common 不 -I 板目录
@@ -301,6 +302,7 @@ FONT_SRCS     := $(wildcard Common/Fonts/*.c)
 DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Video/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Net/*.c)
+DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/VirtioNet/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/E1000/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Alx/*.c)
 DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Rtl/*.c)

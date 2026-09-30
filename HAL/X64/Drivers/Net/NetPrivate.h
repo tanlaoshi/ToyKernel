@@ -1,8 +1,8 @@
 /*
- * NetPrivate.h — Net / NetVirtio 内部共享（仅 HAL/X64/Drivers/Net*.c）
+ * NetPrivate.h — Net 协议核 + VirtioNet 队列共享（Drivers/Net、Drivers/VirtioNet）
  *
  * 禁止 Common / User 包含；对外用 Net.h / HalDevices。
- * PR-H-net-split-1：与 NetVirtio.c 一并引入。
+ * PR-H-net-split-1：与 VirtioNet/NetVirtio.c 一并引入；PR-MOD-drv-netglue 迁入 Net/。
  */
 #ifndef NET_PRIVATE_H
 #define NET_PRIVATE_H
