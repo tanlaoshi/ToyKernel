@@ -1,6 +1,6 @@
 # ToyOS 模块化与 App 课堂闭环
 
-> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-svc-misc`](../路线图.md#pr-mod-svc-misc)（Services 根散落归夹）。  
+> **状态**：**柱实现刀齐**（✅ TG svc-misc）；★ 空；可 **GD** 归档。  
 > **定位**：目录/文件结构模块化 + 驱动一设备一目录 + App「开发→打包→安装」课堂叙事。  
 > **相关**：[`可替换模块化架构规划.md`](../已完/可替换模块化架构规划.md)（SCHED/MEM/FS **政策**可替换 · 已 GD）· [`应用资源自包含与字体共享.md`](../已完/应用资源自包含与字体共享.md)（目录包代码 · 已 GD）· [`开发/应用开发指南.md`](../开发/应用开发指南.md) · [`驱动/驱动开发指南.md`](../驱动/驱动开发指南.md) · [`路线图.md`](../路线图.md)  
 > **命名**：PascalCase；新 `.c` ≤300；搬家刀不改行为。
@@ -97,7 +97,7 @@
 ### 4.1 现状
 
 - `Modules/` 仅 SCHED/MEM/FS，目录形态已达标。
-- `Services/` 大量已是 `Theme/`、`Tcp/`、`Store/`…；**LwIp / Udp / NetConfig / Install** 与部分 **Gui\*** 仍在根。
+- `Services/` 根业务 `.c`：**已清**（svc-lwip / svc-misc）；余见各子目录。
 
 ### 4.2 PR 表
 
@@ -249,12 +249,12 @@
 
 ### 整柱远期验收（各实现刀各自勾）
 
-- [ ] 指南含可抄的打包安装节
-- [ ] 至少一个自包含 app 样例包
-- [ ] RootFs 根 ELF = 文档白名单；产品/课包经 catalog 可装
-- [ ] 无新增扁平 `Apps/*.ELF`
-- [ ] Drivers 根无新增业务 `.c`；Input/Block/Net 债按刀清完
-- [ ] Services LwIp 等归夹完成
+- [x] 指南含可抄的打包安装节
+- [x] 至少一个自包含 app 样例包
+- [x] RootFs 根 ELF = 文档白名单；产品/课包经 catalog 可装
+- [x] 无新增扁平 `Apps/*.ELF`
+- [x] Drivers 根无新增业务 `.c`；Input/Block/Net 债按刀清完
+- [x] Services LwIp 等归夹完成
 
 ### 非目标
 
@@ -286,3 +286,5 @@
 | 2026-09-30 | drv-netglue TG；★→svc-lwip；轨 B 驱动夹收官 |
 | 2026-09-30 | svc-lwip JX：`Services/LwIp/`；Install 保持根；三 arch + e1000 smoke PASS |
 | 2026-09-30 | svc-lwip TG；★→svc-misc |
+| 2026-09-30 | svc-misc JX：GuiCompose/Cursor/Wm + Install→FileSystem；Services 根清零；smoke PASS |
+| 2026-09-30 | svc-misc TG；★ 空；整柱实现刀齐（待 GD） |
