@@ -72,10 +72,25 @@ const char *ValueAfterKey(const char *Line, const char *Key);
 void ApplyLine(const char *Line);
 int ApplyDbKey(const char *Key);
 
-/* ThemeSave.c / ThemeCfg.c */
+/* ThemeSave.c / ThemeCfg.c / ThemeSaveFmt.c */
 void PutHex6(char *Dst, UINT32 Color);
 void PutDec(char *Dst, UINT32 V, UINTN *Len);
 int ThemeLoadFromCfg(void);
 int ThemeOverlayModeFromCfg(void);
+
+/* PR-F-theme-1：ThemeSave 拆分 */
+typedef struct THEME_SAVE_VALS {
+    char FontVal[8];
+    char ModeVal[24];
+    char ScaleVal[8];
+    char FadeVal[8];
+    char WallVal[2];
+    char GradVal[2];
+} THEME_SAVE_VALS;
+
+void ThemeSaveFillVals(THEME_SAVE_VALS *V);
+UINTN ThemeSaveBuildCfg(char *Buf, UINTN Cap, const THEME_SAVE_VALS *V);
+int ThemeSaveWriteCfg(const char *Buf, UINTN N);
+int ThemeSaveWriteDb(const THEME_SAVE_VALS *V);
 
 #endif
