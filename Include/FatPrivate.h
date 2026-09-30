@@ -136,4 +136,11 @@ int ReadFileClusters(UINT32 Cluster, UINT32 Size, void *Buffer, UINTN MaxSize,
                      UINTN *OutSize);
 int DirUnlinkKeepClusters(FAT_DIR_CTX Parent, const char *Leaf);
 
+/* —— FatFileWrite*.c（PR-F-fat-1） —— */
+int FatWriteStoreChunk(UINT32 Cl, const UINT8 *Src, UINT32 Off, UINT32 Chunk, UINT32 Cb);
+int FatWriteExist(FAT_DIR_CTX Parent, int Index, UINT32 OldCluster,
+                  const UINT8 *Src, UINTN Size, UINT32 NeedClusters, UINT32 Cb);
+int FatWriteNew(FAT_DIR_CTX Parent, const char *Leaf, int Existing, int Index,
+                const UINT8 *Src, UINTN Size, UINT32 NeedClusters, UINT32 Cb);
+
 #endif
