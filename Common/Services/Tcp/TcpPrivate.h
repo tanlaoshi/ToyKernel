@@ -87,4 +87,15 @@ int TcpQueueBytes(const void *Data, UINTN Len);
 void TcpProcessAck(UINT32 Ack);
 void TcpRetransmit(void);
 
+/* —— TcpInput*.c（PR-F-tcp-1） —— */
+void TcpInputListen(UINT32 SrcIp, UINT16 SrcPort, UINT16 DstPort,
+                    UINT8 Flags, UINT32 Seq, UINT16 Window);
+void TcpInputSynSent(UINT32 SrcIp, UINT16 SrcPort, UINT8 Flags,
+                     UINT32 Seq, UINT32 Ack, UINT16 Window);
+int TcpInputSynRcvd(UINT32 SrcIp, UINT16 SrcPort, UINT8 Flags,
+                    UINT32 Ack, UINT16 Window);
+void TcpInputEstablished(UINT16 DstPort, UINT32 SrcIp, UINT16 SrcPort,
+                         UINT8 Flags, UINT32 Seq, UINT32 Ack, UINT16 Window,
+                         const UINT8 *Data, UINTN DataLen);
+
 #endif
