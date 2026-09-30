@@ -15,7 +15,7 @@
 #define SYS_LIGHTWEIGHT_PROT        0
 
 #define MEM_ALIGNMENT               4U
-#define MEM_SIZE                    (64 * 1024)
+#define MEM_SIZE                    (128 * 1024)
 #define MEMP_NUM_PBUF               32
 #define MEMP_NUM_RAW_PCB            2
 #define MEMP_NUM_UDP_PCB            4
@@ -28,7 +28,8 @@
 #define MEMP_NUM_TCPIP_MSG_INPKT    0
 
 #define PBUF_POOL_SIZE              64
-#define PBUF_POOL_BUFSIZE           512
+/* 一帧以太网整包进单个 pbuf，免链上 pbuf_take 边角 */
+#define PBUF_POOL_BUFSIZE           1560
 
 #define LWIP_TCP                    1
 #define LWIP_UDP                    1
@@ -64,6 +65,14 @@
 #define LWIP_NUM_NETIF_CLIENT_DATA  0
 
 #define LWIP_PLATFORM_ASSERT(x)     do { (void)(x); } while (0)
+
+/*
+ * 真机 NIC TX 校验卸载时，链上偶发「校验字段未填」；软件再验会整段丢掉，
+ * store sync 表现为 http sent → http empty。QEMU virtio 不受影响。
+ */
+#define CHECKSUM_CHECK_IP           0
+#define CHECKSUM_CHECK_TCP          0
+#define CHECKSUM_CHECK_UDP          0
 
 /* DNS/TCP/UDP 随机端口；sys_now 原型在 arch/cc.h */
 #define LWIP_RAND()                 ((u32_t)(sys_now() ^ 0xA5A5A5A5u))

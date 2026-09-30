@@ -6,14 +6,15 @@
 
 int IwlSendFrame(const UINT8 *Frame, UINTN FrameLen) {
     /* 以太网 → 802.11 ToDS data + LLC；WPA2 时插 CCMP 头并加密 */
-    UINT8 Wlan[420];
+    /* 曾 Wlan[420]/FrameLen≤360：lwIP MSS=1460 大段 TX 直接 -1 */
+    UINT8 Wlan[1600];
     UINTN i;
     UINTN BodyLen;
     UINTN WireLen;
     UINT64 Pn;
     static UINT64 gTxPn = 1;
 
-    if (!IwlAssociated() || !Frame || FrameLen < 14 || FrameLen > 360) {
+    if (!IwlAssociated() || !Frame || FrameLen < 14 || FrameLen > 1514) {
         return -1;
     }
     BodyLen = 8u + (FrameLen - 14u); /* LLC/SNAP + payload */

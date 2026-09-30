@@ -125,7 +125,11 @@ static err_t SockRecvCb(void *Arg, struct tcp_pcb *Pcb, struct pbuf *P, err_t Er
         return ERR_OK;
     }
     if (P == NULL) {
+        /* 对端 FIN：必须 tcp_close，勿只空 Pcb（否则重传/半开） */
         S->Phase = 2;
+        if (tcp_close(Pcb) != ERR_OK) {
+            tcp_abort(Pcb);
+        }
         S->Pcb = NULL;
         return ERR_OK;
     }
@@ -140,6 +144,9 @@ static err_t SockRecvCb(void *Arg, struct tcp_pcb *Pcb, struct pbuf *P, err_t Er
     pbuf_copy_partial(P, S->Rx + S->RxLen, (u16_t)Copy, 0);
     S->RxLen += Copy;
     tcp_recved(Pcb, (u16_t)Copy);
+    /* 标立即 ACK 并刷出：oneshot 正文已在链上，仍需尽快窗口更新 */
+    tcp_set_flags(Pcb, TF_ACK_NOW);
+    (void)tcp_output(Pcb);
     if ((UINTN)P->tot_len > Copy) {
         /* 削掉已拷前缀，ERR_MEM 让 lwIP 带着剩余再投（勿 free） */
         if (pbuf_remove_header(P, (u16_t)Copy) != 0) {
@@ -443,11 +450,19 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
     UINTN N;
     UINTN i;
     int Tries;
+    int ForeverHalt;
 
     if (S == NULL || Buf == NULL || Len == 0) {
         return -TOY_EINVAL;
     }
-    Tries = TimeoutMs > 0 ? TimeoutMs : 1;
+    /* TimeoutMs < 0：非阻塞，只看一眼（store HTTP 外环自己 Breath，避免鼠标假死） */
+    if (TimeoutMs < 0) {
+        ForeverHalt = 0;
+        Tries = 1;
+    } else {
+        ForeverHalt = 1;
+        Tries = TimeoutMs > 0 ? TimeoutMs : 1;
+    }
     while (Tries-- > 0) {
         LwIpLock();
         if (S->RxLen > 0) {
@@ -481,6 +496,9 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
         }
         LwIpUnlock();
         LwIpService();
+        if (!ForeverHalt) {
+            return 0;
+        }
         HalCpuHalt();
     }
     return 0;

@@ -44,7 +44,8 @@ void IwlPoll(void) {
         UINT8 Code;
         const UINT8 *Payload;
         UINTN PayLen;
-        UINT8 Mutable[512];
+        /* 曾 512：catalog HTTP ~800B eth → 802.11 更大，截断后解密/LLC 烂 → http empty */
+        UINT8 Mutable[2048];
         UINTN i;
 
         Took++;
@@ -78,7 +79,8 @@ void IwlPoll(void) {
                    | ((UINT32)Payload[4 + FLen + 3] << 24);
             }
             if (FLen > sizeof(Mutable)) {
-                FLen = sizeof(Mutable);
+                IwlLogStage("rx>buf");
+                continue;
             }
             for (i = 0; i < FLen; i++) {
                 Mutable[i] = Payload[4 + i];

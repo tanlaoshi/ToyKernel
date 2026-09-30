@@ -31,7 +31,22 @@ void StoreUiDoButton(int Btn) {
     }
     gHoverBtn = -1;
     gPressBtn = -1;
+    if (Btn == 3) {
+        if (StoreUiWriteRepoFile() != 0) {
+            StoreSetStatus("repo write fail");
+            StoreUiRepaint();
+            return;
+        }
+        if (GuiOpenEdit(STORE_REPO_PATH) < 0) {
+            StoreSetStatus("repo edit fail");
+        } else {
+            StoreSetStatus("edit repo.txt, save, Sync");
+        }
+        StoreUiRepaint();
+        return;
+    }
     if (Btn == 2) {
+        StoreUiApplyRepoFile();
         if (StoreJobEnqueue(STORE_JOB_SYNC, 0) != 0) {
             StoreSetStatus("busy...");
         } else {

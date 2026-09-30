@@ -11,6 +11,7 @@
 #include "toy_ip.h"
 #include "Net.h"
 #include "Hal.h"
+#include "HalConsole.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
@@ -112,12 +113,18 @@ void ToyNetifInput(const UINT8 *Frame, UINTN Len) {
     if (Len < 14 || Len > 1518) {
         return;
     }
-    P = pbuf_alloc(PBUF_RAW, (u16_t)Len, PBUF_POOL);
+    /*
+     * PBUF_RAM：避免 PBUF_POOL 耗尽时静默丢包（store sync → http empty）。
+     * 单连接短响应足够；失败打串口便于真机对照。
+     */
+    P = pbuf_alloc(PBUF_RAW, (u16_t)Len, PBUF_RAM);
     if (P == NULL) {
+        HalConsoleWriteSerial("netif: pbuf_alloc fail\n");
         return;
     }
     if (pbuf_take(P, Frame, (u16_t)Len) != ERR_OK) {
         pbuf_free(P);
+        HalConsoleWriteSerial("netif: pbuf_take fail\n");
         return;
     }
     if (gToyNetif.input(P, &gToyNetif) != ERR_OK) {

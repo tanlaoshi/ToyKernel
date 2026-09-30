@@ -188,6 +188,9 @@
 #define RRD_NOR_SHIFT        16
 #define RRD_NOR_MASK         0xFu
 #define RRD_ERR_RES_SHIFT    20
+#define RRD_ERR_FCS_SHIFT    21
+#define RRD_ERR_FAE_SHIFT    22
+#define RRD_ERR_TRUNC_SHIFT  23
 #define RRD_ERR_LEN_SHIFT    30
 #define RRD_UPDATED_SHIFT    31
 
@@ -240,6 +243,17 @@ static inline void AlxMmioW16(UINT32 Off, UINT16 Val) {
 
 static inline void AlxFence(void) {
     __asm__ volatile("mfence" ::: "memory");
+}
+
+/* DMA 写后、CPU 读前：刷掉可能陈旧的 cache line（真机 Alx RX） */
+static inline void AlxDmaInv(void *Ptr, UINTN Len) {
+    UINT8 *B = (UINT8 *)Ptr;
+    UINTN Off;
+
+    for (Off = 0; Off < Len; Off += 64u) {
+        __asm__ volatile("clflush (%0)" : : "r"(B + Off) : "memory");
+    }
+    AlxFence();
 }
 
 static inline void AlxZero(void *Ptr, UINTN Len) {

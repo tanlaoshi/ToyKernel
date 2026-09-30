@@ -118,7 +118,7 @@ int StorePayloadBypassActive(void);
 /* 当前本机 arch 标签（如 x86_64） */
 const char *StoreHostArch(void);
 
-/* PR-S2：仓库 ip:port（ToyDB store.repo=；默认 10.0.2.2:8080） */
+/* PR-S2：仓库 ip:port（ToyDB store.repo=；默认 QEMU 10.0.2.2:8080 / 真机 192.168.31.124:8080） */
 void StoreRepoLoadFromDb(void);
 int  StoreRepoSet(const char *IpPort);
 void StoreRepoGet(UINT32 *OutIp, UINT16 *OutPort);

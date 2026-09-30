@@ -29,7 +29,8 @@
 #define STORE_SB_W      12u
 #define STORE_BTN_H     28u
 #define STORE_BTN_GAP   10u
-#define STORE_BTN_N     3
+#define STORE_BTN_N     4
+#define STORE_REPO_PATH STORE_DIR "/repo.txt"
 #define STORE_MAP_MAX   STORE_ENTRIES_MAX
 
 /* ===== 类型（布局不变） ===== */
@@ -88,6 +89,9 @@ void Reload(void);
 STORE_ENTRY *SelectedEntry(void);
 void StoreBtnGeom(UINT32 ListX, UINT32 ListW);
 void ClampScroll(void);
+void StoreUiFormatRepo(char *Out, int OutMax); /* "repo: a.b.c.d:port" */
+void StoreUiApplyRepoFile(void);               /* 读 Store/repo.txt → store.repo */
+int  StoreUiWriteRepoFile(void);               /* 当前源写入 repo.txt；0=ok */
 
 /* ===== StoreUi.c ===== */
 void StoreUiActInit(void);

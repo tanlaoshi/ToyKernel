@@ -26,19 +26,20 @@ int gHoverBtn = -1;
 int gPressBtn = -1;
 
 const char *const gBtnLabel[STORE_BTN_N] = {
-    "Install", "Remove", "Sync"
+    "Install", "Remove", "Sync", "Repo"
 };
 
-/* PR-GUI-migrate-store：底栏三钮 ASYNC，Fn 仍走 StoreJobEnqueue */
+/* PR-GUI-migrate-store / store-2：底栏四钮 */
 UI_BUTTON_ACTION gStoreAct[STORE_BTN_N];
 
 static void ActInstall(void *Ctx) { (void)Ctx; StoreUiDoButton(0); }
 static void ActRemove(void *Ctx)  { (void)Ctx; StoreUiDoButton(1); }
 static void ActSync(void *Ctx)    { (void)Ctx; StoreUiDoButton(2); }
+static void ActRepo(void *Ctx)    { (void)Ctx; StoreUiDoButton(3); }
 
 void StoreUiActInit(void) {
     static UI_ACTION_FN const Fns[STORE_BTN_N] = {
-        ActInstall, ActRemove, ActSync
+        ActInstall, ActRemove, ActSync, ActRepo
     };
     int i;
 
@@ -103,8 +104,9 @@ void StoreUiOpen(void) {
     gHoverBtn = -1;
     gPressBtn = -1;
     StoreUiActInit();
+    StoreUiApplyRepoFile();
     Reload();
-    StoreSetStatus(gFiltCount > 0 ? "select / Install|Remove|Sync" : "no catalog");
+    StoreSetStatus(gFiltCount > 0 ? "Install|Remove|Sync|Repo" : "no catalog");
     StorePaintList();
     DebugWrite("store-ui: three-pane open\n");
 }

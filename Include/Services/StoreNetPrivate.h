@@ -25,8 +25,16 @@
 #define STORE_ERR_HTTP      (-41)
 #define STORE_ERR_HASH      (-42)
 #define STORE_ERR_ALLOC     (-43)
-#define STORE_REPO_DEFAULT_IP   0x0A000202u /* 10.0.2.2 */
+#define STORE_REPO_DEFAULT_IP_QEMU 0x0A000202u /* 10.0.2.2（user-net 宿主） */
+#define STORE_REPO_DEFAULT_IP_REAL 0xC0A81F7Cu /* 192.168.31.124（NUC 局域网台式机） */
+#define STORE_REPO_DEFAULT_IP      STORE_REPO_DEFAULT_IP_QEMU /* 静态初值；Load 时按环境覆盖 */
 #define STORE_REPO_DEFAULT_PORT 8080u
+
+/* 无 store.repo / repo.txt 时的默认 IP：QEMU→网关，真机→LAN 台式机 */
+static inline UINT32 StoreRepoDefaultIp(void) {
+    return HalCpuIsHypervisor() ? STORE_REPO_DEFAULT_IP_QEMU
+                                : STORE_REPO_DEFAULT_IP_REAL;
+}
 
 /* ===== StoreNetParse.c ===== */
 int FindBody(const UINT8 *Resp, UINTN Len, UINTN *BodyOff, UINTN *BodyLen,

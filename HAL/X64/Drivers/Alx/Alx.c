@@ -6,18 +6,21 @@
 #include "PhysicalMemory.h"
 #include "Net.h"
 #include "Hal.h"
+#include "HalConsole.h"
 #include "ToySerialLog.h"
 
 static ALX_TPD *gTpd;
 static ALX_RFD *gRfd;
 static ALX_RRD *gRrd;
 static UINT8 *gRxBufs;
-static UINT8 *gTxBuf;
+static UINT8 *gTxBufs;
 static UINT64 gDescPhys;
 static UINT16 gTxWrite;
 static UINT16 gRxWrite;
 static UINT16 gRxRead;
 static UINT16 gRrdRead;
+static UINT32 gAlxRxOk;
+static UINT32 gAlxRxDrop;
 
 static UINT64 RxBufPhys(UINT16 Idx) {
     return gDescPhys + 2u * PAGE_SIZE + (UINT64)Idx * ALX_BUF_SIZE;
@@ -94,7 +97,8 @@ int AlxBringUp(void) {
     /* MAC 复位会清 STAD：写回永久址 */
     AlxSetMacAddr(gAlxMac);
 
-    Pages = 1u + 1u + 6u + 1u;
+    /* TPD页 + RFD/RRD页 + RX环 + TX环（每槽一缓冲，免单缓冲 DMA 未完就覆盖） */
+    Pages = 1u + 1u + 6u + 6u;
     Mem = (UINT8 *)PhysicalMemoryAllocatePages(Pages);
     if (!Mem) {
         ToyLogNet("Boot: Alx Ring OOM\n");
@@ -106,7 +110,7 @@ int AlxBringUp(void) {
     gRfd = (ALX_RFD *)(UINTN)(Mem + PAGE_SIZE);
     gRrd = (ALX_RRD *)(UINTN)(Mem + PAGE_SIZE + 256u);
     gRxBufs = Mem + 2u * PAGE_SIZE;
-    gTxBuf = Mem + (Pages - 1u) * PAGE_SIZE;
+    gTxBufs = Mem + 8u * PAGE_SIZE;
 
     InitRingPtrs();
     AlxConfigureBasic();
@@ -148,26 +152,22 @@ int AlxSendFrame(const UINT8 *Frame, UINTN Len) {
         return -2;
     }
 
-    AlxZero(gTxBuf, Wire);
-    AlxCopy(gTxBuf, Frame, Len);
-    D = &gTpd[gTxWrite];
-    AlxZero(D, sizeof(*D));
-    D->Len = (UINT16)Wire;
-    D->Word1 = (1u << TPD_EOP_SHIFT);
-    D->AddrLo = (UINT32)(UINTN)gTxBuf;
-    D->AddrHi = (UINT32)((UINT64)(UINTN)gTxBuf >> 32);
+    {
+        UINT8 *Tx = gTxBufs + (UINTN)gTxWrite * ALX_BUF_SIZE;
+        AlxZero(Tx, Wire);
+        AlxCopy(Tx, Frame, Len);
+        D = &gTpd[gTxWrite];
+        AlxZero(D, sizeof(*D));
+        D->Len = (UINT16)Wire;
+        D->Word1 = (1u << TPD_EOP_SHIFT);
+        D->AddrLo = (UINT32)(UINTN)Tx;
+        D->AddrHi = (UINT32)((UINT64)(UINTN)Tx >> 32);
+    }
     AlxFence();
     gTxWrite = Next;
     AlxMmioW16(ALX_TPD_PRI0_PIDX, gTxWrite);
-
-    Spin = 100000;
-    while (Spin-- > 0) {
-        if (AlxMmioR16(ALX_TPD_PRI0_CIDX) == gTxWrite) {
-            return 0;
-        }
-        HalCpuRelax();
-    }
-    return -3;
+    /* 每槽独立缓冲：提交即返回，勿持 lwIP 锁空等 DMA */
+    return 0;
 }
 
 void AlxPoll(void) {
@@ -179,31 +179,59 @@ void AlxPoll(void) {
     (void)AlxMmioR32(ALX_ISR);
 
     while (Left-- > 0) {
-        UINT32 Word3 = gRrd[gRrdRead].Word3;
+        UINT32 Word3;
         UINT32 Word0;
         UINT16 Si;
         UINT16 Nor;
         UINT16 PktLen;
+        UINT32 HardErr;
 
+        AlxDmaInv(&gRrd[gRrdRead], sizeof(gRrd[0]));
+        Word3 = gRrd[gRrdRead].Word3;
         if ((Word3 & (1u << RRD_UPDATED_SHIFT)) == 0) {
             break;
         }
-        gRrd[gRrdRead].Word3 = Word3 & ~(1u << RRD_UPDATED_SHIFT);
+        /* 先读齐字段再清 UPDATED，避免与 DMA 写撕咬 */
         Word0 = gRrd[gRrdRead].Word0;
         Si = (UINT16)((Word0 >> RRD_SI_SHIFT) & RRD_SI_MASK);
         Nor = (UINT16)((Word0 >> RRD_NOR_SHIFT) & RRD_NOR_MASK);
         PktLen = (UINT16)(Word3 & RRD_PKTLEN_MASK);
+        gRrd[gRrdRead].Word3 = Word3 & ~(1u << RRD_UPDATED_SHIFT);
+        AlxFence();
 
-        if (Nor == 1 && Si == gRxRead &&
-            (Word3 & ((1u << RRD_ERR_RES_SHIFT) | (1u << RRD_ERR_LEN_SHIFT))) == 0 &&
+        /*
+         * 只丢真正损坏帧（FCS/对齐/截断/长度）。
+         * ERR_RES 在部分包（大段 HTTP）上会误标，一丢就 store http empty。
+         */
+        HardErr = (1u << RRD_ERR_FCS_SHIFT) | (1u << RRD_ERR_FAE_SHIFT) |
+                  (1u << RRD_ERR_TRUNC_SHIFT) | (1u << RRD_ERR_LEN_SHIFT);
+        if (Nor == 1 && Si < ALX_RING_COUNT && (Word3 & HardErr) == 0 &&
             PktLen > ALX_ETH_FCS_LEN + 14u) {
-            UINT8 *Buf = gRxBufs + (UINTN)gRxRead * ALX_BUF_SIZE;
-            NetInputFrame(Buf, (UINTN)(PktLen - ALX_ETH_FCS_LEN));
+            UINT8 *Buf = gRxBufs + (UINTN)Si * ALX_BUF_SIZE;
+            UINTN Pay = (UINTN)(PktLen - ALX_ETH_FCS_LEN);
+
+            AlxDmaInv(Buf, Pay);
+            NetInputFrame(Buf, Pay);
+            gAlxRxOk++;
+        } else {
+            gAlxRxDrop++;
+            if (gAlxRxDrop <= 8u) {
+                HalConsoleWriteSerial("alx: rx drop\n");
+            }
         }
 
-        gRxRead = (UINT16)((gRxRead + 1u) % ALX_RING_COUNT);
+        gRxRead = (UINT16)((Si + (Nor ? Nor : 1u)) % ALX_RING_COUNT);
         gRrdRead = (UINT16)((gRrdRead + 1u) % ALX_RING_COUNT);
         RefillRx();
+    }
+}
+
+void AlxGetRxStats(UINT32 *OkOut, UINT32 *DropOut) {
+    if (OkOut) {
+        *OkOut = gAlxRxOk;
+    }
+    if (DropOut) {
+        *DropOut = gAlxRxDrop;
     }
 }
 

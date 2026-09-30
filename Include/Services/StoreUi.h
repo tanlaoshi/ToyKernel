@@ -2,7 +2,7 @@
  * StoreUi.h — 商店 GUI 三分栏（类 Files）
  *
  * 左：All / Apps / Fonts / Assets / Installed
- * 中：过滤后的包列表；右：详情 + Install/Remove/Sync
+ * 中：过滤后的包列表；右：详情 + Install/Remove/Sync/Repo
  */
 #ifndef STORE_UI_H
 #define STORE_UI_H

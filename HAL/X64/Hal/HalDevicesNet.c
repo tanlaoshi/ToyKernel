@@ -5,6 +5,7 @@
 #include "DriverNet.h"
 #include "Net.h"
 #include "E1000.h"
+#include "LwIp.h"
 
 int HalNetInit(void) {
     return NetInit();
@@ -19,6 +20,15 @@ UINT32 HalNetNicEpoch(void) {
 }
 
 void HalNetPoll(void) {
+    /*
+     * lwIP on：走 LwIpService（try_lock + poll），勿再 LwIpLock 阻塞。
+     * 阻塞锁 + SchedulerIoBreath 会与 Worker 持锁 Send 互等，表现为
+     * sync:catalog 无串口、宿主收不到 GET。
+     */
+    if (LwIpActive()) {
+        LwIpService();
+        return;
+    }
     ToyDriverNetPoll();
 }
 

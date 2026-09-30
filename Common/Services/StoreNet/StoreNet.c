@@ -60,7 +60,7 @@ static int ParseRepoVal(const char *Val) {
 void StoreRepoLoadFromDb(void) {
     char Val[DB_VAL_MAX];
 
-    gRepoIp = STORE_REPO_DEFAULT_IP;
+    gRepoIp = StoreRepoDefaultIp();
     gRepoPort = (UINT16)STORE_REPO_DEFAULT_PORT;
     if (DbGet("store.repo", Val, sizeof(Val)) == DB_OK) {
         (void)ParseRepoVal(Val);

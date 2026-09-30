@@ -19,6 +19,7 @@
 #include "lwip/sys.h"
 #include "toy_ping.h"
 #include "HalDevices.h"
+#include "DriverNet.h"
 
 static int gLwIpReady;
 static u32_t gLwIpMs;
@@ -76,16 +77,21 @@ void LwIpPoll(void) {
 /*
  * NO_SYS：Shell 与 Worker 都可能进来。软锁保持 IF=1；
  * 抢不到锁则本拍跳过（调用方会再转），绝不 SpinLock cli。
+ *
+ * 必须把 NetPoll 也放进同一把锁：否则 Shell 与 HttpGet Worker 并发
+ * AlxPoll 会踩 RX 环 → store sync 只发出 GET、收 0 字节（http empty）。
+ * 勿调 HalNetPoll（其内部也会抢锁，非递归）。
  */
 void LwIpService(void) {
-    HalNetPoll();
     if (!gLwIpReady) {
+        ToyDriverNetPoll();
         return;
     }
     if (__sync_lock_test_and_set(&gLwIpSoft, 1u)) {
         SchedulerIoBreath();
         return;
     }
+    ToyDriverNetPoll();
     gLwIpMs++;
     sys_check_timeouts();
     __sync_lock_release(&gLwIpSoft);

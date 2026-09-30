@@ -21,9 +21,9 @@ int  LwIpDhcpStart(int TimeoutMs);
 void LwIpDhcpStop(void);
 int  LwIpDhcpRunning(void);
 void LwIpPoll(void);
-/* 关中断下 HalNetPoll + lwIP timers（NO_SYS 防重入） */
+/* NetPoll + lwIP timers，同一把软锁（NO_SYS；Shell/Worker 可并发调用） */
 void LwIpService(void);
-/* SMP：与 LwIpService 同一把锁；持锁期间禁止 Halt */
+/* SMP：与 LwIpService / HalNetPoll(lwIP) 同一把锁；持锁期间禁止 Halt */
 void LwIpLock(void);
 void LwIpUnlock(void);
 int  LwIpActive(void);

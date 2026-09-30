@@ -6,6 +6,7 @@
 #include "LwIp.h"
 #include "Scheduler.h"
 #include "Console.h"
+#include "HalConsole.h"
 
 static int BuildGetReq(const char *Path, char *Out, int OutMax) {
     const char *A = "GET ";
@@ -30,12 +31,40 @@ static int BuildGetReq(const char *Path, char *Out, int OutMax) {
     return N;
 }
 
+static void LogGot(const char *Tag, UINTN Got) {
+    char Msg[48];
+    int n = 0;
+    UINT32 V;
+    char Tmp[12];
+    int t;
+
+    while (*Tag && n < 28) {
+        Msg[n++] = *Tag++;
+    }
+    V = (UINT32)Got;
+    t = 0;
+    if (V == 0) {
+        Tmp[t++] = '0';
+    } else {
+        while (V) {
+            Tmp[t++] = (char)('0' + (V % 10));
+            V /= 10;
+        }
+    }
+    while (t > 0 && n < 46) {
+        Msg[n++] = Tmp[--t];
+    }
+    Msg[n++] = '\n';
+    Msg[n] = 0;
+    HalConsoleWriteSerial(Msg);
+}
+
 /*
- * 成功：*OutGot 为完整 HTTP 响应字节数。
+ * 单次 GET。成功：*OutGot 为完整 HTTP 响应字节数。
  * 失败：STORE_ERR_*（调用方释放 Resp）。
  */
-int HttpGetLwIp(UINT32 Ip, UINT16 Port, const char *Path,
-                UINT8 *Resp, UINTN Cap, UINTN *OutGot) {
+static int HttpGetLwIpOnce(UINT32 Ip, UINT16 Port, const char *Path,
+                           UINT8 *Resp, UINTN Cap, UINTN *OutGot) {
     int Sock;
     char Req[256];
     int Rlen;
@@ -43,50 +72,56 @@ int HttpGetLwIp(UINT32 Ip, UINT16 Port, const char *Path,
     int Tries;
     int Idle = 0;
     int N;
-    int Spin = 0;
     UINTN BodyOff = 0;
     UINTN BodyLen = 0;
     int HaveLen = 0;
     int Rc;
+    UINTN LastLog = 0;
 
-    if (!Path || !Resp || !OutGot || Cap == 0) {
-        return STORE_ERR_NET;
-    }
     *OutGot = 0;
 
-    if (!LwIpActive() && LwIpInit() != 0) {
-        ConsoleNotify("store: lwip init fail\n");
-        return STORE_ERR_NET;
+    HalConsoleWriteSerial("store: http begin\n");
+    {
+        char IpBuf[20];
+        HalNetFormatIp(Ip, IpBuf, (int)sizeof(IpBuf));
+        HalConsoleWriteSerial("store: http repo ");
+        HalConsoleWriteSerial(IpBuf);
+        HalConsoleWriteSerial("\n");
     }
-
     Sock = LwIpSocketCreate();
     if (Sock < 0) {
-        ConsoleNotify("store: lwip socket fail\n");
+        HalConsoleWriteSerial("store: lwip socket fail\n");
         return STORE_ERR_NET;
     }
+    HalConsoleWriteSerial("store: http connect\n");
     if (LwIpSocketConnect(Sock, Ip, Port) != 0) {
         LwIpSocketClose(Sock);
-        ConsoleNotify("store: tcp syn fail\n");
+        HalConsoleWriteSerial("store: tcp syn fail\n");
         return STORE_ERR_NET;
     }
 
     Rlen = BuildGetReq(Path, Req, (int)sizeof(Req));
     if (Rlen <= 0 || LwIpSocketSend(Sock, Req, (UINTN)Rlen) < 0) {
         LwIpSocketClose(Sock);
-        ConsoleNotify("store: tcp send fail\n");
+        HalConsoleWriteSerial("store: tcp send fail\n");
         return STORE_ERR_NET;
     }
+    HalConsoleWriteSerial("store: http sent\n");
 
     /*
-     * 收满 Content-Length 或 EOF。
-     * 有 CL 未齐：允许短空闲等窗推进；长时间无字节则停（避免 Tries 近永久忙）。
+     * 非阻塞收 + 每圈 Breath：Worker 上阻塞 Recv/Halt 会鼠标假死。
+     * Idle 约数秒无字节则放弃（宿主已 200 仍 empty → 上层 retry）。
      */
-    Tries = 60000;
+    Tries = 20000;
     while (Tries-- > 0 && Got < Cap) {
-        N = LwIpSocketRecv(Sock, Resp + Got, Cap - Got, 8);
+        N = LwIpSocketRecv(Sock, Resp + Got, Cap - Got, -1);
         if (N > 0) {
             Got += (UINTN)N;
             Idle = 0;
+            if (Got - LastLog >= 64 || Got == (UINTN)N) {
+                LogGot("store: http got=", Got);
+                LastLog = Got;
+            }
             if (Got >= 16) {
                 Rc = FindBody(Resp, Got, &BodyOff, &BodyLen, &HaveLen);
                 if (Rc == -2) {
@@ -97,39 +132,92 @@ int HttpGetLwIp(UINT32 Ip, UINT16 Port, const char *Path,
                     break;
                 }
             }
+            SchedulerIoBreath();
             continue;
         }
         if (N == -2) {
+            HalConsoleWriteSerial(Got == 0 ? "store: http eof0\n" : "store: http eof\n");
             break;
         }
         if (N < 0) {
+            HalConsoleWriteSerial("store: http rst0\n");
             break;
         }
         Idle++;
         LwIpService();
-        if ((++Spin & 0x3F) == 0) {
-            SchedulerIoBreath();
-        }
+        SchedulerIoBreath();
         if (HaveLen && BodyOff + BodyLen <= Got) {
             break;
         }
-        /* 无 CL：有数据后空闲则停 */
-        if (!HaveLen && Got > 0 && Idle > 1000) {
+        if (!HaveLen && Got > 0 && Idle > 2000) {
             break;
         }
-        /* 有 CL 未齐：~数秒无新字节 → 交给上层报 truncated */
-        if (HaveLen && Got > 0 && Idle > 4000) {
+        if (HaveLen && BodyOff + BodyLen > Got && Idle > 4000) {
             break;
         }
-        if (Got == 0 && Idle > 3000) {
+        if (Got == 0 && Idle > 2500) {
             break;
         }
     }
     LwIpSocketClose(Sock);
     if (Got == 0) {
-        ConsoleNotify("store: tcp connect timeout\n");
+        HalConsoleWriteSerial("store: http empty\n");
         return STORE_ERR_NET;
     }
+    LogGot("store: http end=", Got);
     *OutGot = Got;
     return 0;
+}
+
+/*
+ * 成功：*OutGot 为完整 HTTP 响应字节数。
+ * 失败：STORE_ERR_*（调用方释放 Resp）。
+ * 头到齐、体未到时最多再试 2 次，避免 UI 卡 sync: catalog。
+ */
+int HttpGetLwIp(UINT32 Ip, UINT16 Port, const char *Path,
+                UINT8 *Resp, UINTN Cap, UINTN *OutGot) {
+    int Attempt;
+    int Rc;
+    UINTN Got = 0;
+    UINTN BodyOff = 0;
+    UINTN BodyLen = 0;
+    int HaveLen = 0;
+
+    if (!Path || !Resp || !OutGot || Cap == 0) {
+        return STORE_ERR_NET;
+    }
+    *OutGot = 0;
+
+    if (!LwIpActive() && LwIpInit() != 0) {
+        HalConsoleWriteSerial("store: lwip init fail\n");
+        return STORE_ERR_NET;
+    }
+
+    for (Attempt = 0; Attempt < 3; Attempt++) {
+        Got = 0;
+        Rc = HttpGetLwIpOnce(Ip, Port, Path, Resp, Cap, &Got);
+        if (Rc != 0) {
+            if (Attempt + 1 < 3) {
+                HalConsoleWriteSerial("store: http retry\n");
+                continue;
+            }
+            return Rc;
+        }
+        BodyOff = 0;
+        BodyLen = 0;
+        HaveLen = 0;
+        Rc = FindBody(Resp, Got, &BodyOff, &BodyLen, &HaveLen);
+        if (Rc == 0 && HaveLen && BodyOff + BodyLen > Got) {
+            if (Attempt + 1 < 3) {
+                HalConsoleWriteSerial("store: http retry\n");
+                continue;
+            }
+            *OutGot = Got;
+            return 0;
+        }
+        *OutGot = Got;
+        return 0;
+    }
+    *OutGot = Got;
+    return STORE_ERR_NET;
 }

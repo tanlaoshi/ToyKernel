@@ -68,77 +68,40 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         Ty += LineH + 2;
     }
     if (Ty + LineH < MaxY) {
-        Line[0] = 'i'; Line[1] = 'd'; Line[2] = ':'; Line[3] = ' ';
-        {
-            int k = 4;
-            const char *P = E->Id;
-            while (*P && k < 70) {
-                Line[k++] = *P++;
-            }
-            Line[k] = 0;
-        }
+        Line[0]='i'; Line[1]='d'; Line[2]=':'; Line[3]=' ';
+        { int k=4; const char *P=E->Id; while (*P && k<70) Line[k++]=*P++; Line[k]=0; }
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        Line[0] = 't'; Line[1] = 'y'; Line[2] = 'p'; Line[3] = 'e';
-        Line[4] = ':'; Line[5] = ' ';
-        {
-            int k = 6;
-            const char *P = E->Type;
-            while (*P && k < 70) {
-                Line[k++] = *P++;
-            }
-            Line[k] = 0;
-        }
+        Line[0]='t'; Line[1]='y'; Line[2]='p'; Line[3]='e'; Line[4]=':'; Line[5]=' ';
+        { int k=6; const char *P=E->Type; while (*P && k<70) Line[k++]=*P++; Line[k]=0; }
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->Arch[0] && Ty + LineH < MaxY) {
-        Line[0] = 'a'; Line[1] = 'r'; Line[2] = 'c'; Line[3] = 'h';
-        Line[4] = ':'; Line[5] = ' ';
-        {
-            int k = 6;
-            const char *P = E->Arch;
-            while (*P && k < 70) {
-                Line[k++] = *P++;
-            }
-            Line[k] = 0;
-        }
+        Line[0]='a'; Line[1]='r'; Line[2]='c'; Line[3]='h'; Line[4]=':'; Line[5]=' ';
+        { int k=6; const char *P=E->Arch; while (*P && k<70) Line[k++]=*P++; Line[k]=0; }
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->File[0] && Ty + LineH < MaxY) {
         Line[0] = 'f'; Line[1] = 'i'; Line[2] = 'l'; Line[3] = 'e';
         Line[4] = ':'; Line[5] = ' ';
-        {
-            int k = 6;
-            const char *P = E->File;
-            while (*P && k < 70) {
-                Line[k++] = *P++;
-            }
-            Line[k] = 0;
-        }
-        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
-        Ty += LineH;
-    }
-    if (E->Depends[0] && Ty + LineH < MaxY) {
-        Line[0] = 'd'; Line[1] = 'e'; Line[2] = 'p'; Line[3] = ':';
-        Line[4] = ' ';
-        {
-            int k = 5;
-            const char *P = E->Depends;
-            while (*P && k < 70) {
-                Line[k++] = *P++;
-            }
-            Line[k] = 0;
-        }
+        { int k = 6; const char *P = E->File;
+          while (*P && k < 70) { Line[k++] = *P++; } Line[k] = 0; }
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        const char *St = Inst ? "status: installed" : "status: not installed";
-        HalVideoDrawStringAt(X + 10, Ty, St, Inst ? ThemeTextAccent() : ThemeTextMuted());
+        char Repo[40];
+        StoreUiFormatRepo(Repo, (int)sizeof(Repo));
+        HalVideoDrawStringAt(X + 10, Ty, Repo, ThemeTextMuted());
+        Ty += LineH;
+    }
+    if (Ty + LineH < MaxY) {
+        HalVideoDrawStringAt(X + 10, Ty, Inst ? "status: installed" : "status: not installed",
+                             Inst ? ThemeTextAccent() : ThemeTextMuted());
     }
 }
 
@@ -168,11 +131,8 @@ void StorePaintList(void) {
         LineH = 16;
     }
 
-    SideW = 0;
-    gStoreUiSideW = 0;
-    if (Cw > STORE_SIDE_W + 160u) {
-        SideW = STORE_SIDE_W;
-    }
+    SideW = (Cw > STORE_SIDE_W + 160u) ? STORE_SIDE_W : 0;
+    gStoreUiSideW = SideW;
     ContentX = Cx + SideW;
     ContentW = Cw - SideW;
 

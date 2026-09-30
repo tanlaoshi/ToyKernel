@@ -39,7 +39,7 @@ void IwlRxDataToNet(UINT8 *Frame, UINTN FLen, UINT32 St) {
     UINTN HdrLen;
     UINTN BodyOff;
     UINTN BodyLen;
-    UINT8 Eth[640];
+    UINT8 Eth[1518];
     UINTN EthLen;
     UINTN i;
     UINT64 Pn;
@@ -229,6 +229,8 @@ void IwlRxDataToNet(UINT8 *Frame, UINTN FLen, UINT32 St) {
     }
     EthLen = 14u + (BodyLen - 8u);
     if (EthLen > sizeof(Eth)) {
+        /* 曾 Eth[640]：catalog HTTP 响应 ~840B → 静默丢 → store http empty */
+        IwlLogStage("eth>mtu");
         return;
     }
     for (i = 0; i < BodyLen - 8u; i++) {

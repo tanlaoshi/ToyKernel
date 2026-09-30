@@ -14,6 +14,7 @@ void AlxGetMac(UINT8 Mac[6]);
 UINT16 AlxPciDid(void);
 int AlxSendFrame(const UINT8 *Frame, UINTN Len);
 void AlxPoll(void);
+void AlxGetRxStats(UINT32 *OkOut, UINT32 *DropOut);
 int AlxGetLink(int *UpOut, UINT32 *MbpsOut, int *FullDuplexOut);
 
 #endif
