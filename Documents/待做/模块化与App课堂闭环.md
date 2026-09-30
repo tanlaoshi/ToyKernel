@@ -1,6 +1,6 @@
 # ToyOS 模块化与 App 课堂闭环
 
-> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-drv-norm`](../路线图.md#pr-mod-drv-norm)（驱动一设备一夹规范）。  
+> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-drv-input`](../路线图.md#pr-mod-drv-input)（Input 并入控制器夹）。  
 > **定位**：目录/文件结构模块化 + 驱动一设备一目录 + App「开发→打包→安装」课堂叙事。  
 > **相关**：[`可替换模块化架构规划.md`](../已完/可替换模块化架构规划.md)（SCHED/MEM/FS **政策**可替换 · 已 GD）· [`应用资源自包含与字体共享.md`](../已完/应用资源自包含与字体共享.md)（目录包代码 · 已 GD）· [`开发/应用开发指南.md`](../开发/应用开发指南.md) · [`驱动/驱动开发指南.md`](../驱动/驱动开发指南.md) · [`路线图.md`](../路线图.md)  
 > **命名**：PascalCase；新 `.c` ≤300；搬家刀不改行为。
@@ -120,6 +120,8 @@
 3. **Net L2 胶水**：`NetE1000.c` 等迁入对应设备目录（如 `E1000/NetGlue.c` 或保留原名）；`Drivers/Net/Net.c` 等**协议核**可留在 `Net/`（规格刀 `drv-netglue` 列清单）。
 4. **Virt**：MMIO 继续 `HAL/Virt/`；X64 PCI virtio-net 胶水跟 X64 设备目录，**不**并进 Virt。
 5. **头文件**：设备私头进设备目录；公开 `Include/` 门面不搬（除非已是私头误放根）。
+6. **编入**：新建 `<Device>/` 须在顶层 `Makefile` 的 `DRIVER_SRCS` 增加对应 `wildcard`（现有子目录已登记；勿 `Drivers/**/*.c` 以免扫进 `_template`）。
+7. **Demo / Serial（norm 定调）**：`DemoDriver.c` **保持根扁平**（课开关）；`Serial.c` 目标 `Serial/`，本刀不搬。
 
 ### 5.2 现状债（X64）
 
@@ -275,3 +277,4 @@
 | 2026-09-30 | sample：hello/guidemo/cat 包内 ELF；build.sh PackStore；pack-app.sh |
 | 2026-09-30 | repack：taskmgr/snake/windemo/blitdemo 入店；废扁平 Apps |
 | 2026-09-30 | trim TG；★→verify；手测清单 `Assets/Store/HANDTEST-MOD.md` |
+| 2026-09-30 | verify TG；★→drv-norm；指南/_template 一设备一夹 |
