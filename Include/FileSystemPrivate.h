@@ -8,6 +8,7 @@
 
 #include "FileSystem.h"
 #include "Vfs.h"
+#include "Gpt.h"
 
 typedef struct {
     UINT32 Drive;
@@ -28,6 +29,11 @@ extern UINT32 gActiveLba;
 extern const FS_OPS *gActiveOps;
 
 int MountAllVolumes(void);
+
+/* PR-F-fs-1：单卷 / 默认卷（FileSystemMountVol.c / MountPick.c） */
+void FsMountOneFatPart(UINT32 Drive, const GPT_FAT_PART *Part, int *ToyVol);
+void FsMountAddResVolume(void);
+void FsMountPickDefault(int ToyVol, UINT8 *Tmp, UINTN TmpSz);
 
 /* FatPath.c 已有全局 StrEqIgnoreCase，这里不能再导出。 */
 static inline int StrEqIgnoreCase(const char *A, const char *B) {
