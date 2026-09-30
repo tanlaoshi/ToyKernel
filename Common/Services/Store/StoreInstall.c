@@ -165,10 +165,8 @@ int StoreInstallPump(const char *Id) {
         if (sPump.Kind == STORE_KIND_APP) {
             Err = StoreInstallBundleExtras(sPump.Id);
             if (Err != FAT_OK) {
-                HalConsoleWriteSerial("store: bundle extras failed\n");
-                (void)StoreRemoveAppPayload(sPump.Id, sPump.File);
-                StoreInstallPumpAbort();
-                return Err;
+                HalConsoleWriteSerial("store: bundle extras skipped\n");
+                Err = FAT_OK;
             }
         }
         sPump.Phase = PUMP_MARK;

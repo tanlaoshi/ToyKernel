@@ -1,0 +1,9 @@
+name=windemo
+type=app
+version=1
+file=WINDEMO.ELF
+sha256=-
+arch=x86_64
+title=Window Demo
+desktop=no
+taskbar=no

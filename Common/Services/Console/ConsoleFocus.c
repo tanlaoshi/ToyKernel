@@ -72,7 +72,7 @@ void ConsoleBindFocus(void) {
     GuiFocusApply();
 }
 
-/* 初始化：无 Shell 时仅串口提示；开窗后由 ConsoleOnShellOpened 画欢迎语 */
+/* 初始化：无 Shell 时仅串口就绪文案；开窗 / ConsoleSerialRun 再画欢迎语与 toyos> */
 void ConsoleInitialize(void) {
     GUI_CONSOLE_OPS Ops;
 
@@ -88,9 +88,12 @@ void ConsoleInitialize(void) {
     gAtLineStart = 1;
     HalConsoleWriteSerial(LocStr(MSG_CON_READY));
     HalConsoleWriteSerial("\n");
-    /* 串口始终可敲：开机即给提示符（勿等 GUI Shell；SNAKE 占焦点也在本终端输入） */
+    /*
+     * 勿在此 Prompt：SchedulerStart 后 AP idle 会抢行。
+     * 桌面路径由 ShellTask 首轮打串口 toyos>；ConsoleOnly 由 ConsoleSerialRun。
+     * 串口收键不依赖 GUI 开窗（见 ConsoleEnsureShell FromSerial）。
+     */
     HalConsoleWriteSerial("hint: type commands in THIS terminal (not QEMU window)\n");
-    Prompt();
 }
 
 void ConsoleOnShellOpened(void) {

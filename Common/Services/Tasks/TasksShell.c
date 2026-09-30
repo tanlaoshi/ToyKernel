@@ -7,6 +7,7 @@
 #include "HalVideo.h"
 #include "HIDKeyboard.h"
 #include "Console.h"
+#include "ConsolePrivate.h"
 #include "Gui.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
@@ -42,6 +43,11 @@ void ShellTask(void) {
     HAL_KEYBOARD_REPORT Report = {0};
     HAL_KEYBOARD_REPORT Previous = {0};
     DebugWrite("shell task running (preemptive)\n");
+    /*
+     * 串口首提示放在进调度之后：ConsoleInitialize 过早 Prompt 会被 AP idle 抢行；
+     * 又不能只靠开 GUI 窗（开窗失败/卡住时 Enter 永远无 toyos>）。
+     */
+    Prompt();
     for (;;) {
         /*
          * 真机 xHCI 为 poll（无 MSI）：必须先 Drain/取键再 hlt。

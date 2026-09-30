@@ -66,10 +66,10 @@ int StoreAppElfExists(const char *Id, const char *File) {
     if (DirHasFileCI(STORE_APPS_DIR, File)) {
         return 1;
     }
-    /* 课堂扁平：根目录 CAT.ELF / HELLO.ELF 等 */
-    if (FileSystemFileStat(File, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
-        return 1;
-    }
+    /*
+     * 勿把卷根教学 ELF（TASKMGR.ELF / SNAKE.ELF）当成已装：
+     * 否则 combo 跳过拷包、只刷 extras，si 未登记时表现为 install fail。
+     */
     return 0;
 }
 
@@ -123,12 +123,7 @@ int StoreResolveAppPath(const char *Id, const char *File, char *Out, int OutMax)
         JoinPath(Out, OutMax, STORE_APPS_DIR, Leaf);
         return FAT_OK;
     }
-    /* 课堂扁平根目录（si.cat → CAT.ELF） */
-    if (FileSystemFileStat(File, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
-        CopyStr(Out, OutMax, File);
-        return FAT_OK;
-    }
-    /* 偏好新布局路径（灰显 / 提示用） */
+    /* 偏好新布局路径（灰显 / 提示用）；卷根 ELF 只作课用捷径，不算商店已装 */
     if (Id && Id[0]) {
         StoreAppElfPath(Out, OutMax, Id, File);
     } else {

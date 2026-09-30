@@ -1,6 +1,6 @@
 # RootFs ELF 清单（PR-MOD-app-inventory）
 
-> **状态**：JX 齐 · 待 TG（2026-09-30）。  
+> **状态**：✅ inventory TG；sample/repack 已执行部分入店（2026-09-30）。  
 > **规格**：[`Documents/待做/模块化与App课堂闭环.md`](../../Documents/待做/模块化与App课堂闭环.md) §6.4–6.5。  
 > **范围**：`ToyImage/RootFs/X64/*.ELF`（不含 `Kernel.elf`）；另记 `LIBTOY.SO` 与扁平 `Apps/*.ELF`。  
 > **处置写死后**由 `app-sample` / `app-repack` / `rootfs-trim` 执行；本文件**不**改 `build.sh`。
@@ -24,10 +24,10 @@
 | `HELLO.ELF` | `Apps/Hello.c` | catalog；`Apps/hello/`+StoreCache+根 | **入店** + **根白名单** | `hello` | sample：补 `packages/hello/`；根留捷径 |
 | `GUIDEMO.ELF` | `Apps/GuiDemo.c` | catalog；包缺 ELF；`Apps/guidemo/` | **入店** | `guidemo` | sample：包内带 ELF；可产品菜单 |
 | `CAT.ELF` | `Apps/Cat.c` | catalog；扁平 `Apps/CAT.ELF` | **入店** | `cat` | sample；去掉扁平 |
-| `TASKMGR.ELF` | `Apps/TaskMgr.c` | 根 + 扁平 `Apps/TASKMGR.ELF` | **入店**（产品） | `taskmgr` | repack 优先；`taskbar=yes` |
-| `SNAKE.ELF` | `Apps/Snake.c` | 仅根 | **入店**（产品） | `snake` | repack 优先；`taskbar=yes` |
-| `WINDEMO.ELF` | `Apps/WinDemo.c` | 仅根 | **入店**（教学 GUI） | `windemo` | repack；默认无 taskbar |
-| `BLITDEMO.ELF` | `Apps/BlitDemo.c` | 仅根 | **入店**（教学 GUI） | `blitdemo` | repack |
+| `TASKMGR.ELF` | `Apps/TaskMgr.c` | ✅ packages+catalog；`Apps/taskmgr/` | **入店**（产品） | `taskmgr` | 扁平已废 |
+| `SNAKE.ELF` | `Apps/Snake.c` | ✅ packages+catalog | **入店**（产品） | `snake` | |
+| `WINDEMO.ELF` | `Apps/WinDemo.c` | ✅ packages+catalog | **入店**（教学 GUI） | `windemo` | |
+| `BLITDEMO.ELF` | `Apps/BlitDemo.c` | ✅ packages+catalog | **入店**（教学 GUI） | `blitdemo` | |
 | `FORK.ELF` | `Apps/Fork.S` | 仅根 | **根白名单** | — | 课用 `exec FORK.ELF` |
 | `SYSFORK.ELF` | `Apps/SysFork.S` | 仅根 | **根白名单** | — | int80/系统调用演示 |
 | `SYSHELLO.ELF` | `Apps/SysHello.S` | 仅根 | **根白名单** | — | |
@@ -60,7 +60,7 @@
 | ---- | ---- | ---- |
 | `LIBTOY.SO` | **根白名单** | `DYNDEMO` 依赖；trim 与 DYNDEMO 同留 |
 | `Apps/hello/` `Apps/guidemo/` | 保留为正统预装或改由 store 安装生成 | sample 后以包为准 |
-| `Apps/TASKMGR.ELF` `Apps/CAT.ELF` | **废除扁平** | repack 改为 `Apps/<id>/` |
+| `Apps/TASKMGR.ELF` `Apps/CAT.ELF` | **已废除扁平**（repack） | 现为 `Apps/taskmgr/`；cat 仅包/根 |
 | `StoreCache/HELLO.ELF` | 可保留作缓存 | 与入店不冲突 |
 | `Kernel.elf` | 非本表 | 构建产物 |
 
@@ -90,3 +90,4 @@
 | 日期 | 说明 |
 | ---- | ---- |
 | 2026-09-30 | 初稿：对照 RootFs 与 `User/Apps`；处置供后续刀执行 |
+| 2026-09-30 | repack：taskmgr/snake/windemo/blitdemo；去扁平 Apps |

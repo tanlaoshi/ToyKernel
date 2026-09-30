@@ -1,0 +1,9 @@
+name=taskmgr
+type=app
+version=1
+file=TASKMGR.ELF
+sha256=-
+arch=x86_64
+title=Task Manager
+desktop=yes
+taskbar=yes

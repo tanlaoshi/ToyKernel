@@ -1,0 +1,9 @@
+name=snake
+type=app
+version=1
+file=SNAKE.ELF
+sha256=-
+arch=x86_64
+title=Snake
+desktop=yes
+taskbar=yes

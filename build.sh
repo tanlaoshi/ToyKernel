@@ -180,14 +180,16 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/threaddemo.elf" "$DEST/THREADDEMO.ELF"
     cp -f "$USER_OUT/snake.elf" "$DEST/SNAKE.ELF"
     cp -f "$USER_OUT/taskmgr.elf" "$DEST/TASKMGR.ELF"
-    mkdir -p "$DEST/Apps"
-    cp -f "$USER_OUT/taskmgr.elf" "$DEST/Apps/TASKMGR.ELF"
+    # 目录包预装（正统 Apps/<id>/）；禁止扁平 Apps/*.ELF（PR-MOD-app-repack）
+    mkdir -p "$DEST/Apps/taskmgr"
+    cp -f "$USER_OUT/taskmgr.elf" "$DEST/Apps/taskmgr/TASKMGR.ELF"
+    rm -f "$DEST/Apps/TASKMGR.ELF" "$DEST/Apps/CAT.ELF"
     cp -f "$USER_OUT/dirdemo.elf" "$DEST/DIRDEMO.ELF"
     cp -f "$USER_OUT/cwddemo.elf" "$DEST/CWDDEMO.ELF"
     cp -f "$USER_OUT/netlibdemo.elf" "$DEST/NETLIB.ELF"
     cp -f "$USER_OUT/sockdemo.elf" "$DEST/SOCKDEMO.ELF"
     cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
-    # PR-MOD-app-sample：hello/guidemo/cat 包内自含 ELF + 同步镜像 packages/
+    # PR-MOD-app-sample / repack：包内自含 ELF + 同步镜像 packages/
     PackStore() {
         local Id="$1" Src="$2" File="$3"
         mkdir -p "Assets/Store/packages/$Id" "$DEST/Assets/Store/packages/$Id"
@@ -204,7 +206,17 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     PackStore hello "$USER_OUT/hello.elf" HELLO.ELF
     PackStore guidemo "$USER_OUT/guidemo.elf" GUIDEMO.ELF
     PackStore cat "$USER_OUT/catfile.elf" CAT.ELF
-    echo "Synced Kernel/HELLO/... (+ packages hello/guidemo/cat、Apps、StoreCache、ENOSYS) -> $DEST/"
+    PackStore taskmgr "$USER_OUT/taskmgr.elf" TASKMGR.ELF
+    PackStore snake "$USER_OUT/snake.elf" SNAKE.ELF
+    PackStore windemo "$USER_OUT/windemo.elf" WINDEMO.ELF
+    PackStore blitdemo "$USER_OUT/blitdemo.elf" BLITDEMO.ELF
+    # catalog 同步进镜像 Assets + StoreCache（后者优先于 Assets，见 StoreLoadCatalog）
+    if [ -f Assets/Store/catalog.txt ]; then
+        mkdir -p "$DEST/Assets/Store" "$DEST/StoreCache"
+        cp -f Assets/Store/catalog.txt "$DEST/Assets/Store/catalog.txt"
+        cp -f Assets/Store/catalog.txt "$DEST/StoreCache/catalog.txt"
+    fi
+    echo "Synced Kernel/HELLO/... (+ packages sample/repack、Apps/<id>、StoreCache) -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else

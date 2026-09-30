@@ -30,15 +30,12 @@ static int ConsoleEnsureShell(int FromSerial) {
     }
     if (FromSerial) {
         /*
-         * 串口：SNAKE 等占焦点时也会丢键（旧逻辑）。
-         * 有 Shell 则置顶；没有则开一个——勿静默收键却不给窗。
+         * 串口始终可敲：不抢焦点、不开窗（与文件头注释一致）。
+         * 已有 Shell 则置顶便于 GUI 同步；开窗交给 shell 命令 / 桌面点击。
+         * （曾在此 GuiOpenShell：淡入若卡住 → Enter 无 toyos>、像死机。）
          */
         if (FocusExistingKind(GUI_WIN_SHELL, 0, "shell-serial") >= 0) {
             return 1;
-        }
-        if (GuiOpenShell() < 0) {
-            HalConsoleWriteSerial("shell: no free window\n");
-            return 1; /* 仍收串口到行缓冲 */
         }
         return 1;
     }
