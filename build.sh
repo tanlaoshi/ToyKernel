@@ -141,55 +141,37 @@ fi
 
 echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
-# CI 只 checkout ToyKernel，无 ../ToyImage；有则同步到 RootFs/$HAL（不再丢根目录）
+# CI 只 checkout ToyKernel，无 ../ToyImage；有则同步到 RootFs/$HAL
+# PR-MOD-rootfs-trim：卷根仅 ROOTFS-ELF 白名单；入店类只走 packages/StoreCache
 if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64 ]; then
     DEST=../ToyImage/RootFs/X64
-    cp -f "$ELF" "$DEST/Kernel.elf"
     USER_OUT=Build/User
+    cp -f "$ELF" "$DEST/Kernel.elf"
+
+    # 根白名单（Assets/Store/ROOTFS-ELF.md）
     cp -f "$USER_OUT/hello.elf" "$DEST/HELLO.ELF"
-    # Store/桌面装在 Apps/<id>/ 与 StoreCache；勿留号段重排前的旧副本
-    mkdir -p "$DEST/Apps/hello" "$DEST/StoreCache"
-    cp -f "$USER_OUT/hello.elf" "$DEST/Apps/hello/HELLO.ELF"
-    cp -f "$USER_OUT/hello.elf" "$DEST/StoreCache/HELLO.ELF"
     cp -f "$USER_OUT/count.elf" "$DEST/COUNT.ELF"
     cp -f "$USER_OUT/fork.elf" "$DEST/FORK.ELF"
     cp -f "$USER_OUT/waitnh.elf" "$DEST/WAITNH.ELF"
     cp -f "$USER_OUT/libtoy.so" "$DEST/LIBTOY.SO"
     cp -f "$USER_OUT/dyndemo.elf" "$DEST/DYNDEMO.ELF"
-    cp -f "$USER_OUT/catfile.elf" "$DEST/CAT.ELF"
-    cp -f "$USER_OUT/writefile.elf" "$DEST/WRITE.ELF"
-    cp -f "$USER_OUT/netdemo.elf" "$DEST/NETDEMO.ELF"
-    cp -f "$USER_OUT/netsrv.elf" "$DEST/NETSRV.ELF"
     cp -f "$USER_OUT/syshello.elf" "$DEST/SYSHELLO.ELF"
     cp -f "$USER_OUT/sysfork.elf" "$DEST/SYSFORK.ELF"
     cp -f "$USER_OUT/execdemo.elf" "$DEST/EXECDEMO.ELF"
     cp -f "$USER_OUT/pipedemo.elf" "$DEST/PIPEDEMO.ELF"
-    cp -f "$USER_OUT/brkdemo.elf" "$DEST/BRKDEMO.ELF"
-    cp -f "$USER_OUT/mmapdemo.elf" "$DEST/MMAPDEMO.ELF"
-    cp -f "$USER_OUT/killdemo.elf" "$DEST/KILLDEMO.ELF"
-    cp -f "$USER_OUT/sigdemo.elf" "$DEST/SIGDEMO.ELF"
-    cp -f "$USER_OUT/windemo.elf" "$DEST/WINDEMO.ELF"
-    cp -f "$USER_OUT/guidemo.elf" "$DEST/GUIDEMO.ELF"
-    mkdir -p "$DEST/Apps/guidemo"
-    cp -f "$USER_OUT/guidemo.elf" "$DEST/Apps/guidemo/GUIDEMO.ELF"
-    cp -f "$USER_OUT/blitdemo.elf" "$DEST/BLITDEMO.ELF"
-    cp -f "$USER_OUT/libcdemo.elf" "$DEST/LIBCDEMO.ELF"
-    cp -f "$USER_OUT/sleepdemo.elf" "$DEST/SLEEPDEMO.ELF"
     cp -f "$USER_OUT/threadsmoke.elf" "$DEST/THREADSMOKE.ELF"
     cp -f "$USER_OUT/pthreadsmoke.elf" "$DEST/PTHREADSMOKE.ELF"
     cp -f "$USER_OUT/threaddemo.elf" "$DEST/THREADDEMO.ELF"
-    cp -f "$USER_OUT/snake.elf" "$DEST/SNAKE.ELF"
-    cp -f "$USER_OUT/taskmgr.elf" "$DEST/TASKMGR.ELF"
-    # 目录包预装（正统 Apps/<id>/）；禁止扁平 Apps/*.ELF（PR-MOD-app-repack）
-    mkdir -p "$DEST/Apps/taskmgr"
+    cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
+
+    # 课堂预装目录包（非扁平）；仍禁止 Apps/*.ELF
+    mkdir -p "$DEST/Apps/hello" "$DEST/Apps/guidemo" "$DEST/Apps/taskmgr" "$DEST/StoreCache"
+    cp -f "$USER_OUT/hello.elf" "$DEST/Apps/hello/HELLO.ELF"
+    cp -f "$USER_OUT/hello.elf" "$DEST/StoreCache/HELLO.ELF"
+    cp -f "$USER_OUT/guidemo.elf" "$DEST/Apps/guidemo/GUIDEMO.ELF"
     cp -f "$USER_OUT/taskmgr.elf" "$DEST/Apps/taskmgr/TASKMGR.ELF"
     rm -f "$DEST/Apps/TASKMGR.ELF" "$DEST/Apps/CAT.ELF"
-    cp -f "$USER_OUT/dirdemo.elf" "$DEST/DIRDEMO.ELF"
-    cp -f "$USER_OUT/cwddemo.elf" "$DEST/CWDDEMO.ELF"
-    cp -f "$USER_OUT/netlibdemo.elf" "$DEST/NETLIB.ELF"
-    cp -f "$USER_OUT/sockdemo.elf" "$DEST/SOCKDEMO.ELF"
-    cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
-    # PR-MOD-app-sample / repack：包内自含 ELF + 同步镜像 packages/
+
     PackStore() {
         local Id="$1" Src="$2" File="$3"
         mkdir -p "Assets/Store/packages/$Id" "$DEST/Assets/Store/packages/$Id"
@@ -210,13 +192,20 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     PackStore snake "$USER_OUT/snake.elf" SNAKE.ELF
     PackStore windemo "$USER_OUT/windemo.elf" WINDEMO.ELF
     PackStore blitdemo "$USER_OUT/blitdemo.elf" BLITDEMO.ELF
-    # catalog 同步进镜像 Assets + StoreCache（后者优先于 Assets，见 StoreLoadCatalog）
     if [ -f Assets/Store/catalog.txt ]; then
         mkdir -p "$DEST/Assets/Store" "$DEST/StoreCache"
         cp -f Assets/Store/catalog.txt "$DEST/Assets/Store/catalog.txt"
         cp -f Assets/Store/catalog.txt "$DEST/StoreCache/catalog.txt"
     fi
-    echo "Synced Kernel/HELLO/... (+ packages sample/repack、Apps/<id>、StoreCache) -> $DEST/"
+
+    # 清非白名单卷根陈货（入店类改走 packages）
+    rm -f "$DEST/CAT.ELF" "$DEST/WRITE.ELF" "$DEST/NETDEMO.ELF" "$DEST/NETSRV.ELF" \
+        "$DEST/BRKDEMO.ELF" "$DEST/MMAPDEMO.ELF" "$DEST/KILLDEMO.ELF" "$DEST/SIGDEMO.ELF" \
+        "$DEST/WINDEMO.ELF" "$DEST/GUIDEMO.ELF" "$DEST/BLITDEMO.ELF" "$DEST/LIBCDEMO.ELF" \
+        "$DEST/SLEEPDEMO.ELF" "$DEST/SNAKE.ELF" "$DEST/TASKMGR.ELF" "$DEST/DIRDEMO.ELF" \
+        "$DEST/CWDDEMO.ELF" "$DEST/NETLIB.ELF" "$DEST/SOCKDEMO.ELF"
+
+    echo "Synced Kernel + root whitelist + packages/Apps/<id>/StoreCache -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else

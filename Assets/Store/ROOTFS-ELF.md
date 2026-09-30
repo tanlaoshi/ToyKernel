@@ -1,9 +1,9 @@
 # RootFs ELF 清单（PR-MOD-app-inventory）
 
-> **状态**：✅ inventory TG；sample/repack 已执行部分入店（2026-09-30）。  
+> **状态**：✅ inventory；sample/repack/trim 已执行（2026-09-30）。  
 > **规格**：[`Documents/待做/模块化与App课堂闭环.md`](../../Documents/待做/模块化与App课堂闭环.md) §6.4–6.5。  
 > **范围**：`ToyImage/RootFs/X64/*.ELF`（不含 `Kernel.elf`）；另记 `LIBTOY.SO` 与扁平 `Apps/*.ELF`。  
-> **处置写死后**由 `app-sample` / `app-repack` / `rootfs-trim` 执行；本文件**不**改 `build.sh`。
+> **处置**：`build.sh` 根仅白名单；入店类只同步 `packages/`（见 trim）。
 
 ## 图例
 
@@ -91,3 +91,4 @@
 | ---- | ---- |
 | 2026-09-30 | 初稿：对照 RootFs 与 `User/Apps`；处置供后续刀执行 |
 | 2026-09-30 | repack：taskmgr/snake/windemo/blitdemo；去扁平 Apps |
+| 2026-09-30 | trim：`build.sh` 根仅白名单；清 CAT/SNAKE/TASKMGR 等卷根陈货 |

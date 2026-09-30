@@ -21,11 +21,31 @@
 
 ---
 
-## 2. U 盘布局（与课堂双盘同形）
+## 2. 真机布局与刷盘（NUC SSD 日常 · U 盘备选）
 
-课堂 QEMU：`ToyImage/run-split.sh`（盘0=ESP，盘1=`RootFs/X64/`）。真机可压成 **一盘两分区** 或 **单 FAT**：
+课堂 QEMU：`ToyImage/run-split.sh`（盘0=ESP，盘1=`RootFs/X64/`）。真机 **两条路径都保留**：
 
+### 2.1 NUC SSD 双分区（日常 · `sync-nuc.sh` / 暗号 **TBN**）
+
+```text
+/boot/efi (与 Ubuntu 共用 ESP):  EFI/ubuntu/ …  EFI/BOOT/ …  EFI/toyos/BOOTX64.EFI
+LABEL=ToyOS (数据分区):          TOYOS.ID, Kernel.elf, THEME.CFG, Apps/, Assets/, FW/, …
 ```
+
+- Boot **只**写 `EFI/toyos/`（勿覆盖 ubuntu / 默认 `EFI/BOOT`）
+- ToyOS 卷上 **不要**留 `EFI/`（误用 `sync-usb` 单 FAT 会写进去；`sync-nuc` 会清掉）
+- 用法：
+
+```bash
+cd ToyImage && ./Scripts/sync-nuc.sh           # RootFs → ToyOS
+cd ToyImage && ./Scripts/sync-nuc.sh --boot    # 另写 EFI/toyos/BOOTX64.EFI（常需 sudo）
+```
+
+### 2.2 UEFI U 盘（备选 · `sync-usb.sh` / 暗号 **TBU**）
+
+可压成 **一盘两分区** 或 **单 FAT**：
+
+```text
 ESP (FAT):     EFI/BOOT/BOOTX64.EFI
 TOYOS (FAT):   TOYOS.ID, Kernel.elf, THEME.CFG, *.ELF, ...
 ```
@@ -34,15 +54,16 @@ ToyBoot **优先**从含 `TOYOS.ID` 的卷加载 `Kernel.elf`（启动盘仅兜�
 
 ```bash
 cd ToyKernel && ./build.sh
-cd ../ToyBoot && ./build.sh          # → ToyImage/EFI/BOOT/BOOTX64.EFI
-cd ../ToyImage && ./prepare-rootfs.sh
+cd ../ToyBoot && ./build.sh          # → ToyImage/Esp/X64/EFI/BOOT/BOOTX64.EFI
+cd ../ToyImage && ./Scripts/prepare-rootfs.sh
 # 推荐脚本（ESP 256MiB + TOYOS 剩余）：
-./make-usb-stick.sh --device /dev/sdX --yes --sync   # 首次分区
-./sync-usb.sh                                       # 日常同步
-# 或手动：将 EFI/ 拷到 ESP，rootfs/ 拷到 TOYOS
+./Scripts/make-usb-stick.sh --device /dev/sdX --yes --sync   # 首次分区
+./Scripts/sync-usb.sh                                       # 日常同步 U 盘
 ```
 
-从固件 Boot Menu 选该 U 盘；成功时屏上应出现桌面（或至少 GOP 清屏 / 壁纸色），串口若有则见 `ToyOS ready`。
+**硬规则**：`sync-usb.sh` **只**刷 U 盘；`sync-nuc.sh` **只**刷本机 SSD。**禁止**用 `sync-usb` 指向 `/boot/efi`。路线图 §〇 **TBN/TBU**、§三「真机刷盘」。
+
+从固件 Boot Menu 选对应项；成功时屏上应出现桌面（或至少 GOP 清屏 / 壁纸色），串口若有则见 `ToyOS ready`。
 
 ---
 
