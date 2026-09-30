@@ -28,5 +28,6 @@ User/Pkg/build/
 User/Pkg/Gui/build/
 User/Pkg/Net/build/
 
-# PR-A-sdk-pack：生成的可分发 SDK（脚本入库，产物不入库）
+# Build/ 已忽略；SDK 产物现为 Build/ToySDK/ + Build/ToySDK.tar.gz
+# 旧路径遗迹（若本地仍有可删）
 Dist/

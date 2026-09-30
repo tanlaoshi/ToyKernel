@@ -21,4 +21,4 @@ make -C /path/to/ToySdk/Examples/Hello
 | `Net/` | `MYNET.ELF` | ToyNet | `ToySockAddrIn` + `ToyNetResolve`；先 `lwip on`；`nc -l -p 8888` |
 | `Fs/` | `FSUTIL.ELF` | FsUtil | `FsUtilJoin` / `ListDir` / `TOYOS:` |
 
-`make deploy` 复制到 ToyImage 的 `rootfs/`。SDK 不在仓库 `Dist/ToySdk` 时请设 `TOYIMAGE=`。课堂树内模板仍是 `User/Pkg/`。
+`make deploy` 复制到 ToyImage 的 `RootFs/X64/`。SDK 不在仓库 `Build/ToySDK` 时请设 `TOYIMAGE=`。课堂树内模板仍是 `User/Pkg/`。

@@ -1,15 +1,15 @@
 #!/bin/bash
-# PR-A-sdk-pack / PR-B-sdk-ver / PR-B-sdk-tpl：头文件 / 静库 / 链接脚本 / 示例 → Dist/ToySdk/
+# PR-A-sdk-pack / PR-B-sdk-ver / PR-B-sdk-tpl：头文件 / 静库 / 链接脚本 / 示例 → Build/ToySDK/
 # 用法：./Tools/build-sdk.sh [DEST]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DEST="${1:-Dist/ToySdk}"
+DEST="${1:-Build/ToySDK}"
 SRC_INC=User/include
 SRC_LD=User/user.ld
 TPL=Tools/Sdk
 
-echo "ToySdk: building CRT / libtoyos / libToy* / libFsUtil"
+echo "ToySDK: building CRT / libtoyos / libToy* / libFsUtil"
 make ARCH=x86_64 \
 	User/crt/crt0.o User/crt/syscall.o \
 	User/Library/ToyOs/libtoyos.a \
@@ -22,6 +22,13 @@ rm -rf "$DEST"
 mkdir -p "$DEST/include" "$DEST/Library" "$DEST/Documents" "$DEST/Examples"
 
 cp -a "$SRC_INC"/. "$DEST/include/"
+# 树内 toyos/syscall.h 用 ../../../Include/SyscallABI.h；包内改为公开头
+cp -f Include/SyscallABI.h "$DEST/include/SyscallABI.h"
+if [ -f "$DEST/include/toyos/syscall.h" ]; then
+	sed -i 's|#include "../../../Include/SyscallABI.h"|#include <SyscallABI.h>|' \
+		"$DEST/include/toyos/syscall.h"
+fi
+
 cp -a "$SRC_LD" "$DEST/user.ld"
 cp -a User/Library/ToyOs/libtoyos.a \
 	User/Library/ToyUi/libToyUi.a \
@@ -47,6 +54,6 @@ ARCHIVE="$PARENT/${BASE}.tar.gz"
 rm -f "$ARCHIVE"
 tar -C "$PARENT" -czf "$ARCHIVE" "$BASE"
 
-echo "ToySdk: wrote $DEST ($(du -sh "$DEST" | cut -f1))"
-echo "ToySdk: archive $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
+echo "ToySDK: wrote $DEST ($(du -sh "$DEST" | cut -f1))"
+echo "ToySDK: archive $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 echo "next: for d in $DEST/Examples/*/; do make -C \"\$d\"; done"

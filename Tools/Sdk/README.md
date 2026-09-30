@@ -7,48 +7,48 @@
 
 `VERSION` 是 SDK **包**版本（与 CRT `TOYOS_CRT` 无关）。开课冻结包：**`1.0.0-course`**。
 
-打包（产物在 `Dist/`，gitignore，勿提交二进制）：
+打包（产物在 `Build/ToySDK/`，随 `Build/` gitignore，勿提交二进制）：
 
 ```bash
-./Tools/build-sdk.sh          # → Dist/ToySdk/ + Dist/ToySdk.tar.gz
-tar xzf Dist/ToySdk.tar.gz -C /tmp && make -C /tmp/ToySdk/Examples/Hello
+./Tools/build-sdk.sh          # → Build/ToySDK/ + Build/ToySDK.tar.gz
+tar xzf Build/ToySDK.tar.gz -C /tmp && make -C /tmp/ToySDK/Examples/Hello
 ```
 
 ## 5 分钟：解压即可 make
 
-拿到 `ToySdk.tar.gz`（或已解压的 `ToySdk/`）后，放到**任意目录**：
+拿到 `ToySDK.tar.gz`（或已解压的 `ToySDK/`）后，放到**任意目录**：
 
 ```bash
-tar xzf ToySdk.tar.gz          # 得到 ./ToySdk/
-make -C ToySdk/Examples/Hello  # → Examples/Hello/Build/MYAPP.ELF
+tar xzf ToySDK.tar.gz          # 得到 ./ToySDK/
+make -C ToySDK/Examples/Hello  # → Examples/Hello/Build/MYAPP.ELF
 ```
 
 入口应在 `0x40000000`。其余示例：`File` `Dir` `Pipe` `Fork` `Gui` `Blit` `Net` `Fs`（见 [`Examples/README.md`](Examples/README.md)）。
 
-进 Guest：把 ELF 拷到 ToyImage 的 `rootfs/`（FAT 8.3，文件名大写），或：
+进 Guest：把 ELF 拷到 ToyImage 的 `RootFs/X64/`（FAT 8.3，文件名大写），或：
 
 ```bash
-make -C ToySdk/Examples/Hello deploy TOYIMAGE=/path/to/ToyImage
+make -C ToySDK/Examples/Hello deploy TOYIMAGE=/path/to/ToyImage
 # ToyImage 侧：./run-split.sh
 # Guest 串口：exec MYAPP.ELF
 ```
 
-`make deploy` 在 SDK 不在 `ToyKernel/Dist/ToySdk` 时**必须**设 `TOYIMAGE=`（默认兄弟仓推算会错）。
+`make deploy` 在 SDK 不在 `ToyKernel/Build/ToySDK` 时**必须**设 `TOYIMAGE=`（默认兄弟仓推算会错）。
 
 不要在仓库的 `Tools/Sdk/Examples/` 下直接 `make`（那里没有 `Library/`）。
 
 ## 目录
 
 ```
-ToySdk/
-├── include/               应用可见头（Unix CRT 名保持小写）
+ToySDK/
+├── include/               应用可见头（含 SyscallABI.h；Unix CRT 名保持小写）
 ├── Library/               libtoyos.a、libToyUi.a、libToyGfx.a、libToyNet.a、libFsUtil.a、crt0.o、syscall.o
 ├── user.ld                x86 用户 ELF @ 0x40000000
 ├── Documents/             应用开发指南.md、API速查.md
 ├── Examples/              Hello File Dir Pipe Fork Gui Blit Net Fs
 ├── ToySdk.mk              应用 include 本文件
 ├── Makefile.template      复制到应用目录；只 include ToySdk.mk
-├── VERSION                SDK 包版本（如 1.0.0）
+├── VERSION                SDK 包版本（如 1.0.0-course）
 └── README.md              本文件
 ```
 
@@ -59,8 +59,8 @@ ToySdk/
 复制 [`Makefile.template`](Makefile.template) 到应用目录（与 `main.c` 同级），设 `TOYSDK` 为 SDK 根：
 
 ```bash
-cp ToySdk/Makefile.template myapp/Makefile
-# 编辑 Makefile：TOYSDK ?= /path/to/ToySdk
+cp ToySDK/Makefile.template myapp/Makefile
+# 编辑 Makefile：TOYSDK ?= /path/to/ToySDK
 make -C myapp
 ```
 
@@ -72,7 +72,7 @@ make -C myapp
 
 ```bash
 cd ToyKernel && ./Tools/build-sdk.sh
-# → Dist/ToySdk/ 与 Dist/ToySdk.tar.gz（gitignore，不入库）
+# → Build/ToySDK/ 与 Build/ToySDK.tar.gz（gitignore，不入库）
 ```
 
 课堂树内模板仍是 `User/Pkg/`（不依赖本 SDK）。

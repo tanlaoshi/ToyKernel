@@ -34,6 +34,6 @@ ISC 允许商用/修改；保留 Lucide 版权声明见 [`LICENSE-Lucide.txt`](L
 
 壁纸仍在 [`../Images/WALL.BMP`](../Images/WALL.BMP)。
 
-## rootfs
+## Guest 资源
 
-`ToyImage/prepare-rootfs.sh` 与 `ToyImage/prepare-virt-rootfs.sh` 将本目录同步到 Guest `Assets/Icons/`（与 `Assets/Images/` 同级）。
+`ToyImage/Scripts/prepare-rootfs.sh` 与 `prepare-virt-rootfs.sh` 将本目录同步到 Guest `Assets/Icons/`（与 `Assets/Images/` 同级）。

@@ -1,5 +1,5 @@
 # ToyOS SDK 应用规则（PR-A-sdk-pack）
-# 用法：设 TOYSDK 指向 Dist/ToySdk 根，再 include 本文件。
+# 用法：设 TOYSDK 指向 Build/ToySDK 根（或解压后的 ToySDK/），再 include 本文件。
 #
 # 调用方需提供：
 #   PROG   — 产物基名（默认 MYAPP；盘上建议大写 8.3：MYAPP.ELF）
@@ -9,7 +9,7 @@
 #   EXTRA_LIBS — 额外 .a（如 $(TOYSDK)/Library/libToyUi.a）
 #   EXTRA_OBJS — 额外 .o
 #   TOYIMAGE   — ToyImage 仓（deploy/run）；默认 SDK 在
-#                ToyKernel/Dist/ToySdk 时的兄弟仓 ../../../ToyImage
+#                ToyKernel/Build/ToySDK 时的兄弟仓 ../../../ToyImage
 
 ifndef TOYSDK
 TOYSDK := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -36,6 +36,9 @@ LIBTOYOS_A  := $(LIB_DIR)/libtoyos.a
 
 TOYIMAGE ?= $(abspath $(TOYSDK)/../../../ToyImage)
 
+# deploy：x86 系统盘权威路径是 RootFs/X64/（勿再写遗留小写 rootfs/）
+DEPLOY_ROOT ?= $(TOYIMAGE)/RootFs/X64
+
 OBJS := $(addprefix $(BUILDDIR)/,$(SRCS:.c=.o))
 
 .PHONY: all clean deploy run
@@ -53,15 +56,15 @@ $(ELF): $(OBJS) $(CRT0_OBJ) $(SYSCALL_OBJ) $(LIBTOYOS_A) $(USER_LD) $(EXTRA_OBJS
 		$(EXTRA_LIBS) $(LIBTOYOS_A) $(CRT0_OBJ) $(SYSCALL_OBJ)
 
 deploy: $(ELF)
-	@if [ ! -d "$(TOYIMAGE)/rootfs" ]; then \
-		echo "deploy: set TOYIMAGE to the ToyImage repo (need rootfs/). TOYIMAGE=$(TOYIMAGE)"; \
+	@if [ ! -d "$(DEPLOY_ROOT)" ]; then \
+		echo "deploy: set TOYIMAGE to the ToyImage repo (need RootFs/X64/). TOYIMAGE=$(TOYIMAGE)"; \
 		exit 1; \
 	fi
-	cp -f $(ELF) $(TOYIMAGE)/rootfs/$(PROG).ELF
-	@echo "copied $(PROG).ELF -> $(TOYIMAGE)/rootfs/"
+	cp -f $(ELF) $(DEPLOY_ROOT)/$(PROG).ELF
+	@echo "copied $(PROG).ELF -> $(DEPLOY_ROOT)/"
 
 run: deploy
-	cd $(TOYIMAGE) && ./run-split.sh
+	cd $(TOYIMAGE) && ./Scripts/run-split.sh
 
 clean:
 	rm -rf $(BUILDDIR)
