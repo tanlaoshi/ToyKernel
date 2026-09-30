@@ -1,6 +1,6 @@
 # ToyOS 模块化与 App 课堂闭环
 
-> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-svc-lwip`](../路线图.md#pr-mod-svc-lwip)（Services LwIp 归夹）。  
+> **状态**：**柱已升星**；MOD-0 规格齐；★ = [`PR-MOD-svc-misc`](../路线图.md#pr-mod-svc-misc)（Services 根散落归夹）。  
 > **定位**：目录/文件结构模块化 + 驱动一设备一目录 + App「开发→打包→安装」课堂叙事。  
 > **相关**：[`可替换模块化架构规划.md`](../已完/可替换模块化架构规划.md)（SCHED/MEM/FS **政策**可替换 · 已 GD）· [`应用资源自包含与字体共享.md`](../已完/应用资源自包含与字体共享.md)（目录包代码 · 已 GD）· [`开发/应用开发指南.md`](../开发/应用开发指南.md) · [`驱动/驱动开发指南.md`](../驱动/驱动开发指南.md) · [`路线图.md`](../路线图.md)  
 > **命名**：PascalCase；新 `.c` ≤300；搬家刀不改行为。
@@ -284,3 +284,5 @@
 | 2026-09-30 | drv-block TG；★→drv-netglue |
 | 2026-09-30 | drv-netglue JX：L2→设备夹；`Net/README` 协议核清单；virtio+e1000 smoke PASS |
 | 2026-09-30 | drv-netglue TG；★→svc-lwip；轨 B 驱动夹收官 |
+| 2026-09-30 | svc-lwip JX：`Services/LwIp/`；Install 保持根；三 arch + e1000 smoke PASS |
+| 2026-09-30 | svc-lwip TG；★→svc-misc |
