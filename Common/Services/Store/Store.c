@@ -4,11 +4,9 @@
  *           PR-M1：depends=（catalog 第 8 段 / PKG.TXT）；缺依赖拒绝安装
  *           PR-M2：store combo / uncombo — 按依赖顺序装卸多包「功能」
  *
- * 载荷查找顺序：StoreCache/<file> → Assets/Store/packages/<id>/<file> → 卷根 <file>
- *
- * 卸装删的是 Apps/（或 Fonts/Packs）里的已装副本，不是 StoreCache/ 仓库。
- * 只删 U 盘 StoreCache 目录下的 ELF：商店目录仍在（catalog）；已装的仍在 Apps/；
- * 卷根还有 HELLO.ELF 等教学镜像，Install 仍可能成功。
+ * 载荷查找：Store/packages/<id>/<file> → Store/<file> → 卷根 <file>；
+ * 本地皆无则 HTTP 直装目标（Apps/Fonts/Packs），不落网络 ELF 缓存。
+ * 卸装删的是 Apps/（或 Fonts/Packs）已装副本，不是 Store/ 本地源。
  * sha256=- 时跳过校验（教学默认）。
  * 清单键：si.<id>=type|file ；依赖 sd.<id>=逗号 id 或 -
  * catalog 在 StoreCatalog.c。安装在 StoreInstall.c。组合包在 StoreCombo.c。卸装在 StoreRemove.c。查询在 StoreQuery.c / StoreManaged.c。

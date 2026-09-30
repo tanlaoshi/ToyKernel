@@ -1,5 +1,5 @@
 /*
- * StoreNet.c — 仓库地址与 fetch/sync
+ * StoreNet.c — 仓库地址与 sync（目录）/ fetch（兼容→install）
  * HTTP：StoreNetHttp.c；解析与哈希：StoreNetParse.c。
  */
 #include "StoreNetPrivate.h"
@@ -8,7 +8,7 @@ static UINT32 gRepoIp = STORE_REPO_DEFAULT_IP;
 static UINT16 gRepoPort = (UINT16)STORE_REPO_DEFAULT_PORT;
 
 static int EnsureStoreDir(void) {
-    int Err = FileSystemMakeDirectory(STORE_CACHE_DIR);
+    int Err = FileSystemMakeDirectory(STORE_DIR);
     if (Err == FAT_OK || Err == FAT_ERR_EXIST) {
         return FAT_OK;
     }
@@ -113,6 +113,7 @@ int StoreFetchPath(const char *UrlPath, const char *DestRel,
         HalConsoleWriteSerial("store: hash mismatch\n");
         return STORE_ERR_HASH;
     }
+    /* DestRel 可能是 Store/remote.cat，也可能是 Apps/…；建 Store/ 无害 */
     Err = EnsureStoreDir();
     if (Err != FAT_OK) {
         PhysicalMemoryFreePages(Body, Pages);
@@ -124,61 +125,11 @@ int StoreFetchPath(const char *UrlPath, const char *DestRel,
 }
 
 int StoreSyncCatalog(void) {
-    return StoreFetchPath("/catalog.txt", STORE_CATALOG_ALT, "-");
-}
-
-static int IdEq(const char *A, const char *B) {
-    if (!A || !B) {
-        return 0;
-    }
-    while (*A && *A == *B) {
-        A++;
-        B++;
-    }
-    return *A == 0 && *B == 0;
+    /* 只更新远程目录表；不批量拉 ELF */
+    return StoreFetchPath("/catalog.txt", STORE_REMOTE_CAT, "-");
 }
 
 int StoreFetchId(const char *Id) {
-    STORE_ENTRY *Tab = StoreScratchTab();
-    int Count = 0;
-    int i;
-    int Err;
-    char Url[96];
-    char Dest[96];
-    int n;
-    int j;
-
-    if (!Id || !Id[0]) {
-        return FAT_ERR_INVAL;
-    }
-    Err = StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count);
-    if (Err < 0 || Count == 0) {
-        return Err < 0 ? Err : FAT_ERR_NOENT;
-    }
-    for (i = 0; i < Count; i++) {
-        if (!IdEq(Tab[i].Id, Id)) {
-            continue;
-        }
-        n = 0;
-        Url[n++] = '/';
-        j = 0;
-        while (Tab[i].File[j] && n + 1 < (int)sizeof(Url)) {
-            Url[n++] = Tab[i].File[j++];
-        }
-        Url[n] = 0;
-        n = 0;
-        {
-            const char *P = STORE_CACHE_DIR "/";
-            while (*P && n + 1 < (int)sizeof(Dest)) {
-                Dest[n++] = *P++;
-            }
-        }
-        j = 0;
-        while (Tab[i].File[j] && n + 1 < (int)sizeof(Dest)) {
-            Dest[n++] = Tab[i].File[j++];
-        }
-        Dest[n] = 0;
-        return StoreFetchPath(Url, Dest, Tab[i].Sha256);
-    }
-    return FAT_ERR_NOENT;
+    /* 兼容旧子命令：等价于 install（HTTP 直达 Apps，无 Cache） */
+    return StoreInstall(Id);
 }

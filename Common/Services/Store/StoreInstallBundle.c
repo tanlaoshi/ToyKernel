@@ -226,7 +226,7 @@ int StoreInstallBundleExtras(const char *Id) {
         return FAT_ERR_INVAL;
     }
     StoreAppBundleDir(Bundle, (int)sizeof(Bundle), Id);
-    JoinPath(PkgDir, (int)sizeof(PkgDir), "Assets/Store/packages", Id);
+    JoinPath(PkgDir, (int)sizeof(PkgDir), STORE_PACKAGES_DIR, Id);
 
     JoinPath(Src, (int)sizeof(Src), PkgDir, "PKG.TXT");
     if (FileSystemFileStat(Src, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {

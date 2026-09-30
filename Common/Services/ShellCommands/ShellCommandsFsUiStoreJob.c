@@ -37,9 +37,6 @@ void ShellStoreNetDone(const char *Verb, int Err) {
         ConsoleWrite("store: ");
         ConsoleWrite(Verb);
         ConsoleWrite(" ok\n");
-        if (Verb[0] == 'f') {
-            ConsoleWrite("hint: store install <id>\n");
-        }
         return;
     }
     ConsoleWrite("store: ");
@@ -128,7 +125,7 @@ void StoreCmdListCatalog(void) {
     }
     ConsoleWrite("store (");
     ConsoleWrite(StoreHostArch());
-    ConsoleWrite(")  state=INST|avail  dep=...\n");
+    ConsoleWrite(")  *=[本|网] id …\n");
     for (i = 0; i < Count; i++) {
         char Dep[64];
         int On = StoreIsInstalled(Tab[i].Id);
@@ -145,12 +142,12 @@ void StoreCmdListCatalog(void) {
             Dep[0] = '-';
             Dep[1] = 0;
         }
-        ConsoleWrite("  ");
+        ConsoleWrite(On ? "* " : "  ");
+        ConsoleWrite(Tab[i].Origin == STORE_SRC_NET ? "[网] " : "[本] ");
         ConsoleWrite(Tab[i].Id);
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].Type);
-        ConsoleWrite(On ? "  INST  " : "  avail ");
-        ConsoleWrite("dep=");
+        ConsoleWrite("  dep=");
         ConsoleWrite(Dep);
         ConsoleWrite("  ");
         ConsoleWrite(Tab[i].File);

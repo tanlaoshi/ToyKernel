@@ -1,6 +1,5 @@
 /*
- * StoreCatalog.c — catalog 解析与加载
- * 核心：Store.c。安装与组合包仍在 Store.c。
+ * StoreCatalog.c — catalog 解析与加载（本地 Store/ + 远程 remote.cat 合并）
  */
 #include "Store.h"
 #include "StorePrivate.h"
@@ -9,6 +8,8 @@
 #include "PhysicalMemory.h"
 
 #define STORE_CATALOG_MAX  (8u * 1024u)
+
+static STORE_ENTRY sRemoteTab[STORE_ENTRIES_MAX];
 
 static void CopyTok(char *Dst, int DstMax, const char *Start, const char *End) {
     int N = 0;
@@ -52,7 +53,6 @@ static int ParseLine(STORE_ENTRY *E, const char *Line) {
         }
         P++;
     }
-    /* 7 段（6 个 |）或 8 段含 depends（7 个 |） */
     if (N != 6 && N != 7) {
         return -1;
     }
@@ -77,6 +77,7 @@ static int ParseLine(STORE_ENTRY *E, const char *Line) {
     CopyTok(E->Arch, STORE_ARCH_MAX, Starts[5], Fields[5]);
     CopyTok(E->Title, STORE_TITLE_MAX, Starts[6], Fields[6]);
     E->Depends[0] = 0;
+    E->Origin = STORE_SRC_LOCAL;
     if (N == 7) {
         CopyTok(E->Depends, STORE_DEPENDS_MAX, Starts[7], Fields[7]);
         NormalizeDepends(E->Depends);
@@ -153,8 +154,32 @@ static int LoadCatalogPath(const char *Path, STORE_ENTRY *Out, int Max, int *Out
     return FAT_OK;
 }
 
+static void MarkOrigin(STORE_ENTRY *Tab, int N, int Origin) {
+    int i;
+
+    for (i = 0; i < N; i++) {
+        Tab[i].Origin = Origin;
+    }
+}
+
+static int FindId(STORE_ENTRY *Tab, int N, const char *Id) {
+    int i;
+
+    for (i = 0; i < N; i++) {
+        if (StrEq(Tab[i].Id, Id)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
     int Err;
+    int LocalN = 0;
+    int RemoteN = 0;
+    int Count;
+    int i;
+    int Hit;
     static const char Builtin[] =
         "hello|app|1|HELLO.ELF|-|x86_64|Hello\n"
         "guidemo|app|1|GUIDEMO.ELF|-|x86_64|GUI Demo|demopack,sun8\n"
@@ -163,29 +188,39 @@ int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
         "sun8|font|1|VGA8X16.FNT|-|any|Sun 8x16 (store)\n"
         "demopack|asset|1|INFO.TXT|-|any|Demo asset pack\n";
     const char *P;
-    const char *Line;
     char LineBuf[192];
     int Li;
-    int Count;
 
-    /* PR-S2：已 sync 的 StoreCache/catalog.txt 优先覆盖镜像内 Assets */
-    Err = LoadCatalogPath(STORE_CATALOG_ALT, Out, Max, OutCount);
-    if (Err == FAT_OK && *OutCount > 0) {
-        return *OutCount;
-    }
-    Err = LoadCatalogPath(STORE_CATALOG_PATH, Out, Max, OutCount);
-    if (Err == FAT_OK && *OutCount > 0) {
-        return *OutCount;
-    }
-
-    /* 无盘/空 catalog：内核内置离线表（不必搭服务器） */
     if (!Out || Max <= 0 || !OutCount) {
         return FAT_ERR_INVAL;
     }
+    *OutCount = 0;
+    Count = 0;
+    Err = LoadCatalogPath(STORE_CATALOG_PATH, Out, Max, &LocalN);
+    if (Err == FAT_OK && LocalN > 0) {
+        MarkOrigin(Out, LocalN, STORE_SRC_LOCAL);
+        Count = LocalN;
+    }
+    Err = LoadCatalogPath(STORE_REMOTE_CAT, sRemoteTab, Max, &RemoteN);
+    if (Err == FAT_OK && RemoteN > 0) {
+        MarkOrigin(sRemoteTab, RemoteN, STORE_SRC_NET);
+        for (i = 0; i < RemoteN; i++) {
+            Hit = FindId(Out, Count, sRemoteTab[i].Id);
+            if (Hit >= 0) {
+                Out[Hit] = sRemoteTab[i];
+            } else if (Count < Max) {
+                Out[Count++] = sRemoteTab[i];
+            }
+        }
+    }
+    if (Count > 0) {
+        *OutCount = Count;
+        return Count;
+    }
+
     Count = 0;
     P = Builtin;
     while (*P && Count < Max) {
-        Line = P;
         Li = 0;
         while (*P && *P != '\n' && Li + 1 < (int)sizeof(LineBuf)) {
             LineBuf[Li++] = *P++;
@@ -194,8 +229,8 @@ int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount) {
         if (*P == '\n') {
             P++;
         }
-        (void)Line;
         if (ParseLine(&Out[Count], LineBuf) == 0) {
+            Out[Count].Origin = STORE_SRC_LOCAL;
             Count++;
         }
     }

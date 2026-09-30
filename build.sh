@@ -142,13 +142,13 @@ fi
 echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRINGUP)"
 
 # CI 只 checkout ToyKernel，无 ../ToyImage；有则同步到 RootFs/$HAL
-# PR-MOD-rootfs-trim：卷根仅 ROOTFS-ELF 白名单；入店类只走 packages/StoreCache
+# PR-LAN-store-src：卷根仅 ROOTFS-ELF 白名单；商店在 Store/（废 Assets/Store + StoreCache）
 if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64 ]; then
     DEST=../ToyImage/RootFs/X64
     USER_OUT=Build/User
     cp -f "$ELF" "$DEST/Kernel.elf"
 
-    # 根白名单（Assets/Store/ROOTFS-ELF.md）
+    # 根白名单（Store/ROOTFS-ELF.md）
     cp -f "$USER_OUT/hello.elf" "$DEST/HELLO.ELF"
     cp -f "$USER_OUT/count.elf" "$DEST/COUNT.ELF"
     cp -f "$USER_OUT/fork.elf" "$DEST/FORK.ELF"
@@ -165,9 +165,8 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     cp -f "$USER_OUT/enosysdemo.elf" "$DEST/ENOSYS.ELF"
 
     # 课堂预装目录包（非扁平）；仍禁止 Apps/*.ELF。Snake 不预装，须 store install。
-    mkdir -p "$DEST/Apps/hello" "$DEST/Apps/guidemo" "$DEST/Apps/taskmgr" "$DEST/StoreCache"
+    mkdir -p "$DEST/Apps/hello" "$DEST/Apps/guidemo" "$DEST/Apps/taskmgr"
     cp -f "$USER_OUT/hello.elf" "$DEST/Apps/hello/HELLO.ELF"
-    cp -f "$USER_OUT/hello.elf" "$DEST/StoreCache/HELLO.ELF"
     cp -f "$USER_OUT/guidemo.elf" "$DEST/Apps/guidemo/GUIDEMO.ELF"
     cp -f "$USER_OUT/taskmgr.elf" "$DEST/Apps/taskmgr/TASKMGR.ELF"
     rm -f "$DEST/Apps/TASKMGR.ELF" "$DEST/Apps/CAT.ELF" "$DEST/Apps/SNAKE.ELF"
@@ -175,15 +174,15 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
 
     PackStore() {
         local Id="$1" Src="$2" File="$3"
-        mkdir -p "Assets/Store/packages/$Id" "$DEST/Assets/Store/packages/$Id"
-        cp -f "$Src" "Assets/Store/packages/$Id/$File"
-        if [ -f "Assets/Store/packages/$Id/PKG.TXT" ]; then
-            cp -f "Assets/Store/packages/$Id/PKG.TXT" "$DEST/Assets/Store/packages/$Id/"
+        mkdir -p "Store/packages/$Id" "$DEST/Store/packages/$Id"
+        cp -f "$Src" "Store/packages/$Id/$File"
+        if [ -f "Store/packages/$Id/PKG.TXT" ]; then
+            cp -f "Store/packages/$Id/PKG.TXT" "$DEST/Store/packages/$Id/"
         fi
-        cp -f "$Src" "$DEST/Assets/Store/packages/$Id/$File"
-        if [ -d "Assets/Store/packages/$Id/Assets" ]; then
-            rm -rf "$DEST/Assets/Store/packages/$Id/Assets"
-            cp -a "Assets/Store/packages/$Id/Assets" "$DEST/Assets/Store/packages/$Id/"
+        cp -f "$Src" "$DEST/Store/packages/$Id/$File"
+        if [ -d "Store/packages/$Id/Assets" ]; then
+            rm -rf "$DEST/Store/packages/$Id/Assets"
+            cp -a "Store/packages/$Id/Assets" "$DEST/Store/packages/$Id/"
         fi
     }
     PackStore hello "$USER_OUT/hello.elf" HELLO.ELF
@@ -193,20 +192,21 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     PackStore snake "$USER_OUT/snake.elf" SNAKE.ELF
     PackStore windemo "$USER_OUT/windemo.elf" WINDEMO.ELF
     PackStore blitdemo "$USER_OUT/blitdemo.elf" BLITDEMO.ELF
-    if [ -f Assets/Store/catalog.txt ]; then
-        mkdir -p "$DEST/Assets/Store" "$DEST/StoreCache"
-        cp -f Assets/Store/catalog.txt "$DEST/Assets/Store/catalog.txt"
-        cp -f Assets/Store/catalog.txt "$DEST/StoreCache/catalog.txt"
+    if [ -f Store/catalog.txt ]; then
+        mkdir -p "$DEST/Store"
+        cp -f Store/catalog.txt "$DEST/Store/catalog.txt"
     fi
+    # 废旧路径（store-src）
+    rm -rf "$DEST/Assets/Store" "$DEST/StoreCache"
 
-    # 清非白名单卷根陈货（入店类改走 packages）
+    # 清非白名单卷根陈货（入店类改走 Store/packages）
     rm -f "$DEST/CAT.ELF" "$DEST/WRITE.ELF" "$DEST/NETDEMO.ELF" "$DEST/NETSRV.ELF" \
         "$DEST/BRKDEMO.ELF" "$DEST/MMAPDEMO.ELF" "$DEST/KILLDEMO.ELF" "$DEST/SIGDEMO.ELF" \
         "$DEST/WINDEMO.ELF" "$DEST/GUIDEMO.ELF" "$DEST/BLITDEMO.ELF" "$DEST/LIBCDEMO.ELF" \
         "$DEST/SLEEPDEMO.ELF" "$DEST/SNAKE.ELF" "$DEST/TASKMGR.ELF" "$DEST/DIRDEMO.ELF" \
         "$DEST/CWDDEMO.ELF" "$DEST/NETLIB.ELF" "$DEST/SOCKDEMO.ELF"
 
-    echo "Synced Kernel + root whitelist + packages/Apps/<id>/StoreCache -> $DEST/"
+    echo "Synced Kernel + root whitelist + Store/packages + Apps/<id> -> $DEST/"
 elif [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ]; then
     echo "note: no ../ToyImage/RootFs/X64 (CI) — skip demo ELF copy"
 else

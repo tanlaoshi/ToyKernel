@@ -137,8 +137,8 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, Inst ? "status: installed" : "status: not installed",
-                             Inst ? ThemeTextAccent() : ThemeTextMuted());
+        const char *St = Inst ? "status: installed" : "status: not installed";
+        HalVideoDrawStringAt(X + 10, Ty, St, Inst ? ThemeTextAccent() : ThemeTextMuted());
     }
 }
 
@@ -247,6 +247,14 @@ void StorePaintList(void) {
         const char *P;
 
         Row[k++] = Inst ? '*' : ' ';
+        Row[k++] = ' ';
+        Row[k++] = '[';
+        if (Tab[Ci].Origin == STORE_SRC_NET) {
+            Row[k++] = (char)0xe7; Row[k++] = (char)0xbd; Row[k++] = (char)0x91; /* 网 */
+        } else {
+            Row[k++] = (char)0xe6; Row[k++] = (char)0x9c; Row[k++] = (char)0xac; /* 本 */
+        }
+        Row[k++] = ']';
         Row[k++] = ' ';
         P = Tab[Ci].Id;
         while (*P && k < 28) {

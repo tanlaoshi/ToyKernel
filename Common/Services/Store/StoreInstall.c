@@ -36,13 +36,13 @@ static int ResolveInstallSrc(const char *Id, const char *File, char *Out, int Ou
     char Pkg[160];
     FAT_FILE_STAT St;
 
-    JoinPath(Src, (int)sizeof(Src), STORE_CACHE_DIR, File);
+    JoinPath(Pkg, (int)sizeof(Pkg), STORE_PACKAGES_DIR, Id);
+    JoinPath(Src, (int)sizeof(Src), Pkg, File);
     if (FileSystemFileStat(Src, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
         CopyStr(Out, OutMax, Src);
         return FAT_OK;
     }
-    JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
-    JoinPath(Src, (int)sizeof(Src), Pkg, File);
+    JoinPath(Src, (int)sizeof(Src), STORE_DIR, File);
     if (FileSystemFileStat(Src, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
         CopyStr(Out, OutMax, Src);
         return FAT_OK;
@@ -52,6 +52,23 @@ static int ResolveInstallSrc(const char *Id, const char *File, char *Out, int Ou
         return FAT_OK;
     }
     return FAT_ERR_NOENT;
+}
+
+/* 本地无包：HTTP 直写入 Dst（不落 StoreCache） */
+static int FetchInstallToDst(const char *File, const char *Sha, const char *Dst) {
+    char Url[96];
+    int n = 0;
+    int j = 0;
+
+    if (!File || !File[0] || !Dst || !Dst[0]) {
+        return FAT_ERR_INVAL;
+    }
+    Url[n++] = '/';
+    while (File[j] && n + 1 < (int)sizeof(Url)) {
+        Url[n++] = File[j++];
+    }
+    Url[n] = 0;
+    return StoreFetchPath(Url, Dst, Sha && Sha[0] ? Sha : "-");
 }
 
 void StoreInstallPumpAbort(void) {
@@ -133,8 +150,20 @@ int StoreInstallPump(const char *Id) {
             }
             Err = ResolveInstallSrc(Tab[i].Id, Tab[i].File, Src, (int)sizeof(Src));
             if (Err != FAT_OK) {
-                HalConsoleWriteSerial("store: install copy failed\n");
-                return Err;
+                Err = FetchInstallToDst(Tab[i].File, Tab[i].Sha256, sPump.Dst);
+                if (Err != 0) {
+                    HalConsoleWriteSerial("store: install fetch failed\n");
+                    return Err;
+                }
+                sPump.Active = 1;
+                sPump.Phase = PUMP_MARK;
+                if (sPump.Kind == STORE_KIND_APP) {
+                    Err = StoreInstallBundleExtras(sPump.Id);
+                    if (Err != FAT_OK) {
+                        HalConsoleWriteSerial("store: bundle extras skipped\n");
+                    }
+                }
+                return StoreInstallPump(0);
             }
             Err = StoreInstallCopyBegin(Src, sPump.Dst, sPump.Check);
             if (Err != FAT_OK) {

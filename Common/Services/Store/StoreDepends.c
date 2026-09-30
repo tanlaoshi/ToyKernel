@@ -28,7 +28,7 @@ int LoadPkgDepends(const char *Id, char *Out, int OutMax) {
         return 0;
     }
     /* 失败时勿清 Out：调用方可能已写入 catalog Depends */
-    JoinPath(Pkg, (int)sizeof(Pkg), "Assets/Store/packages", Id);
+    JoinPath(Pkg, (int)sizeof(Pkg), STORE_PACKAGES_DIR, Id);
     JoinPath(Path, (int)sizeof(Path), Pkg, "PKG.TXT");
     Err = FileSystemReadFile(Path, Buf, STORE_PKG_MAX - 1, &Size);
     if (Err != FAT_OK || Size == 0) {

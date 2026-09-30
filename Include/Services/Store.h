@@ -6,12 +6,15 @@
 
 #include "BootTypes.h"
 
-#define STORE_CATALOG_PATH   "Assets/Store/catalog.txt"
-#define STORE_CACHE_DIR      "StoreCache"
-#define STORE_CATALOG_ALT    STORE_CACHE_DIR "/catalog.txt"
+#define STORE_DIR            "Store"
+#define STORE_CATALOG_PATH   STORE_DIR "/catalog.txt"
+#define STORE_PACKAGES_DIR   STORE_DIR "/packages"
+#define STORE_REMOTE_CAT     STORE_DIR "/remote.cat" /* sync 仅目录，非 ELF 缓存 */
 #define STORE_APPS_DIR       "Apps"
 #define STORE_FONTS_DIR      "Assets/Fonts"
 #define STORE_PACKS_DIR      "Assets/Packs"
+#define STORE_SRC_LOCAL      0
+#define STORE_SRC_NET        1
 #define STORE_ID_MAX         32
 #define STORE_FILE_MAX       64
 #define STORE_TITLE_MAX      48
@@ -31,6 +34,7 @@ typedef struct STORE_ENTRY {
     char Arch[STORE_ARCH_MAX];
     char Title[STORE_TITLE_MAX];
     char Depends[STORE_DEPENDS_MAX]; /* PR-M1：可选；空或 "-" = 无依赖 */
+    int Origin; /* STORE_SRC_LOCAL / STORE_SRC_NET */
 } STORE_ENTRY;
 
 /* PR-S4：已装项（ToyDB si.<id>=type|file） */
@@ -52,7 +56,7 @@ typedef struct STORE_APP_DESKTOP_META {
     char Category[STORE_CATEGORY_MAX];
 } STORE_APP_DESKTOP_META;
 
-/* 加载 catalog；优先 StoreCache/（S2 同步后），再 Assets/；成功返回条目数 */
+/* 加载 catalog：本地 Store/ + sync 的 remote.cat 合并（网络同 id 覆盖）；标 Origin */
 int StoreLoadCatalog(STORE_ENTRY *Out, int Max, int *OutCount);
 
 /* 按 id 安装：app→Apps/；font→Assets/Fonts/；asset→Assets/Packs/；并记清单 */
