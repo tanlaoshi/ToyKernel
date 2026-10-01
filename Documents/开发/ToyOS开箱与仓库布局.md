@@ -1,6 +1,6 @@
 # ToyOS 开箱与仓库布局
 
-> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`3`](../路线图.md#pr-box-3) **✅ TG**；★ [`PR-BOX-4`](../路线图.md#pr-box-4)（`$TOYOS_ROOT` + Scripts）。  
+> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`4`](../路线图.md#pr-box-4) **✅ TG**；★ [`PR-BOX-5`](../路线图.md#pr-box-5)（`edk2/`→`~/ToyOS`）。  
 > **来源**：[`待做/新需求.md`](../待做/新需求.md)（需求原文；实现以**本文**为准）。  
 > **迁移策略（本机）**：当前 **`…/edk2/` 整树当作备份，先不动、不就地改名**；后续从该树**逐步拷出/迁出**到家目录 **`~/ToyOS`**（见 §5.0）。脚本仍按 `$TOYOS_ROOT` 自定位，迁完后权威根即 `~/ToyOS`。  
 > **路径铁律**：命令以 **ToyOS 树根**为准（可任意摆放）；**本柱迁移动作的目标根 = `~/ToyOS`**。禁止写死用户名（如 `/home/tank/...`）。  
@@ -302,10 +302,23 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | 项 | 内容 |
 | -- | ---- |
 | 路径 | 全脚本 **`TOYOS_ROOT` 解析**；**`source Scripts/env.sh`** + 根 **`Config.txt`**（默认 toyos/x86）；禁止写死用户名 |
-| 入口 | §1.0 骨架（含 `env.sh`）；激活后短名 `build`/`run`/`test`… |
+| 入口 | §1.0 骨架（含 `env.sh`）；激活后短名 `build`/`run`/`toytest`…（交互下亦有 `test`） |
+| 权威 | 源码在 **`ToyKernel/OpenBox/`**；`OpenBox/install-to-root.sh` 安装到树根 `Scripts/`+`Config.txt` |
 | bootstrap | `$TOYOS_ROOT/Scripts/bootstrap.sh` |
 | 验收 | source 后直接 `build` 编 Kernel；`build toyboot` 可覆盖；**非家目录**仍可；未 source 时 `./Scripts/build.sh` 仍可用 |
 | 不做 | 强制写进全局 bashrc；系统级安装 `build`；平行 `build-toyos.sh`；再要求必须 `$HOME/ToyOS` |
+
+**本刀勾选**
+
+| 项 | 状态 |
+| -- | ---- |
+| `OpenBox/Scripts` + `Config.txt` 骨架 | ✅ |
+| `install-to-root.sh` → 树根 Scripts | ✅ |
+| `source env.sh` 后 `build` / `build toyboot` | ✅ |
+| 未 source：`./Scripts/build.sh toyos x86`（从 `/tmp`） | ✅ |
+| `./Scripts/test.sh smoke x86` | ✅ |
+| `bootstrap.sh` 幂等提示 | ✅ |
+| 强制 bashrc / 迁 `~/ToyOS` | 本刀不做（→ BOX-5） |
 
 ---
 

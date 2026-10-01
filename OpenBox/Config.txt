@@ -1,0 +1,4 @@
+# Config.txt — ToyOS 开箱默认（BOX-4）
+# 本机覆盖：同目录 Config.local.txt（勿提交）
+DEFAULT_TARGET=toyos
+DEFAULT_ARCH=x86
