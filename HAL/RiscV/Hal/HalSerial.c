@@ -80,6 +80,9 @@ void HalSerialInitialize(void) {
 void HalSerialRetryIfMissing(void) {
 }
 
+void HalSerialEnableRxIrq(void) {
+}
+
 int HalSerialPresent(void) {
 #if TOY_SERIAL
     return 1;

@@ -30,6 +30,7 @@ int SysConnect(int Fd, UINT32 Ip, UINT16 Port);
 int SysBind(int Fd, UINT32 Ip, UINT16 Port);
 int SysListen(int Fd, int Backlog);
 int SysAccept(int Fd);
+int SysRecvNb(int Fd, UINT64 UserBuf, UINTN Len);
 int SysPipe(UINT64 UserPtr);
 int SysDup(int Fd);
 /* 相对路径拼到 TASK.Cwd；绝对路径（/ 或 卷:）原样 */

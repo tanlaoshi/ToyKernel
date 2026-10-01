@@ -61,18 +61,10 @@ void ShellTask(void) {
         }
         GuiPollMouse();
         /*
-         * PR-G-shell-present：打字回显经 EchoMark 跳过逐键 Present，
-         * 本处合并提交脏区（亦续传上次半途 gDirty）。virt/真机同路径。
-         */
-        /* 拖帧合成中后缓冲是半成品；这一刷会整块再贴，闪且卡 */
-        if (!GuiPresentBlocked()) {
-            HalVideoPresent();
-        }
-
-        /*
          * COM1 RX → Shell / 用户 stdin 环（CoolTerm 遥控）。
-         * 真机曾 MaxRx=32：粘贴 dbset …192.168.31.124 时 HW FIFO(16) 溢掉中间字。
-         * 仍设上限，避免噪声狂发时永不 Net/Halt；一行命令 ≪ 256。
+         * 必须在 HalVideoPresent 之前抽：Present 可达数 ms，16550 FIFO(16)
+         * 在 115200 下约 1.4ms 就满；旧序 Present→RX 时粘贴 dbset 必截断。
+         * MaxRx 仍限一轮喂 shell 量；HW→软环由 SerialRxPump（定时器）兜底。
          */
         {
             int n = 0;
@@ -136,6 +128,14 @@ void ShellTask(void) {
                     ConsoleOnCharEx(C, 1);
                 }
             }
+        }
+        /*
+         * PR-G-shell-present：打字回显经 EchoMark 跳过逐键 Present，
+         * 本处合并提交脏区（亦续传上次半途 gDirty）。virt/真机同路径。
+         */
+        /* 拖帧合成中后缓冲是半成品；这一刷会整块再贴，闪且卡 */
+        if (!GuiPresentBlocked()) {
+            HalVideoPresent();
         }
 #ifdef TOY_LWIP
         /*

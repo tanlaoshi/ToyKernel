@@ -139,6 +139,8 @@ int SchedulerFdListen(TASK *T, int Fd, int Backlog);
 int SchedulerFdAccept(TASK *T, int Fd);
 int SchedulerFdConnect(TASK *T, int Fd, UINT32 Ip, UINT16 Port);
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len);
+/* SockTimeoutMs：仅 socket；0=阻塞，-1=非阻塞，>0≈halt 次数 */
+int SchedulerFdReadTimeout(TASK *T, int Fd, void *Buf, UINTN Len, int SockTimeoutMs);
 int SchedulerFdWrite(TASK *T, int Fd, const void *Buf, UINTN Len);
 INT64 SchedulerFdSeek(TASK *T, int Fd, INT64 Offset, int Whence);
 int SchedulerFdClose(TASK *T, int Fd);

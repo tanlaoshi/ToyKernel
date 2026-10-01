@@ -19,6 +19,12 @@ void SerialWrite(const char *Text);
 void SerialClaimException(void);
 int SerialDataReady(void);
 char SerialReadChar(void);
+/* IRQ 模式由 SerialIrq 抽 HW；poll 模式 Present/Shell 可调 */
+void SerialRxPump(void);
+/* IoApic 就绪后：ISA IRQ4 → 软环；失败则保持 poll */
+void SerialEnableRxIrq(void);
+/* 中断分发调用 */
+void SerialIrq(void);
 void SerialHexFormat(char *Buf, UINT64 Value, int Digits);
 void SerialHex32(UINT32 Value);
 void SerialHex64(UINT64 Value);

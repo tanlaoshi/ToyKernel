@@ -13,6 +13,7 @@
 #define AF_INET     2
 #define SOCK_STREAM 1
 #define INADDR_ANY  0
+#define MSG_DONTWAIT 0x40
 
 struct sockaddr {
     sa_family_t sa_family;

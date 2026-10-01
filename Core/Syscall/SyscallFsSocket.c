@@ -78,3 +78,31 @@ int SysAccept(int Fd) {
     }
     return SchedulerFdAccept(T, Fd);
 }
+
+/* 非阻塞：>0 字节；0=EOF；-TOY_EAGAIN=暂无数据；其它负=错 */
+int SysRecvNb(int Fd, UINT64 UserBuf, UINTN Len) {
+    char Buf[COPY_BUF_MAX];
+    TASK *T = SchedulerCurrent();
+    int N;
+
+    if (!T || !T->IsUser || Len == 0) {
+        return -1;
+    }
+    if (Len > COPY_BUF_MAX) {
+        Len = COPY_BUF_MAX;
+    }
+    N = SchedulerFdReadTimeout(T, Fd, Buf, Len, -1);
+    if (N == -TOY_EAGAIN) {
+        return -TOY_EAGAIN;
+    }
+    if (N < 0) {
+        return -1;
+    }
+    if (N == 0) {
+        return 0;
+    }
+    if (VirtualMemoryCopyToUser(UserBuf, Buf, (UINTN)N) < 0) {
+        return -1;
+    }
+    return N;
+}

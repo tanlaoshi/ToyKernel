@@ -1,308 +1,283 @@
-/* Chat.c — 串口行聊天客户端（PR-CHAT-2）
- * peer=TOYOS.DB chat.peer=；半双工（fork 不克隆 socket，见 TaskCloneFds）。
+/* Chat.c — GUI 半双工聊天（壳式 chat>，无 TextField/按钮）
+ * 客户区只用 DamageText（系统字），交互仿 Shell 行编辑。
  */
+#include "ChatNet.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <errno.h>
+#include <sys/socket.h>
 #include <ToyNet.h>
+#include <ToyUi.h>
 
-#define CHAT_LINE_MAX 200
-#define CHAT_PORT_DEF 9090
+#define CHAT_LOG_MAX  4
+#define CHAT_LOG_COLS 28
+#define CHAT_DRAFT_MAX 48
 
-static int ReadDec(const char **Pp, unsigned *Out) {
-    const char *P = *Pp;
-    unsigned V = 0;
-    int Dig = 0;
+static char gLog[CHAT_LOG_MAX][CHAT_LOG_COLS];
+static int gLogN;
+static int gWid = -1;
+static int gSock = -1;
+static int gWaitPeer;
+static char gDraft[CHAT_DRAFT_MAX];
+static int gDraftN;
+static char gRx[CHAT_LINE_MAX + 4];
+static int gRxN;
 
-    while (*P >= '0' && *P <= '9') {
-        V = V * 10u + (unsigned)(*P - '0');
-        P++;
-        Dig = 1;
-        if (V > 65535u) {
-            return -1;
-        }
+/* USB HID → ASCII（无 Shift；与 ToyUi 子集对齐） */
+static char HidAscii(int Hid) {
+    if (Hid >= 0x04 && Hid <= 0x1D) {
+        return (char)('a' + (Hid - 0x04));
     }
-    if (!Dig) {
-        return -1;
+    if (Hid >= 0x1E && Hid <= 0x26) {
+        return (char)('1' + (Hid - 0x1E));
     }
-    *Out = V;
-    *Pp = P;
+    if (Hid == 0x27) {
+        return '0';
+    }
+    if (Hid == 0x2C) {
+        return ' ';
+    }
+    if (Hid == 0x37) {
+        return '.';
+    }
+    if (Hid == 0x36) {
+        return ',';
+    }
+    if (Hid == 0x2D) {
+        return '-';
+    }
+    if (Hid == 0x38) {
+        return '/';
+    }
     return 0;
 }
 
-static int ParsePeer(const char *Val, unsigned *OutIp, unsigned short *OutPort) {
-    const char *P = Val;
-    unsigned A, B, C, D, Port = CHAT_PORT_DEF;
+static void LogPush(const char *Who, const char *Msg) {
+    char Line[CHAT_LOG_COLS];
+    int I;
+    int N = 0;
 
-    if (!Val || !OutIp || !OutPort) {
-        return -1;
+    while (Who[N] && N < 4) {
+        Line[N] = Who[N];
+        N++;
     }
-    if (ReadDec(&P, &A) != 0 || *P++ != '.') {
-        return -1;
+    Line[N++] = ' ';
+    I = 0;
+    while (Msg[I] && N + 1 < CHAT_LOG_COLS) {
+        Line[N++] = Msg[I++];
     }
-    if (ReadDec(&P, &B) != 0 || *P++ != '.') {
-        return -1;
+    Line[N] = 0;
+    if (gLogN >= CHAT_LOG_MAX) {
+        for (I = 1; I < CHAT_LOG_MAX; I++) {
+            memcpy(gLog[I - 1], gLog[I], CHAT_LOG_COLS);
+        }
+        gLogN = CHAT_LOG_MAX - 1;
     }
-    if (ReadDec(&P, &C) != 0 || *P++ != '.') {
-        return -1;
-    }
-    if (ReadDec(&P, &D) != 0) {
-        return -1;
-    }
-    if (*P == ':') {
-        P++;
-        if (ReadDec(&P, &Port) != 0) {
-            return -1;
+    memcpy(gLog[gLogN], Line, CHAT_LOG_COLS);
+    gLogN++;
+}
+
+/* 仿 Shell：日志 + 当前「chat> 草稿」画在客户区（≤ ClientText 128） */
+static void UiPaint(void) {
+    char Buf[128];
+    int I;
+    int Off = 0;
+
+    for (I = 0; I < gLogN && Off + 2 < (int)sizeof(Buf); I++) {
+        int J = 0;
+        if (I > 0) {
+            Buf[Off++] = '\n';
+        }
+        while (gLog[I][J] && Off + 1 < (int)sizeof(Buf)) {
+            Buf[Off++] = gLog[I][J++];
         }
     }
-    while (*P == ' ' || *P == '\t') {
-        P++;
+    if (Off + 2 < (int)sizeof(Buf)) {
+        if (Off > 0) {
+            Buf[Off++] = '\n';
+        }
+        if (gWaitPeer) {
+            const char *H = "…waiting peer";
+            I = 0;
+            while (H[I] && Off + 1 < (int)sizeof(Buf)) {
+                Buf[Off++] = H[I++];
+            }
+        } else {
+            const char *P = "chat> ";
+            I = 0;
+            while (P[I] && Off + 1 < (int)sizeof(Buf)) {
+                Buf[Off++] = P[I++];
+            }
+            I = 0;
+            while (I < gDraftN && Off + 1 < (int)sizeof(Buf)) {
+                Buf[Off++] = gDraft[I++];
+            }
+        }
     }
-    if (*P != 0 || A > 255 || B > 255 || C > 255 || D > 255
-        || Port == 0 || Port > 65535) {
+    Buf[Off] = 0;
+    if (gWid >= 0) {
+        ToyUiSetLabel(gWid, Buf[0] ? Buf : "chat>");
+    }
+}
+
+static int TrySendDraft(void) {
+    if (gWaitPeer || gSock < 0) {
+        return 0;
+    }
+    if (gDraftN == 0) {
+        return 0;
+    }
+    gDraft[gDraftN] = 0;
+    if (strcmp(gDraft, "/quit") == 0) {
+        return -2;
+    }
+    if (ChatSendLine(gSock, gDraft, (size_t)gDraftN) != 0) {
+        LogPush("--", "send fail");
+        gDraftN = 0;
+        UiPaint();
         return -1;
     }
-    *OutIp = ToyNetIpv4(A, B, C, D);
-    *OutPort = (unsigned short)Port;
+    LogPush("me>", gDraft);
+    gDraftN = 0;
+    gWaitPeer = 1;
+    gRxN = 0;
+    UiPaint();
     return 0;
 }
 
-static int ReadFileLine(int Fd, char *Out, size_t Cap) {
-    size_t N = 0;
+static void OnKey(int Hid) {
+    char C;
 
+    if (gWaitPeer) {
+        return;
+    }
+    if (Hid == 0x2A) { /* Backspace */
+        if (gDraftN > 0) {
+            gDraftN--;
+            UiPaint();
+        }
+        return;
+    }
+    C = HidAscii(Hid);
+    if (!C) {
+        return;
+    }
+    if (gDraftN + 1 >= CHAT_DRAFT_MAX) {
+        return;
+    }
+    gDraft[gDraftN++] = C;
+    UiPaint();
+}
+
+/* 1=完成 0=继续 -1=错 -2=EOF */
+static int PollPeerLine(void) {
     for (;;) {
         char C;
-        ssize_t R = read(Fd, &C, 1);
-        if (R == 0) {
-            if (N == 0) {
+        ssize_t R = recv(gSock, &C, 1, MSG_DONTWAIT);
+        if (R < 0) {
+            if (errno == EAGAIN) {
                 return 0;
             }
-            Out[N] = 0;
-            return (int)N;
-        }
-        if (R < 0) {
             return -1;
         }
-        if (C == '\n') {
-            Out[N] = 0;
-            return (int)N;
-        }
-        if (C == '\r') {
-            continue;
-        }
-        if (N + 1 < Cap) {
-            Out[N++] = C;
-        }
-    }
-}
-
-static int LoadChatPeer(unsigned *OutIp, unsigned short *OutPort) {
-    int Fd;
-    char Line[128];
-    const char *Key = "chat.peer=";
-    size_t KeyLen = 10;
-
-    Fd = open("TOYOS.DB", O_RDONLY);
-    if (Fd < 0) {
-        Fd = open("/TOYOS.DB", O_RDONLY);
-    }
-    if (Fd < 0) {
-        printf("chat: no TOYOS.DB (dbset chat.peer <ip>)\n");
-        return -1;
-    }
-    while (ReadFileLine(Fd, Line, sizeof(Line)) > 0) {
-        char *P = Line;
-        while (*P == ' ' || *P == '\t') {
-            P++;
-        }
-        if (strncmp(P, Key, KeyLen) != 0) {
-            continue;
-        }
-        P += KeyLen;
-        while (*P == ' ' || *P == '\t') {
-            P++;
-        }
-        close(Fd);
-        if (ParsePeer(P, OutIp, OutPort) != 0) {
-            printf("chat: bad chat.peer=%s (want A.B.C.D[:9090])\n", P);
-            return -1;
-        }
-        return 0;
-    }
-    close(Fd);
-    printf("chat: missing chat.peer in TOYOS.DB\n");
-    return -1;
-}
-
-static int RecvLine(int Fd, char *Out, size_t Cap) {
-    size_t N = 0;
-    int Drop = 0;
-
-    for (;;) {
-        char C;
-        ssize_t R = recv(Fd, &C, 1, 0);
         if (R == 0) {
-            return -2; /* 对端关连接；勿与空行 \\n（返回 0）混淆 */
-        }
-        if (R < 0) {
-            return -1;
+            return -2;
         }
         if (C == '\n') {
-            if (Drop) {
-                N = 0;
-                Drop = 0;
+            if (gRxN > 0 && gRx[gRxN - 1] == '\r') {
+                gRx[--gRxN] = 0;
+            }
+            gRx[gRxN] = 0;
+            if (gRxN == 0) {
                 continue;
             }
-            Out[N] = 0;
-            if (N > 0 && Out[N - 1] == '\r') {
-                Out[--N] = 0;
-            }
-            return (int)N; /* 可为 0：对端空回车 */
+            LogPush("peer", gRx);
+            gWaitPeer = 0;
+            gRxN = 0;
+            UiPaint();
+            return 1;
         }
-        if (Drop) {
-            continue;
+        if (gRxN + 1 < (int)sizeof(gRx) && gRxN < CHAT_LINE_MAX) {
+            gRx[gRxN++] = C;
         }
-        if (N + 1 >= Cap || N >= CHAT_LINE_MAX) {
-            printf("chat: line too long, drop\n");
-            Drop = 1;
-            N = 0;
-            continue;
-        }
-        Out[N++] = C;
-    }
-}
-
-static int SendLine(int Fd, const char *Line, size_t Len) {
-    char Buf[CHAT_LINE_MAX + 2];
-    size_t I;
-    size_t Off = 0;
-    size_t Total;
-
-    if (Len > CHAT_LINE_MAX) {
-        printf("chat: line too long, drop\n");
-        return 0;
-    }
-    for (I = 0; I < Len; I++) {
-        Buf[I] = Line[I];
-    }
-    Buf[Len] = '\n';
-    Total = Len + 1;
-    while (Off < Total) {
-        ssize_t W = send(Fd, Buf + Off, Total - Off, 0);
-        if (W <= 0) {
-            return -1;
-        }
-        Off += (size_t)W;
-    }
-    return 0;
-}
-
-static int ReadStdinLine(char *Out, size_t Cap) {
-    size_t N = 0;
-
-    for (;;) {
-        char C;
-        ssize_t R = read(0, &C, 1);
-        if (R == 0) {
-            return N > 0 ? (int)N : 0;
-        }
-        if (R < 0) {
-            return -1;
-        }
-        if (C == 4) {
-            /* Ctrl+D：有缓冲则先交行，否则 EOF */
-            Out[N] = 0;
-            return N > 0 ? (int)N : 0;
-        }
-        /* 内核已把 CR→LF；再遇 CR 也当行尾（旧核/旁路） */
-        if (C == '\n' || C == '\r') {
-            Out[N] = 0;
-            /* 空行：-2（重提示）；勿与 EOF(0) 混淆 */
-            return N == 0 ? -2 : (int)N;
-        }
-        if (N + 1 >= Cap || N >= CHAT_LINE_MAX) {
-            printf("chat: line too long, drop\n");
-            while (C != '\n' && C != '\r') {
-                if (read(0, &C, 1) <= 0) {
-                    return -1;
-                }
-            }
-            N = 0;
-            continue;
-        }
-        Out[N++] = C;
     }
 }
 
 int main(void) {
     unsigned Ip;
     unsigned short Port;
-    int Fd;
-    char Line[CHAT_LINE_MAX + 4];
+    int Ev;
 
-    if (LoadChatPeer(&Ip, &Port) != 0) {
+    if (ChatLoadPeer(&Ip, &Port) != 0) {
         return 1;
     }
     printf("chat: peer %u.%u.%u.%u:%u\n",
            (Ip >> 24) & 0xffu, (Ip >> 16) & 0xffu,
            (Ip >> 8) & 0xffu, Ip & 0xffu, (unsigned)Port);
 
-    Fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (Fd < 0) {
-        printf("chat: socket fail (lwip on?)\n");
+    if (ToyGfxInitialize() != 0) {
+        printf("chat: gfx init fail\n");
         return 1;
     }
-    printf("chat: connecting…\n");
-    if (ToyNetConnect(Fd, Ip, Port) != 0) {
-        printf("chat: connect fail\n");
-        close(Fd);
+    /* 无底栏按钮：客户区整页给日志 + chat> */
+    gWid = ToyUiCreateWindow("Chat", 420, 260);
+    if (gWid < 0) {
+        printf("chat: window fail\n");
         return 1;
     }
-    printf("chat: connected (half-duplex: you send, then wait peer)\n");
+
+    gSock = socket(AF_INET, SOCK_STREAM, 0);
+    if (gSock < 0) {
+        LogPush("--", "socket fail");
+        UiPaint();
+        return 1;
+    }
+    LogPush("--", "connecting…");
+    UiPaint();
+    if (ToyNetConnect(gSock, Ip, Port) != 0) {
+        LogPush("--", "connect fail");
+        UiPaint();
+        close(gSock);
+        return 1;
+    }
+    LogPush("--", "connected");
+    gDraftN = 0;
+    UiPaint();
 
     for (;;) {
-        int N;
-        printf("chat> ");
-        N = ReadStdinLine(Line, sizeof(Line));
-        if (N == -2) {
-            continue; /* 空回车 */
-        }
-        if (N < 0) {
-            break;
-        }
-        if (N == 0) {
-            printf("chat: bye\n");
-            break;
-        }
-        if (strcmp(Line, "/quit") == 0) {
-            printf("chat: bye\n");
-            break;
-        }
-        if (SendLine(Fd, Line, (size_t)N) != 0) {
-            printf("chat: send fail\n");
-            break;
-        }
-        /* 半双工：必须收到对端一行才回到 chat>。空行忽略（宿主误按回车勿脱步） */
-        for (;;) {
-            N = RecvLine(Fd, Line, sizeof(Line));
-            if (N == -2) {
-                printf("chat: peer closed\n");
-                goto Done;
+        if (gWaitPeer) {
+            int Rc = PollPeerLine();
+            if (Rc == -2) {
+                LogPush("--", "peer closed");
+                UiPaint();
+                break;
             }
-            if (N < 0) {
-                printf("chat: recv fail\n");
-                goto Done;
+            if (Rc < 0) {
+                LogPush("--", "recv fail");
+                UiPaint();
+                break;
             }
-            if (N == 0) {
-                continue;
-            }
-            printf("%s\n", Line);
+        }
+        Ev = ToyUiPoll(gWid);
+        if (Ev == TOY_UI_EVENT_CLOSE || Ev < 0) {
             break;
         }
+        if (TOY_UI_IS_KEY(Ev)) {
+            int Hid = TOY_UI_KEY_CODE(Ev);
+            if (Hid == 0x28) {
+                int Rc = TrySendDraft();
+                if (Rc == -2 || Rc < 0) {
+                    break;
+                }
+            } else {
+                OnKey(Hid);
+            }
+        }
+        usleep(5000);
     }
-Done:
-    close(Fd);
+    if (gSock >= 0) {
+        close(gSock);
+    }
     return 0;
 }

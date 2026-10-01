@@ -17,6 +17,7 @@ extern void (*IsrPic[16])(void);
 extern void Isr64(void);
 extern void Isr65(void);
 extern void Isr66(void);
+extern void Isr67(void);
 extern void Isr255(void);
 
 typedef struct {
@@ -80,6 +81,7 @@ void ArchIdtLoad(void) {
     IdtSet(VEC_XHCI, (void *)Isr64);
     IdtSet(VEC_TIMER, (void *)Isr65);
     IdtSet(VEC_E1000, (void *)Isr66);
+    IdtSet(VEC_COM1, (void *)Isr67);
     IdtSet(255, (void *)Isr255);
     ArchIdtLidt();
 }
@@ -233,6 +235,11 @@ UINT64 InterruptDispatch(HAL_INTERRUPT_FRAME *F) {
     }
     if (F->Vector == VEC_E1000) {
         E1000Irq();
+        LapicEoi();
+        return 0;
+    }
+    if (F->Vector == VEC_COM1) {
+        SerialIrq();
         LapicEoi();
         return 0;
     }

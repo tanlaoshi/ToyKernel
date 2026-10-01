@@ -14,6 +14,11 @@
 #include "HalConsole.h"
 
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
+    return SchedulerFdReadTimeout(T, Fd, Buf, Len, 0);
+}
+
+int SchedulerFdReadTimeout(TASK *T, int Fd, void *Buf, UINTN Len,
+                           int SockTimeoutMs) {
     TASK_FD *F;
     UINTN N;
     UINTN i;
@@ -41,10 +46,13 @@ int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
         return (int)Len;
     }
     if (F->Kind == FD_KIND_SOCKET) {
-        /* 0=一直等到有数据/EOF；曾 2000 超时返回 0 被当成 EOF，聊天必断 */
-        Ret = LwIpSocketRecv(F->SockId, Buf, Len, 0);
+        /* 0=阻塞；-1=非阻塞；>0≈halt 次数。曾 2000 超时返回 0 被当成 EOF */
+        Ret = LwIpSocketRecv(F->SockId, Buf, Len, SockTimeoutMs);
         if (Ret == -2) {
             return 0; /* EOF */
+        }
+        if (SockTimeoutMs < 0 && Ret == 0) {
+            return -TOY_EAGAIN; /* 非阻塞无数据 */
         }
         return Ret;
     }

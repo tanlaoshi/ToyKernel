@@ -155,6 +155,10 @@ static inline long toy_accept(long fd) {
     return toy_syscall(SYS_ACCEPT, fd, 0, 0);
 }
 
+static inline long toy_recv_nb(int fd, void *buf, long len) {
+    return toy_syscall(SYS_RECV_NB, fd, (long)buf, len);
+}
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* TOYOS_SYSCALL_H */

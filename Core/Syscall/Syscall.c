@@ -93,6 +93,11 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
     case SYS_ACCEPT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysAccept((int)HalFrameGetArgument0(Frame)));
         break;
+    case SYS_RECV_NB:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysRecvNb(
+            (int)HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
+            (UINTN)HalFrameGetArgument2(Frame)));
+        break;
     case SYS_EXECVE:
         if (SysExecve(Frame, HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame),
                       HalFrameGetArgument2(Frame)) != 0) {

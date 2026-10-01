@@ -883,12 +883,16 @@ $(USER_SOCKDEMO_ELF): $(USER_SOCKDEMO_OBJ) $(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SOCKDEMO_OBJ) \
 		$(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS)
 
-$(USER_CHAT_OBJ): User/Apps/Chat.c User/include/ToyNet.h User/include/stdio.h User/include/unistd.h | $(USER_OUT)
+$(USER_CHAT_OBJ): User/Apps/Chat.c User/Apps/ChatNet.h User/include/ToyNet.h User/include/ToyUi.h User/include/ToyGfx.h User/include/stdio.h User/include/unistd.h | $(USER_OUT)
 	$(CC) $(USER_CFLAGS) -c User/Apps/Chat.c -o $@
 
-$(USER_CHAT_ELF): $(USER_CHAT_OBJ) $(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
-	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_CHAT_OBJ) \
-		$(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS)
+USER_CHAT_NET_OBJ = $(USER_OUT)/chat_net.o
+$(USER_CHAT_NET_OBJ): User/Apps/ChatNet.c User/Apps/ChatNet.h User/include/ToyNet.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c User/Apps/ChatNet.c -o $@
+
+$(USER_CHAT_ELF): $(USER_CHAT_OBJ) $(USER_CHAT_NET_OBJ) $(USER_LIB_TOY_NET_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
+	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_CHAT_OBJ) $(USER_CHAT_NET_OBJ) \
+		$(USER_LIB_TOY_NET_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
 $(USER_ENOSYS_OBJ): User/Apps/EnosysDemo.c User/include/stdio.h User/include/errno.h User/include/toyos/syscall.h | $(USER_OUT)
 	$(CC) $(USER_CFLAGS) -c User/Apps/EnosysDemo.c -o $@
@@ -1055,7 +1059,7 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_NETDEMO_OBJ) $(USER_NETSRV_OBJ) $(USER_SYSHELLO_OBJ) $(USER_SYSFORK_OBJ)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_MMAPDEMO_OBJ) $(USER_KILLDEMO_OBJ) $(USER_SIGDEMO_OBJ)
 	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_BLITDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_SLEEPDEMO_OBJ) $(USER_THREADSMOKE_OBJ) $(USER_PTHREADSMOKE_OBJ) $(USER_THREADDEMO_OBJ) $(USER_SNAKE_OBJ) $(USER_DIRDEMO_OBJ) $(USER_CWDDEMO_OBJ)
-	rm -f $(USER_NETLIB_OBJ) $(USER_SOCKDEMO_OBJ) $(USER_CHAT_OBJ) $(USER_ENOSYS_OBJ)
+	rm -f $(USER_NETLIB_OBJ) $(USER_SOCKDEMO_OBJ) $(USER_CHAT_OBJ) $(USER_CHAT_NET_OBJ) $(USER_ENOSYS_OBJ)
 	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) \
 		$(USER_LIB_TOY_NET_OBJ) $(USER_LIB_FSUTIL_OBJ)
 	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_FSUTIL_A) $(USER_LIB_TOYOS_A)

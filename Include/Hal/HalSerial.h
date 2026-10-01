@@ -41,5 +41,7 @@ void HalSerialBootMarkChannel(int Channel, const char *Text);
 int HalSerialDataReady(void);
 char HalSerialReadChar(void);
 void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits);
+/* IoApic 后开 COM1 RX IRQ→软环；失败则 poll（CoolTerm 粘贴） */
+void HalSerialEnableRxIrq(void);
 
 #endif

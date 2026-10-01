@@ -40,6 +40,7 @@ static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
 
 int InitializeSerial(void) {
     HalSerialInitialize();
+    HalSerialEnableRxIrq();
     return 0;
 }
 
@@ -128,6 +129,7 @@ int InitializeCpu(void) {
 int InitializeSerialEarly(void) {
     ToyLogBoot("Boot: Serial Early (COM1)\n");
     HalSerialRetryIfMissing();
+    HalSerialEnableRxIrq();
     if (HalSerialPresent()) {
         ToyLogBoot("Boot: COM1 Early Ready\n");
     } else {

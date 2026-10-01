@@ -93,7 +93,20 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
 }
 
 ssize_t recv(int fd, void *buf, size_t len, int flags) {
-    (void)flags;
+    long R;
+
+    if (flags & MSG_DONTWAIT) {
+        R = toy_recv_nb(fd, buf, (long)len);
+        if (R == -EAGAIN) {
+            errno = EAGAIN;
+            return -1;
+        }
+        if (R < 0) {
+            ToyNetFail(R);
+            return -1;
+        }
+        return (ssize_t)R; /* 0=EOF */
+    }
     return read(fd, buf, len);
 }
 

@@ -118,6 +118,10 @@ void HalSerialRetryIfMissing(void) {
     SerialRetryIfMissing();
 }
 
+void HalSerialEnableRxIrq(void) {
+    SerialEnableRxIrq();
+}
+
 int HalSerialPresent(void) {
     return SerialPresent();
 }
