@@ -23,22 +23,6 @@
 /* CoolTerm 常发 CR+LF：两次 Enter → 双 toyos>；吞掉紧跟 CR 的 LF */
 static int gSerialSkipLf;
 
-static int SerialIsEnter(char C) {
-    if (C == '\r') {
-        gSerialSkipLf = 1;
-        return 1;
-    }
-    if (C == '\n') {
-        if (gSerialSkipLf) {
-            gSerialSkipLf = 0;
-            return 0;
-        }
-        return 1;
-    }
-    gSerialSkipLf = 0;
-    return 0;
-}
-
 void ShellTask(void) {
     HAL_KEYBOARD_REPORT Report = {0};
     HAL_KEYBOARD_REPORT Previous = {0};
@@ -91,8 +75,13 @@ void ShellTask(void) {
                 if (FilesUiIsFocused()) {
                     if (C == 0x1B) {
                         FilesUiOnEscape();
-                    } else if (SerialIsEnter(C)) {
+                    } else if (C == '\r' || (C == '\n' && !gSerialSkipLf)) {
+                        if (C == '\r') {
+                            gSerialSkipLf = 1;
+                        }
                         FilesUiOnEnter();
+                    } else if (C == '\n' && gSerialSkipLf) {
+                        gSerialSkipLf = 0;
                     } else if (C == '\b' || C == 127) {
                         FilesUiOnBackspace();
                     } else if (C >= 32 && C <= 126) {
@@ -103,8 +92,13 @@ void ShellTask(void) {
                 if (EditUiIsFocused()) {
                     if (C == 0x1B) {
                         EditUiOnEscape();
-                    } else if (SerialIsEnter(C)) {
+                    } else if (C == '\r' || (C == '\n' && !gSerialSkipLf)) {
+                        if (C == '\r') {
+                            gSerialSkipLf = 1;
+                        }
                         EditUiOnEnter();
+                    } else if (C == '\n' && gSerialSkipLf) {
+                        gSerialSkipLf = 0;
                     } else if (C == '\b' || C == 127) {
                         EditUiOnBackspace();
                     } else if (C == 19) {
@@ -118,15 +112,7 @@ void ShellTask(void) {
                     TtyUiOnRxChar(C);
                     continue;
                 }
-                if (SerialIsEnter(C)) {
-                    ConsoleOnEnterEx(1);
-                } else if (C == 3) {
-                    ShellOnInterrupt();
-                } else if (C == '\b' || C == 127) {
-                    ConsoleOnBackspaceEx(1);
-                } else if (C >= 32 && C <= 126) {
-                    ConsoleOnCharEx(C, 1);
-                }
+                ConsoleSerialFeedChar(C, &gSerialSkipLf);
             }
         }
         /*

@@ -34,6 +34,17 @@ void ConsoleOnEnter(void);
 void ConsoleOnEnterEx(int FromSerial);
 void ConsoleOnBackspace(void);
 void ConsoleOnBackspaceEx(int FromSerial);
+/* PR-BOX-1：Shell ↑↓ 历史；Down=1 更新 / 0 更旧 */
+void ConsoleOnHistArrow(int Down, int FromSerial);
+void ConsoleOnHistHid(UINT8 Key, int FromSerial);
+int ConsoleHistFeedAnsi(char C, int FromSerial);
+void ConsoleSerialFeedChar(char C, int *SkipLf);
+void ConsoleHistPushLine(void);
+void ConsoleHistApplyNavToLine(void);
+void ConsoleHistOnEdit(void);
+int ConsoleHistIsBusy(void);
+int ConsoleHistIgnoreRx(void);
+void ConsoleHistClearIgnoreRx(void);
 void ConsoleCancelInput(void);
 /* 丢弃输入行缓冲（不擦屏）；listen 中断后防 Enter 重跑旧命令 */
 void ConsoleDiscardInput(void);

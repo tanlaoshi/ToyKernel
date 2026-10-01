@@ -1,6 +1,5 @@
 /*
- * ConsoleInput.c — 按键、回车与串口壳
- * 核心：Console.c
+ * ConsoleInput.c — 按键、回车（串口壳见 ConsoleSerial.c）
  */
 #include "Console.h"
 #include "ConsolePrivate.h"
@@ -11,15 +10,9 @@
 #include "Font.h"
 #include "SettingsUi.h"
 #include "Locale.h"
-#include "HIDKeyboard.h"
 #include "LibWrite.h"
-#include "ShellCommands.h"
 
-/*
- * 空桌面按键自动开 Shell。
- * FromSerial：串口始终可敲（不抢 GUI 焦点、不开窗）；键盘仍受焦点约束。
- * 返回：0 失败；1 已可输入；2 刚打开（调用方应吞掉触发键，勿写入行缓冲）。
- */
+/* 空桌面开 Shell。返回 0 失败；1 可输入；2 刚打开（吞触发键）。 */
 static int ConsoleEnsureShell(int FromSerial) {
     /* PR-B1：HalConsoleOnly — 串口子集不要求 GUI Shell 窗 */
     if (HalConsoleOnly()) {
@@ -73,6 +66,7 @@ void ConsoleOnCharEx(char C, int FromSerial) {
     if (gLen >= LINE_MAX - 1) {
         return;
     }
+    ConsoleHistOnEdit();
     if (!FromSerial || GuiShellAcceptsInput()) {
         ConsoleSbBindFocus();
         ConsoleSbEnsureLive();
@@ -99,6 +93,7 @@ void ConsoleOnBackspaceEx(int FromSerial) {
     if (gLen <= 0) {
         return;
     }
+    ConsoleHistOnEdit();
     if (!FromSerial || GuiShellAcceptsInput()) {
         ConsoleSbEnsureLive();
     }
@@ -186,17 +181,15 @@ void ConsoleOnEnterEx(int FromSerial) {
         /* 仅用 Enter 开窗：已有欢迎语+提示符，勿再当空命令执行 */
         return;
     }
-    /*
-     * listen 等挂起提示期间：空回车只应忽略。若不在此清空 gLen，
-     * Prompt() 不会跑，旧命令仍留在缓冲里，再按 Enter 会重跑并叠加 Suspend。
-     */
+    /* listen 挂起时：空回车忽略并防旧命令残留 */
     if (ConsolePromptSuspended() && gLen == 0) {
         return;
     }
     ConsoleWrite("\n");
-    /* help/ls 等大量 ConsoleWrite：真机逐行 Present 极卡，整命令结束再刷一次。
-     * PR-G-shell-present 只合并打字回显；本 Defer 语义保持不变。 */
+    /* 整命令 Present 合并：见 PR-G-shell-present */
     GuiPresentDeferPush();
+    ConsoleHistApplyNavToLine();
+    ConsoleHistPushLine();
     ConsoleCmdOutBegin();
     ConsoleRunLine();
     ConsoleCmdOutEnd();
@@ -207,90 +200,4 @@ void ConsoleOnEnterEx(int FromSerial) {
 
 void ConsoleOnEnter(void) {
     ConsoleOnEnterEx(0);
-}
-
-/* PR-A9/V3：virt 串口 + virtio-input 键盘（Common 调 Hal*；不进 HAL） */
-/* PR-A13：HalCpuHalt 可被 timer IRQ 唤醒，不再空转 HalTimerPoll */
-void ConsoleSerialRun(void) {
-    static HAL_KEYBOARD_REPORT Prev;
-    HAL_KEYBOARD_REPORT Report;
-    /* PR-B3：真机命令行靶非 virt 形状；文案跟 HalPlatformIsVirtSerialConsole */
-    if (HalPlatformIsVirtSerialConsole()) {
-        HalConsoleWriteSerial(
-            "virt: serial shell (help/mem/ps/halt; kbd via virtio-input)\n");
-    } else {
-        HalConsoleWriteSerial("serial shell (help/mem/ps/halt)\n");
-    }
-    Prompt();
-    for (;;) {
-        HalCpuHalt();
-        HalInputPoll();
-        /* 每拍多抽几字，避免 CoolTerm 粘贴时 16 字节 FIFO 溢出 */
-        {
-            int n = 0;
-            static int SkipLf;
-            while (HalSerialDataReady() && n < 256) {
-                char C = HalSerialReadChar();
-                n++;
-                if (ConsoleStdinUserHold()) {
-                    ConsoleStdinPut(C);
-                    continue;
-                }
-                if (C == '\r') {
-                    SkipLf = 1;
-                    ConsoleOnEnterEx(1);
-                } else if (C == '\n') {
-                    if (SkipLf) {
-                        SkipLf = 0;
-                    } else {
-                        ConsoleOnEnterEx(1);
-                    }
-                } else {
-                    SkipLf = 0;
-                    if (C == '\b' || C == 127) {
-                        ConsoleOnBackspaceEx(1);
-                    } else if (C == 3) {
-                        ShellOnInterrupt();
-                    } else {
-                        ConsoleOnCharEx(C, 1);
-                    }
-                }
-            }
-        }
-        while (HalKeyboardDequeue(&Report)) {
-            int i;
-            for (i = 0; i < 6; i++) {
-                UINT8 Key = Report.KeyCode[i];
-                int Was = 0;
-                int j;
-                if (Key == 0) {
-                    continue;
-                }
-                for (j = 0; j < 6; j++) {
-                    if (Prev.KeyCode[j] == Key) {
-                        Was = 1;
-                        break;
-                    }
-                }
-                if (Was) {
-                    continue;
-                }
-                if (Key == 0x28) { /* ENTER */
-                    ConsoleOnEnter();
-                } else if (Key == 0x2A) { /* BACKSPACE */
-                    ConsoleOnBackspace();
-                } else if (Key == HID_KEY_C &&
-                           (Report.ModifierKeys & (HID_MOD_LCTRL | HID_MOD_RCTRL)) != 0) {
-                    ShellOnInterrupt();
-                } else {
-                    char C = HIDKeyCodeToASCII(Key, Report.ModifierKeys);
-                    if (C) {
-                        ConsoleOnChar(C);
-                    }
-                }
-            }
-            Prev = Report;
-        }
-        HalCpuRelax();
-    }
 }

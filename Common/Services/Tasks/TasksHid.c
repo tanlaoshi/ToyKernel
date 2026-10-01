@@ -236,8 +236,16 @@ void FeedHid(HAL_KEYBOARD_REPORT *Report, HAL_KEYBOARD_REPORT *Previous) {
             ConsoleOnEnter();
             continue;
         }
-        if (Key == HID_KEY_LEFT || Key == HID_KEY_RIGHT ||
-            Key == HID_KEY_UP || Key == HID_KEY_DOWN) {
+        if (Key == HID_KEY_UP || Key == HID_KEY_DOWN) {
+            /* Shell 焦点：↑↓ 历史；其它窗仍挪光标 */
+            if (GuiShellAcceptsInput()) {
+                ConsoleOnHistHid(Key, 0);
+            } else {
+                GuiOnArrowKey(Key);
+            }
+            continue;
+        }
+        if (Key == HID_KEY_LEFT || Key == HID_KEY_RIGHT) {
             GuiOnArrowKey(Key);
             continue;
         }

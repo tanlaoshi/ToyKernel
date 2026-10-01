@@ -24,7 +24,13 @@ void ConsoleFocusLoad(void) {
     int Idx = GuiFocusIndex();
     int Hold = ConsoleStdinUserHold();
 
-    GuiConsolePull(gLine, &gLen, &gWaitPrompt);
+    /*
+     * ↑↓ 回填期间勿 Pull：EnsureShell/Raise 会 FocusLoad，
+     * 否则窗槽旧行盖住 gLine，串口已回显与缓冲分叉（BOX-1）。
+     */
+    if (!ConsoleHistIsBusy() && !ConsoleHistIgnoreRx()) {
+        GuiConsolePull(gLine, &gLen, &gWaitPrompt);
+    }
     /*
      * Compose/切窗会把窗内 WaitPrompt 清 0 再 Pull，导致 exec 中 shell 抢串口
      * （chat> 下 HI → unknown: HI）。有活用户时保持占 stdin。
