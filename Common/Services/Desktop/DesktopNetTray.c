@@ -1,18 +1,15 @@
-/*
- * DesktopNetTray.c — 任务栏时钟左侧网络短状态（PR-N-nic-tray）
- */
+/* DesktopNetTray.c — BOX-3 网态三图标；默认藏 IP；dbset net.tray.ip 1 才显示 */
 #include "DesktopPrivate.h"
 #include "HalDevices.h"
 #include "NetConfig.h"
 
-#define NET_TRAY_GAP   12u
-#define NET_POP_PAD    8u
-#define NET_POP_W      200u
-#define NET_POP_LINES  5
-#define NET_LABEL_MAX  20
+#define NET_TRAY_GAP 12u
+#define NET_ICON     16u
 
 static int gNetTrayOpen;
-static char gNetLabelCache[NET_LABEL_MAX];
+static NET_TRAY_KIND gNetKindCache = NET_TRAY_NONE;
+static int gShowIpCache;
+static UINT32 gIpCache;
 
 static void StrCopy(char *Dst, int Max, const char *Src) {
     int i = 0;
@@ -26,71 +23,59 @@ static void StrCopy(char *Dst, int Max, const char *Src) {
     Dst[i] = 0;
 }
 
-static int StrEq(const char *A, const char *B) {
-    int i;
-    if (!A || !B) {
+static int ShowIpEnabled(void) {
+    char Val[8];
+
+    Val[0] = 0;
+    if (DbGet("net.tray.ip", Val, sizeof(Val)) != DB_OK) {
         return 0;
     }
-    for (i = 0; A[i] || B[i]; i++) {
-        if (A[i] != B[i]) {
-            return 0;
-        }
-    }
-    return 1;
+    return (Val[0] == '1' && Val[1] == 0) ? 1 : 0;
 }
 
-static void FormatIpOrUnset(UINT32 Ip, char *Buf, int Max) {
-    if (!Buf || Max < 8) {
-        return;
-    }
-    if (Ip == 0) {
-        StrCopy(Buf, Max, "unset");
-        return;
-    }
-    HalNetFormatIp(Ip, Buf, Max);
+UINT32 DesktopNetTrayCurrentIp(void) {
+    /*
+     * 只信 NetConfig（真机未 DHCP=0；QEMU Ensure 后为 10.0.2.15）。
+     * 勿回落 HalNetGetIpAddress：后端默认常残留 SLIRP 10.0.2.15，
+     * NUC 上会误判「通」并配上 Wi‑Fi 图标。
+     */
+    return NetConfigGetIp();
 }
 
-static void BuildShortLabel(char *Buf, int Max) {
+NET_TRAY_KIND DesktopNetTrayDetectKind(void) {
     int Up = 0;
     UINT32 Mbps = 0;
     int Fd = 0;
-    UINT32 Ip;
 
-    if (!Buf || Max < 4) {
-        return;
-    }
+    /* 不通：无 NIC / link down / 尚无真实地址 → 不通图标 */
     if (!HalNetReady()) {
-        StrCopy(Buf, Max, "net-");
-        return;
+        return NET_TRAY_NONE;
     }
     if (HalNetGetLinkInfo(&Up, &Mbps, &Fd) && !Up) {
-        StrCopy(Buf, Max, "down");
-        return;
+        return NET_TRAY_NONE;
     }
-    /*
-     * 以 NetConfig 为准（真机等 DHCP，未拿到地址时为 0 / QEMU 10.0.2.15）。
-     * 勿先信 HalNetGetIpAddress：后端未挂或 Ensure 早于 Attach 时 Hal 会停在
-     * SLIRP 残留，任务栏就会一直显示 10.0.2.x。
-     */
-    Ip = NetConfigGetIp();
-    if (Ip == 0) {
-        Ip = HalNetGetIpAddress();
+    if (DesktopNetTrayCurrentIp() == 0) {
+        return NET_TRAY_NONE;
     }
-    if (Ip == 0) {
-        StrCopy(Buf, Max, "up");
-        return;
+    /* 通：仅已关联的 iwl/USB-wifi 出 Wi‑Fi；Ready≠通（Probe 不够） */
+    if (HalIwlAssociated() || HalWifiReady()) {
+        return NET_TRAY_WIFI;
     }
-    HalNetFormatIp(Ip, Buf, Max);
+    return NET_TRAY_WIRED;
 }
 
-static void MakePrefixed(char *Out, int Max, const char *Prefix, UINT32 Ip) {
+void DesktopNetTrayMakePrefixed(char *Out, int Max, const char *Prefix, UINT32 Ip) {
     char IpBuf[16];
     int i;
     int j = 0;
 
-    FormatIpOrUnset(Ip, IpBuf, (int)sizeof(IpBuf));
     if (!Out || Max <= 0) {
         return;
+    }
+    if (Ip == 0) {
+        StrCopy(IpBuf, (int)sizeof(IpBuf), "unset");
+    } else {
+        HalNetFormatIp(Ip, IpBuf, (int)sizeof(IpBuf));
     }
     while (Prefix && Prefix[j] && j < Max - 1) {
         Out[j] = Prefix[j];
@@ -102,18 +87,29 @@ static void MakePrefixed(char *Out, int Max, const char *Prefix, UINT32 Ip) {
     Out[j] = 0;
 }
 
-static void ClockAnchor(UINT32 *ClockXOut) {
-    UINT32 Sw;
-    UINT32 Sh;
-    UINT32 BarY;
-    UINT32 ClockW;
-    char Clock[8];
+/* 与任务栏同路径 UiFill，避免半透栏上 HalVideoFillRect 看不见 */
+static void Fill(UINT32 X, UINT32 Y, UINT32 W, UINT32 H, UINT32 C) {
+    if (W && H) {
+        UiFillRectangle(X, Y, W, H, C);
+    }
+}
 
-    TaskbarGeom(&BarY, &Sw, &Sh);
-    (void)BarY;
-    StrCopy(Clock, (int)sizeof(Clock), "00:00");
-    ClockW = FontStringWidth(Clock);
-    *ClockXOut = (Sw > ClockW + 12u) ? (Sw - ClockW - 12u) : 0;
+static void DrawIconNone(UINT32 X, UINT32 Y, UINT32 Fg) {
+    Fill(X + 2, Y + 2, 12, 3, Fg);
+    Fill(X + 2, Y + 11, 12, 3, Fg);
+    Fill(X + 6, Y + 2, 4, 12, Fg);
+}
+static void DrawIconWired(UINT32 X, UINT32 Y, UINT32 Fg) {
+    Fill(X + 5, Y + 1, 6, 9, Fg);
+    Fill(X + 3, Y + 9, 10, 4, Fg);
+    Fill(X + 1, Y + 13, 4, 2, Fg);
+    Fill(X + 11, Y + 13, 4, 2, Fg);
+}
+static void DrawIconWifi(UINT32 X, UINT32 Y, UINT32 Fg) {
+    Fill(X + 6, Y + 12, 4, 3, Fg);
+    Fill(X + 4, Y + 8, 8, 3, Fg);
+    Fill(X + 2, Y + 4, 12, 3, Fg);
+    Fill(X + 0, Y + 1, 16, 2, Fg);
 }
 
 void DesktopNetTrayClose(void) {
@@ -124,16 +120,26 @@ void DesktopNetTrayClose(void) {
     RequestRefresh();
 }
 
+void DesktopNetTraySetOpen(int Open) {
+    gNetTrayOpen = Open ? 1 : 0;
+}
+
 int DesktopNetTrayIsOpen(void) {
     return gNetTrayOpen;
 }
 
 void DesktopNetTrayGeom(UINT32 ClockX, UINT32 *OutX, UINT32 *OutW) {
-    char Label[NET_LABEL_MAX];
-    UINT32 W;
+    UINT32 W = NET_ICON;
+    char Ip[20];
+    UINT32 Addr;
 
-    BuildShortLabel(Label, (int)sizeof(Label));
-    W = FontStringWidth(Label);
+    if (ShowIpEnabled()) {
+        Addr = DesktopNetTrayCurrentIp();
+        if (Addr != 0) {
+            HalNetFormatIp(Addr, Ip, (int)sizeof(Ip));
+            W += FontStringWidth(Ip) + 4u;
+        }
+    }
     if (OutW) {
         *OutW = W;
     }
@@ -143,121 +149,47 @@ void DesktopNetTrayGeom(UINT32 ClockX, UINT32 *OutX, UINT32 *OutW) {
 }
 
 void DesktopNetTrayDraw(UINT32 ClockX, UINT32 TextY) {
-    char Label[NET_LABEL_MAX];
     UINT32 X;
     UINT32 W;
+    NET_TRAY_KIND Kind;
+    UINT32 Fg = ThemeClockText();
+    UINT32 IconY;
+    char Ip[20];
+    UINT32 Addr;
+    int Show;
 
-    BuildShortLabel(Label, (int)sizeof(Label));
-    StrCopy(gNetLabelCache, (int)sizeof(gNetLabelCache), Label);
+    Kind = DesktopNetTrayDetectKind();
+    Show = ShowIpEnabled();
+    Addr = DesktopNetTrayCurrentIp();
+    gNetKindCache = Kind;
+    gShowIpCache = Show;
+    gIpCache = Addr;
+
     DesktopNetTrayGeom(ClockX, &X, &W);
-    HalVideoDrawStringAt(X, TextY, Label, ThemeClockText());
-}
-
-static void PopupGeom(UINT32 *Px, UINT32 *Py, UINT32 *Pw, UINT32 *Ph) {
-    UINT32 Sw;
-    UINT32 Sh;
-    UINT32 BarY;
-    UINT32 H;
-
-    TaskbarGeom(&BarY, &Sw, &Sh);
-    H = NET_POP_PAD * 2u + (UINT32)NET_POP_LINES * FontCellH();
-    *Pw = NET_POP_W;
-    *Ph = H;
-    *Px = (Sw > NET_POP_W + 8u) ? (Sw - NET_POP_W - 8u) : 0;
-    *Py = (BarY > H + 4u) ? (BarY - H - 4u) : 0;
-}
-
-void DesktopNetTrayDrawPopup(void) {
-    UINT32 Px, Py, Pw, Ph, Ty;
-    char Line[40];
-    int Up = 0;
-    UINT32 Mbps = 0;
-    int Fd = 0;
-    UINT32 Ip;
-
-    if (!gNetTrayOpen) {
-        return;
-    }
-    PopupGeom(&Px, &Py, &Pw, &Ph);
-    UiFillRectangle(Px, Py, Pw, Ph, ThemeControlFace());
-    UiDrawRectangle(Px, Py, Pw, Ph, ThemeMenuBorder());
-
-    Ty = Py + NET_POP_PAD;
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "Network", ThemeText());
-    Ty += FontCellH();
-
-    Ip = NetConfigGetIp();
-    if (Ip == 0 && HalNetReady()) {
-        Ip = HalNetGetIpAddress();
-    }
-    MakePrefixed(Line, (int)sizeof(Line), "ip  ", Ip);
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
-    Ty += FontCellH();
-
-    MakePrefixed(Line, (int)sizeof(Line), "gw  ", NetConfigGetGw());
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
-    Ty += FontCellH();
-
-    MakePrefixed(Line, (int)sizeof(Line), "dns ", NetConfigGetDns());
-    HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, Line, ThemeTextMuted());
-    Ty += FontCellH();
-
-    if (!HalNetReady()) {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", ThemeTextMuted());
-    } else if (HalNetGetLinkInfo(&Up, &Mbps, &Fd)) {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty,
-                             Up ? "link up" : "link down", ThemeTextMuted());
+    IconY = TextY + (FontCellH() > NET_ICON ? (FontCellH() - NET_ICON) / 2 : 0);
+    if (Kind == NET_TRAY_WIRED) {
+        DrawIconWired(X, IconY, Fg);
+    } else if (Kind == NET_TRAY_WIFI) {
+        DrawIconWifi(X, IconY, Fg);
     } else {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", ThemeTextMuted());
+        DrawIconNone(X, IconY, Fg);
     }
-}
-
-int DesktopNetTrayHit(UINT32 X, UINT32 Y, UINT32 ClockX, UINT32 BarY) {
-    UINT32 Nx, Nw, Ty, Th;
-
-    DesktopNetTrayGeom(ClockX, &Nx, &Nw);
-    Th = FontCellH();
-    Ty = BarY + (TASKBAR_H > Th ? (TASKBAR_H - Th) / 2 : 0);
-    return (Y >= Ty && Y < Ty + Th && X >= Nx && X < Nx + Nw) ? 1 : 0;
-}
-
-int DesktopNetTrayHandleClick(UINT32 X, UINT32 Y) {
-    UINT32 Sw, Sh, BarY, ClockX, Px, Py, Pw, Ph;
-
-    TaskbarGeom(&BarY, &Sw, &Sh);
-    ClockAnchor(&ClockX);
-
-    if (gNetTrayOpen) {
-        PopupGeom(&Px, &Py, &Pw, &Ph);
-        if (X >= Px && X < Px + Pw && Y >= Py && Y < Py + Ph) {
-            return 1;
-        }
-        gNetTrayOpen = 0;
-        RequestRefresh();
-        if (Y >= BarY && Y < Sh) {
-            return 1;
-        }
-        return 0;
+    if (Show && Addr != 0) {
+        HalNetFormatIp(Addr, Ip, (int)sizeof(Ip));
+        HalVideoDrawStringAt(X + NET_ICON + 4u, TextY, Ip, Fg);
     }
-
-    if (Y < BarY || Y >= Sh || !DesktopNetTrayHit(X, Y, ClockX, BarY)) {
-        return 0;
-    }
-    gMenuOpen = 0;
-    gMenuAppsOpen = 0;
-    gMenuGameOpen = 0;
-    gNetTrayOpen = 1;
-    RequestRefresh();
-    return 1;
 }
 
 int DesktopNetTrayLabelChanged(void) {
-    char Label[NET_LABEL_MAX];
+    NET_TRAY_KIND Kind = DesktopNetTrayDetectKind();
+    int Show = ShowIpEnabled();
+    UINT32 Ip = DesktopNetTrayCurrentIp();
 
-    BuildShortLabel(Label, (int)sizeof(Label));
-    if (StrEq(Label, gNetLabelCache)) {
+    if (Kind == gNetKindCache && Show == gShowIpCache && Ip == gIpCache) {
         return 0;
     }
-    StrCopy(gNetLabelCache, (int)sizeof(gNetLabelCache), Label);
+    gNetKindCache = Kind;
+    gShowIpCache = Show;
+    gIpCache = Ip;
     return 1;
 }

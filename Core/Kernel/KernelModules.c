@@ -20,7 +20,7 @@ static const MODULE gModulesFull[] = {
     { "Cpu",     InitializeCpu },
     { "SerialEarly", InitializeSerialEarly }, /* 仅 COM1；USB-UART 见 FS 后 */
     { "Smp",     InitializeSmp },
-    { "Usb",     InitializeUsb },
+    { "USB",     InitializeUsb },
     { "FileSystem",      InitializeFileSystem },
     { "Network",     InitializeNetwork },
     { "Gui",     InitializeGui },

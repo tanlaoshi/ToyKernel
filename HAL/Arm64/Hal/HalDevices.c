@@ -103,6 +103,10 @@ int HalIwlReady(void) {
     return 0;
 }
 
+int HalIwlAssociated(void) {
+    return 0;
+}
+
 int HalIwlBgBusy(void) {
     return 0;
 }

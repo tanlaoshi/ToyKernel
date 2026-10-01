@@ -71,6 +71,8 @@ int HalWifiReady(void);
 /* PR-N-wifi-1：NUC iwl8265；非 x86 空操作 */
 int HalIwlClaim(void);
 int HalIwlReady(void);
+/* iwl 已关联+WPA2；托盘 Wi‑Fi 图标用此，勿用 Ready（仅 Probe） */
+int HalIwlAssociated(void);
 /* 刀 #114：后台关联泵；非 x86 空闲 */
 int HalIwlBgBusy(void);
 void HalIwlBgPump(void);

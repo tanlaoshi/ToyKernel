@@ -161,6 +161,10 @@ int HalIwlReady(void) {
     return IwlReady();
 }
 
+int HalIwlAssociated(void) {
+    return IwlAssociated();
+}
+
 int HalIwlBgBusy(void) {
     return IwlNetBgBusy();
 }

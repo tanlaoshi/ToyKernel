@@ -5,6 +5,7 @@
 #include "Desktop.h"
 #include "Hal.h"
 #include "HalVideo.h"
+#include "Font.h"
 #include "ToySerialLog.h"
 
 #define LOGO_BG     0x00101828u
@@ -84,6 +85,10 @@ void DesktopBootLogoShow(void) {
     UINT32 BaseY;
     UINT32 Gap = 24;
     UINT32 Icon = 64;
+    UINT32 RowW;
+    UINT32 TextW;
+    UINT32 TextX;
+    const char *Title = "ToyOS";
 
     HalVideoGetSize(&W, &H);
     if (W < 320 || H < 200) {
@@ -92,14 +97,17 @@ void DesktopBootLogoShow(void) {
 
     HalVideoClearScreen(LOGO_BG);
 
-    BaseX = (W - (Icon * 3 + Gap * 2)) / 2;
+    RowW = Icon * 3 + Gap * 2;
+    BaseX = (W > RowW) ? (W - RowW) / 2 : 0;
     BaseY = (H / 2) - 48;
     DrawHammer(BaseX, BaseY);
     DrawFootball(BaseX + Icon + Gap, BaseY);
     DrawSlingshot(BaseX + 2 * (Icon + Gap), BaseY);
 
-    HalVideoDrawStringAt(BaseX + Icon + Gap - 8, BaseY + Icon + 16, "ToyOS",
-                         LOGO_FG);
+    /* 标题相对三图标整行水平居中（勿钉在中间格左侧） */
+    TextW = FontStringWidth(Title);
+    TextX = (RowW > TextW) ? (BaseX + (RowW - TextW) / 2) : BaseX;
+    HalVideoDrawStringAt(TextX, BaseY + Icon + 16, Title, LOGO_FG);
     HalVideoPresentFlush();
     ToyLogBoot("Boot: Logo\n");
 

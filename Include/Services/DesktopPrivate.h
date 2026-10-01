@@ -177,13 +177,24 @@ void DrawTaskbarOccluded(void);
 void DesktopMenuCoverUpdate(void);
 int DrawMenuRowIcon(const MENU_ROW *R, UINT32 IconX, UINT32 IconY);
 
-/* PR-N-nic-tray */
+/* PR-N-nic-tray / BOX-3 */
+typedef enum {
+    NET_TRAY_NONE = 0,
+    NET_TRAY_WIRED,
+    NET_TRAY_WIFI
+} NET_TRAY_KIND;
+
 void DesktopNetTrayDraw(UINT32 ClockX, UINT32 TextY);
 void DesktopNetTrayDrawPopup(void);
 int DesktopNetTrayHandleClick(UINT32 X, UINT32 Y);
 void DesktopNetTrayClose(void);
 int DesktopNetTrayIsOpen(void);
 int DesktopNetTrayLabelChanged(void);
+void DesktopNetTrayGeom(UINT32 ClockX, UINT32 *OutX, UINT32 *OutW);
+NET_TRAY_KIND DesktopNetTrayDetectKind(void);
+UINT32 DesktopNetTrayCurrentIp(void);
+void DesktopNetTrayMakePrefixed(char *Out, int Max, const char *Prefix, UINT32 Ip);
+void DesktopNetTraySetOpen(int Open);
 
 int PathHasVolPrefix(const char *Path);
 int LoadBmpPath(const char *Path, BMP_IMAGE *Out, UINT32 FileMax, const char *Tag);

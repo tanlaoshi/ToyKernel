@@ -46,6 +46,9 @@ USB MSC / HID / UART         →   （无线走 PCIe，不依赖棒）
 | 5 | **PR-N-wifi-0** | §3 **已改钉** iwl `8086:24fd`；fw 路径；N56 随后 | 文档合入；唯一主路径 | 写驱动 |
 | 6 | **PR-N-wifi-1** | `HAL/X64/Drivers/Iwl/` Probe + 读 `FW/IWL8265.UCODE` + `lsdev` | NUC 黄字/`lsdev`；无卡/无 fw 不挡 | 关联 |
 | 7 | **PR-N-wifi-2** | 扫 AP + **WPA2-PSK** + DHCP + `ping`；`FW/WIFI.CFG` | NUC 课网 `ping` | ath9k；WPA3；open 不计 TG |
+| 8 | **PR-N-nic-2slot** | L2 **≥2 槽**；默认出站**有线优先**；已配无线仍关联/DHCP 热备；有线断切无线 | NUC 有线+iwl 同机策略 | 负载均衡；BOX-3 图标 |
+
+> **双槽说明**：wifi-2 收官后仍是 `NetAttachNic` **单指针**，iwl 关联成功常覆盖有线。策略与验收见路线图 [`PR-N-nic-2slot`](../路线图.md#pr-n-nic-2slot) / 开箱活文档 §3.4；**不**并入 BOX-3。
 
 ---
 
