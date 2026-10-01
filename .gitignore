@@ -31,3 +31,6 @@ User/Pkg/Net/build/
 # Build/ 已忽略；SDK 产物现为 Build/ToySDK/ + Build/ToySDK.tar.gz
 # 旧路径遗迹（若本地仍有可删）
 Dist/
+
+# HostChat 宿主产物
+Tools/HostChat/chatd
