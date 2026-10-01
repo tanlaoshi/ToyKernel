@@ -192,10 +192,22 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     PackStore snake "$USER_OUT/snake.elf" SNAKE.ELF
     PackStore windemo "$USER_OUT/windemo.elf" WINDEMO.ELF
     PackStore blitdemo "$USER_OUT/blitdemo.elf" BLITDEMO.ELF
-    PackStore chat "$USER_OUT/chat.elf" CHAT.ELF
+    # CHAT-4：chat 只入 ToyKernel/Store（供 export-store-lan），不进 Guest DEST。
+    mkdir -p Store/packages/chat
+    cp -f "$USER_OUT/chat.elf" Store/packages/chat/CHAT.ELF
     if [ -f Store/catalog.txt ]; then
         mkdir -p "$DEST/Store"
-        cp -f Store/catalog.txt "$DEST/Store/catalog.txt"
+        # Guest catalog 去掉 chat 行；源 Store/catalog.txt 仍含 chat（导出用）
+        grep -v '^chat|' Store/catalog.txt > "$DEST/Store/catalog.txt" || true
+    fi
+    rm -rf "$DEST/Store/packages/chat" "$DEST/Apps/chat"
+    if [ -d "$DEST/Store/packages/chat" ] || [ -d "$DEST/Apps/chat" ]; then
+        echo "error: Guest still has chat after strip" >&2
+        exit 1
+    fi
+    if grep -q '^chat|' "$DEST/Store/catalog.txt" 2>/dev/null; then
+        echo "error: Guest catalog still lists chat" >&2
+        exit 1
     fi
     # 废旧路径（store-src）
     rm -rf "$DEST/Assets/Store" "$DEST/StoreCache"

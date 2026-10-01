@@ -79,6 +79,10 @@ NUC (ToyOS Shell):
   store sync
   store install hello
   exec Apps/hello/HELLO.ELF
+  # CHAT-4 闭环（镜像不预装 chat）：
+  store install chat
+  dbset chat.peer <DESKTOP_IP>
+  exec Apps/chat/CHAT.ELF
 
 QEMU unchanged: default store.repo=10.0.2.2:8080
 See Documents/开发/局域网商店与聊天.md
