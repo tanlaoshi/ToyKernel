@@ -26,6 +26,8 @@ typedef enum {
 void DesktopNotifyAppsChanged(void);
 
 void DesktopInit(void);
+/* PR-BOX-2：启动占位 Logo → 清屏（GuiInit 在 DesktopInit 前调用） */
+void DesktopBootLogoShow(void);
 /* PR-BOOT-fast-1：Worker 补齐 BMP/菜单；Gui 只 Consume 后刷新（勿在 Gui 路径读盘） */
 void DesktopEnsureIconsLoaded(void);
 int DesktopIconsConsumeNeedRefresh(void);

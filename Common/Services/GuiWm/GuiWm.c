@@ -178,6 +178,7 @@ void GuiInit(void) {
     DesktopSetPointOccupied(GuiPointInAnyWindow);
     DesktopSetRequestRefresh(GuiRefreshDesktop);
     DesktopSetClearIconFootprint(GuiClearIconDragFootprint);
+    DesktopBootLogoShow();
     DesktopInit();
     {
         WINDOW_OPS Ops;
