@@ -351,6 +351,16 @@ int ToySocketConnect(int Sock, UINT32 DstIp, UINT16 DstPort, int TimeoutMs) {
         S->Phase = -1;
         return SockNegErrno(Err);
     }
+    /*
+     * 先忙泵：ARP 应答 / SYN-ACK 常已在 RX 环，勿每次 hlt 等 NUC≈4ms 定时器。
+     * 之后再 Halt 等，避免空转烧 CPU。
+     */
+    {
+        int Burst = 800;
+        while (S->Phase == 0 && Burst-- > 0) {
+            LwIpService();
+        }
+    }
     Tries = TimeoutMs > 0 ? TimeoutMs : 8000;
     while (S->Phase == 0 && Tries-- > 0) {
         LwIpService();
@@ -455,13 +465,16 @@ int ToySocketRecv(int Sock, void *Buf, UINTN Len, int TimeoutMs) {
     if (S == NULL || Buf == NULL || Len == 0) {
         return -TOY_EINVAL;
     }
-    /* TimeoutMs < 0：非阻塞，只看一眼（store HTTP 外环自己 Breath，避免鼠标假死） */
+    /* TimeoutMs < 0：非阻塞；==0：一直等；>0：约 TimeoutMs 次 halt 后返回 0 */
     if (TimeoutMs < 0) {
         ForeverHalt = 0;
         Tries = 1;
+    } else if (TimeoutMs == 0) {
+        ForeverHalt = 1;
+        Tries = 0x7fffffff;
     } else {
         ForeverHalt = 1;
-        Tries = TimeoutMs > 0 ? TimeoutMs : 1;
+        Tries = TimeoutMs;
     }
     while (Tries-- > 0) {
         LwIpLock();

@@ -22,15 +22,23 @@ static void CommandExec(int Argc, char **Argv) {
         ConsoleWrite("usage: exec <file>\n");
         return;
     }
-    if (ProcessExec(Argv[1]) == 0) {
-        /*
-         * x86：用户异步跑，WaitPrompt 挡住 PromptAfterCommand，exit 时 ShowPrompt。
-         * virt：CoopDrain 同步跑完且 exit 不再 ShowPrompt，靠 PromptAfterCommand 画一次。
-         */
-        if (!HalPlatformIsVirtSerialConsole()) {
-            ConsoleWaitPrompt();
-        }
+    /*
+     * 先占 stdin，再起用户态：避免 ProcessExec 返回前 GUI/Shell 已抢串口。
+     * virt 协作排空：exec 返回时进程已结束，立刻 ShowPrompt 还原。
+     */
+    if (!HalPlatformIsVirtSerialConsole()) {
+        ConsoleWaitPrompt();
     }
+    if (ProcessExec(Argv[1]) != 0) {
+        if (!HalPlatformIsVirtSerialConsole()) {
+            ConsoleShowPrompt();
+        }
+        return;
+    }
+    if (HalPlatformIsVirtSerialConsole()) {
+        return;
+    }
+    /* 已 WaitPrompt；exit 时 ShowPrompt */
 }
 
 static void CommandPs(int Argc, char **Argv) {

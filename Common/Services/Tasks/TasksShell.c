@@ -70,16 +70,24 @@ void ShellTask(void) {
         }
 
         /*
-         * COM1 RX → Shell（CoolTerm 遥控打字）；TX 仍是调试旁路。
-         * 每轮最多收 N 字节，然后继续 Net/Halt——勿 while 抽干，
-         * 否则对端狂发/噪声时永不 hlt → USB 键失效、短按电源无效。
+         * COM1 RX → Shell / 用户 stdin 环（CoolTerm 遥控）。
+         * 真机曾 MaxRx=32：粘贴 dbset …192.168.31.124 时 HW FIFO(16) 溢掉中间字。
+         * 仍设上限，避免噪声狂发时永不 Net/Halt；一行命令 ≪ 256。
          */
         {
             int n = 0;
-            int MaxRx = HalCpuIsHypervisor() ? 256 : 32;
+            int MaxRx = 256;
             while (HalSerialDataReady() && n < MaxRx) {
                 char C = HalSerialReadChar();
                 n++;
+                /*
+                 * exec 中：勿喂 shell，泄进 stdin 环供 read(0)；
+                 * 若直接跳过不抽 RX，CoolTerm 粘贴同样会丢字。
+                 */
+                if (ConsoleStdinUserHold()) {
+                    ConsoleStdinPut(C);
+                    continue;
+                }
                 if (SettingsUiIsFocused()) {
                     if (C == 0x1B) {
                         SettingsUiOnEscape();

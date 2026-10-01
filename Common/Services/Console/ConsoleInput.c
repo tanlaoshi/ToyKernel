@@ -54,6 +54,11 @@ static int ConsoleEnsureShell(int FromSerial) {
 void ConsoleOnCharEx(char C, int FromSerial) {
     int Ensured;
 
+    if (ConsoleStdinUserHold()) {
+        /* 误入 shell 行缓冲：改送用户 stdin（串口路径本不应到此） */
+        ConsoleStdinPut(C);
+        return;
+    }
     Ensured = ConsoleEnsureShell(FromSerial);
     if (Ensured == 0) {
         return;
@@ -168,6 +173,11 @@ static void ConsolePromptAfterCommand(int FromSerial) {
 void ConsoleOnEnterEx(int FromSerial) {
     int Ensured;
 
+    /* 用户 ELF 占 stdin：误入勿当 shell 命令（chat> HI → unknown） */
+    if (ConsoleStdinUserHold()) {
+        gLen = 0;
+        return;
+    }
     Ensured = ConsoleEnsureShell(FromSerial);
     if (Ensured == 0) {
         return;
@@ -215,26 +225,35 @@ void ConsoleSerialRun(void) {
     for (;;) {
         HalCpuHalt();
         HalInputPoll();
-        if (HalSerialDataReady()) {
+        /* 每拍多抽几字，避免 CoolTerm 粘贴时 16 字节 FIFO 溢出 */
+        {
+            int n = 0;
             static int SkipLf;
-            char C = HalSerialReadChar();
-            if (C == '\r') {
-                SkipLf = 1;
-                ConsoleOnEnterEx(1);
-            } else if (C == '\n') {
-                if (SkipLf) {
-                    SkipLf = 0;
-                } else {
-                    ConsoleOnEnterEx(1);
+            while (HalSerialDataReady() && n < 256) {
+                char C = HalSerialReadChar();
+                n++;
+                if (ConsoleStdinUserHold()) {
+                    ConsoleStdinPut(C);
+                    continue;
                 }
-            } else {
-                SkipLf = 0;
-                if (C == '\b' || C == 127) {
-                    ConsoleOnBackspaceEx(1);
-                } else if (C == 3) {
-                    ShellOnInterrupt();
+                if (C == '\r') {
+                    SkipLf = 1;
+                    ConsoleOnEnterEx(1);
+                } else if (C == '\n') {
+                    if (SkipLf) {
+                        SkipLf = 0;
+                    } else {
+                        ConsoleOnEnterEx(1);
+                    }
                 } else {
-                    ConsoleOnCharEx(C, 1);
+                    SkipLf = 0;
+                    if (C == '\b' || C == 127) {
+                        ConsoleOnBackspaceEx(1);
+                    } else if (C == 3) {
+                        ShellOnInterrupt();
+                    } else {
+                        ConsoleOnCharEx(C, 1);
+                    }
                 }
             }
         }

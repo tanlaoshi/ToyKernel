@@ -55,6 +55,8 @@
 #define ARP_TABLE_SIZE              4
 #define ARP_QUEUEING                1
 #define ETHARP_SUPPORT_STATIC_ENTRIES 1
+/* LAN：默认 3000ms 首包丢了像「卡住」；Wi‑Fi 偶丢 SYN 时 500 足够重试 */
+#define LWIP_TCP_RTO_TIME           500
 
 #define IP_FORWARD                  0
 #define IP_REASSEMBLY               0

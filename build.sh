@@ -192,6 +192,7 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     PackStore snake "$USER_OUT/snake.elf" SNAKE.ELF
     PackStore windemo "$USER_OUT/windemo.elf" WINDEMO.ELF
     PackStore blitdemo "$USER_OUT/blitdemo.elf" BLITDEMO.ELF
+    PackStore chat "$USER_OUT/chat.elf" CHAT.ELF
     if [ -f Store/catalog.txt ]; then
         mkdir -p "$DEST/Store"
         cp -f Store/catalog.txt "$DEST/Store/catalog.txt"

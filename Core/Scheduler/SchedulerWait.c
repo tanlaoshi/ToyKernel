@@ -43,6 +43,21 @@ void SchedulerReapOrphanZombies(void) {
     SpinLockRelease(&gSchedulerLock);
 }
 
+int SchedulerLiveUserApps(void) {
+    int i;
+
+    for (i = 0; i < MAX_TASKS; i++) {
+        if (!gTasks[i].IsUser) {
+            continue;
+        }
+        if (gTasks[i].State == TASK_UNUSED || gTasks[i].State == TASK_ZOMBIE) {
+            continue;
+        }
+        return 1;
+    }
+    return 0;
+}
+
 UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
     INT32 Code;
     TASK *Exiting;

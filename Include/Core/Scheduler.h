@@ -147,6 +147,8 @@ int SchedulerFdPipe(TASK *T, int PipeFd[2]);
 int SchedulerFdDup(TASK *T, int OldFd);
 
 void SchedulerReapOrphanZombies(void);
+/* 有未退出的用户任务时，串口/键盘 stdin 归用户 read(0)，勿进 shell 行缓冲 */
+int SchedulerLiveUserApps(void);
 
 /* PR-A12：virt 无定时抢占时，协作跑完就绪用户任务（exec HELLO） */
 void SchedulerCoopDrainUsers(void);

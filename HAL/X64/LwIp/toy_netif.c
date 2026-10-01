@@ -107,6 +107,26 @@ int ToyNetifSetAddr(UINT32 Ip, UINT32 Mask, UINT32 Gw) {
     return 0;
 }
 
+void ToyNetifSyncMac(void) {
+    UINT8 Mac[6];
+    int i;
+
+    if (!gToyNetifUp) {
+        return;
+    }
+    NetGetMac(Mac);
+    for (i = 0; i < 6; i++) {
+        if (gToyNetif.hwaddr[i] != Mac[i]) {
+            break;
+        }
+    }
+    if (i == 6) {
+        return;
+    }
+    memcpy(gToyNetif.hwaddr, Mac, ETH_HWADDR_LEN);
+    HalConsoleWriteSerial("netif: mac sync\n");
+}
+
 void ToyNetifInput(const UINT8 *Frame, UINTN Len) {
     struct pbuf *P;
 

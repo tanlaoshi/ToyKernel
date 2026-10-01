@@ -22,8 +22,16 @@ void ConsoleFocusSave(void) {
 
 void ConsoleFocusLoad(void) {
     int Idx = GuiFocusIndex();
+    int Hold = ConsoleStdinUserHold();
 
     GuiConsolePull(gLine, &gLen, &gWaitPrompt);
+    /*
+     * Compose/切窗会把窗内 WaitPrompt 清 0 再 Pull，导致 exec 中 shell 抢串口
+     * （chat> 下 HI → unknown: HI）。有活用户时保持占 stdin。
+     */
+    if (Hold && gWaitPrompt == 0) {
+        gWaitPrompt = 1;
+    }
     if (Idx >= 0 && GuiShellWindowActive(Idx)) {
         ConsoleSbWinLoad(Idx);
     }

@@ -44,8 +44,8 @@ void IwlPoll(void) {
         UINT8 Code;
         const UINT8 *Payload;
         UINTN PayLen;
-        /* 曾 512：catalog HTTP ~800B eth → 802.11 更大，截断后解密/LLC 烂 → http empty */
-        UINT8 Mutable[2048];
+        /* 曾栈上 2048：Worker 8K 栈上再套 lwIP 易紧；静态缓冲即可 */
+        static UINT8 Mutable[2048];
         UINTN i;
 
         Took++;

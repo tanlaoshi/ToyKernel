@@ -9,6 +9,7 @@
 #include "Hal.h"
 #include "Gui.h"
 #include "Font.h"
+#include "Scheduler.h"
 
 char gLine[LINE_MAX];
 int gLen;
@@ -21,6 +22,53 @@ static int gJobPromptWin = -2;
 static int gJobSkipAfterCommand;
 /* -2=非命令输出；-1=串口；>=0=本条命令输出归属窗（跟发起窗，不跟焦点） */
 static int gCmdOutWin = -2;
+
+/* 用户 ELF read(0)：Shell 泄串口/键盘入环；须 ≥ 真机单轮 MaxRx，防粘贴丢字 */
+#define STDIN_Q_CAP 256
+static char gStdinQ[STDIN_Q_CAP];
+static int gStdinR;
+static int gStdinW;
+static int gStdinN;
+
+int ConsoleStdinUserHold(void) {
+    return gWaitPrompt > 0 || SchedulerLiveUserApps();
+}
+
+void ConsoleStdinFlush(void) {
+    gStdinR = 0;
+    gStdinW = 0;
+    gStdinN = 0;
+}
+
+void ConsoleStdinPut(char C) {
+    if (gStdinN >= STDIN_Q_CAP) {
+        return;
+    }
+    gStdinQ[gStdinW] = C;
+    gStdinW++;
+    if (gStdinW >= STDIN_Q_CAP) {
+        gStdinW = 0;
+    }
+    gStdinN++;
+}
+
+char ConsoleStdinGetChar(void) {
+    for (;;) {
+        if (gStdinN > 0) {
+            char C = gStdinQ[gStdinR];
+            gStdinR++;
+            if (gStdinR >= STDIN_Q_CAP) {
+                gStdinR = 0;
+            }
+            gStdinN--;
+            return C;
+        }
+        if (HalSerialDataReady()) {
+            return HalSerialReadChar();
+        }
+        HalCpuHalt();
+    }
+}
 
 void Prompt(void) {
     gLen = 0;
@@ -47,6 +95,7 @@ void ConsoleShowPrompt(void) {
         gWaitPrompt--;
     }
     if (gWaitPrompt == 0) {
+        ConsoleStdinFlush();
         Prompt();
     }
 }

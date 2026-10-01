@@ -22,12 +22,21 @@
 #include "DriverNet.h"
 
 static int gLwIpReady;
-static u32_t gLwIpMs;
 /* 软锁：持锁期间保持 IF=1，避免 ping/ARP 时关中断饿死 USB 鼠 */
 static volatile UINT32 gLwIpSoft;
 
+/*
+ * 墙钟毫秒。旧实现每 LwIpService 自增 1，NUC 上 Halt≈4ms/拍时 TCP RTO=3000
+ * 会拖到十余秒；忙泵时又会「时间飞逝」。须跟 HalCpuTicks 对齐。
+ */
 u32_t sys_now(void) {
-    return gLwIpMs;
+    UINT32 Tps = HalTicksPerSec();
+    UINT64 T = HalCpuTicks(0);
+
+    if (Tps == 0) {
+        return 0;
+    }
+    return (u32_t)((T * 1000ULL) / (UINT64)Tps);
 }
 
 void LwIpLock(void) {
@@ -69,7 +78,6 @@ void LwIpPoll(void) {
     if (__sync_lock_test_and_set(&gLwIpSoft, 1u)) {
         return;
     }
-    gLwIpMs++;
     sys_check_timeouts();
     __sync_lock_release(&gLwIpSoft);
 }
@@ -92,7 +100,6 @@ void LwIpService(void) {
         return;
     }
     ToyDriverNetPoll();
-    gLwIpMs++;
     sys_check_timeouts();
     __sync_lock_release(&gLwIpSoft);
 }

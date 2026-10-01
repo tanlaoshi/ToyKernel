@@ -58,6 +58,12 @@ void ConsoleFocusLoad(void);
 /* exec/runuser 成功后延迟提示符，进程退出时 ConsoleShowPrompt */
 void ConsoleWaitPrompt(void);
 void ConsoleShowPrompt(void);
+/* 用户 ELF 占 stdin：WaitPrompt 或仍有活用户任务（防 GUI 清掉 WaitPrompt 后 shell 抢键） */
+int ConsoleStdinUserHold(void);
+/* 键盘 → 用户 read(0)；与串口 UART 一并在 ConsoleStdinGetChar 取 */
+void ConsoleStdinPut(char C);
+char ConsoleStdinGetChar(void);
+void ConsoleStdinFlush(void);
 
 /* listen 等后台任务期间抑制 toyos>；ConsoleNotify 只换行输出 */
 void ConsoleSuspendPrompt(void);

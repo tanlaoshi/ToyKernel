@@ -155,6 +155,8 @@ int LwIpDhcpEnqueue(int TimeoutMs) {
     if (!Netif) {
         return -2;
     }
+    /* WiFi 覆盖有线后 epoch 重启 DHCP：须换 SA，否则 Offer 对不上 */
+    ToyNetifSyncMac();
     LwIpDhcpStop();
     ClearNetifAddr(Netif);
     Err = dhcp_start(Netif);

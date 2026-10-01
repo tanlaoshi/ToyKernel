@@ -10,6 +10,8 @@
 #include "LwIp.h"
 #include "Socket.h"
 #include "Errno.h"
+#include "Console.h"
+#include "HalConsole.h"
 
 int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
     TASK_FD *F;
@@ -21,8 +23,26 @@ int SchedulerFdRead(TASK *T, int Fd, void *Buf, UINTN Len) {
         return -1;
     }
     F = &T->Fds[Fd];
+    if (F->Kind == FD_KIND_CONSOLE) {
+        /* stdin 占位：此前落进 FILE 分支 Size=0 → 立刻 EOF（chat: bye） */
+        if (Fd != 0 || Len == 0) {
+            return -1;
+        }
+        for (i = 0; i < Len; i++) {
+            char C = ConsoleStdinGetChar();
+            /* 串口终端常发 CR；统一成 LF，与 shell SerialIsEnter 一致 */
+            if (C == '\r') {
+                C = '\n';
+            }
+            /* 串口回显（\\n → \\r\\n），否则 chat> 后看不见自己打的字 */
+            HalConsolePutChar(C);
+            ((char *)Buf)[i] = C;
+        }
+        return (int)Len;
+    }
     if (F->Kind == FD_KIND_SOCKET) {
-        Ret = LwIpSocketRecv(F->SockId, Buf, Len, 2000);
+        /* 0=一直等到有数据/EOF；曾 2000 超时返回 0 被当成 EOF，聊天必断 */
+        Ret = LwIpSocketRecv(F->SockId, Buf, Len, 0);
         if (Ret == -2) {
             return 0; /* EOF */
         }

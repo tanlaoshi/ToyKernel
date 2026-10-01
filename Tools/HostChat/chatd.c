@@ -130,6 +130,7 @@ static int Session(int Client) {
 
     (void)setsockopt(Client, IPPROTO_TCP, TCP_NODELAY, &On, sizeof(On));
     fprintf(stderr, "chatd: client connected\n");
+    fprintf(stderr, "chatd: 半双工 — 等 NUC 先发一行，再在本终端打字回车回复（无 chat>）\n");
 
     for (;;) {
         struct pollfd P[2];
@@ -161,9 +162,11 @@ static int Session(int Client) {
                 fprintf(stderr, "chatd: client EOF\n");
                 return 0;
             }
-            fwrite(Line, 1, (size_t)N, stdout);
-            fputc('\n', stdout);
+            /* 前缀区分：对端来的行 vs 本机 stdin 本地回显 */
+            fprintf(stdout, "nuc> %.*s\n", N, Line);
             fflush(stdout);
+            fprintf(stderr, "host> ");
+            fflush(stderr);
         }
         if (P[0].revents & (POLLERR | POLLHUP | POLLNVAL)) {
             fprintf(stderr, "chatd: stdin closed\n");
@@ -180,10 +183,17 @@ static int Session(int Client) {
                 if (Len > 0 && Line[Len - 1] == '\n') {
                     Line[--Len] = 0;
                 }
+                if (Len == 0) {
+                    fprintf(stderr, "chatd: 空行未发送（再打一行文字后回车）\n");
+                    fprintf(stderr, "host> ");
+                    fflush(stderr);
+                    continue;
+                }
                 if (SendLine(Client, Line, Len) != 0) {
                     perror("send");
                     return -1;
                 }
+                fprintf(stderr, "chatd: sent %zu B → waiting next from NUC\n", Len);
             }
         }
     }

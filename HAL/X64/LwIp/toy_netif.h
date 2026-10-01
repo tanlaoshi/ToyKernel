@@ -9,6 +9,8 @@ struct netif *ToyNetifGet(void);
 int ToyNetifAdd(UINT32 Ip, UINT32 Mask, UINT32 Gw);
 /* 已 Add 后改地址；成功 0 */
 int ToyNetifSetAddr(UINT32 Ip, UINT32 Mask, UINT32 Gw);
+/* L2 换卡（有线→WiFi）后刷新 netif MAC，否则 DHCP Discover SA 仍是旧卡 */
+void ToyNetifSyncMac(void);
 void ToyNetifInput(const UINT8 *Frame, UINTN Len);
 
 #endif
