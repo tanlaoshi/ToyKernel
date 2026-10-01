@@ -2,16 +2,17 @@
 
 > **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0) **✅ TG**；★ [`PR-BOX-1`](../路线图.md#pr-box-1)（Shell 历史）。  
 > **来源**：[`待做/新需求.md`](../待做/新需求.md)（需求原文；实现以**本文**为准）。  
-> **路径铁律**：**一律以「ToyOS 树根」为准**——树可放在任意目录（`~/ToyOS`、`/opt/ToyOS`、U 盘、同事机器路径均可）。脚本**自定位**根目录，不依赖「必须在 `$HOME`」。禁止写死用户名（如 `/home/tank/...`）。  
-> **目标**：拷贝/克隆整棵 ToyOS 树到任意位置 → 一键装依赖 → 即可编、跑、测；仓库树清晰；启动/桌面有 Logo 与网络三态图标。  
-> **不做（本柱）**：公网分发、改课设 ABI、iwl/xhci 长函数债、BOOT-fast-5（暂不做）。
+> **迁移策略（本机）**：当前 **`…/edk2/` 整树当作备份，先不动、不就地改名**；后续从该树**逐步拷出/迁出**到家目录 **`~/ToyOS`**（见 §5.0）。脚本仍按 `$TOYOS_ROOT` 自定位，迁完后权威根即 `~/ToyOS`。  
+> **路径铁律**：命令以 **ToyOS 树根**为准（可任意摆放）；**本柱迁移动作的目标根 = `~/ToyOS`**。禁止写死用户名（如 `/home/tank/...`）。  
+> **目标**：外人拿到 `ToyOS` 树 → 一键装依赖 → 即可编、跑、测；仓库树清晰；启动/桌面有 Logo 与网络三态图标。  
+> **不做（本柱）**：公网分发、改课设 ABI、iwl/xhci 长函数债、BOOT-fast-5（暂不做）；**删除或就地拆毁现网 `edk2/` 备份**。
 
 ---
 
 ## 路径约定（全柱）
 
 **权威根 `TOYOS_ROOT`** = 同时含有 `ToyKernel/`、`ToyBoot/`、`ToyImage/`、`Scripts/`（迁完后还有 `EDK2/`）的那一层目录。  
-**不**要求等于 `$HOME/ToyOS`；家目录只是常见摆放示例。
+脚本**不绑死**家目录；**本柱迁移的落点约定为 `~/ToyOS`**（`$HOME/ToyOS`），与「备份仍留在原 `edk2/`」并存。
 
 | 写法 | 含义 | 是否允许 |
 | ---- | ---- | -------- |
@@ -19,8 +20,10 @@
 | 脚本自定位 | `Scripts/*.sh` → `$(cd "$(dirname "$0")/.." && pwd)` | **默认**（未设 env 时） |
 | `$TOYOS_ROOT/ToyKernel` 等 | 文档中的仓内路径 | **标准写法** |
 | `./Scripts/build.sh`（已 `cd $TOYOS_ROOT`） | 相对短写 | 允许 |
-| `~/ToyOS`、`/opt/ToyOS`、`/media/…/ToyOS` | 任意摆放示例 | **允许**（同等一等公民） |
-| `/home/tank/...`、写死用户名 | 绑定某台机器账号 | **禁止** |
+| **`~/ToyOS`** | **本柱迁移动作的目标根** | **迁移落点** |
+| `/opt/ToyOS`、U 盘等 | 他人拷贝后的摆放 | **允许**（脚本仍自定位） |
+| 当前 `…/edk2/` | **备份 / 迁出源**；BOX-5 前以它为工作源 | **保留，不就地改名删除** |
+| `/home/tank/...` 写死用户 | 绑定某台机器账号 | **禁止** |
 
 **解析顺序（所有 `Scripts/*` 必须遵守）**
 
@@ -282,13 +285,37 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 
 ## 五、仓库布局轨（重）
 
+### 5.0 本机迁移策略（先备份、再逐步迁出）
+
+```text
+[备份 · 先不动]
+  …/edk2/          ← 现网整树（含 ToyKernel/ToyBoot/ToyImage + 完整 EDK2）
+                     BOX-1…4 体验刀可仍在此树开发；禁止就地改名为 ToyOS / 删树
+
+[目标 · 逐步生成]
+  ~/ToyOS/         ← 新权威根（迁完后 TOYOS_ROOT 默认指这里）
+    ToyKernel/       从 edk2/ToyKernel 拷出/同步（保留独立 .git）
+    ToyBoot/         从 edk2/ToyBoot 拷出/同步
+    ToyImage/        从 edk2/ToyImage 拷出/同步
+    EDK2/            BOX-6：从 edk2 裁剪后放入（无 .git）
+    Scripts/         BOX-4/5：新建单入口；再把旧脚本逻辑收敛进来
+```
+
+| 规则 | 说明 |
+| ---- | ---- |
+| 源 | 始终从 **`edk2/`** 读出；迁出用 **拷贝 / rsync / git clone 本地路径**，不 `mv` 掉备份 |
+| 汇 | 写入 **`~/ToyOS/`**；日常验证以 `export TOYOS_ROOT=$HOME/ToyOS`（或自定位）为准 |
+| 节奏 | **BOX-1…3** 可继续在 `edk2/ToyKernel` 改代码；**BOX-4** 可先在 `~/ToyOS/Scripts` 搭骨架并转发回 edk2；**BOX-5** 起批量同步三仓进 `~/ToyOS`；**BOX-6/7** 在新树裁 EDK2 / 验独立 |
+| 双轨期 | 两套树可短暂并存；文档写清「开发以哪棵为准」；收官后推荐只维护 `~/ToyOS`，`edk2/` 仅作冷备份 |
+| 禁止 | 未经验收就删除 `edk2/`；把 `edk2` 目录就地 rename 成 `ToyOS` 冒充迁移完成 |
+
 ### 5.1 迁目录 · BOX-5
 
 | 项 | 内容 |
 | -- | ---- |
-| 做 | 树根名建议 **`ToyOS/`**（位置不限）；平铺五子树；旧 `ToyImage/Scripts/*` **收敛进** `$TOYOS_ROOT/Scripts/`（实现可放 `Scripts/lib/`）；文档只教单入口 |
-| 验收 | 在任意路径：`"$TOYOS_ROOT/Scripts/build.sh" all x86` 与 `test.sh smoke x86` 闭环；三仓 git 仍独立 |
-| 风险 | 外置 SYNC、CI、肌肉记忆旧路径；迁完双机按 `$TOYOS_ROOT/Scripts` 做 `TB` |
+| 做 | 按 §5.0 把三仓同步进 **`~/ToyOS/`**；新建/补齐 `Scripts/`；旧 `ToyImage/Scripts/*` 收敛进参数化入口（实现可放 `Scripts/lib/`）；**保留 `edk2/` 备份** |
+| 验收 | `export TOYOS_ROOT=$HOME/ToyOS`；`"$TOYOS_ROOT/Scripts/build.sh" all x86` 与 `test.sh smoke x86` 闭环；三仓 git 仍独立；`edk2/` 仍在且可对照 |
+| 风险 | SYNC/CI/肌肉记忆；迁完双机按 `~/ToyOS/Scripts` 做 `TB` |
 
 ### 5.2 EDK2 裁剪 + Boot 边界 · BOX-6
 
@@ -316,7 +343,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | **PR-BOX-2** | 启动 Logo 占位 + 进桌面清屏 | BOX-0 |
 | **PR-BOX-3** | 网络三态图标 + TTY/USB/SDK 改名 | BOX-0 |
 | **PR-BOX-4** | `$TOYOS_ROOT` 自定位 + 单入口 Scripts 骨架 | BOX-0（可与 1–3 并行） |
-| **PR-BOX-5** | 迁树并把旧脚本收敛进参数化入口 | BOX-4 |
+| **PR-BOX-5** | 从 `edk2/` 逐步同步到 `~/ToyOS` + 脚本收敛 | BOX-4 |
 | **PR-BOX-6** | EDK2 202408 裁剪去 `.git` + Boot 极简契约 | BOX-5 |
 | **PR-BOX-7** | ToyKernel 零依赖 edk2/ToyBoot 源码验收 | BOX-5（可与 6 部分并行） |
 
@@ -331,7 +358,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | BOX-2 | Logo 可见 + 清屏后桌面正常；smoke PASS |
 | BOX-3 | 三态图标；改名清单勾完 |
 | BOX-4 | `build.sh toyos\|toyboot <arch>` / `run.sh` / `test.sh` 可用；bootstrap 幂等；**非家目录摆放仍可跑**；无写死用户名 |
-| BOX-5 | `$TOYOS_ROOT` + Scripts 单入口闭环；旧平行脚本名不再出现在开箱文档 |
+| BOX-5 | `~/ToyOS` 可编可烟测；`edk2/` 备份仍在；旧平行脚本名退出开箱文档 |
 | BOX-6 | `$TOYOS_ROOT/EDK2` 裁剪后能出 Boot |
 | BOX-7 | `$TOYOS_ROOT/ToyKernel` 单仓 `./build.sh` 成功 |
 
@@ -344,6 +371,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 - Logo 商业设计定稿、多主题启动动画  
 - 任务栏恢复默认常显 IP（可留调试开关）  
 - 改名时无评估地批量改 syscall 号/课设 ABI  
+- **就地拆毁 / rename 现网 `edk2/` 备份**（须先完成 `~/ToyOS` 验收）
 ---
 
 ## 八、原文对照（`待做/新需求.md`）
