@@ -69,8 +69,11 @@ static void LogoHold(void) {
     UINTN Round;
     volatile UINTN I;
 
-    /* ~可视一拍；不挡 smoke（远小于 90s） */
-    for (Round = 0; Round < 30; Round++) {
+    /*
+     * ~可视一拍（目标 ~1s）。旧值 Round=30×1.5M ≈6–7s，QEMU 上像卡死在 Logo。
+     * 仍远小于 smoke 90s。
+     */
+    for (Round = 0; Round < 5; Round++) {
         HalInputPoll();
         for (I = 0; I < 1500000UL; I++) {
             HalCpuRelax();
