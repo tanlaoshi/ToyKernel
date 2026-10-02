@@ -507,6 +507,9 @@ int XhciWifiFinishClaim(UINT32 RootPort, UINT8 Speed);
 int XhciWifiTryHubChildren(void);
 
 int InitMouseOnPort(UINT32 Port1);
+/* PR-F-xhci-4 */
+int InitMouseClaimPort(UINT32 Port1, UINT8 *SpeedOut);
+int InitMouseFinishEp(UINT32 Port1, UINT8 Speed);
 int InitMouseOnKeyboardSlot(void);
 void MousePush(void);
 void KbdPush(void);
