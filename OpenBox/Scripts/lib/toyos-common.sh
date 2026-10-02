@@ -49,6 +49,7 @@ toyos_load_config() {
     local Root="$1"
     DEFAULT_TARGET=toyos
     DEFAULT_ARCH=x86
+    EDK2_SRC="${EDK2_SRC:-}"
     if [ -f "$Root/Config.txt" ]; then
         # shellcheck disable=SC1090
         . "$Root/Config.txt"
@@ -60,6 +61,8 @@ toyos_load_config() {
         # shellcheck disable=SC1090
         . "$Root/Config.local.txt"
     fi
+    # 供 ToyBoot/build.sh 与子脚本使用
+    export EDK2_SRC
 }
 
 toyos_scripts_dir() {

@@ -1,6 +1,6 @@
 # ToyOS 开箱与仓库布局
 
-> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`4`](../路线图.md#pr-box-4) **✅ TG**；★ [`PR-BOX-5`](../路线图.md#pr-box-5)（`edk2/`→`~/ToyOS`）。  
+> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`5`](../路线图.md#pr-box-5) **✅ TG**；★ [`PR-BOX-6`](../路线图.md#pr-box-6)（EDK2 裁剪去 `.git`）。  
 > **来源**：[`待做/新需求.md`](../待做/新需求.md)（需求原文；实现以**本文**为准）。  
 > **迁移策略（本机）**：当前 **`…/edk2/` 整树当作备份，先不动、不就地改名**；后续从该树**逐步拷出/迁出**到家目录 **`~/ToyOS`**（见 §5.0）。脚本仍按 `$TOYOS_ROOT` 自定位，迁完后权威根即 `~/ToyOS`。  
 > **路径铁律**：命令以 **ToyOS 树根**为准（可任意摆放）；**本柱迁移动作的目标根 = `~/ToyOS`**。禁止写死用户名（如 `/home/tank/...`）。  
@@ -353,8 +353,23 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | 项 | 内容 |
 | -- | ---- |
 | 做 | 按 §5.0 把三仓同步进 **`~/ToyOS/`**；新建/补齐 `Scripts/`；旧 `ToyImage/Scripts/*` 收敛进参数化入口（实现可放 `Scripts/lib/`）；**保留 `edk2/` 备份** |
+| 工具 | `ToyKernel/OpenBox/migrate-to-toyos.sh [源edk2] [目标]`（默认 → `$HOME/ToyOS`） |
+| 双轨 | **`$TOYOS_ROOT/EDK2` → 符号链接备份 edk2 整树**（先占位）；`Config.local` 另记 `EDK2_SRC` 回退；**裁剪无 .git → BOX-6** |
 | 验收 | `export TOYOS_ROOT=$HOME/ToyOS`；`"$TOYOS_ROOT/Scripts/build.sh" all x86` 与 `test.sh smoke x86` 闭环；三仓 git 仍独立；`edk2/` 仍在且可对照 |
 | 风险 | SYNC/CI/肌肉记忆；迁完双机按 `~/ToyOS/Scripts` 做 `TB` |
+
+**本刀勾选**
+
+| 项 | 状态 |
+| -- | ---- |
+| `migrate-to-toyos.sh` 生成 `~/ToyOS/{ToyKernel,ToyBoot,ToyImage,Scripts,EDK2}` | ✅ |
+| `$TOYOS_ROOT/EDK2` 链到备份 edk2（裁剪→6） | ✅ |
+| 重工具链目录符号链接源树（Extract/Tarballs/…） | ✅ |
+| `edk2/` 备份仍在 | ✅ |
+| `TOYOS_ROOT=$HOME/ToyOS` 下 `build all x86` | ✅ |
+| `test.sh smoke x86` | ✅ |
+| 三仓各自 `.git` 独立 | ✅ |
+| EDK2 裁剪去 `.git` / README-TRIM | 本刀不做（→ BOX-6） |
 
 ### 5.2 EDK2 裁剪 + Boot 边界 · BOX-6
 

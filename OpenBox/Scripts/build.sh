@@ -53,7 +53,11 @@ build_toyos() {
 }
 
 build_toyboot() {
-    echo "==> ToyBoot @ $ROOT/ToyBoot"
+    echo "==> ToyBoot @ $ROOT/ToyBoot (EDK2_SRC=${EDK2_SRC:-auto})"
+    export TOYOS_ROOT="$ROOT"
+    if [ -n "${EDK2_SRC:-}" ]; then
+        export EDK2_SRC
+    fi
     if [ "${#ARGS[@]}" -gt 0 ]; then
         (cd "$ROOT/ToyBoot" && ./build.sh "${ARGS[@]}")
     else
