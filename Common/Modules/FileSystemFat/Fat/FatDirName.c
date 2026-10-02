@@ -122,7 +122,7 @@ void FillLfnEntry(UINT8 *E, int Ord, int IsLast, UINT8 Cksum, const char *Name) 
     for (k = 0; k < 13; k++) {
         UINT16 U;
         if (Ended) {
-            U = 0xFFFF;
+            U = FAT_U16_MASK;
         } else if (Name[Base + k] == 0) {
             U = 0;
             Ended = 1;

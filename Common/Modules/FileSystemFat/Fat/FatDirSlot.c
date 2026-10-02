@@ -13,7 +13,7 @@
  */
 int DeleteLfnPrefix(FAT_DIR_CTX Dir, int SfnIndex, UINT8 Cksum) {
     int i;
-    UINT32 DirtyLba = 0xFFFFFFFFu;
+    UINT32 DirtyLba = FAT_CLUSTER_INVALID;
 
     for (i = SfnIndex - 1; i >= 0; i--) {
         UINT8 E[32];
@@ -26,7 +26,7 @@ int DeleteLfnPrefix(FAT_DIR_CTX Dir, int SfnIndex, UINT8 Cksum) {
             return 0;
         }
         if (Lba != DirtyLba) {
-            if (DirtyLba != 0xFFFFFFFFu) {
+            if (DirtyLba != FAT_CLUSTER_INVALID) {
                 if (!StoreSector(DirtyLba)) {
                     return 0;
                 }
@@ -48,7 +48,7 @@ int DeleteLfnPrefix(FAT_DIR_CTX Dir, int SfnIndex, UINT8 Cksum) {
             break;
         }
     }
-    if (DirtyLba != 0xFFFFFFFFu) {
+    if (DirtyLba != FAT_CLUSTER_INVALID) {
         if (!StoreSector(DirtyLba)) {
             return 0;
         }
@@ -110,7 +110,7 @@ int DirGrow(FAT_DIR_CTX Dir) {
     }
     for (;;) {
         Next = FatNext(Tail);
-        if (Next == 0xFFFFFFFFu) {
+        if (Next == FAT_CLUSTER_INVALID) {
             return 0;
         }
         if (ClusterEnd(Next)) {
@@ -166,9 +166,9 @@ void FillSfnEntry(UINT8 *E, const UINT8 Name83[11], UINT8 Attr, UINT32 Cluster,
     }
     E[11] = Attr;
     if (gFatType == 32) {
-        Write16(E + 20, (UINT16)((Cluster >> 16) & 0xFFFF));
+        Write16(E + 20, (UINT16)((Cluster >> 16) & FAT_U16_MASK));
     }
-    Write16(E + 26, (UINT16)(Cluster & 0xFFFF));
+    Write16(E + 26, (UINT16)(Cluster & FAT_U16_MASK));
     Write32(E + 28, Size);
 }
 

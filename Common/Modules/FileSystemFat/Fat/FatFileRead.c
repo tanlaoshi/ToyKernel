@@ -16,7 +16,7 @@ int SeekFileOffset(UINT32 First, UINTN Offset, UINT32 *OutCl, UINT32 *OutOff) {
     }
     while (Skip >= Cb) {
         Cl = FatNext(Cl);
-        if (Cl == 0xFFFFFFFFu || ClusterEnd(Cl) || Cl < 2) {
+        if (Cl == FAT_CLUSTER_INVALID || ClusterEnd(Cl) || Cl < 2) {
             return 0;
         }
         Skip -= Cb;
@@ -92,7 +92,7 @@ int FatReadFileAt(const char *Path, UINTN Offset, void *Buffer, UINTN Len, UINTN
             break;
         }
         Cl = FatNext(Cl);
-        if (Cl == 0xFFFFFFFFu || ClusterEnd(Cl) || Cl < 2) {
+        if (Cl == FAT_CLUSTER_INVALID || ClusterEnd(Cl) || Cl < 2) {
             break;
         }
     }

@@ -11,6 +11,15 @@
 #define SECTOR 512
 #define FAT32_EOC 0x0FFFFFF8u
 #define FAT16_EOC 0xFFF8u
+#define FAT32_ENTRY_MASK     0x0FFFFFFFu /* FAT32 表项低 28 位 */
+#define FAT_CLUSTER_INVALID  0xFFFFFFFFu /* FatNext 失败 / 未脏 LBA 哨兵 */
+#define FAT_FSINFO_LEAD_SIG  0x41615252u /* FSInfo lead：RRaA */
+#define FAT_FSINFO_STRUC_SIG 0x61417272u /* FSInfo struc：rrAa */
+#define FAT_VOL_SERIAL_TOYO  0x544F594Fu /* 卷序列号 'TOYO' */
+#define FAT_U16_MASK         0xFFFFu
+#define FAT16_CLUSTERS_MAX   0xFFF0u     /* FatIo 几何上限 */
+#define FAT16_CLUSTERS_FULL  0xFFFFu
+#define FAT_SECTORS_64K      0x10000u    /* FatFormat：FAT16/32 扇区分界 */
 #ifndef FAT_WRITE_MAX
 #define FAT_WRITE_MAX (8 * 1024 * 1024)
 #endif

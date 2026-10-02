@@ -52,7 +52,7 @@ int FatFormatFat32(UINT32 StartLba, UINT32 SectorCount, const char *Label) {
     UINT32 FatLba;
     UINT32 DataLba;
 
-    if (SectorCount < 0x10000u) {
+    if (SectorCount < FAT_SECTORS_64K) {
         /* <32MiB：用较小簇 */
         Spc = 1;
     }
@@ -115,7 +115,7 @@ int FatFormatFat32(UINT32 StartLba, UINT32 SectorCount, const char *Label) {
     gSector[66] = 0x80;
     gSector[67] = 0x00;
     gSector[68] = 0x29;
-    Write32(gSector + 69, 0x544F594F); /* serial 'TOYO' */
+    Write32(gSector + 69, FAT_VOL_SERIAL_TOYO); /* serial 'TOYO' */
     PutLabel(gSector + 71, Label);
     gSector[82] = 'F';
     gSector[83] = 'A';
@@ -136,8 +136,8 @@ int FatFormatFat32(UINT32 StartLba, UINT32 SectorCount, const char *Label) {
 
     /* FSInfo */
     ZeroBuf(gSector, SECTOR);
-    Write32(gSector + 0, 0x41615252u);
-    Write32(gSector + 484, 0x61417272u);
+    Write32(gSector + 0, FAT_FSINFO_LEAD_SIG);
+    Write32(gSector + 484, FAT_FSINFO_STRUC_SIG);
     Write32(gSector + 488, Clusters - 1);
     Write32(gSector + 492, 3);
     gSector[510] = 0x55;
@@ -157,9 +157,9 @@ int FatFormatFat32(UINT32 StartLba, UINT32 SectorCount, const char *Label) {
         }
         ZeroBuf(gSector, SECTOR);
         /* cluster 0 media, 1 EOC, 2 root EOC */
-        Write32(gSector + 0, 0x0FFFFFF8u);
-        Write32(gSector + 4, 0x0FFFFFFFu);
-        Write32(gSector + 8, 0x0FFFFFF8u);
+        Write32(gSector + 0, FAT32_EOC);
+        Write32(gSector + 4, FAT32_ENTRY_MASK);
+        Write32(gSector + 8, FAT32_EOC);
         if (!BlockWriteSectors(Base, 1, gSector)) {
             return FAT_ERR_IO;
         }

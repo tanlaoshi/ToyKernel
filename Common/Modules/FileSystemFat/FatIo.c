@@ -85,14 +85,14 @@ UINT32 FatNext(UINT32 Cluster) {
         FatLba = gFatStart + (Cluster * 4) / SECTOR;
         Off = (Cluster * 4) % SECTOR;
         if (!LoadSector(FatLba)) {
-            return 0xFFFFFFFFu;
+            return FAT_CLUSTER_INVALID;
         }
-        return Read32(gSector + Off) & 0x0FFFFFFFu;
+        return Read32(gSector + Off) & FAT32_ENTRY_MASK;
     }
     FatLba = gFatStart + (Cluster * 2) / SECTOR;
     Off = (Cluster * 2) % SECTOR;
     if (!LoadSector(FatLba)) {
-        return 0xFFFFFFFFu;
+        return FAT_CLUSTER_INVALID;
     }
     return Read16(gSector + Off);
 }
@@ -113,7 +113,7 @@ int FatSet(UINT32 Cluster, UINT32 Value) {
             if (!LoadSector(FatLba)) {
                 return 0;
             }
-            Write32(gSector + Off, Value & 0x0FFFFFFFu);
+            Write32(gSector + Off, Value & FAT32_ENTRY_MASK);
             if (!StoreSector(FatLba)) {
                 return 0;
             }
@@ -149,7 +149,7 @@ UINT32 EocValue(void) {
 int FatFreeChain(UINT32 Cluster) {
     while (!ClusterEnd(Cluster) && Cluster >= 2 && Cluster <= gMaxCluster) {
         UINT32 Next = FatNext(Cluster);
-        if (Next == 0xFFFFFFFFu) {
+        if (Next == FAT_CLUSTER_INVALID) {
             return 0;
         }
         if (!FatSet(Cluster, 0)) {
@@ -223,7 +223,7 @@ int FatInit(UINT32 StartLba) {
         DataSectors = TotSec ? (TotSec - (gDataStart - StartLba)) : (gSectorsPerFat * 128);
         gMaxCluster = 2 + DataSectors / gSectorsPerCluster - 1;
         if (gMaxCluster < 3) {
-            gMaxCluster = 0xFFFF;
+            gMaxCluster = FAT_U16_MASK;
         }
         DebugWrite("FAT32 root cluster ");
         DebugHex32(gRootCluster);
@@ -241,7 +241,7 @@ int FatInit(UINT32 StartLba) {
         DataSectors = TotSec ? (TotSec - (gDataStart - StartLba)) : (gSectorsPerFat * 256);
         gMaxCluster = 2 + DataSectors / gSectorsPerCluster - 1;
         if (gMaxCluster < 3) {
-            gMaxCluster = 0xFFF0;
+            gMaxCluster = FAT16_CLUSTERS_MAX;
         }
     }
     gFatType = 16;

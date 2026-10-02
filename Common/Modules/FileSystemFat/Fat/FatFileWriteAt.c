@@ -60,7 +60,7 @@ static int EnsureClusterCount(UINT32 *InOutFirst, UINT32 NeedClusters) {
             Cl = First;
         } else {
             UINT32 Next = FatNext(Prev);
-            if (Next == 0xFFFFFFFFu) {
+            if (Next == FAT_CLUSTER_INVALID) {
                 return 0;
             }
             if (ClusterEnd(Next) || Next < 2) {
@@ -212,7 +212,7 @@ int FatWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len
             break;
         }
         Cl = FatNext(Cl);
-        if (Cl == 0xFFFFFFFFu || ClusterEnd(Cl) || Cl < 2) {
+        if (Cl == FAT_CLUSTER_INVALID || ClusterEnd(Cl) || Cl < 2) {
             return FAT_ERR_IO;
         }
     }
@@ -223,9 +223,9 @@ int FatWriteFileAt(const char *Path, UINTN Offset, const void *Buffer, UINTN Len
         }
         E[11] = FAT_ATTR_ARCH;
         if (gFatType == 32) {
-            Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
+            Write16(E + 20, (UINT16)((FirstCluster >> 16) & FAT_U16_MASK));
         }
-        Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
+        Write16(E + 26, (UINT16)(FirstCluster & FAT_U16_MASK));
         Write32(E + 28, FinalSize);
         if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
             return FAT_ERR_IO;

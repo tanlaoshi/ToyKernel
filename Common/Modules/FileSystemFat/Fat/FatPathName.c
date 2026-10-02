@@ -138,7 +138,7 @@ void LfnPutUcs(FAT_LFN_ACC *A, int Index, UINT16 U) {
     if (Index < 0 || Index >= FAT_NAME_MAX) {
         return;
     }
-    if (U == 0xFFFF) {
+    if (U == FAT_U16_MASK) {
         return;
     }
     if (U == 0) {

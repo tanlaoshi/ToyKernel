@@ -38,7 +38,7 @@ static int FatDeleteFileOnce(const char *Path) {
     UINT8 E[32];
     UINT32 SfnLba = 0;
     UINT32 SfnOff = 0;
-    UINT32 DirtyLba = 0xFFFFFFFFu;
+    UINT32 DirtyLba = FAT_CLUSTER_INVALID;
     int i;
     UINT8 Cksum;
 
@@ -147,7 +147,7 @@ static int FatDeleteFileOnce(const char *Path) {
             if (!StoreSector(SfnLba)) {
                 return FAT_ERR_IO;
             }
-            DirtyLba = 0xFFFFFFFFu;
+            DirtyLba = FAT_CLUSTER_INVALID;
             if (!DeleteLfnPrefix(Parent, Index, Cksum)) {
                 return FAT_ERR_IO;
             }
@@ -167,7 +167,7 @@ static int FatDeleteFileOnce(const char *Path) {
      */
     (void)Cluster;
     gSector[SfnOff] = 0xE5;
-    if (DirtyLba != 0xFFFFFFFFu) {
+    if (DirtyLba != FAT_CLUSTER_INVALID) {
         if (!StoreSector(DirtyLba)) {
             return FAT_ERR_IO;
         }

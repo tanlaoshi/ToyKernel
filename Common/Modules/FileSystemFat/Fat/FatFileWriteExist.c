@@ -28,7 +28,7 @@ int FatWriteExist(FAT_DIR_CTX Parent, int Index, UINT32 OldCluster,
             Cl = OldCluster;
         } else {
             Next = FatNext(PrevCluster);
-            if (Next == 0xFFFFFFFFu) {
+            if (Next == FAT_CLUSTER_INVALID) {
                 return FAT_ERR_IO;
             }
             if (ClusterEnd(Next) || Next < 2) {
@@ -77,9 +77,9 @@ int FatWriteExist(FAT_DIR_CTX Parent, int Index, UINT32 OldCluster,
         }
         E[11] = FAT_ATTR_ARCH;
         if (gFatType == 32) {
-            Write16(E + 20, (UINT16)((FirstCluster >> 16) & 0xFFFF));
+            Write16(E + 20, (UINT16)((FirstCluster >> 16) & FAT_U16_MASK));
         }
-        Write16(E + 26, (UINT16)(FirstCluster & 0xFFFF));
+        Write16(E + 26, (UINT16)(FirstCluster & FAT_U16_MASK));
         Write32(E + 28, (UINT32)Size);
         if (!DirWriteEntry(Parent, (UINT32)Index, E)) {
             return FAT_ERR_IO;
