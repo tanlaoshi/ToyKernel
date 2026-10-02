@@ -3,7 +3,8 @@
 > **范围**：源码 / 头文件 / 脚本 / 文档 / 配置约 **1018** 项。
 > **不含**：`Build/`、`ThirdParty/lwip/` 上游树、交叉工具链解压包、`.o/.a/.elf`、字体/图标/固件等二进制。
 > **分层硬规则**：[`技术手册 · 体系结构`](../技术手册.md#i-体系结构--分层与对外接口)。**排期**：[`路线图.md`](../路线图.md)。
-> **日期**：2026-09-30。
+> **分层终态**：`Boot → HAL → Library → Core → Services → User`。**`Common/` 不是层**——仅旧路径篮子（现装 Services/Library/Fonts/Modules）；[拆 Common](../路线图.md#pr-tree-common) 抬顶后删空壳。下文 `Common/…` = **将删别名**。
+> **日期**：2026-10-03（TREE-doc 钉死分层；文件清单路径仍为抬顶前）。
 
 ## 目录
 
@@ -11,10 +12,10 @@
 - [1. `Root/` — 仓库根：构建入口与顶层配置](#1-Root)
 - [2. `Include/` — 跨层公开 API / 契约头](#2-Include)
 - [3. `Core/` — 内核核心：启动编排、调度、进程、系统调用、虚拟内存](#3-Core)
-- [4. `Common/Modules/` — 可替换内核模块（SCHED / MEM / FS）](#4-CommonModules)
-- [5. `Common/Library/` — 共享库：ELF / FAT / GPT / BlockMux / UI](#5-CommonLibrary)
-- [6. `Common/Fonts/` — 内嵌点阵字体数据](#6-CommonFonts)
-- [7. `Common/Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层](#7-CommonServices)
+- [4. `Common/Modules/` — 可替换内核模块（SCHED / MEM / FS）（将抬顶 → `Modules/`）](#4-CommonModules)
+- [5. `Common/Library/` — 共享库：ELF / FAT / GPT / BlockMux / UI（将抬顶 → `Library/`）](#5-CommonLibrary)
+- [6. `Common/Fonts/` — 内嵌点阵字体数据（将抬顶 → `Fonts/`）](#6-CommonFonts)
+- [7. `Common/Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层（将抬顶 → `Services/`）](#7-CommonServices)
 - [8. `HAL/Board/` — 板包约定与模板](#8-HALBoard)
 - [9. `HAL/X64/` — x86-64 HAL：启动、中断、页表、HalDevices、LwIp 移植](#9-HALX64)
 - [10. `HAL/X64/Drivers/` — x86 设备驱动（一设备一夹）](#10-HALX64Drivers)
@@ -32,14 +33,17 @@
 
 ## 0. 总览与模块依赖
 
+**层（终态）**：`Boot → HAL → Library → Core → Services → User`。  
+`Fonts` / `Modules` = 顶层目录，不是并列「层」。**`Common/` 不是层**（将删路径别名）。
+
 ### 0.1 数据流（启动 → 用户态）
 
 ```mermaid
 flowchart TB
   Boot[ToyBoot / virt Startup] -->|BOOT_INFO| Kernel[Core/Kernel]
-  Kernel --> Mods[Common/Modules<br/>SCHED MEM FS]
-  Kernel --> Svc[Common/Services]
-  Mods --> Lib[Common/Library]
+  Kernel --> Mods[Modules<br/>SCHED MEM FS]
+  Kernel --> Svc[Services]
+  Mods --> Lib[Library]
   Svc --> Lib
   Svc -->|Hal* 门面| Hal[HAL/Arch + Drivers]
   Kernel --> Hal
@@ -48,6 +52,8 @@ flowchart TB
   Sys --> Svc
   Sys --> Hal
 ```
+
+> 现源码路径仍为 `Common/Modules`、`Common/Services`、`Common/Library`（将删别名）；图上用终态层名。
 
 ### 0.2 依赖矩阵
 
@@ -58,20 +64,38 @@ flowchart TB
 | Modules | Include；Library；Hal* | Drivers 寄存器头；Services GUI |
 | Library | Include；Hal*（块/网门面） | XHCI/E1000 等设备私头 |
 | Services | Include；Library；Hal*；Modules API | `HAL/**/Drivers/**` 私头 |
-| HAL Drivers | Driver.h；本设备私头；Hal Io/Pci | Common/Services；User |
+| HAL Drivers | Driver.h；本设备私头；Hal Io/Pci | Services；User |
 | User | `User/include`；SyscallABI | `Hal.h`；任何内核内部头 |
 
 ### 0.3 顶层树
+
+**终态**（TREE-svc/lib/rest 完成后）：
 
 ```
 ToyKernel/
 ├── Include/           # Abi Hal Core Driver Library Services
 ├── Core/              # Kernel / Syscall / VMM / Process / Device / PMM …
-├── Common/
-│   ├── Modules/       # 可替换 SCHED/MEM/FS + Student/ 课设模板
-│   ├── Library/       # Elf Fat Gpt BlockMux UI …
-│   ├── Fonts/
-│   └── Services/      # Gui* Shell Store LwIp FileSystem …
+├── Modules/           # 可替换 SCHED/MEM/FS + Student/
+├── Library/           # Elf Fat Gpt BlockMux UI …
+├── Fonts/
+├── Services/          # Gui* Shell Store LwIp FileSystem …
+├── HAL/ …
+├── User/  Assets/  Tools/  Documents/  ThirdParty/
+├── Makefile  build.sh  README.md
+└── Build/
+```
+
+**现树**（抬顶前；`Common/` = 将删篮子）：
+
+```
+ToyKernel/
+├── Include/           # Abi Hal Core Driver Library Services
+├── Core/              # Kernel / Syscall / VMM / Process / Device / PMM …
+├── Common/            # ★ 将删：非分层单位
+│   ├── Modules/       # → 终态 Modules/
+│   ├── Library/       # → 终态 Library/
+│   ├── Fonts/         # → 终态 Fonts/
+│   └── Services/      # → 终态 Services/
 ├── HAL/
 │   ├── Board/         # 板包约定
 │   ├── X64/           # 产品路径 + Drivers/
@@ -85,7 +109,6 @@ ToyKernel/
 ├── Makefile  build.sh  README.md
 └── Build/             # gitignore 产物
 ```
-
 ## 1. Root — 仓库根：构建入口与顶层配置
 
 | 文件 | 用途 |

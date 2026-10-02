@@ -33,7 +33,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | 进程 | ✅ | 独立地址空间、`exec`/`fork`/`wait`/`yield`/`kill`、简易 `.so` |
 | 文件与存储 | ✅ | ATA/AHCI/NVMe、GPT、FAT；多卷；`RES:`；Files 浏览器 |
 | GUI | ✅ 教学级 | GOP 多窗口、主题、Settings、合成/脏 Present（G9） |
-| 跨架构 virt | ✅ | Arm64/RiscV 自有 Boot + ramfb/virtio；同一套 Common Gui |
+| 跨架构 virt | ✅ | Arm64/RiscV 自有 Boot + ramfb/virtio；同一套 Services Gui |
 | 网络 | ✅ | virtio-net；**默认 lwIP** 用户 socket / DNS；builtin = 教学对照 |
 | SMP | ✅ 演示级 | AP idle / 可偷任务；shell/gui 钉 BSP |
 | 应用商店 | ✅ | `store install/remove/combo`；资源包 + 依赖 |
@@ -103,11 +103,14 @@ cd ../ToyImage
 
 ## 目录结构（摘要）
 
+**分层**：`Boot → HAL → Library → Core → Services → User`（详见[技术手册 §I](Documents/技术手册.md#tm-i-layers)）。**`Common/` 不是层**。
+
 ```
 ToyKernel/
 ├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
 ├── Core/             # 内核、设备、调度、系统调用、PMM…
-├── Common/{Services,Library,Fonts}
+├── Services/ Library/ Fonts/ Modules/   # 终态顶层
+├── Common/{…}        # ★ 将删：现仍装上四者（路径别名）
 ├── HAL/{X64,Arm64,RiscV,Board}/
 ├── Assets/  User/
 ├── Documents/        # 顶层仅路线图 + 技术手册；驱动/ 开发/ 已完/ 待做/
@@ -115,7 +118,7 @@ ToyKernel/
 └── README.md         # 本文件
 ```
 
-完整文件职责与启动顺序见 [`技术手册`](Documents/技术手册.md)「目录与启动」。
+完整文件职责与启动顺序见 [`技术手册`](Documents/技术手册.md)「目录与启动」。抬顶排期见路线图 [拆 Common](Documents/路线图.md#pr-tree-common)。
 
 ---
 
