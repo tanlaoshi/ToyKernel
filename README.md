@@ -45,8 +45,17 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 
 ## 最短上手
 
+### 只编 Kernel（BOX-7 · 无旁挂 EDK2/ToyBoot）
+
 ```bash
-# 1. 编内核（会同步到 ToyImage）
+cd ToyKernel && ./build.sh              # → Build/HAL/X64/Kernel.elf
+# 细节：OpenBox/STANDALONE-KERNEL.md
+```
+
+### 整树编跑（有 `$TOYOS_ROOT` 时）
+
+```bash
+# 1. 编内核（旁有 ToyImage 时会同步 RootFs）
 cd ToyKernel && ./build.sh              # 默认 LWIP=1
 # ./build.sh LWIP=0                     # 关掉 lwIP，仅 builtin 教学栈
 # ./build.sh DEBUG=1
@@ -59,6 +68,8 @@ cd ../ToyImage
 ./Scripts/run-split.sh         # 盘0=Esp/X64，盘1=RootFs/X64/
 ./Scripts/smoke-boot.sh        # 无头冒烟 → ToyOS ready
 ```
+
+或：`source $TOYOS_ROOT/Scripts/env.sh && build && toytest smoke`。
 
 串口或 Shell 窗出现 `toyos>` 后：`help`、`ls`、`exec HELLO.ELF`。
 

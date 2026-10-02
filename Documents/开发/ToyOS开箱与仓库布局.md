@@ -1,6 +1,6 @@
 # ToyOS 开箱与仓库布局
 
-> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`6`](../路线图.md#pr-box-6) **✅ TG**；★ [`PR-BOX-7`](../路线图.md#pr-box-7)（Kernel 单仓可编）。  
+> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`6`](../路线图.md#pr-box-6) **✅ TG**；★ [`PR-BOX-7`](../路线图.md#pr-box-7) **JX**（Kernel 单仓可编）。  
 > **来源**：[`待做/新需求.md`](../待做/新需求.md)（需求原文；实现以**本文**为准）。  
 > **迁移策略（本机）**：当前 **`…/edk2/` 整树当作备份，先不动、不就地改名**；后续从该树**逐步拷出/迁出**到家目录 **`~/ToyOS`**（见 §5.0）。脚本仍按 `$TOYOS_ROOT` 自定位，迁完后权威根即 `~/ToyOS`。  
 > **路径铁律**：命令以 **ToyOS 树根**为准（可任意摆放）；**本柱迁移动作的目标根 = `~/ToyOS`**。禁止写死用户名（如 `/home/tank/...`）。  
@@ -397,8 +397,28 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 
 | 项 | 内容 |
 | -- | ---- |
-| 做 | 审计并去掉对 EDK2/ToyBoot 源码路径的编译/头依赖；文档写明「在 `$TOYOS_ROOT/ToyKernel` 只编 Kernel」步骤 |
-| 验收 | 仅有 `$TOYOS_ROOT/ToyKernel` + 工具链即可 `./build.sh`（不要求旁挂 EDK2）；产物可被 `$TOYOS_ROOT/ToyBoot` 加载 |
+| 做 | 审计并确认无 EDK2/ToyBoot **源码路径**编译依赖；文档写明单仓步骤 |
+| 说明 | [`OpenBox/STANDALONE-KERNEL.md`](../../OpenBox/STANDALONE-KERNEL.md) |
+| 验收 | 仅有 `$TOYOS_ROOT/ToyKernel`（+`Tools/Extract`）即可 `./build.sh`；不要求旁挂 EDK2/ToyBoot；产物可被现网 Boot 加载 |
+
+**本刀勾选**
+
+| 项 | 状态 |
+| -- | ---- |
+| 审计：Makefile/`#include` 无 ToyBoot、EDK2、MdePkg 路径 | ✅ |
+| Handoff 头为仓内副本（`BootHandoff.h` / `BootInfo`） | ✅ |
+| `/tmp` 仅本仓+Extract：`./build.sh x86_64` 出 `Kernel.elf` | ✅ |
+| 无 `../ToyImage` 时编译仍成功（skip 同步） | ✅ |
+| `STANDALONE-KERNEL.md` | ✅ |
+| 产物可被 `$TOYOS_ROOT` Boot/smoke 加载 | ✅（见下） |
+
+### 单仓编 Kernel（抄录）
+
+```bash
+cd "$TOYOS_ROOT/ToyKernel"   # 或任意仅含本仓的路径
+./build.sh                   # → Build/HAL/X64/Kernel.elf
+# 可选：cp 到 ToyImage 后 smoke（运行时需要 Boot/镜像，非编译依赖）
+```
 
 ---
 
