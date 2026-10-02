@@ -77,16 +77,19 @@ else
     ok "1.1d 无板级 ifdef 进 Common"
 fi
 
-# 1.2 魔法数字
+# 1.2 魔法数字（排除已命名 #define 行、Theme 色表）
 MAGIC_GLOBS=(
     --glob '*.c'
     --glob '!**/Fonts/**'
     --glob '!**/FontData*'
     --glob '!**/PciNames*'
     --glob '!**/*Test*'
+    --glob '!Common/Services/Theme/**'
     "${GLOBS[@]}"
 )
-MAGIC=$(rg -n "${MAGIC_GLOBS[@]}" '\b(0x[0-9A-Fa-f]{4,}|[0-9]{3,})\b' Core/ Common/ HAL/ 2>/dev/null | head -50 || true)
+MAGIC=$(rg -n "${MAGIC_GLOBS[@]}" '\b(0x[0-9A-Fa-f]{4,}|[0-9]{3,})\b' Core/ Common/ HAL/ 2>/dev/null \
+    | rg -v ':[0-9]+:[[:space:]]*#define[[:space:]]' \
+    | head -50 || true)
 if [ -n "$MAGIC" ]; then
     report "1.2 发现疑似魔法数字（前 50 条）"
     echo "$MAGIC"
@@ -94,19 +97,20 @@ else
     ok "1.2 未发现明显魔法数字"
 fi
 
-# 1.3 忽略返回值（启发式；排除已知 void API；需人工确认）
+# 1.3 忽略返回值（启发式；排除已知 void API / OpsGet；需人工确认）
 RET_GLOBS=(
     --glob '*.c'
     "${GLOBS[@]}"
 )
-# 与前缀匹配但声明为 void 的符号（避免误报 SchedulerIoBreath / StoreRepoLoadFromDb 等）
-VOID_CALLS='BlockMscInstall|BlockMuxInstallMsc|BlockMuxRemoveMsc|BlockRegisterBackend|FatIoBreath|FatSetIoBreath|PhysicalMemoryFreePage|PhysicalMemoryFreePages|PhysicalMemoryReleasePage|ProcessApplyAppFont|ProcessEvents|ProcessEventsLocked|ProcessEventsRealPc|ProcessRestoreAppFont|ProcessStopAllUsers|SchedulerApStart|SchedulerCoopDrainUsers|SchedulerDestroyDetached|SchedulerDropDiagThread|SchedulerEnter|SchedulerFdCloseAll|SchedulerInitialize|SchedulerIoBreath|SchedulerOpsRegister|SchedulerPreemptDisable|SchedulerPreemptEnable|SchedulerReapOrphanZombies|SchedulerReapZombie|SchedulerRunQueueView|SchedulerSetAffinity|SchedulerSetNeedResched|SchedulerStart|SchedulerWakeSleepers|StoreAppBundleDir|StoreAppElfPath|StoreBtnGeom|StoreClearAppDesktopKeys|StoreCmdListCatalog|StoreComboBatchBegin|StoreComboBatchEnd|StoreFillInstalledFlags|StoreFlushFontReload|StoreInstallCopyAbort|StoreInstallCopyProgress|StoreInstallPumpAbort|StoreInstallPumpProgress|StoreIoBreath|StoreJobBusyRepaint|StoreJobFinishStatus|StoreJobGetStatus|StoreJobShellEnd|StoreJobShellPumpBegin|StoreJobShellPumpEnd|StoreJobStatusCopy|StoreJobStatusProgress|StoreJobStatusWithId|StorePaintList|StorePrintUsage|StoreRepoGet|StoreRepoLoadFromDb|StoreSetStatus|StoreUiActInit|StoreUiApplyRepoFile|StoreUiDoButton|StoreUiFormatRepo|StoreUiOnClick|StoreUiOnEscape|StoreUiOnPointer|StoreUiOpen|StoreUiPaintFocused|StoreUiPump|StoreUiRepaint|VfsServiceOpsRegister|VirtualMemoryEnable|VirtualMemoryLoadPageTable|VirtualMemorySpaceDestroy'
+# 与前缀匹配但声明为 void 的符号（避免误报 SchedulerIoBreath / StoreRepoLoadFromDb / StoreBe* 等）
+VOID_CALLS='BlockMscInstall|BlockMuxInstallMsc|BlockMuxRemoveMsc|BlockRegisterBackend|FatIoBreath|FatSetIoBreath|PhysicalMemoryFreePage|PhysicalMemoryFreePages|PhysicalMemoryReleasePage|ProcessApplyAppFont|ProcessEvents|ProcessEventsLocked|ProcessEventsRealPc|ProcessFreeSos|ProcessRestoreAppFont|ProcessStopAllUsers|SchedulerApStart|SchedulerCoopDrainUsers|SchedulerDestroyDetached|SchedulerDropDiagThread|SchedulerEnter|SchedulerFdCloseAll|SchedulerInitialize|SchedulerIoBreath|SchedulerOpsRegister|SchedulerPreemptDisable|SchedulerPreemptEnable|SchedulerReapOrphanZombies|SchedulerReapZombie|SchedulerRunQueueView|SchedulerSetAffinity|SchedulerSetNeedResched|SchedulerStart|SchedulerWakeSleepers|StoreAppBundleDir|StoreAppElfPath|StoreBe16|StoreBe32|StoreBe64|StoreBtnGeom|StoreClearAppDesktopKeys|StoreCmdListCatalog|StoreComboBatchBegin|StoreComboBatchEnd|StoreFillInstalledFlags|StoreFlushFontReload|StoreInstallCopyAbort|StoreInstallCopyProgress|StoreInstallPumpAbort|StoreInstallPumpProgress|StoreIoBreath|StoreJobBusyRepaint|StoreJobFinishStatus|StoreJobGetStatus|StoreJobShellEnd|StoreJobShellPumpBegin|StoreJobShellPumpEnd|StoreJobStatusCopy|StoreJobStatusProgress|StoreJobStatusWithId|StorePaintList|StorePrintUsage|StoreRepoGet|StoreRepoLoadFromDb|StoreSetStatus|StoreUiActInit|StoreUiApplyRepoFile|StoreUiDoButton|StoreUiFormatRepo|StoreUiOnClick|StoreUiOnEscape|StoreUiOnPointer|StoreUiOpen|StoreUiPaintFocused|StoreUiPump|StoreUiRepaint|VfsServiceOpsRegister|VirtualMemoryEnable|VirtualMemoryLoadPageTable|VirtualMemorySpaceDestroy|VirtualMemoryZero'
 RET=$(rg -n "${RET_GLOBS[@]}" \
     '^[[:space:]]*(Fat|Block|FileSystem|Vfs|Process|Scheduler|VirtualMemory|PhysicalMemory|VfsService|Store)[[:alnum:]_]*[[:space:]]*\(' \
     Core/ Common/ HAL/ 2>/dev/null \
     | rg -v '\(void\)' \
     | rg -v '=' \
     | rg -v '^[[:space:]]*//' \
+    | rg -v -e 'SchedulerOpsGet[[:space:]]*\(' \
     | rg -v -e "[[:space:]](${VOID_CALLS})[[:space:]]*\(" \
     | head -50 || true)
 if [ -n "$RET" ]; then
