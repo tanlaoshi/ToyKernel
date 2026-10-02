@@ -84,7 +84,7 @@ static int E1000DriverBind(TOY_DRIVER_INSTANCE *Inst) {
     if (E1000GetLink(&Up, 0, 0) != 0 || !Up) {
         return 0;
     }
-    return NetAttachNic(&gE1000NicL2);
+    return NetAttachNicKind(&gE1000NicL2, NET_NIC_KIND_WIRED);
 }
 
 static void E1000DriverRemove(TOY_DRIVER_INSTANCE *Inst) {

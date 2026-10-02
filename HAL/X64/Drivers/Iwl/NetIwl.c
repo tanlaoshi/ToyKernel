@@ -59,8 +59,8 @@ static int IwlDriverBind(TOY_DRIVER_INSTANCE *Inst) {
         /* lsdev 仍可见；未关联则不挂 L2 */
         return 0;
     }
-    /* WPA2 已关联：可覆盖有线 L2（课网 wifi ping） */
-    return NetAttachNic(&gIwlNicL2);
+    /* WPA2 已关联：挂无线槽；有线仍在时出站优先有线 */
+    return NetAttachNicKind(&gIwlNicL2, NET_NIC_KIND_WIFI);
 }
 
 static void IwlDriverRemove(TOY_DRIVER_INSTANCE *Inst) {
@@ -89,7 +89,7 @@ void IwlNetBgPump(void) {
     }
     if (!gAttached && IwlAssociated()) {
         gAttached = 1;
-        (void)NetAttachNic(&gIwlNicL2);
+        (void)NetAttachNicKind(&gIwlNicL2, NET_NIC_KIND_WIFI);
     }
 }
 

@@ -56,6 +56,10 @@ int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
     return 0;
 }
 
+int HalNetPrimaryKind(void) {
+    return -1;
+}
+
 void HalNetDumpNicNote(void (*Write)(const char *Text)) {
     if (Write) {
         Write("e1000 note: n/a (not x86)\n");

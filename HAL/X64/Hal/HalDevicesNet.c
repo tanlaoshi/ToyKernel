@@ -68,6 +68,10 @@ int HalNetGetLinkInfo(int *Up, UINT32 *Mbps, int *FullDuplex) {
     return 1;
 }
 
+int HalNetPrimaryKind(void) {
+    return NetNicPrimaryKind();
+}
+
 void HalNetDumpNicNote(void (*Write)(const char *Text)) {
     E1000DumpNote(Write);
 }

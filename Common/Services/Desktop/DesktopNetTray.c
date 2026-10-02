@@ -46,6 +46,7 @@ NET_TRAY_KIND DesktopNetTrayDetectKind(void) {
     int Up = 0;
     UINT32 Mbps = 0;
     int Fd = 0;
+    int Primary;
 
     /* 不通：无 NIC / link down / 尚无真实地址 → 不通图标 */
     if (!HalNetReady()) {
@@ -57,7 +58,14 @@ NET_TRAY_KIND DesktopNetTrayDetectKind(void) {
     if (DesktopNetTrayCurrentIp() == 0) {
         return NET_TRAY_NONE;
     }
-    /* 通：仅已关联的 iwl/USB-wifi 出 Wi‑Fi；Ready≠通（Probe 不够） */
+    /* 双槽：图标跟默认出站（有线优先）；无外置 L2 时回落旧启发式 */
+    Primary = HalNetPrimaryKind();
+    if (Primary == 1) {
+        return NET_TRAY_WIFI;
+    }
+    if (Primary == 0) {
+        return NET_TRAY_WIRED;
+    }
     if (HalIwlAssociated() || HalWifiReady()) {
         return NET_TRAY_WIFI;
     }

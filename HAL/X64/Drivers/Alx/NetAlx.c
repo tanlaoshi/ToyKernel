@@ -59,7 +59,7 @@ static int AlxDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     if (!AlxReady()) {
         return -1;
     }
-    return NetAttachNic(&gAlxNicL2);
+    return NetAttachNicKind(&gAlxNicL2, NET_NIC_KIND_WIRED);
 }
 
 static void AlxDriverRemove(TOY_DRIVER_INSTANCE *Inst) {

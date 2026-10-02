@@ -59,7 +59,7 @@ static int RtlDriverBind(TOY_DRIVER_INSTANCE *Inst) {
     if (!RtlReady()) {
         return -1;
     }
-    return NetAttachNic(&gRtlNicL2);
+    return NetAttachNicKind(&gRtlNicL2, NET_NIC_KIND_WIRED);
 }
 
 static void RtlDriverRemove(TOY_DRIVER_INSTANCE *Inst) {

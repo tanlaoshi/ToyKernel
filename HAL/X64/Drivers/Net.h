@@ -40,10 +40,20 @@ int  NetLwIpRx(void);
 
 /* PR-H4 / PR-N-nic：L2 回调 / Bind 挂栈 */
 void NetInputFrame(const UINT8 *Pkt, UINTN Len);
-/* 外置 NIC（e1000 等）挂 L2；成功 0。virtio 仍走 Net.c 内置路径 */
+
+/* PR-N-nic-2slot：有线 / 无线槽 */
+typedef enum {
+    NET_NIC_KIND_WIRED = 0,
+    NET_NIC_KIND_WIFI  = 1
+} NET_NIC_KIND;
+
+/* 外置 NIC 挂 L2；默认有线槽。virtio 仍走 Net.c 内置路径 */
 int  NetAttachNic(const NIC_L2 *Nic);
-/* 每次成功挂上 L2 加一；未挂过为 0 */
+int  NetAttachNicKind(const NIC_L2 *Nic, NET_NIC_KIND Kind);
+/* 每次主槽切换加一；未挂过为 0 */
 UINT32 NetNicEpoch(void);
 int  NetNicGetLink(int *Up, UINT32 *Mbps, int *FullDuplex);
+/* 当前默认出站：0=有线 1=无线 -1=无 L2 */
+int  NetNicPrimaryKind(void);
 
 #endif

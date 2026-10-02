@@ -10,7 +10,7 @@
 | `NetArp.c` | ARP / ICMP / ping |
 | `NetAddr.c` | IP 文本与查询 |
 | `NetRx.c` | 收包与轮询 |
-| `NetNic.c` | `NetAttachNic` / L2 分发 |
+| `NetNic.c` | `NetAttachNic` / 双槽 L2 + 有线优先（`NetAttachNicKind`） |
 | `NetPrivate.h` | 协议核 + PCI virtio-net 队列共享私头 |
 
 公开门面仍在 `Drivers/Net.h`（不搬）。
