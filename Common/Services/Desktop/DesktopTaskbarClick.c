@@ -139,6 +139,13 @@ int HandleTaskbarClick(UINT32 X, UINT32 Y, DESKTOP_ACTION *OutAction,
                 MENU_ROW *R = &gMenuRows[Item];
                 DESKTOP_ACTION Act = R->Action;
 
+                if (Act == DESKTOP_ACTION_NONE ||
+                    R->IconSrc == MENU_ICON_SRC_SEP) {
+                    if (OutAction) {
+                        *OutAction = DESKTOP_ACTION_NONE;
+                    }
+                    return 1;
+                }
                 if (Act == DESKTOP_ACTION_APPS) {
                     gMenuAppsOpen = !gMenuAppsOpen;
                     gMenuGameOpen = 0;

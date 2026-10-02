@@ -200,6 +200,13 @@ void DrawStartMenuRaw(void) {
         UINT32 TextX;
         UINT32 Fg;
 
+        if (R->Action == DESKTOP_ACTION_NONE || R->IconSrc == MENU_ICON_SRC_SEP) {
+            /* 应用 / 电源分组线 */
+            UiFillRectangle(Mx + 8, Iy + MENU_ITEM_H / 2u, Mw > 16u ? Mw - 16u : Mw, 1u,
+                            ThemeMenuSep());
+            continue;
+        }
+
         UiDrawRectangle(Mx, Iy, Mw, MENU_ITEM_H, ThemeMenuSep());
         IconX = Mx + 6;
         IconY = Iy + (MENU_ITEM_H > MENU_ICON_SZ ? (MENU_ITEM_H - MENU_ICON_SZ) / 2 : 0);

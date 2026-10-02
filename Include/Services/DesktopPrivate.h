@@ -10,6 +10,7 @@
 
 #include "Desktop.h"
 #include "UI.h"
+#include "UiLayout.h"
 #include "Hal.h"
 #include "Font.h"
 #include "Locale.h"
@@ -23,15 +24,15 @@
 #include "Debug.h"
 #include "ToySerialLog.h"
 
-/* ===== 宏（从 Desktop.c 搬入；值不变） ===== */
+/* ===== 宏（PR-UI-layout-desk：间距跟 UiLayout） ===== */
 #define DESKTOP_SYS_ICON_COUNT 5 /* Shell/Settings/Files/Store/Devices；Snake 只经 Store */
 #define DESKTOP_APP_ICON_MAX   8
 #define DESKTOP_ICON_COUNT     (DESKTOP_SYS_ICON_COUNT + DESKTOP_APP_ICON_MAX)
 #define DESKTOP_ICON_SIZE     48
-#define DESKTOP_ICON_GAP      28
+#define DESKTOP_ICON_GAP      UI_LAYOUT_ICON_GAP
 #define DESKTOP_ORIGIN_X      36
 #define DESKTOP_ORIGIN_Y      36
-#define DESKTOP_LABEL_PAD     6
+#define DESKTOP_LABEL_PAD     UI_LAYOUT_GAP
 /* QEMU 绝对指针单击常带数像素抖动；过紧会拖坏双击、过松才进拖放 */
 #define DESKTOP_DBLCLICK_SLOP 24u
 #define DESKTOP_DBLCLICK_MAX  2000000ULL
@@ -42,18 +43,21 @@
 #define START_BTN_MIN_W       56u
 #define START_ICON_SZ         20u
 #define MENU_W                200u
+/* 行高跟令牌下限；绘制侧可用 UiLayoutRowH() 再抬 */
 #define MENU_ITEM_H           28u
 #define MENU_ICON_SZ          18u
 #define MENU_FIXED_TOP        7 /* Shell/Settings/Files/Store/Devices/Apps/Game */
 #define MENU_GAME_MAX         4
+#define MENU_SEP_ROWS         1 /* 应用组与电源组之间分隔 */
 #define MENU_FIXED_BOT        2
 #define MENU_APP_MAX          16
-#define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_FIXED_BOT)
+#define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_SEP_ROWS + MENU_FIXED_BOT)
 #define MENU_LABEL_MAX        40
 #define MENU_PATH_MAX         80
 /* 勿用 0..DESKTOP_ICON_COUNT-1：6/7 已是 Apps 槽，会错画/空白 */
 #define MENU_ICON_SRC_POWER   (-2)
 #define MENU_ICON_SRC_REBOOT  (-3)
+#define MENU_ICON_SRC_SEP     (-4)
 #define WALL_FILE_MAX         (512u * 1024u)
 #define ICON_FILE_MAX         (16u * 1024u)
 

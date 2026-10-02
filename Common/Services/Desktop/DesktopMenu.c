@@ -101,6 +101,9 @@ void RebuildStartMenu(void) {
 
     FillStartMenuAppRows(MenuMaxAppSlots());
 
+    /* 应用组 / 电源组分隔（不可点） */
+    MenuAddRow(DESKTOP_ACTION_NONE, "", 0, 0, MENU_ICON_SRC_SEP);
+
     L = LocStr(MSG_ICON_SHUTDOWN);
     MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1,
                MENU_ICON_SRC_POWER);
