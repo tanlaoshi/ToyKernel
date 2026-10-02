@@ -39,8 +39,8 @@
 
 ### 3.1 策略
 
-- **出厂默认改为一套「现代浅色」**（新 id：`theme=modern`，Settings 名「现代」；**装完即是这套**）。  
-- 旧 `default` 改名单为「经典」（Win9x 蓝灰），仍可切换，避免有人怀旧。  
+- **出厂默认仍为「经典」**（`theme=default`，Win9x 蓝灰；课验观感定稿）。  
+- **新增** `theme=modern`（Settings「现代」）浅色板可切；**不**强改出厂。  
 - `tech` / `tech-grad` **冻结**：能选、不修色、不进推荐。  
 - **不**用新渐变/霓虹/扫描线证明「现代」。现代 = 干净底、克制强调色、文字对比够、控件面和窗框分层清楚。
 
@@ -75,9 +75,9 @@
 
 ### 3.3 验收
 
-- Settings → 主题 → 现代：桌面/窗/任务栏一次变齐；DB `theme=modern`。  
+- 冷启动仍为经典；Settings → 主题 → 现代：桌面/窗/任务栏一次变齐；DB `theme=modern`。  
 - 切回经典 / tech：行为与现网一致（回归）。  
-- QEMU 截图：无霓虹描边、无大块纯蓝标题栏。
+- QEMU：选现代后无霓虹描边、无大块纯蓝标题栏。
 
 ---
 
@@ -183,7 +183,7 @@ Settings / Files / Store / Devices / Desktop **客户区可见字符串**一律 
 | 2 | **PR-UI-cjk-face** | **16×16** 原生格、不拉伸 | TTF | **实现齐**：字号合适、不糊 |
 | 2b | **PR-UI-cjk-gray** | **18×18×4bpp** + `PaintGlyph4` | TTF；主题开关 | 中文边缘软于 1bpp |
 | 3 | **PR-UI-i18n** | 三栏 UI 硬编码英文 → `MSG_*` + zh/en；新字并入覆盖 | 改几何 | `lang zh` 无详情栏英语残渣（专名/快捷键 `Esc` 可留） |
-| 4 | **PR-UI-palette** | `theme=modern` 色表 §3.2；出厂默认 modern；经典=旧 default；tech 冻结；modern 标题渐变关 | 新特效；改 tech 色 | 冷启动即浅色现代；切经典/tech 不毁 |
+| 4 | **PR-UI-palette** | `theme=modern` 色表 §3.2；出厂仍经典；Settings 经典/现代/科技；tech 冻结；modern 标题渐变关 | 新特效；改 tech 色 | 冷启动经典；切现代/tech 不毁 |
 | 5 | **PR-UI-layout-set** | 令牌 + **只改 Settings** 三分栏/行高/详情空态/色块横排 | Files/Store | 1280×720 Settings 不像调试器 |
 | 6 | **PR-UI-layout-apps** | Files + Store（+ Devices 若仍纯堆字）套同一令牌 | 桌面 | 三程序侧栏同宽、底栏同高、空态一致 |
 | 7 | **PR-UI-layout-desk** | 图标间距、开始菜单分组与行高 | 新壁纸资源（可用现 WALL.BMP） | 桌面不挤；开始菜单能扫 |
@@ -221,4 +221,4 @@ Settings / Files / Store / Devices / Desktop **客户区可见字符串**一律 
 | 窗口圆角 chrome | 美化柱已取消 |
 | 用户文件名 / 任意作文全 Unicode | 默认到 **GB2312**；超集另开刀 |
 
-柱收官 = §六 1–7 ✅（含 2b gray）且 QEMU `lang zh` 主路径无吞字、默认主题为 modern、Settings/Files/Store 同一套令牌。
+柱收官 = §六 1–7 ✅（含 2b gray）且 QEMU `lang zh` 主路径无吞字、出厂经典可切 modern、Settings/Files/Store 同一套令牌。

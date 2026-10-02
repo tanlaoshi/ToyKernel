@@ -142,9 +142,9 @@ void ItemLabel(int Idx, char *Out, int OutMax) {
         if (Idx == 0) {
             CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_DEFAULT));
         } else if (Idx == 1) {
-            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_TECH));
+            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_MODERN));
         } else {
-            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_GRAD));
+            CopyStr(Out, OutMax, LocStr(MSG_SET_THEME_TECH));
         }
         break;
     case SETTINGS_CAT_EFFECTS:
@@ -217,10 +217,13 @@ int CurrentItemIndex(void) {
         }
         return 1;
     case SETTINGS_CAT_THEME:
-        if (ThemeThemeId() != THEME_PALETTE_TECH) {
+        if (ThemeThemeId() == THEME_PALETTE_DEFAULT) {
             return 0;
         }
-        return ThemeDesktopGradientEnabled() ? 2 : 1;
+        if (ThemeThemeId() == THEME_PALETTE_MODERN) {
+            return 1;
+        }
+        return 2;
     case SETTINGS_CAT_EFFECTS:
         return (int)ThemeGetEffectLevel();
     default:

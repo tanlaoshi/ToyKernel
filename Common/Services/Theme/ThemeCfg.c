@@ -121,14 +121,20 @@ int ThemeLoad(void) {
     }
     gThemeUiScale = NormalizeUiScale(gThemeUiScale);
     /*
-     * tech：只套色板底色。wallpaper 若 DB/CFG 已有则保留（Settings 可再开 WALL.BMP）；
-     * 无 wallpaper 键时默认关壁纸。切到 tech 仍走 ThemeTechApplyDefaults（含 wallpaper=0）。
+     * tech/modern：套色板底色。wallpaper 若 DB/CFG 已有则保留；
+     * 无 wallpaper 键时 tech 关壁纸、modern 开壁纸。
      */
     if (gThemeId == THEME_PALETTE_TECH) {
         ThemeTechApplyColors();
         if (!gWallpaperPrefSet) {
             gWallpaper = 0;
         }
+    } else if (gThemeId == THEME_PALETTE_MODERN) {
+        ThemeModernApplyColors();
+        if (!gWallpaperPrefSet) {
+            gWallpaper = 1;
+        }
+        gDesktopGrad = 0;
     }
     /*
      * 真机当前帧缓冲为 4K：若用户未在 Settings 显式选过缩放，默认 200%。

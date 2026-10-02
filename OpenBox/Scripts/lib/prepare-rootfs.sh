@@ -52,7 +52,7 @@ theme=default
 deskgrad=0
 theme.effects=low
 EOF
-    if [ "${TOY_QEMU_VERBOSE:-0}" = 1 ]; then echo "Prepared THEME.CFG -> $ROOT/ (no mode=, solid grey)"; fi
+    if [ "${TOY_QEMU_VERBOSE:-0}" = 1 ]; then echo "Prepared THEME.CFG -> $ROOT/ (no mode=, classic grey)"; fi
 fi
 chmod u+rw "$ROOT/THEME.CFG" "$ROOT/TOYOS.DB" 2>/dev/null || true
 if [ -f "$ROOT/THEME.CFG" ] && [ ! -w "$ROOT/THEME.CFG" ]; then

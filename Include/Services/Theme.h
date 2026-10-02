@@ -23,9 +23,10 @@ UINT32 ThemeFontId(void);
 int ThemeWallpaperEnabled(void);
 void ThemeSetWallpaper(int Enabled);
 
-/* PR-GUI-tech-1：色板 id；0=classic（默认），1=tech。不改旧 getter 签名。 */
+/* PR-GUI-tech-1 / PR-UI-palette：0=经典（出厂）1=tech 2=modern。不改旧 getter 签名。 */
 #define THEME_PALETTE_DEFAULT 0
 #define THEME_PALETTE_TECH    1
+#define THEME_PALETTE_MODERN  2
 int ThemeThemeId(void);
 void ThemeSetThemeId(int Id);
 /* PR-GUI-tech-3：tech 对角渐变桌面（wallpaper=0 时）；0=关 */

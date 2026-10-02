@@ -31,7 +31,7 @@ extern UINT32 gThemeUiScale; /* 50 / 100 / 150 / 200；与 Video gUiScale 区分
 extern UINT32 gFadeSteps;    /* PR-GUI-l3-fade；0=关 */
 extern THEME_EFFECT_LEVEL gEffectLevel; /* PR-GUI-effects；默认 HIGH */
 extern int gWallpaper;       /* 1=BMP 壁纸；0=纯色（开机默认 Grey） */
-extern int gThemeId;         /* THEME_PALETTE_DEFAULT | THEME_PALETTE_TECH */
+extern int gThemeId;         /* DEFAULT | TECH | MODERN */
 extern int gDesktopGrad;     /* 1=tech 对角渐变；仅 theme=tech 有意义 */
 extern int gScalePrefSet;    /* 1=DB/CFG 已有 scale= */
 extern int gScaleUserSet;    /* 1=用户在 Settings 选过缩放（scalesrc=user） */
@@ -42,6 +42,58 @@ void ThemeTechApplyDefaults(void);
 void ThemeTechApplyColors(void);
 int ThemeTechParseName(const char *Val, int *OutId);
 const char *ThemeTechName(int Id);
+
+/* ThemeModern.c — PR-UI-palette */
+void ThemeModernApplyDefaults(void);
+void ThemeModernApplyColors(void);
+UINT32 ThemeModernSettingsClientBackground(void);
+UINT32 ThemeModernWindowTitleFocus(void);
+UINT32 ThemeModernWindowTitleIdle(void);
+UINT32 ThemeModernWindowTitleHover(void);
+UINT32 ThemeModernWindowBorderFocus(void);
+UINT32 ThemeModernWindowBorderIdle(void);
+UINT32 ThemeModernWindowBorderHover(void);
+UINT32 ThemeModernWindowTitleText(void);
+UINT32 ThemeModernCloseButton(void);
+UINT32 ThemeModernTaskbarBackground(void);
+UINT32 ThemeModernTaskbarButton(void);
+UINT32 ThemeModernTaskbarButtonActive(void);
+UINT32 ThemeModernControlFace(void);
+UINT32 ThemeModernControlBorder(void);
+UINT32 ThemeModernControlAccent(void);
+UINT32 ThemeModernWindowShadowColor(void);
+UINT32 ThemeModernButtonFaceNormal(void);
+UINT32 ThemeModernButtonFaceHover(void);
+UINT32 ThemeModernButtonFacePressed(void);
+UINT32 ThemeModernButtonFaceDisabled(void);
+UINT32 ThemeModernButtonBorderNormal(void);
+UINT32 ThemeModernButtonBorderHover(void);
+UINT32 ThemeModernButtonBorderPressed(void);
+UINT32 ThemeModernButtonBorderDisabled(void);
+UINT32 ThemeModernButtonTextDisabled(void);
+UINT32 ThemeModernShellText(void);
+UINT32 ThemeModernShellPrompt(void);
+UINT32 ThemeModernIconText(void);
+UINT32 ThemeModernIconBorder(void);
+UINT32 ThemeModernIconSelect(void);
+UINT32 ThemeModernClockText(void);
+UINT32 ThemeModernStartButtonText(void);
+UINT32 ThemeModernMenuBorder(void);
+UINT32 ThemeModernMenuText(void);
+UINT32 ThemeModernMenuSep(void);
+UINT32 ThemeModernText(void);
+UINT32 ThemeModernTextMuted(void);
+UINT32 ThemeModernTextAccent(void);
+UINT32 ThemeModernTextOnAccent(void);
+UINT32 ThemeModernPanelSideBackground(void);
+UINT32 ThemeModernPanelDetailBackground(void);
+UINT32 ThemeModernPanelSeparator(void);
+UINT32 ThemeModernScrollTrack(void);
+UINT32 ThemeModernScrollBorder(void);
+UINT32 ThemeModernScrollThumb(void);
+UINT32 ThemeModernDialogFace(void);
+UINT32 ThemeModernDialogBorder(void);
+UINT32 ThemeModernListSelect(void);
 
 /* ===== 共享帮手（原 static） ===== */
 

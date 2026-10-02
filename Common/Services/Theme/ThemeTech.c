@@ -53,6 +53,14 @@ int ThemeTechParseName(const char *Val, int *OutId) {
     while (*Val && (*Val == ' ' || *Val == '\t')) {
         Val++;
     }
+    if (Val[0] == 'm' && Val[1] == 'o' && Val[2] == 'd' && Val[3] == 'e' &&
+        Val[4] == 'r' && Val[5] == 'n') {
+        I = 6;
+        if (Val[I] == 0 || Val[I] == '\n' || Val[I] == ' ' || Val[I] == '\t') {
+            *OutId = THEME_PALETTE_MODERN;
+            return 0;
+        }
+    }
     if (Val[0] == 't' && Val[1] == 'e' && Val[2] == 'c' && Val[3] == 'h') {
         I = 4;
         if (Val[I] == 0 || Val[I] == '\n' || Val[I] == ' ' || Val[I] == '\t') {
@@ -68,6 +76,14 @@ int ThemeTechParseName(const char *Val, int *OutId) {
             return 0;
         }
     }
+    if (Val[0] == 'c' && Val[1] == 'l' && Val[2] == 'a' && Val[3] == 's' &&
+        Val[4] == 's' && Val[5] == 'i' && Val[6] == 'c') {
+        I = 7;
+        if (Val[I] == 0 || Val[I] == '\n' || Val[I] == ' ' || Val[I] == '\t') {
+            *OutId = THEME_PALETTE_DEFAULT;
+            return 0;
+        }
+    }
     return -1;
 }
 
@@ -75,10 +91,14 @@ const char *ThemeTechName(int Id) {
     if (Id == THEME_PALETTE_TECH) {
         return "tech";
     }
+    if (Id == THEME_PALETTE_MODERN) {
+        return "modern";
+    }
     return "default";
 }
 
 UINT32 ThemeSettingsClientBackground(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernSettingsClientBackground();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SETTINGS;
     }
@@ -86,6 +106,7 @@ UINT32 ThemeSettingsClientBackground(void) {
 }
 
 UINT32 ThemeWindowTitleFocus(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowTitleFocus();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TITLE_FOCUS;
     }
@@ -93,6 +114,7 @@ UINT32 ThemeWindowTitleFocus(void) {
 }
 
 UINT32 ThemeWindowTitleIdle(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowTitleIdle();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TITLE_IDLE;
     }
@@ -100,6 +122,7 @@ UINT32 ThemeWindowTitleIdle(void) {
 }
 
 UINT32 ThemeWindowTitleHover(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowTitleHover();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TITLE_HOVER;
     }
@@ -107,6 +130,7 @@ UINT32 ThemeWindowTitleHover(void) {
 }
 
 UINT32 ThemeWindowBorderFocus(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowBorderFocus();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_BORDER_FOCUS;
     }
@@ -114,6 +138,7 @@ UINT32 ThemeWindowBorderFocus(void) {
 }
 
 UINT32 ThemeWindowBorderIdle(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowBorderIdle();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_BORDER_IDLE;
     }
@@ -121,6 +146,7 @@ UINT32 ThemeWindowBorderIdle(void) {
 }
 
 UINT32 ThemeWindowBorderHover(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowBorderHover();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_BORDER_HOVER;
     }
@@ -128,6 +154,7 @@ UINT32 ThemeWindowBorderHover(void) {
 }
 
 UINT32 ThemeWindowTitleText(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowTitleText();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TITLE_TEXT;
     }
@@ -135,6 +162,7 @@ UINT32 ThemeWindowTitleText(void) {
 }
 
 UINT32 ThemeCloseButton(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernCloseButton();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_CLOSE;
     }
@@ -142,6 +170,7 @@ UINT32 ThemeCloseButton(void) {
 }
 
 UINT32 ThemeTaskbarBackground(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernTaskbarBackground();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TASKBAR;
     }
@@ -149,6 +178,7 @@ UINT32 ThemeTaskbarBackground(void) {
 }
 
 UINT32 ThemeTaskbarButton(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernTaskbarButton();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TB_BUTTON;
     }
@@ -156,6 +186,7 @@ UINT32 ThemeTaskbarButton(void) {
 }
 
 UINT32 ThemeTaskbarButtonActive(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernTaskbarButtonActive();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TB_ACTIVE;
     }
@@ -163,6 +194,7 @@ UINT32 ThemeTaskbarButtonActive(void) {
 }
 
 UINT32 ThemeControlFace(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernControlFace();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_CTRL_FACE;
     }
@@ -170,6 +202,7 @@ UINT32 ThemeControlFace(void) {
 }
 
 UINT32 ThemeControlBorder(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernControlBorder();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_CTRL_BORDER;
     }
@@ -177,6 +210,7 @@ UINT32 ThemeControlBorder(void) {
 }
 
 UINT32 ThemeControlAccent(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernControlAccent();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_CTRL_ACCENT;
     }
@@ -185,34 +219,42 @@ UINT32 ThemeControlAccent(void) {
 
 /* PR-GUI-btn-widget：按钮 4 态色。tech 用上宏；classic 用灰/蓝。 */
 UINT32 ThemeButtonFaceNormal(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonFaceNormal();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE;
     return COLOR_LIGHT_GRAY;
 }
 UINT32 ThemeButtonFaceHover(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonFaceHover();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE_HOVER;
     return 0x00D8DCE0u;
 }
 UINT32 ThemeButtonFacePressed(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonFacePressed();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE_PRESS;
     return 0x00A0A4A8u;
 }
 UINT32 ThemeButtonFaceDisabled(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonFaceDisabled();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_FACE_DIS;
     return 0x00B0B4B8u;
 }
 UINT32 ThemeButtonBorderNormal(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonBorderNormal();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER;
     return COLOR_DARK_GRAY;
 }
 UINT32 ThemeButtonBorderHover(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonBorderHover();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER_HP;
     return COLOR_BLUE;
 }
 UINT32 ThemeButtonBorderPressed(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonBorderPressed();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER_HP;
     return COLOR_BLUE;
 }
 UINT32 ThemeButtonBorderDisabled(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonBorderDisabled();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_BORDER_DIS;
     return COLOR_GRAY;
 }
@@ -221,11 +263,13 @@ UINT32 ThemeButtonTextNormal(void) {
     return ThemeText();
 }
 UINT32 ThemeButtonTextDisabled(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernButtonTextDisabled();
     if (gThemeId == THEME_PALETTE_TECH) return TECH_BTN_TEXT_DIS;
     return COLOR_GRAY;
 }
 
 UINT32 ThemeWindowShadowColor(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernWindowShadowColor();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SHADOW;
     }

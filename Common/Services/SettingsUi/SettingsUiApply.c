@@ -133,11 +133,11 @@ void ApplyThemeChoice(int Index) {
         ThemeSetThemeId(THEME_PALETTE_DEFAULT);
         ThemeSetDesktopGradient(0);
     } else if (Index == 1) {
-        ThemeSetThemeId(THEME_PALETTE_TECH);
+        ThemeSetThemeId(THEME_PALETTE_MODERN);
         ThemeSetDesktopGradient(0);
     } else {
         ThemeSetThemeId(THEME_PALETTE_TECH);
-        ThemeSetDesktopGradient(1);
+        ThemeSetDesktopGradient(0);
     }
     ThemeApply();
 }

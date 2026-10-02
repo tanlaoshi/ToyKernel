@@ -62,6 +62,7 @@ UINT32 ThemeShellPrompt(void) {
 }
 
 UINT32 ThemeIconText(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernIconText();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_ICON_TEXT;
     }
@@ -69,6 +70,7 @@ UINT32 ThemeIconText(void) {
 }
 
 UINT32 ThemeIconBorder(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernIconBorder();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_ICON_BORDER;
     }
@@ -76,6 +78,7 @@ UINT32 ThemeIconBorder(void) {
 }
 
 UINT32 ThemeIconSelect(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernIconSelect();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_ICON_SELECT;
     }
@@ -83,6 +86,7 @@ UINT32 ThemeIconSelect(void) {
 }
 
 UINT32 ThemeClockText(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernClockText();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_CLOCK;
     }
@@ -90,6 +94,7 @@ UINT32 ThemeClockText(void) {
 }
 
 UINT32 ThemeStartButtonText(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernStartButtonText();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_START_TEXT;
     }
@@ -97,6 +102,7 @@ UINT32 ThemeStartButtonText(void) {
 }
 
 UINT32 ThemeMenuBorder(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernMenuBorder();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_MENU_BORDER;
     }
@@ -104,6 +110,7 @@ UINT32 ThemeMenuBorder(void) {
 }
 
 UINT32 ThemeMenuText(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernMenuText();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_MENU_TEXT;
     }
@@ -111,6 +118,7 @@ UINT32 ThemeMenuText(void) {
 }
 
 UINT32 ThemeMenuSep(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernMenuSep();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_MENU_SEP;
     }
@@ -132,6 +140,7 @@ UINT32 ThemeIconFallbackReboot(void) {
 }
 
 UINT32 ThemeText(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernText();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TEXT;
     }
@@ -139,6 +148,7 @@ UINT32 ThemeText(void) {
 }
 
 UINT32 ThemeTextMuted(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernTextMuted();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TEXT_MUTED;
     }
@@ -146,6 +156,7 @@ UINT32 ThemeTextMuted(void) {
 }
 
 UINT32 ThemeTextAccent(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernTextAccent();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TEXT_ACCENT;
     }
@@ -153,6 +164,7 @@ UINT32 ThemeTextAccent(void) {
 }
 
 UINT32 ThemeTextOnAccent(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernTextOnAccent();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_TEXT_ON_ACCENT;
     }
@@ -160,6 +172,7 @@ UINT32 ThemeTextOnAccent(void) {
 }
 
 UINT32 ThemePanelSideBackground(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernPanelSideBackground();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_PANEL_SIDE;
     }
@@ -167,6 +180,7 @@ UINT32 ThemePanelSideBackground(void) {
 }
 
 UINT32 ThemePanelDetailBackground(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernPanelDetailBackground();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_PANEL_DETAIL;
     }
@@ -174,6 +188,7 @@ UINT32 ThemePanelDetailBackground(void) {
 }
 
 UINT32 ThemePanelSeparator(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernPanelSeparator();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_PANEL_SEP;
     }
@@ -181,6 +196,7 @@ UINT32 ThemePanelSeparator(void) {
 }
 
 UINT32 ThemeScrollTrack(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernScrollTrack();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SCROLL_TRACK;
     }
@@ -188,6 +204,7 @@ UINT32 ThemeScrollTrack(void) {
 }
 
 UINT32 ThemeScrollBorder(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernScrollBorder();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SCROLL_BORDER;
     }
@@ -195,6 +212,7 @@ UINT32 ThemeScrollBorder(void) {
 }
 
 UINT32 ThemeScrollThumb(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernScrollThumb();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_SCROLL_THUMB;
     }
@@ -202,6 +220,7 @@ UINT32 ThemeScrollThumb(void) {
 }
 
 UINT32 ThemeDialogFace(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernDialogFace();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_DIALOG_FACE;
     }
@@ -209,6 +228,7 @@ UINT32 ThemeDialogFace(void) {
 }
 
 UINT32 ThemeDialogBorder(void) {
+    if (gThemeId == THEME_PALETTE_MODERN) return ThemeModernDialogBorder();
     if (gThemeId == THEME_PALETTE_TECH) {
         return TECH_DIALOG_BORDER;
     }
