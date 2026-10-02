@@ -56,20 +56,20 @@ sync_repo ToyImage \
 export TOYOS_ROOT="$DST"
 bash "$OPENBOX/install-to-root.sh"
 
-# EDK2/：BOX-5 先符号链接到备份整树；BOX-6 再裁剪为无 .git 子集
-if [ -f "$SRC/edksetup.sh" ]; then
-    ln -sfn "$SRC" "$DST/EDK2"
-    echo "linked EDK2 → $SRC （裁剪 → BOX-6）"
-else
-    echo "warn: $SRC 无 edksetup.sh，未创建 EDK2/ 链接" >&2
-fi
-
-# 双轨回退：Config.local 仍记 EDK2_SRC（无 EDK2/ 链接时用）
+# EDK2/：有 trim-edk2 则裁剪无 .git；否则临时链备份（旧行为）
 {
-    echo "# BOX-5 本机覆盖（勿提交到三仓）"
-    echo "# 优先用 \$TOYOS_ROOT/EDK2；下列为回退"
+    echo "# BOX-5/6 本机覆盖（勿提交到三仓）"
     echo "EDK2_SRC=$SRC"
 } > "$DST/Config.local.txt"
+
+if [ -x "$OPENBOX/trim-edk2.sh" ] && [ -f "$SRC/edksetup.sh" ]; then
+    bash "$OPENBOX/trim-edk2.sh" "$SRC" "$DST"
+else
+    if [ -f "$SRC/edksetup.sh" ]; then
+        ln -sfn "$SRC" "$DST/EDK2"
+        echo "linked EDK2 → $SRC （请再跑 trim-edk2.sh 去 .git）"
+    fi
+fi
 echo "wrote $DST/Config.local.txt"
 
 # 标记

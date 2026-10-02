@@ -1,6 +1,6 @@
 # ToyOS 开箱与仓库布局
 
-> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`5`](../路线图.md#pr-box-5) **✅ TG**；★ [`PR-BOX-6`](../路线图.md#pr-box-6)（EDK2 裁剪去 `.git`）。  
+> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`6`](../路线图.md#pr-box-6) **✅ TG**；★ [`PR-BOX-7`](../路线图.md#pr-box-7)（Kernel 单仓可编）。  
 > **来源**：[`待做/新需求.md`](../待做/新需求.md)（需求原文；实现以**本文**为准）。  
 > **迁移策略（本机）**：当前 **`…/edk2/` 整树当作备份，先不动、不就地改名**；后续从该树**逐步拷出/迁出**到家目录 **`~/ToyOS`**（见 §5.0）。脚本仍按 `$TOYOS_ROOT` 自定位，迁完后权威根即 `~/ToyOS`。  
 > **路径铁律**：命令以 **ToyOS 树根**为准（可任意摆放）；**本柱迁移动作的目标根 = `~/ToyOS`**。禁止写死用户名（如 `/home/tank/...`）。  
@@ -375,9 +375,23 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 
 | 项 | 内容 |
 | -- | ---- |
-| EDK2 | 只留 **202408** 中 ToyBoot 构建 `BOOTX64.EFI` 所需；**删除 `.git`**；写 `$TOYOS_ROOT/EDK2/README-TRIM.md`（保留包列表 + 如何再裁） |
+| EDK2 | 只留 **202408** 中 ToyBoot 构建 `BOOTX64.EFI` 所需；**删除 `.git`**；写 `$TOYOS_ROOT/EDK2/README-TRIM.md` |
+| 工具 | `ToyKernel/OpenBox/trim-edk2.sh [源edk2] [目标TOYOS根]` |
+| 保留 | `edksetup.sh`、`Conf/`、`BaseTools/`、`MdePkg/`；`ToyBoot` → 链 `$TOYOS_ROOT/ToyBoot` |
 | ToyBoot | 契约：**读 Kernel → 设显示（如需）→ ExitBootServices → 跳入口**；不承担桌面/Logo 终态（Logo 在 Kernel） |
-| 验收 | `$TOYOS_ROOT/EDK2` 裁剪树能编出与现网兼容的 Boot；QEMU split 启动 PASS |
+| 验收 | `$TOYOS_ROOT/EDK2` 裁剪树能编出与现网兼容的 Boot；**无 `.git`**；QEMU split/`smoke` PASS |
+
+**本刀勾选**
+
+| 项 | 状态 |
+| -- | ---- |
+| `trim-edk2.sh` 生成实体 `EDK2/`（非整树符号链接） | ✅ |
+| `EDK2/.git` 不存在 | ✅ |
+| `README-TRIM.md` | ✅ |
+| 仅 BaseTools+Conf+MdePkg（+ToyBoot 链） | ✅ |
+| `build toyboot` → `BOOTX64.EFI` | ✅ |
+| `test.sh smoke x86` | ✅ |
+| 备份 `edk2/` 整树仍在 | ✅ |
 
 ### 5.3 Kernel 独立 · BOX-7
 
