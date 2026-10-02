@@ -96,9 +96,9 @@ int EhciEnumDevice(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     C->XferHubAddr = HubAddr;
     C->XferHubPort = HubPort;
 
-    if (EhciEnumGetDesc(C, 0, (Speed == EHCI_SPEED_HS) ? 64 : 8, 0x0100, 8, &Dev) !=
+    if (EhciEnumGetDesc(C, 0, (Speed == EHCI_SPEED_HS) ? 64 : 8, USB_WVALUE_DT_DEVICE, 8, &Dev) !=
         0) {
-        if (EhciEnumGetDesc(C, 0, 8, 0x0100, 8, &Dev) != 0) {
+        if (EhciEnumGetDesc(C, 0, 8, USB_WVALUE_DT_DEVICE, 8, &Dev) != 0) {
             ToyBootMarkUsb("Boot: EHCI getdesc fail ");
             ToyBootMarkUsb(gEhciLastErr ? gEhciLastErr : "?");
             ToyBootMarkUsb("\n");
@@ -111,7 +111,7 @@ int EhciEnumDevice(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
             /* keep */
         }
     }
-    if (EhciEnumGetDesc(C, 0, EpMax, 0x0100, 18, &Dev) != 0) {
+    if (EhciEnumGetDesc(C, 0, EpMax, USB_WVALUE_DT_DEVICE, 18, &Dev) != 0) {
         gEhciLastErr = "devdesc";
         return 0;
     }
@@ -138,14 +138,14 @@ int EhciEnumDevice(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     C->XferHubPort = HubPort;
     EhciDelay(100000);
 
-    if (EhciEnumGetDesc(C, Addr, EpMax, 0x0200, 9, Cfg) != 0) {
+    if (EhciEnumGetDesc(C, Addr, EpMax, USB_WVALUE_DT_CONFIG, 9, Cfg) != 0) {
         return 0;
     }
     CfgLen = (UINT16)(Cfg[2] | ((UINT16)Cfg[3] << 8));
     if (CfgLen < 9 || CfgLen > sizeof(Cfg)) {
         CfgLen = 64;
     }
-    if (EhciEnumGetDesc(C, Addr, EpMax, 0x0200, CfgLen, Cfg) != 0) {
+    if (EhciEnumGetDesc(C, Addr, EpMax, USB_WVALUE_DT_CONFIG, CfgLen, Cfg) != 0) {
         return 0;
     }
     if (!ParseHidIface(Cfg, CfgLen, 2, &Iface, &Proto, &Ep, &MaxPkt, &Interval,

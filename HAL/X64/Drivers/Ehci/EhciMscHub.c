@@ -98,7 +98,7 @@ int EhciMscHubGetDesc(EHCI_CTRL *C, UINT8 HubAddr, UINT8 *Out, UINT16 Len) {
 
     S.bmRequestType = 0xA0;
     S.bRequest = 0x06;
-    S.wValue = 0x2900;
+    S.wValue = USB_WVALUE_DT_HUB;
     S.wIndex = 0;
     S.wLength = Len;
     C->XferSpeed = EHCI_SPEED_HS;

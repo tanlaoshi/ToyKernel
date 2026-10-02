@@ -153,12 +153,12 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     C->XferHubAddr = HubAddr;
     C->XferHubPort = HubPort;
 
-    if (GetDesc(C, 0, 8, 0x0100, 8, &Dev) != 0) {
+    if (GetDesc(C, 0, 8, USB_WVALUE_DT_DEVICE, 8, &Dev) != 0) {
         ToyBootMarkUsb("Boot: EHCI FTDI GetDesc8 Fail\n");
         return 0;
     }
     EpMax = Dev.bMaxPacketSize0 ? Dev.bMaxPacketSize0 : 8;
-    if (GetDesc(C, 0, EpMax, 0x0100, 18, &Dev) != 0) {
+    if (GetDesc(C, 0, EpMax, USB_WVALUE_DT_DEVICE, 18, &Dev) != 0) {
         ToyBootMarkUsb("Boot: EHCI FTDI GetDesc18 Fail\n");
         return 0;
     }
@@ -178,7 +178,7 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     C->XferHubAddr = HubAddr;
     C->XferHubPort = HubPort;
     EhciDelay(100000);
-    if (GetDesc(C, Addr, EpMax, 0x0200, 9, Cfg) != 0) {
+    if (GetDesc(C, Addr, EpMax, USB_WVALUE_DT_CONFIG, 9, Cfg) != 0) {
         ToyBootMarkUsb("Boot: EHCI FTDI Cfg9 Fail\n");
         return 0;
     }
@@ -186,7 +186,7 @@ static int FinishFtdi(EHCI_CTRL *C, UINT8 Speed, UINT8 HubAddr, UINT8 HubPort) {
     if (CfgLen < 9 || CfgLen > sizeof(Cfg)) {
         CfgLen = 64;
     }
-    if (GetDesc(C, Addr, EpMax, 0x0200, CfgLen, Cfg) != 0) {
+    if (GetDesc(C, Addr, EpMax, USB_WVALUE_DT_CONFIG, CfgLen, Cfg) != 0) {
         ToyBootMarkUsb("Boot: EHCI FTDI Cfg Fail\n");
         return 0;
     }

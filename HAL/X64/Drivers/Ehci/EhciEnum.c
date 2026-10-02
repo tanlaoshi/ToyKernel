@@ -88,8 +88,8 @@ static int EnumRootPort(EHCI_CTRL *C, UINT8 Port) {
     C->XferHubAddr = 0;
     C->XferHubPort = 0;
 
-    if (EhciEnumGetDesc(C, 0, 64, 0x0100, 8, &Dev) != 0) {
-        if (EhciEnumGetDesc(C, 0, 8, 0x0100, 8, &Dev) != 0) {
+    if (EhciEnumGetDesc(C, 0, 64, USB_WVALUE_DT_DEVICE, 8, &Dev) != 0) {
+        if (EhciEnumGetDesc(C, 0, 8, USB_WVALUE_DT_DEVICE, 8, &Dev) != 0) {
             ToyBootMarkUsb("Boot: EHCI getdesc fail\n");
             return 0;
         }
@@ -97,7 +97,7 @@ static int EnumRootPort(EHCI_CTRL *C, UINT8 Port) {
     } else {
         EpMax = Dev.bMaxPacketSize0 ? Dev.bMaxPacketSize0 : 64;
     }
-    if (EhciEnumGetDesc(C, 0, EpMax, 0x0100, 18, &Dev) != 0) {
+    if (EhciEnumGetDesc(C, 0, EpMax, USB_WVALUE_DT_DEVICE, 18, &Dev) != 0) {
         gEhciLastErr = "devdesc";
         return 0;
     }

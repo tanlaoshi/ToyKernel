@@ -18,6 +18,13 @@ typedef struct {
     UINT16 wLength;
 } __attribute__((packed)) USB_SETUP_PACKET;
 
+/* GET_DESCRIPTOR wValue（高字节=描述符类型）；EHCI/xHCI 共用 */
+#define USB_WVALUE_DT_DEVICE  0x0100u /* Device */
+#define USB_WVALUE_DT_CONFIG  0x0200u /* Configuration */
+#define USB_WVALUE_DT_HUB     0x2900u /* Hub class descriptor */
+#define USB_HID_REPORT_IN     0x0100u /* HID GET_REPORT(Input)；数值同 DT_DEVICE，语义不同 */
+#define USB_CDC_DTR_RTS       0x0003u /* SET_CONTROL_LINE_STATE: DTR|RTS */
+
 /* USB 设备描述符（部分字段） */
 typedef struct {
     UINT8  bLength;
