@@ -112,6 +112,9 @@ extern int gRxOffLogged;
 extern int gRxLlcLogged;
 extern int gRxStLogged;
 void IwlRxDataToNet(UINT8 *Frame, UINTN FLen, UINT32 St);
+/* PR-F-iwl-4：Prot 解密（固件已解 / 主机 CCMP） */
+int IwlRxTryDecrypt(UINT8 *Frame, UINTN FLen, UINTN HdrLen, int FwDec,
+                    UINTN *BodyOff, UINTN *BodyLen);
 void IwlLogDataTx(const IWL_RX_PKT *Pkt, UINTN Len);
 extern UINT8 gIwlPtk[16];
 extern UINT8 gIwlGtk[16];
