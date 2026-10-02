@@ -78,7 +78,7 @@ void ProcessEventsLocked(void) {
             /* EP0(DCI=1) 才唤醒 WaitTransfer，避免 HID IN 误完成 EP0 等待 */
             if (EvtSlot == gXferSlot && Ep == 1) {
                 gXferCode = Code;
-                gXferRemain = Evt->Status & 0xFFFFFF;
+                gXferRemain = Evt->Status & XHCI_TRB_REMAIN_MASK;
                 gXferDone = 1;
                 Matched = 1; /* GET_REPORT/控制传输：勿记入 unmatched 刷屏 */
             }
@@ -87,7 +87,7 @@ void ProcessEventsLocked(void) {
                 ((gMscBulkInDci != 0 && Ep == gMscBulkInDci) ||
                  (gMscBulkOutDci != 0 && Ep == gMscBulkOutDci))) {
                 gBulkCode = Code;
-                gBulkRemain = Evt->Status & 0xFFFFFF;
+                gBulkRemain = Evt->Status & XHCI_TRB_REMAIN_MASK;
                 gBulkDone = 1;
                 Matched = 1;
             }
@@ -108,7 +108,7 @@ void ProcessEventsLocked(void) {
                 if ((TrbPtr >= BulkInLo && TrbPtr < BulkInHi) ||
                     (TrbPtr >= BulkOutLo && TrbPtr < BulkOutHi)) {
                     gBulkCode = Code;
-                    gBulkRemain = Evt->Status & 0xFFFFFF;
+                    gBulkRemain = Evt->Status & XHCI_TRB_REMAIN_MASK;
                     gBulkDone = 1;
                     Matched = 1;
                 }
@@ -160,7 +160,7 @@ void ProcessEventsLocked(void) {
             if (MouseHit) {
                 Matched = 1;
                 if (Code == CC_SUCCESS || Code == CC_SHORT_PACKET) {
-                    UINT32 Remain = Evt->Status & 0xFFFFFF;
+                    UINT32 Remain = Evt->Status & XHCI_TRB_REMAIN_MASK;
                     UINT32 Req = gMouseReportLen ? gMouseReportLen : 8;
 
                     gStatMouseEvt++;

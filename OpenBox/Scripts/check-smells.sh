@@ -94,17 +94,20 @@ else
     ok "1.2 未发现明显魔法数字"
 fi
 
-# 1.3 忽略返回值（启发式；需人工确认）
+# 1.3 忽略返回值（启发式；排除已知 void API；需人工确认）
 RET_GLOBS=(
     --glob '*.c'
     "${GLOBS[@]}"
 )
+# 与前缀匹配但声明为 void 的符号（避免误报 SchedulerIoBreath / StoreRepoLoadFromDb 等）
+VOID_CALLS='BlockMscInstall|BlockMuxInstallMsc|BlockMuxRemoveMsc|BlockRegisterBackend|FatIoBreath|FatSetIoBreath|PhysicalMemoryFreePage|PhysicalMemoryFreePages|PhysicalMemoryReleasePage|ProcessApplyAppFont|ProcessEvents|ProcessEventsLocked|ProcessEventsRealPc|ProcessRestoreAppFont|ProcessStopAllUsers|SchedulerApStart|SchedulerCoopDrainUsers|SchedulerDestroyDetached|SchedulerDropDiagThread|SchedulerEnter|SchedulerFdCloseAll|SchedulerInitialize|SchedulerIoBreath|SchedulerOpsRegister|SchedulerPreemptDisable|SchedulerPreemptEnable|SchedulerReapOrphanZombies|SchedulerReapZombie|SchedulerRunQueueView|SchedulerSetAffinity|SchedulerSetNeedResched|SchedulerStart|SchedulerWakeSleepers|StoreAppBundleDir|StoreAppElfPath|StoreBtnGeom|StoreClearAppDesktopKeys|StoreCmdListCatalog|StoreComboBatchBegin|StoreComboBatchEnd|StoreFillInstalledFlags|StoreFlushFontReload|StoreInstallCopyAbort|StoreInstallCopyProgress|StoreInstallPumpAbort|StoreInstallPumpProgress|StoreIoBreath|StoreJobBusyRepaint|StoreJobFinishStatus|StoreJobGetStatus|StoreJobShellEnd|StoreJobShellPumpBegin|StoreJobShellPumpEnd|StoreJobStatusCopy|StoreJobStatusProgress|StoreJobStatusWithId|StorePaintList|StorePrintUsage|StoreRepoGet|StoreRepoLoadFromDb|StoreSetStatus|StoreUiActInit|StoreUiApplyRepoFile|StoreUiDoButton|StoreUiFormatRepo|StoreUiOnClick|StoreUiOnEscape|StoreUiOnPointer|StoreUiOpen|StoreUiPaintFocused|StoreUiPump|StoreUiRepaint|VfsServiceOpsRegister|VirtualMemoryEnable|VirtualMemoryLoadPageTable|VirtualMemorySpaceDestroy'
 RET=$(rg -n "${RET_GLOBS[@]}" \
     '^[[:space:]]*(Fat|Block|FileSystem|Vfs|Process|Scheduler|VirtualMemory|PhysicalMemory|VfsService|Store)[[:alnum:]_]*[[:space:]]*\(' \
     Core/ Common/ HAL/ 2>/dev/null \
     | rg -v '\(void\)' \
     | rg -v '=' \
     | rg -v '^[[:space:]]*//' \
+    | rg -v -e "[[:space:]](${VOID_CALLS})[[:space:]]*\(" \
     | head -50 || true)
 if [ -n "$RET" ]; then
     report "1.3 疑似忽略返回值（前 50 条；需人工确认）"

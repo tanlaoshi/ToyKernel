@@ -91,7 +91,7 @@ int EnumHubChildrenForMouse(void) {
             UINT8 EpAddr = 0, Interval = 10, Iface = 0;
             UINT16 Mps = 8;
             UINT16 Total;
-            if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+            if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCtrlBuf) < 0) {
                 DisableSlot(gMouseSlotId);
                 gMouseSlotId = 0;
                 continue;
@@ -103,7 +103,7 @@ int EnumHubChildrenForMouse(void) {
             if (Total > sizeof(gCtrlBuf)) {
                 Total = (UINT16)sizeof(gCtrlBuf);
             }
-            if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0 ||
+            if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCtrlBuf) < 0 ||
                 !ParseConfigMouse(gCtrlBuf, Total, Speed, &Iface, &EpAddr, &Mps, &Interval)) {
                 DisableSlot(gMouseSlotId);
                 gMouseSlotId = 0;

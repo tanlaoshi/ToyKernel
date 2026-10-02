@@ -126,7 +126,7 @@ int XhciInitHw(UINT64 BaseAddress) {
         gFwErstbaSave = ReadMmio64(gRuntimeBase + 0x30) & ~0x3FULL;
         gFwErdpSave = ReadMmio64(gRuntimeBase + 0x38);
         if (gFwErstbaSave != 0) {
-            if (MapXhciDma(gFwErstbaSave, 0x1000) != 0) {
+            if (MapXhciDma(gFwErstbaSave, XHCI_PAGE_SIZE) != 0) {
                 ToyBootMarkUsb("Boot: XHCI map ERST fail\n");
             } else {
                 Erst = (UINT8 *)(UINTN)gFwErstbaSave;

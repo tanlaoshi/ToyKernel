@@ -182,7 +182,7 @@ int GetDeviceDesc(void) {
     UINT8 Mps;
     int Ok;
 
-    Ok = GetDesc(0x0100, 0, 8, gCtrlBuf) == 0;
+    Ok = GetDesc(USB_WVALUE_DT_DEVICE, 0, 8, gCtrlBuf) == 0;
     if (DiagVerbose()) {
         DiagChk("GetDesc8", Ok, "xfer ok", Ok ? gCtrlBuf[7] : gXferCode, 2);
     }
@@ -197,7 +197,7 @@ int GetDeviceDesc(void) {
     if (Mps != (UINT8)gEp0Mps) {
         (void)EvaluateEp0(gXferSlot, Mps);
     }
-    Ok = GetDesc(0x0100, 0, 18, gCtrlBuf) == 0;
+    Ok = GetDesc(USB_WVALUE_DT_DEVICE, 0, 18, gCtrlBuf) == 0;
     if (DiagVerbose()) {
         DiagChk("GetDesc18", Ok, "len>=18 class", Ok ? gCtrlBuf[4] : gXferCode, 2);
     }

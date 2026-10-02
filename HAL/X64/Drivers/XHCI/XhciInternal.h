@@ -46,6 +46,17 @@
                              (0x1Fu << 24) | PORTSC_WPR)
 #define PORTSC_CHANGE       (PORTSC_CSC | PORTSC_PEC | PORTSC_WRC | PORTSC_OCC | \
                              PORTSC_PRC | PORTSC_PLC | PORTSC_CEC)
+
+/* USB GET_DESCRIPTOR wValue（高字节=描述符类型）；页/事件剩余掩码 */
+#define USB_WVALUE_DT_DEVICE  0x0100u /* Device */
+#define USB_WVALUE_DT_CONFIG  0x0200u /* Configuration */
+#define USB_WVALUE_DT_HUB     0x2900u /* Hub class descriptor */
+#define USB_HID_REPORT_IN     0x0100u /* HID GET_REPORT(Input)；数值同 DT_DEVICE，语义不同 */
+#define USB_CDC_DTR_RTS       0x0003u /* SET_CONTROL_LINE_STATE: DTR|RTS */
+#define XHCI_PAGE_SIZE        0x1000u
+#define XHCI_TRB_REMAIN_MASK  0xFFFFFFu /* Event TRB Status[23:0] 剩余长度 */
+#define XHCI_U16_MASK         0xFFFFu
+
 #define USBCMD_RS           (1u << 0)
 #define USBCMD_HCRST        (1u << 1)
 #define USBCMD_INTE         (1u << 2)

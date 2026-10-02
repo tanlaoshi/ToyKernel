@@ -89,7 +89,7 @@ int InitMouseOnPort(UINT32 Port1) {
         }
         return 0;
     }
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) == 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCtrlBuf) == 0) {
         Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
         if (Total < 9) {
             Total = 9;
@@ -101,7 +101,7 @@ int InitMouseOnPort(UINT32 Port1) {
          * 完整配置描述符：真机部分设备大包会超时；失败则 RecoverEp0 后仍走
          * SetupHidDevice（其内部会再取描述符）。勿在 EP0 失步时直接放弃。
          */
-        if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+        if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCtrlBuf) < 0) {
             BootLog("Boot: XHCI mouse cfg desc retry\n");
             RecoverEp0(gMouseSlotId);
             gXferSlot = gMouseSlotId;
@@ -154,7 +154,7 @@ int InitMouseOnPort(UINT32 Port1) {
     UINT8 EpAddr = 0, Interval = 10;
     UINT16 Mps = 8;
     UINT8 Iface = 0;
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCtrlBuf) < 0) {
         DisableSlot(gMouseSlotId);
         gMouseSlotId = 0;
         return 0;
@@ -166,10 +166,10 @@ int InitMouseOnPort(UINT32 Port1) {
     if (Total > sizeof(gCtrlBuf)) {
         Total = (UINT16)sizeof(gCtrlBuf);
     }
-    if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCtrlBuf) < 0) {
         RecoverEp0(gMouseSlotId);
         gXferSlot = gMouseSlotId;
-        if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+        if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCtrlBuf) < 0) {
             DisableSlot(gMouseSlotId);
             gMouseSlotId = 0;
             return 0;

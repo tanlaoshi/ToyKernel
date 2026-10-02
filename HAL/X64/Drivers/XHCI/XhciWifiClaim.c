@@ -114,7 +114,7 @@ int XhciWifiFinishClaim(UINT32 RootPort, UINT8 Speed) {
     if (Vid != WIFI_RTL_VID || !WifiIs8188EuPid(Pid)) {
         goto fail;
     }
-    if (GetDesc(0x0200, 0, 9, gWifiCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gWifiCfgBuf) < 0) {
         goto fail;
     }
     Total = (UINT16)(gWifiCfgBuf[2] | (gWifiCfgBuf[3] << 8));
@@ -125,7 +125,7 @@ int XhciWifiFinishClaim(UINT32 RootPort, UINT8 Speed) {
         Total = (UINT16)sizeof(gWifiCfgBuf);
     }
     ConfigVal = gWifiCfgBuf[5] ? gWifiCfgBuf[5] : 1;
-    if (GetDesc(0x0200, 0, Total, gWifiCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gWifiCfgBuf) < 0) {
         goto fail;
     }
     if (!ParseWifiBulk(gWifiCfgBuf, Total, &EpIn, &MpsIn, &EpOut, &MpsOut)) {

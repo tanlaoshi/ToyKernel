@@ -11,6 +11,7 @@
 #include "Debug.h"
 #include "VirtualMemory.h"
 #include "InputXhciPrivate.h"
+#include "XHCI/XhciInternal.h"
 
 /* x86：MMIO 须 PCD|PWT，否则真机写 PORTSC/RS 易假死 */
 #ifndef PTE_PWT
@@ -47,11 +48,11 @@ static void MapXhciBar(UINT64 Base) {
         Db = Start + (UINT64)((*(volatile UINT32 *)(UINTN)(Start + 0x14)) & ~0x3u);
         Rt = Start + (UINT64)((*(volatile UINT32 *)(UINTN)(Start + 0x18)) & ~0x1Fu);
         Need = Op + 0x800; /* 端口寄存器区 */
-        if (Db + 0x1000 > Need) {
-            Need = Db + 0x1000;
+        if (Db + XHCI_PAGE_SIZE > Need) {
+            Need = Db + XHCI_PAGE_SIZE;
         }
-        if (Rt + 0x1000 > Need) {
-            Need = Rt + 0x1000;
+        if (Rt + XHCI_PAGE_SIZE > Need) {
+            Need = Rt + XHCI_PAGE_SIZE;
         }
         /* 上限 16MiB，防止异常偏移拖死 */
         if (Need > Start + 0x1000000ULL) {

@@ -9,7 +9,7 @@ int HidGetInputReport(UINT8 Iface, void *Data, UINT16 Length) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0xA1,
         .bRequest = 0x01,
-        .wValue = 0x0100,
+        .wValue = USB_HID_REPORT_IN,
         .wIndex = Iface,
         .wLength = Length
     };

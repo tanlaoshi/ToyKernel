@@ -144,7 +144,7 @@ int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
     if (Vid != FTDI_VID || !IsFtdiPid(Pid)) {
         goto fail;
     }
-    if (GetDesc(0x0200, 0, 9, gFtdiCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gFtdiCfgBuf) < 0) {
         goto fail;
     }
     Total = (UINT16)(gFtdiCfgBuf[2] | (gFtdiCfgBuf[3] << 8));
@@ -155,7 +155,7 @@ int XhciFtdiFinishClaim(UINT32 RootPort, UINT8 Speed) {
         Total = (UINT16)sizeof(gFtdiCfgBuf);
     }
     ConfigVal = gFtdiCfgBuf[5] ? gFtdiCfgBuf[5] : 1;
-    if (GetDesc(0x0200, 0, Total, gFtdiCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gFtdiCfgBuf) < 0) {
         goto fail;
     }
     if (!ParseFtdiBulk(gFtdiCfgBuf, Total, &EpIn, &MpsIn, &EpOut, &MpsOut)) {

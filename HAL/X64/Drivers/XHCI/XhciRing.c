@@ -65,7 +65,7 @@ int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
                             UINT32 *EnqOut, UINT32 *PcsOut) {
     UINT64 Page = DeqPhys & ~0xFFFULL;
     XHCI_TRB *P = (XHCI_TRB *)(UINTN)Page;
-    UINT32 MaxTrb = 0x1000u / (UINT32)sizeof(XHCI_TRB);
+    UINT32 MaxTrb = XHCI_PAGE_SIZE / (UINT32)sizeof(XHCI_TRB);
     UINT32 DeqOff = (UINT32)((DeqPhys - Page) / sizeof(XHCI_TRB));
     UINT32 i;
 
@@ -79,7 +79,7 @@ int ResolveFwCmdRing(UINT64 DeqPhys, UINT32 Rcs,
             continue;
         }
         LinkTgt = P[i].Parameter & ~0xFULL;
-        if (LinkTgt < Page || LinkTgt >= Page + 0x1000) {
+        if (LinkTgt < Page || LinkTgt >= Page + XHCI_PAGE_SIZE) {
             continue;
         }
         BaseOff = (UINT32)((LinkTgt - Page) / sizeof(XHCI_TRB));

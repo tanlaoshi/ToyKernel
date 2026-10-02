@@ -22,7 +22,7 @@ int InitMouseOnKeyboardSlot(void) {
     }
 
     gXferSlot = gSlotId;
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCtrlBuf) < 0) {
         return 0;
     }
     Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
@@ -32,7 +32,7 @@ int InitMouseOnKeyboardSlot(void) {
     if (Total > sizeof(gCtrlBuf)) {
         Total = (UINT16)sizeof(gCtrlBuf);
     }
-    if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCtrlBuf) < 0) {
         return 0;
     }
     if (!ParseConfigMouse(gCtrlBuf, Total, gSpeed, &Iface, &EpAddr, &Mps, &Interval)) {

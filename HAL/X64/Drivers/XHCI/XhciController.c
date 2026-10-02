@@ -8,7 +8,7 @@
 /* 释放 USB 传统支持（BIOS 移交） */
 void TakeLegacy(void) {
     UINT32 Hcc1 = ReadMmio32(gCapabilityBase + 0x10);
-    UINT32 Xecp = (Hcc1 >> 16) & 0xFFFF;
+    UINT32 Xecp = (Hcc1 >> 16) & XHCI_U16_MASK;
     int Wait;
     UINT32 After;
 
@@ -147,8 +147,8 @@ int StartController(UINT32 MaxSlots) {
             return 0;
         }
         MapBytes = (UINTN)(MaxSlots + 1) * sizeof(UINT64);
-        if (MapBytes < 0x1000) {
-            MapBytes = 0x1000;
+        if (MapBytes < XHCI_PAGE_SIZE) {
+            MapBytes = XHCI_PAGE_SIZE;
         }
         if (MapXhciDma(FwDcbaap, MapBytes) != 0) {
             ToyBootMarkUsb("Boot: XHCI map DCBAAP fail\n");

@@ -119,7 +119,7 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
         goto fail;
     }
 
-    if (GetDesc(0x0200, 0, 9, gMscCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gMscCfgBuf) < 0) {
         BootLog("Boot: MSC claim cfg9 fail\n");
         goto fail;
     }
@@ -132,10 +132,10 @@ int XhciMscFinishClaim(UINT32 RootPort, UINT8 Speed) {
         Total = (UINT16)sizeof(gMscCfgBuf);
     }
     ConfigVal = gMscCfgBuf[5] ? gMscCfgBuf[5] : 1;
-    if (GetDesc(0x0200, 0, Total, gMscCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gMscCfgBuf) < 0) {
         RecoverEp0(gMscScanSlot);
         gXferSlot = gMscScanSlot;
-        if (GetDesc(0x0200, 0, Total, gMscCfgBuf) < 0) {
+        if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gMscCfgBuf) < 0) {
             BootLog("Boot: MSC claim cfg fail\n");
             goto fail;
         }

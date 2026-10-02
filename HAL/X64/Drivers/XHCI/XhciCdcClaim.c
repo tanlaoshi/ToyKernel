@@ -129,7 +129,7 @@ static int CdcSetLine115200(UINT8 CommIface) {
         return -1;
     }
     Setup.bRequest = 0x22; /* SET_CONTROL_LINE_STATE */
-    Setup.wValue = 0x0003; /* DTR|RTS */
+    Setup.wValue = USB_CDC_DTR_RTS; /* DTR|RTS */
     Setup.wLength = 0;
     (void)ControlXfer(&Setup, 0);
     return 0;
@@ -154,7 +154,7 @@ int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed) {
     if (GetDeviceDesc() < 0) {
         goto fail;
     }
-    if (GetDesc(0x0200, 0, 9, gCdcCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCdcCfgBuf) < 0) {
         goto fail;
     }
     Total = (UINT16)(gCdcCfgBuf[2] | (gCdcCfgBuf[3] << 8));
@@ -165,7 +165,7 @@ int XhciCdcFinishClaim(UINT32 RootPort, UINT8 Speed) {
         Total = (UINT16)sizeof(gCdcCfgBuf);
     }
     ConfigVal = gCdcCfgBuf[5] ? gCdcCfgBuf[5] : 1;
-    if (GetDesc(0x0200, 0, Total, gCdcCfgBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCdcCfgBuf) < 0) {
         goto fail;
     }
     if (!ParseCdcAcm(gCdcCfgBuf, Total, &Comm, &EpIn, &MpsIn, &EpOut, &MpsOut)) {

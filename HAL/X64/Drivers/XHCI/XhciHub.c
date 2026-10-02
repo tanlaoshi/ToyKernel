@@ -23,7 +23,7 @@ int FinishHubSetup(UINT8 *OutNumPorts) {
     UINT8 Nports = 4;
     UINT8 ConfigVal = 1;
 
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCtrlBuf) < 0) {
         return 0;
     }
     ConfigVal = gCtrlBuf[5] ? gCtrlBuf[5] : 1;
@@ -32,7 +32,7 @@ int FinishHubSetup(UINT8 *OutNumPorts) {
     }
     ZeroMemory(HubDesc, sizeof(HubDesc));
     gHubTtt = 0;
-    if (HubCtrl(0xA0, 0x06, 0x2900, 0, sizeof(HubDesc), HubDesc) == 0 &&
+    if (HubCtrl(0xA0, 0x06, USB_WVALUE_DT_HUB, 0, sizeof(HubDesc), HubDesc) == 0 &&
         HubDesc[2] != 0) {
         Nports = HubDesc[2];
         if (Nports > 15) {

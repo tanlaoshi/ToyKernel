@@ -175,7 +175,7 @@ int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok) {
     if (!Hubish && gCtrlBuf[4] == 0) {
         UINT16 Total;
 
-        if (GetDesc(0x0200, 0, 9, gMscCfgBuf) == 0) {
+        if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gMscCfgBuf) == 0) {
             Total = (UINT16)(gMscCfgBuf[2] | (gMscCfgBuf[3] << 8));
             if (Total < 9) {
                 Total = 9;
@@ -183,7 +183,7 @@ int MscClaimTryHubOnRoot(UINT32 P, UINT8 Speed, int *Ok) {
             if (Total > sizeof(gMscCfgBuf)) {
                 Total = (UINT16)sizeof(gMscCfgBuf);
             }
-            if (GetDesc(0x0200, 0, Total, gMscCfgBuf) == 0 &&
+            if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gMscCfgBuf) == 0 &&
                 ConfigHasHubIface(gMscCfgBuf, Total)) {
                 Hubish = 1;
                 BootLogHex("Boot: MSC claim hub iface root=", P, 2);

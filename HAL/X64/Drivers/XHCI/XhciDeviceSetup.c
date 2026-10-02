@@ -45,7 +45,7 @@ int SetReportOutput(UINT8 Iface, void *Data, UINT16 Length) {
     USB_SETUP_PACKET Setup = {
         .bmRequestType = 0x21,
         .bRequest = 0x09,
-        .wValue = 0x0200,
+        .wValue = USB_WVALUE_DT_CONFIG,
         .wIndex = Iface,
         .wLength = Length
     };
@@ -84,7 +84,7 @@ int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
     if (GetDeviceDesc() < 0) {
         return 0;
     }
-    if (GetDesc(0x0200, 0, 9, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, 9, gCtrlBuf) < 0) {
         return 0;
     }
     UINT16 Total = (UINT16)(gCtrlBuf[2] | (gCtrlBuf[3] << 8));
@@ -94,7 +94,7 @@ int SetupHidDevice(UINT32 SlotId, UINT8 *DevCtx, UINT8 Speed,
     if (Total > sizeof(gCtrlBuf)) {
         Total = (UINT16)sizeof(gCtrlBuf);
     }
-    if (GetDesc(0x0200, 0, Total, gCtrlBuf) < 0) {
+    if (GetDesc(USB_WVALUE_DT_CONFIG, 0, Total, gCtrlBuf) < 0) {
         return 0;
     }
     UINT8 ConfigVal = gCtrlBuf[5];
