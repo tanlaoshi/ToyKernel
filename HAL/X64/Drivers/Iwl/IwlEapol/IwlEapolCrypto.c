@@ -103,6 +103,7 @@ void IwlInstallGtk(const UINT8 *Eapol, UINTN EapLen, const UINT8 Kek[16]) {
     UINTN i;
 
     gIwlGtkAltOk = 0;
+    gIwlGtkLen = 0;
     if (EapLen < 101u) {
         IwlLogStage("gtk=no");
         return;
@@ -140,13 +141,23 @@ void IwlInstallGtk(const UINT8 *Eapol, UINTN EapLen, const UINT8 Kek[16]) {
         if (Id == 0xddu && (UINTN)KdeLen >= 6u + 16u
             && Plain[i + 2] == 0x00u && Plain[i + 3] == 0x0fu
             && Plain[i + 4] == 0xacu && Plain[i + 5] == 0x01u) {
-            /* DD Len | 00-0F-AC-01 | KeyID | Rsvd | GTK[16+]（802.11：域长=Len-6） */
+            /* DD Len | 00-0F-AC-01 | KeyID | Rsvd | GTK[16|32]（Len-6=密钥域） */
             gIwlGtkId = (UINT8)(Plain[i + 6] & 3u);
-            IwlEapolCopyN(gIwlGtk, Plain + i + 8, 16);
-            if ((UINTN)KdeLen >= 6u + 16u + 8u
-                && i + 16u + 16u <= i + 2u + (UINTN)KdeLen) {
-                IwlEapolCopyN(gIwlGtkAlt, Plain + i + 16, 16);
-                gIwlGtkAltOk = 1;
+            {
+                UINTN KeyBytes = (UINTN)KdeLen - 6u;
+                if (KeyBytes > 32u) {
+                    KeyBytes = 32u;
+                }
+                if (KeyBytes < 16u) {
+                    break;
+                }
+                IwlEapolCopyN(gIwlGtk, Plain + i + 8, KeyBytes);
+                gIwlGtkLen = (UINT8)KeyBytes;
+                /* CCMP 备选偏移；TKIP 用满 32B，勿把 +8 当 Alt */
+                if (gIwlGroupCipher != 0x02u && KeyBytes >= 24u) {
+                    IwlEapolCopyN(gIwlGtkAlt, Plain + i + 16, 16);
+                    gIwlGtkAltOk = 1;
+                }
             }
             {
                 char Line[24];
@@ -167,10 +178,12 @@ void IwlInstallGtk(const UINT8 *Eapol, UINTN EapLen, const UINT8 Kek[16]) {
                 Line[n++] = Hex[2];
                 Line[n++] = Hex[3];
                 Line[n++] = ' ';
-                Line[n++] = 'o';
+                Line[n++] = 'k';
+                Line[n++] = 'b';
                 Line[n++] = '=';
-                Line[n++] = '0';
-                Line[n++] = '8';
+                HalSerialFormatHex(Hex, gIwlGtkLen, 2);
+                Line[n++] = Hex[2];
+                Line[n++] = Hex[3];
                 if (gIwlGtkAltOk) {
                     Line[n++] = '+';
                 }

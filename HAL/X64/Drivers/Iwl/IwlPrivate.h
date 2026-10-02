@@ -117,10 +117,12 @@ int IwlRxTryDecrypt(UINT8 *Frame, UINTN FLen, UINTN HdrLen, int FwDec,
                     UINTN *BodyOff, UINTN *BodyLen);
 void IwlLogDataTx(const IWL_RX_PKT *Pkt, UINTN Len);
 extern UINT8 gIwlPtk[16];
-extern UINT8 gIwlGtk[16];
-extern UINT8 gIwlGtkAlt[16]; /* 刀 #182：KdeLen 大时 +16 备选 */
+extern UINT8 gIwlGtk[32]; /* CCMP=16；TKIP TK=32（刀 wifi-tkip） */
+extern UINT8 gIwlGtkAlt[16]; /* 刀 #182：KdeLen 大时 +16 备选（CCMP） */
 extern UINT8 gIwlGtkId; /* 刀 #179：GTK KDE KeyID（帧头 KeyID=2 常见） */
 extern UINT8 gIwlGtkAltOk; /* 1=Alt 有效 */
+extern UINT8 gIwlGtkLen; /* 已装 GTK 字节数 16/32 */
+extern UINT8 gIwlGroupCipher; /* RSN suite 末字节：2=TKIP 4=CCMP */
 /* 刀 #174：AssocReq 自建 STA RSN；M2 Key Data 必须同一份 */
 extern UINT8 gIwlStaRsn[32];
 extern UINT8 gIwlStaRsnLen;
@@ -227,6 +229,10 @@ int IwlPbkdf2Sha1(const char *Pass, const UINT8 *Salt, UINTN SaltLen,
                   UINT32 Iter, UINT8 *Out, UINTN OutLen);
 int IwlCcmpEncrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame, UINTN HdrLen, UINTN BodyLen);
 int IwlCcmpDecrypt(const UINT8 Key[16], UINT64 Pn, UINT8 *Frame, UINTN HdrLen, UINTN BodyLen);
+/* PR-N-wifi-tkip：CryptLen=IV 后密文（MSDU+MIC+ICV）；成功则 MSDU 长=CryptLen-12 */
+int IwlTkipDecrypt(const UINT8 Tk[32], UINT8 *Frame, UINTN HdrLen, UINTN CryptLen);
+int IwlTkipMichaelOk(const UINT8 Tk[32], const UINT8 *Frame, UINTN HdrLen,
+                     const UINT8 *Payload, UINTN DataLen);
 
 #ifndef IWL_LOG_VERBOSE
 #define IWL_LOG_VERBOSE 0 /* 1=成功里程碑/FH/rxraw/cmdq 等全开黄字 */

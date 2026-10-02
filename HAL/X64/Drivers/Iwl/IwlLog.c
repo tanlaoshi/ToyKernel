@@ -52,12 +52,14 @@ void IwlLogBound(void) {
     ToyLogBoot(Line);
 }
 
-/* 安静默认：成功路径只留 IwlLogBound；异常仍黄字；VERBOSE=1 全开 */
+/* 安静默认：成功路径只留 IwlLogBound；异常 + 手测关键黄字仍出；VERBOSE=1 全开 */
 static int IwlTagAlert(const char *Tag) {
     static const char *const Keys[] = {
         "fail", "miss", "soft", "stall", "bad", "nocfg",
         "deauth", "disassoc", "oom", "=none", "=disc",
         "=norsn", "=wpa3", "=to", "=skip", "gtk=no", "bar=novm",
+        /* 手测：TKIP/组播/DHCP Offer（Bound 一行不够验收） */
+        "rx=tkip", "rx=mic", "rx=off", "gtk=", "assoc=gc=",
         0
     };
     int i;

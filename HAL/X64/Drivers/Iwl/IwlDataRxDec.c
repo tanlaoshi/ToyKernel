@@ -1,12 +1,12 @@
 /*
- * IwlDataRxDec.c — 数据面 CCMP / 固件已解（PR-F-iwl-4）
+ * IwlDataRxDec.c — 数据面 CCMP / TKIP / 固件已解（PR-F-iwl-4 + wifi-tkip）
  */
 #include "IwlPrivate.h"
 #include "HalSerial.h"
 
-/* KeyID≠0 优先 GTK（组播 Offer）；KeyID=0 优先 PTK；刀 #182 再试 GtkAlt */
-static int IwlDecryptEither(UINT8 *Frame, UINT64 Pn, UINTN MacHdr,
-                            UINTN CryptBody, UINT8 KeyId) {
+/* KeyID≠0 优先 GTK；KeyID=0 优先 PTK；CCMP 可试 GtkAlt */
+static int IwlDecryptCcmp(UINT8 *Frame, UINT64 Pn, UINTN MacHdr,
+                          UINTN CryptBody, UINT8 KeyId) {
     if (KeyId != 0) {
         if (IwlCcmpDecrypt(gIwlGtk, Pn, Frame, MacHdr, CryptBody)) {
             return 1;
@@ -105,10 +105,6 @@ int IwlRxTryDecrypt(UINT8 *Frame, UINTN FLen, UINTN HdrLen, int FwDec,
                     UINTN *BodyOff, UINTN *BodyLen) {
     UINT64 Pn;
 
-    /*
-     * 刀 #180：固件已解（MIC_OK|DEC_DONE）→ 跳过主机 CCMP。
-     * 布局仍 [mac][ccmp8][明文]；MIC 多半被 RADA 剥掉。
-     */
     if (FwDec) {
         if (*BodyLen < 8u) {
             return 0;
@@ -118,48 +114,71 @@ int IwlRxTryDecrypt(UINT8 *Frame, UINTN FLen, UINTN HdrLen, int FwDec,
         if (*BodyLen >= 8u
             && !(Frame[*BodyOff] == 0xAA && Frame[*BodyOff + 1] == 0xAA)
             && *BodyLen >= 16u) {
-            *BodyLen -= 8u; /* MIC 仍在 */
+            *BodyLen -= 8u;
         }
         return 1;
     }
-    if (*BodyLen < 8u + 8u) {
-        return 0; /* CCMP + MIC */
-    }
-    /* PN + KeyID from CCMP hdr */
-    Pn = (UINT64)Frame[*BodyOff]
-       | ((UINT64)Frame[*BodyOff + 1] << 8)
-       | ((UINT64)Frame[*BodyOff + 4] << 16)
-       | ((UINT64)Frame[*BodyOff + 5] << 24)
-       | ((UINT64)Frame[*BodyOff + 6] << 32)
-       | ((UINT64)Frame[*BodyOff + 7] << 40);
-    /*
-     * 刀 #178：MAC 头长单独传给 CCMP；勿把 CCMP 算进 HdrLen（QoS AAD）。
-     * Layout [mac][ccmp8][body][mic8]。
-     */
+
     {
         UINT8 KeyId = (UINT8)((Frame[*BodyOff + 3] >> 6) & 3u);
-        UINTN CryptBody = FLen - HdrLen - 8u - 8u;
-        int Ok = IwlDecryptEither(Frame, Pn, HdrLen, CryptBody, KeyId);
+        int UseTkip = (gIwlGroupCipher == 0x02u && KeyId != 0
+                       && gIwlGtkLen >= 32u);
 
-        /* 刀 #179：byte_count 可能含 FCS(4)；再试 -4/-8 */
-        if (!Ok && CryptBody > 4u) {
-            Ok = IwlDecryptEither(Frame, Pn, HdrLen, CryptBody - 4u, KeyId);
-            if (Ok) {
-                CryptBody -= 4u;
+        /* TKIP 组播：IV8 + MSDU + MIC8 + ICV4 */
+        if (UseTkip) {
+            UINTN CryptLen = FLen - HdrLen - 8u;
+            if (CryptLen < 12u) {
+                return 0;
             }
-        }
-        if (!Ok && CryptBody > 8u) {
-            Ok = IwlDecryptEither(Frame, Pn, HdrLen, CryptBody - 8u, KeyId);
-            if (Ok) {
-                CryptBody -= 8u;
+            if (!IwlTkipDecrypt(gIwlGtk, Frame, HdrLen, CryptLen)) {
+                IwlRxLogMicFail(Frame, KeyId);
+                return 0;
             }
+            {
+                static int sTkipLog;
+
+                if (!sTkipLog) {
+                    sTkipLog = 1;
+                    IwlLogStage("rx=tkip");
+                }
+            }
+            *BodyOff = HdrLen + 8u;
+            *BodyLen = CryptLen - 12u;
+            return 1;
         }
-        if (!Ok) {
-            IwlRxLogMicFail(Frame, KeyId);
+
+        if (*BodyLen < 8u + 8u) {
             return 0;
         }
-        *BodyOff = HdrLen + 8u;
-        *BodyLen = CryptBody;
+        Pn = (UINT64)Frame[*BodyOff]
+           | ((UINT64)Frame[*BodyOff + 1] << 8)
+           | ((UINT64)Frame[*BodyOff + 4] << 16)
+           | ((UINT64)Frame[*BodyOff + 5] << 24)
+           | ((UINT64)Frame[*BodyOff + 6] << 32)
+           | ((UINT64)Frame[*BodyOff + 7] << 40);
+        {
+            UINTN CryptBody = FLen - HdrLen - 8u - 8u;
+            int Ok = IwlDecryptCcmp(Frame, Pn, HdrLen, CryptBody, KeyId);
+
+            if (!Ok && CryptBody > 4u) {
+                Ok = IwlDecryptCcmp(Frame, Pn, HdrLen, CryptBody - 4u, KeyId);
+                if (Ok) {
+                    CryptBody -= 4u;
+                }
+            }
+            if (!Ok && CryptBody > 8u) {
+                Ok = IwlDecryptCcmp(Frame, Pn, HdrLen, CryptBody - 8u, KeyId);
+                if (Ok) {
+                    CryptBody -= 8u;
+                }
+            }
+            if (!Ok) {
+                IwlRxLogMicFail(Frame, KeyId);
+                return 0;
+            }
+            *BodyOff = HdrLen + 8u;
+            *BodyLen = CryptBody;
+        }
     }
     return 1;
 }

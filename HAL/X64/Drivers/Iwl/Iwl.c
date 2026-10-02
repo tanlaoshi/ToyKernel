@@ -31,10 +31,12 @@ UINT8 gIwlMac[6];
 UINT8 gIwlBssid[6];
 UINT16 gIwlAid;
 UINT8 gIwlPtk[16];
-UINT8 gIwlGtk[16];
+UINT8 gIwlGtk[32];
 UINT8 gIwlGtkAlt[16];
 UINT8 gIwlGtkId;
 UINT8 gIwlGtkAltOk;
+UINT8 gIwlGtkLen;
+UINT8 gIwlGroupCipher = 0x04; /* 默认 CCMP */
 UINT8 gIwlTxStaId = IWL_AUX_STA_ID;
 
 static void IwlMakeLocalMac(void) {

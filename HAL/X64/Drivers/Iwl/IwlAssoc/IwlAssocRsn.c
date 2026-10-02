@@ -43,6 +43,7 @@ UINTN IwlBuildStaRsn(UINT8 *Out, UINTN Cap) {
         Group[1] = R[5];
         Group[2] = R[6];
         Group[3] = R[7];
+        gIwlGroupCipher = R[7]; /* 2=TKIP 4=CCMP；组播解密选型 */
         Off = 8;
         if (Off + 2 <= Rl) {
             PairCnt = (UINT16)R[Off] | ((UINT16)R[Off + 1] << 8);
