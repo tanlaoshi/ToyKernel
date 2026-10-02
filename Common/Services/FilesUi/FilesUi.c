@@ -4,7 +4,7 @@
  * 列表：进目录 / 开 ELF / 预览文本
  * 写：d/Del 删除（Y/N 确认）；n 新建目录；f 新建空文件；r 重命名
  * U1：左栏固定宽 + 右栏列表
- * U2：侧栏按已挂载卷列出（TOYOS 置顶；有 TOYOS 时附 Apps/Assets）；跨盘标 drive
+ * U2：侧栏按已挂载卷列出（TOYOS 置顶）；跨盘标 drive
  * 开窗一次填满客户区后再淡入（勿空框 Present）
  * U3：右栏再分 列表 | 预览；空态/焦点行与 G12 一致
  * PR-S-filesui-split-1：Paint* → FilesUiPaint.c；本文件为全局宿主。

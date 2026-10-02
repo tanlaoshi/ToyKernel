@@ -1,7 +1,7 @@
 /*
  * FilesUiNav.c — Files 路径/卷侧栏/预览
  *
- * 侧栏按 FileSystem 已挂载卷动态生成；TOYOS 置顶；有 TOYOS 时附 Apps/Assets。
+ * 侧栏按 FileSystem 已挂载卷动态生成；TOYOS 置顶。
  */
 #include "FilesUiPrivate.h"
 #include "Fat.h"
@@ -174,25 +174,10 @@ void RebuildPlaces(void) {
         PlaceN++;
     }
 
-    /* 有 TOYOS 时恢复 Apps/Assets 捷径（旧 U2） */
-    if (ToyVol >= 0 && PlaceN + 2 <= FILES_PLACE_MAX) {
-        CopyStr(gPlaceLabels[PlaceN], FILES_PLACE_LABEL_MAX, "Apps/");
-        CopyStr(gPlacePaths[PlaceN], FILES_PLACE_PATH_MAX, "TOYOS:Apps");
-        gPlaces[PlaceN].Label = gPlaceLabels[PlaceN];
-        gPlaces[PlaceN].Path = gPlacePaths[PlaceN];
-        PlaceN++;
-
-        CopyStr(gPlaceLabels[PlaceN], FILES_PLACE_LABEL_MAX, "Assets/");
-        CopyStr(gPlacePaths[PlaceN], FILES_PLACE_PATH_MAX, "TOYOS:Assets");
-        gPlaces[PlaceN].Label = gPlaceLabels[PlaceN];
-        gPlaces[PlaceN].Path = gPlacePaths[PlaceN];
-        PlaceN++;
-    }
-
     gPlaceCount = PlaceN;
 }
 
-/* cwd 是否落在该侧栏项（卷根、卷内子路径、或 Apps/Assets） */
+/* cwd 是否落在该侧栏项（卷根或卷内子路径） */
 int PlaceMatches(int Idx) {
     const char *P;
     int n;

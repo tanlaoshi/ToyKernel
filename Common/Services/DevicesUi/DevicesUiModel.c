@@ -119,3 +119,29 @@ void DevicesUiReload(void) {
     }
     DevicesUiRebuildFilt();
 }
+
+void DevicesUiFitText(char *S, UINT32 MaxW) {
+    UINTN N;
+
+    if (!S) {
+        return;
+    }
+    if (MaxW < 8u) {
+        S[0] = 0;
+        return;
+    }
+    while (S[0] && FontStringWidth(S) > MaxW) {
+        N = 0;
+        while (S[N]) {
+            N++;
+        }
+        if (N == 0) {
+            break;
+        }
+        N--;
+        while (N > 0 && (((UINT8)S[N]) & 0xC0u) == 0x80u) {
+            N--;
+        }
+        S[N] = 0;
+    }
+}

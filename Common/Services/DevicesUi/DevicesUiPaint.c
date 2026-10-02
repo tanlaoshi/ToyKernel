@@ -269,6 +269,7 @@ void DevicesUiPaint(void) {
                 Line[N++] = Nm[k];
             }
             Line[N] = 0;
+            DevicesUiFitText(Line, gDevUiListW > 12u ? gDevUiListW - 12u : gDevUiListW);
             HalVideoDrawStringAt(gDevUiListX + 6,
                                  gDevUiListY + (UINT32)Row * DEVUI_ROW_H + 4,
                                  Line, Fg);

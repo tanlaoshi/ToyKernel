@@ -220,9 +220,13 @@ void StorePaintList(void) {
         Row[k++] = ' ';
         Row[k++] = '[';
         if (Tab[Ci].Origin == STORE_SRC_NET) {
-            Row[k++] = (char)0xe7; Row[k++] = (char)0xbd; Row[k++] = (char)0x91; /* 网 */
+            Row[k++] = 'N';
+            Row[k++] = 'e';
+            Row[k++] = 't';
         } else {
-            Row[k++] = (char)0xe6; Row[k++] = (char)0x9c; Row[k++] = (char)0xac; /* 本 */
+            Row[k++] = 'L';
+            Row[k++] = 'o';
+            Row[k++] = 'c';
         }
         Row[k++] = ']';
         Row[k++] = ' ';

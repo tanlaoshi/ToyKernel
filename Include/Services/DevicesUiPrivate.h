@@ -17,7 +17,7 @@
 
 #define DEVUI_ROW_H     22u
 #define DEVUI_PAD       8u
-#define DEVUI_SIDE_W    96u
+#define DEVUI_SIDE_W    128u
 #define DEVUI_MAP_MAX   256
 #define DEVUI_FILT_ALL  0
 #define DEVUI_FILT_BOUND 1
@@ -47,6 +47,8 @@ void DevicesUiReload(void);
 void DevicesUiRebuildFilt(void);
 void DevicesUiFormatPci(const DEVICE_NODE *Dev, char *Out, UINTN Max);
 void DevicesUiFormatIds(const DEVICE_NODE *Dev, char *Out, UINTN Max);
+/* 就地截断 UTF-8，使 FontStringWidth(S) ≤ MaxW */
+void DevicesUiFitText(char *S, UINT32 MaxW);
 void DevicesUiPaint(void);
 
 /*

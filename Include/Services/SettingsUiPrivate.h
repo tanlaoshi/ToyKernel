@@ -12,6 +12,7 @@
 #include "Theme.h"
 #include "Font.h"
 #include "UI.h"
+#include "UiLayout.h"
 #include "Hal.h"
 #include "HalConsole.h"
 #include "Debug.h"
@@ -53,10 +54,9 @@ typedef struct {
 
 /* ===== 宏（值不变；颜色/缩放数组长度写死，供跨 TU 使用） ===== */
 #define SETTINGS_HIT_MAX  48
-#define SETTINGS_SIDE_W   128u
-#define SETTINGS_SIDE_BG  0x00A0A8B0u
+#define SETTINGS_SIDE_W   UI_LAYOUT_SIDE_W
 #define SETTINGS_PREV_BG  0x00D8D8E0u
-#define SETTINGS_SB_W     12u
+#define SETTINGS_SB_W     UI_LAYOUT_SB_W
 
 #define DESKTOP_COLOR_COUNT 6
 /* 首项 Wallpaper：Color 哨兵，Apply 时开壁纸而非铺纯色 */
