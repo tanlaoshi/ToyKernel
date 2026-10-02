@@ -1,5 +1,5 @@
 ARCH ?= x86_64
-# PR-B2：Arm/RiscV 板包选择 → HAL/<Arch>/Board/<board>/；x86 桌面真机走 1.3c，忽略 BOARD
+# PR-B2：Arm/RiscV 板包选择 → CodeA-HAL/<Arch>/Board/<board>/；x86 桌面真机走 1.3c，忽略 BOARD
 BOARD ?= virt
 DEBUG ?= 0
 NO_COM1 ?= 0
@@ -123,28 +123,28 @@ INCLUDES_COMMON = -IInclude \
                   -IInclude/Driver \
                   -IInclude/Library \
                   -IInclude/Services \
-                  -ICommon/Library \
-                  -IFonts \
-                  -IHAL/$(HAL_ARCH) \
-                  -IHAL/$(HAL_ARCH)/Hal
+                  -ICodeB-Library \
+                  -ICodeB-Library/Fonts \
+                  -ICodeA-HAL/$(HAL_ARCH) \
+                  -ICodeA-HAL/$(HAL_ARCH)/Hal
 INCLUDES_HAL    = $(INCLUDES_COMMON) \
-                  -IHAL/$(HAL_ARCH)/Drivers \
-                  -IHAL/$(HAL_ARCH)/Drivers/XHCI \
-                  -IHAL/$(HAL_ARCH)/Drivers/Ehci \
-                  -IHAL/$(HAL_ARCH)/Drivers/Uhci \
-                  -IHAL/$(HAL_ARCH)/Drivers/Ps2 \
-                  -IHAL/$(HAL_ARCH)/Drivers/Ata \
-                  -IHAL/$(HAL_ARCH)/Drivers/Msc \
-                  -IHAL/$(HAL_ARCH)/Drivers/Net \
-                  -IHAL/$(HAL_ARCH)/Drivers/Iwl
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/XHCI \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Ehci \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Uhci \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Ps2 \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Ata \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Msc \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Net \
+                  -ICodeA-HAL/$(HAL_ARCH)/Drivers/Iwl
 
 # PR-B2：非 x86 必须选中 Board 包（默认 virt）；Common 不 -I 板目录
 ifeq ($(ARCH),x86_64)
 BOARD_DIR :=
 else
-BOARD_DIR := HAL/$(HAL_ARCH)/Board/$(BOARD)
+BOARD_DIR := CodeA-HAL/$(HAL_ARCH)/Board/$(BOARD)
 ifeq ($(wildcard $(BOARD_DIR)/README.md),)
-$(error BOARD=$(BOARD): missing $(BOARD_DIR)/ (see HAL/Board/README.md); default BOARD=virt)
+$(error BOARD=$(BOARD): missing $(BOARD_DIR)/ (see CodeA-HAL/Board/README.md); default BOARD=virt)
 endif
 INCLUDES_HAL += -I$(BOARD_DIR)
 endif
@@ -183,8 +183,8 @@ ifeq ($(LWIP),1)
 CFLAGS_BASE += -DTOY_LWIP=1
 LWIPDIR = ThirdParty/lwip/src
 LWIPINCLUDES = -I$(LWIPDIR)/include \
-               -IHAL/$(HAL_ARCH)/LwIp/include \
-               -IHAL/$(HAL_ARCH)/LwIp
+               -ICodeA-HAL/$(HAL_ARCH)/LwIp/include \
+               -ICodeA-HAL/$(HAL_ARCH)/LwIp
 LWIPCORE = \
 	$(LWIPDIR)/core/init.c \
 	$(LWIPDIR)/core/def.c \
@@ -210,39 +210,40 @@ LWIPCORE = \
 	$(LWIPDIR)/core/ipv4/dhcp.c \
 	$(LWIPDIR)/netif/ethernet.c
 LWIPOBJS = $(patsubst %.c,$(BUILDDIR)/%.o,$(LWIPCORE))
-LWIP_PORT_SRCS = HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_ping.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_tcpecho.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_udp.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_tcpclient.c \
-                 HAL/$(HAL_ARCH)/LwIp/toy_socket.c
-LWIP_PORT_OBJS = $(patsubst HAL/$(HAL_ARCH)/LwIp/%.c,$(HALDIR)/LwIp/%.o,$(LWIP_PORT_SRCS))
+LWIP_PORT_SRCS = CodeA-HAL/$(HAL_ARCH)/LwIp/toy_netif.c \
+                 CodeA-HAL/$(HAL_ARCH)/LwIp/toy_ping.c \
+                 CodeA-HAL/$(HAL_ARCH)/LwIp/toy_tcpecho.c \
+                 CodeA-HAL/$(HAL_ARCH)/LwIp/toy_udp.c \
+                 CodeA-HAL/$(HAL_ARCH)/LwIp/toy_tcpclient.c \
+                 CodeA-HAL/$(HAL_ARCH)/LwIp/toy_socket.c
+LWIP_PORT_OBJS = $(patsubst CodeA-HAL/$(HAL_ARCH)/LwIp/%.c,$(HALDIR)/LwIp/%.o,$(LWIP_PORT_SRCS))
 endif
 
 CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON) $(LWIPINCLUDES)
-CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -IHAL/$(HAL_ARCH)/LwIp
+CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -ICodeA-HAL/$(HAL_ARCH)/LwIp
 ifneq ($(BOARD_DIR),)
 CFLAGS_HAL += -DTOY_BOARD=\"$(BOARD)\"
 endif
 
-LDFLAGS = -nostdlib -static -z noexecstack -T HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
+LDFLAGS = -nostdlib -static -z noexecstack -T CodeA-HAL/$(HAL_ARCH)/link.ld -e KernelEntry $(LDFLAGS_ARCH)
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
 LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
-# 产物树：Common、Services、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
+# 产物树：Common、Services、Library、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
 # 有 ToyOS 树时由 build.sh 传入 BUILDDIR=$TOYOS_ROOT/Build/ToyKernel；单仓默认 ./Build。
-# 各 Arch 的 Kernel.elf / HAL .o 留在 $(BUILDDIR)/HAL/<Arch>/，换架构不删其它 Arch 成品。
+# 各 Arch 的 Kernel.elf / HAL .o 留在 $(BUILDDIR)/CodeA-HAL/<Arch>/，换架构不删其它 Arch 成品。
 BUILDDIR ?= Build
-HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
+HALDIR = $(BUILDDIR)/CodeA-HAL/$(HAL_ARCH)
 
-# Common / Services / Core / User / Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
+# Common / Services / Library / Core / User / Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
 # （如 EM:62 x86_64 → aarch64/riscv）。勿只清 Common。
 ARCH_STAMP := $(BUILDDIR)/.toy_arch
 _STAMP_ARCH := $(shell cat $(ARCH_STAMP) 2>/dev/null)
 ifneq ($(_STAMP_ARCH),$(ARCH))
-$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning $(BUILDDIR)/{Common,Services,Core,User,Fonts,lwip})
-$(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Services' '$(BUILDDIR)/Core' '$(BUILDDIR)/User' \
-	'$(BUILDDIR)/Fonts' '$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
+$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning $(BUILDDIR)/{CodeA–E,lwip})
+$(shell rm -rf '$(BUILDDIR)/CodeA-HAL' '$(BUILDDIR)/CodeB-Library' \
+	'$(BUILDDIR)/CodeC-Core' '$(BUILDDIR)/CodeC-Modules' '$(BUILDDIR)/CodeD-Services' '$(BUILDDIR)/CodeE-User' \
+	'$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
 endif
 $(shell mkdir -p '$(BUILDDIR)' && echo '$(ARCH)' > '$(ARCH_STAMP)')
 
@@ -267,91 +268,91 @@ $(DEMO_STAMP): FORCE
 	@echo '$(TOY_DEMO_DRIVER)' > $@.new
 	@if [ ! -f $@ ] || ! cmp -s $@.new $@; then mv $@.new $@; else rm -f $@.new; fi
 
-CORE_SRCS     := $(wildcard Core/*.c)
-CORE_SRCS     += $(wildcard Core/Kernel/*.c)
-CORE_SRCS     += $(wildcard Core/Scheduler/*.c)
-CORE_SRCS     += $(wildcard Core/Process/*.c)
-CORE_SRCS     += $(wildcard Core/TaskFd/*.c)
-CORE_SRCS     += $(wildcard Core/Syscall/*.c)
-CORE_SRCS     += $(wildcard Core/VirtualMemory/*.c)
-CORE_SRCS     += $(wildcard Core/PhysicalMemory/*.c)
-CORE_SRCS     += $(wildcard Core/Device/*.c)
-SERVICES_SRCS := $(wildcard Services/*.c)
-# Services/*.c 不进子目录；每个模块开目录时补一行
-SERVICES_SRCS += $(wildcard Services/Locale/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiDrag/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiDraw/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiPointer/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiResize/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiUser/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiOpen/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiBackup/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiFocus/*.c)
-SERVICES_SRCS += $(wildcard Services/Console/*.c)
-SERVICES_SRCS += $(wildcard Services/Desktop/*.c)
-SERVICES_SRCS += $(wildcard Services/FilesUi/*.c)
-SERVICES_SRCS += $(wildcard Services/Store/*.c)
-SERVICES_SRCS += $(wildcard Services/SettingsUi/*.c)
-SERVICES_SRCS += $(wildcard Services/Theme/*.c)
-SERVICES_SRCS += $(wildcard Services/StoreUi/*.c)
-SERVICES_SRCS += $(wildcard Services/DevicesUi/*.c)
-SERVICES_SRCS += $(wildcard Services/EditUi/*.c)
-SERVICES_SRCS += $(wildcard Services/TtyUi/*.c)
-SERVICES_SRCS += $(wildcard Services/StoreNet/*.c)
-SERVICES_SRCS += $(wildcard Services/Db/*.c)
-SERVICES_SRCS += $(wildcard Services/FileSystem/*.c)
-SERVICES_SRCS += $(wildcard Services/Tasks/*.c)
-SERVICES_SRCS += $(wildcard Services/ShellCommands/*.c)
-SERVICES_SRCS += $(wildcard Services/Tcp/*.c)
-SERVICES_SRCS += $(wildcard Services/LwIp/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiCompose/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiCursor/*.c)
-SERVICES_SRCS += $(wildcard Services/GuiWm/*.c)
-LIB_SRCS      := $(wildcard Common/Library/*.c)
-LIB_SRCS      += $(wildcard Common/Library/Gpt/*.c)
-LIB_SRCS      += $(wildcard Common/Library/Elf/*.c)
-LIB_SRCS      += $(wildcard Common/Library/UI/*.c)
-FONT_SRCS     := $(wildcard Common/Fonts/*.c)
-DRIVER_SRCS   := $(wildcard HAL/$(HAL_ARCH)/Drivers/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Video/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Net/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/VirtioNet/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/E1000/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Alx/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Rtl/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Wifi/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Iwl/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Iwl/*/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ehci/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Uhci/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ps2/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Nvme/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ahci/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Ata/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Msc/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Igpu/*.c)
-DRIVER_SRCS   += $(wildcard HAL/$(HAL_ARCH)/Drivers/Hda/*.c)
-# PR-H-xhci-split-8：Drivers/XHCI/*.c（Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c
-XHCI_SPLIT_SRCS := $(wildcard HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
+CORE_SRCS     := $(wildcard CodeC-Core/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/Kernel/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/Scheduler/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/Process/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/TaskFd/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/Syscall/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/VirtualMemory/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/PhysicalMemory/*.c)
+CORE_SRCS     += $(wildcard CodeC-Core/Device/*.c)
+SERVICES_SRCS := $(wildcard CodeD-Services/*.c)
+# CodeD-Services/*.c 不进子目录；每个模块开目录时补一行
+SERVICES_SRCS += $(wildcard CodeD-Services/Locale/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiDrag/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiDraw/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiPointer/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiResize/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiUser/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiOpen/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiBackup/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiFocus/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Console/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Desktop/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/FilesUi/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Store/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/SettingsUi/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Theme/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/StoreUi/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/DevicesUi/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/EditUi/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/TtyUi/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/StoreNet/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Db/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/FileSystem/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Tasks/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/ShellCommands/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/Tcp/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/LwIp/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiCompose/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiCursor/*.c)
+SERVICES_SRCS += $(wildcard CodeD-Services/GuiWm/*.c)
+LIB_SRCS      := $(wildcard CodeB-Library/*.c)
+LIB_SRCS      += $(wildcard CodeB-Library/Gpt/*.c)
+LIB_SRCS      += $(wildcard CodeB-Library/Elf/*.c)
+LIB_SRCS      += $(wildcard CodeB-Library/UI/*.c)
+FONT_SRCS     := $(wildcard CodeB-Library/Fonts/*.c)
+DRIVER_SRCS   := $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Video/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Net/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/VirtioNet/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/E1000/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Alx/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Rtl/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Wifi/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Iwl/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Iwl/*/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Ehci/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Uhci/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Ps2/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Nvme/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Ahci/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Ata/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Msc/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Igpu/*.c)
+DRIVER_SRCS   += $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/Hda/*.c)
+# PR-H-xhci-split-8：Drivers/XHCI/*.c（CodeC-Core/Port/Device/Hid/Hub/Mouse/Irq/Diag）；已删单体 Drivers/XHCI.c
+XHCI_SPLIT_SRCS := $(wildcard CodeA-HAL/$(HAL_ARCH)/Drivers/XHCI/*.c)
 DRIVER_SRCS   += $(XHCI_SPLIT_SRCS)
-ARCH_SRCS     := $(wildcard HAL/$(HAL_ARCH)/*.c)
-ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/Hal/*.c)
-ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/Hal/HalSerial/*.c)
-ARCH_SRCS     += $(wildcard HAL/$(HAL_ARCH)/AcpiMadt/*.c)
-ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
-ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
+ARCH_SRCS     := $(wildcard CodeA-HAL/$(HAL_ARCH)/*.c)
+ARCH_SRCS     += $(wildcard CodeA-HAL/$(HAL_ARCH)/Hal/*.c)
+ARCH_SRCS     += $(wildcard CodeA-HAL/$(HAL_ARCH)/Hal/HalSerial/*.c)
+ARCH_SRCS     += $(wildcard CodeA-HAL/$(HAL_ARCH)/AcpiMadt/*.c)
+ARCH_ASM_ALL  := $(wildcard CodeA-HAL/$(HAL_ARCH)/*.S)
+ARCH_ASM      := $(filter-out CodeA-HAL/$(HAL_ARCH)/SmpTrampoline.S CodeA-HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
 
-CORE_OBJS     := $(patsubst Core/%.c,$(BUILDDIR)/Core/%.o,$(CORE_SRCS))
-SERVICES_OBJS := $(patsubst Services/%.c,$(BUILDDIR)/Services/%.o,$(SERVICES_SRCS))
-LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
-FONT_OBJS     := $(patsubst Common/Fonts/%.c,$(BUILDDIR)/Common/Fonts/%.o,$(FONT_SRCS))
-DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
-ARCH_OBJS     := $(patsubst HAL/$(HAL_ARCH)/%.c,$(HALDIR)/%.o,$(ARCH_SRCS))
-ARCH_ASM_OBJS := $(patsubst HAL/$(HAL_ARCH)/%.S,$(HALDIR)/%.o,$(ARCH_ASM))
+CORE_OBJS     := $(patsubst CodeC-Core/%.c,$(BUILDDIR)/CodeC-Core/%.o,$(CORE_SRCS))
+SERVICES_OBJS := $(patsubst CodeD-Services/%.c,$(BUILDDIR)/CodeD-Services/%.o,$(SERVICES_SRCS))
+LIB_OBJS      := $(patsubst CodeB-Library/%.c,$(BUILDDIR)/CodeB-Library/%.o,$(LIB_SRCS))
+FONT_OBJS     := $(patsubst CodeB-Library/Fonts/%.c,$(BUILDDIR)/CodeB-Library/Fonts/%.o,$(FONT_SRCS))
+DRIVER_OBJS   := $(patsubst CodeA-HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
+ARCH_OBJS     := $(patsubst CodeA-HAL/$(HAL_ARCH)/%.c,$(HALDIR)/%.o,$(ARCH_SRCS))
+ARCH_ASM_OBJS := $(patsubst CodeA-HAL/$(HAL_ARCH)/%.S,$(HALDIR)/%.o,$(ARCH_ASM))
 
 ifeq ($(ARCH),x86_64)
 EXTRA_OBJS = $(HALDIR)/User_hello_blob.o $(HALDIR)/SmpTramp_blob.o
-# 演示 ELF/OBJ 进 Build/User/（源在 User/Apps/）；CRT/Library 仍就地编
+# 演示 ELF/OBJ 进 Build/CodeE-User/（源在 CodeE-User/Apps/）；CRT/Library 仍就地编
 USER_OUT = $(BUILDDIR)/User
 USER_HELLO_ELF = $(USER_OUT)/hello.elf
 USER_COUNT_ELF = $(USER_OUT)/count.elf
@@ -421,39 +422,39 @@ USER_NETLIB_OBJ = $(USER_OUT)/netlibdemo.o
 USER_SOCKDEMO_OBJ = $(USER_OUT)/sockdemo.o
 USER_CHAT_OBJ = $(USER_OUT)/chat.o
 USER_ENOSYS_OBJ = $(USER_OUT)/enosysdemo.o
-USER_LIB_TOY_GFX_OBJ = User/Library/ToyGfx/ToyGfx.o
-USER_LIB_TOY_UI_OBJ = User/Library/ToyUi/ToyUi.o
-USER_LIB_TOY_UI_WIDGETS_OBJ = User/Library/ToyUi/ToyUiWidgets.o
-USER_LIB_TOY_NET_OBJ = User/Library/ToyNet/ToyNet.o
-USER_LIB_FSUTIL_OBJ = User/Library/FsUtil/FsUtil.o
-USER_LIB_TOY_GFX_A = User/Library/ToyGfx/libToyGfx.a
-USER_LIB_TOY_UI_A = User/Library/ToyUi/libToyUi.a
-USER_LIB_TOY_NET_A = User/Library/ToyNet/libToyNet.a
-USER_LIB_FSUTIL_A = User/Library/FsUtil/libFsUtil.a
-USER_LIB_TOYOS_A = User/Library/ToyOs/libtoyos.a
-USER_LIB_TOYOS_OBJS = User/crt/string.o User/crt/printf.o User/crt/malloc.o \
-	User/crt/errno.o User/crt/unistd.o User/crt/sleep.o User/crt/stdlib.o User/crt/signal.o \
-	User/crt/dirent.o User/crt/stdio.o User/crt/socket.o User/crt/cwd.o User/crt/sched.o \
-	User/crt/proc.o User/crt/stat.o User/crt/thread_root.o User/crt/pthread.o
-USER_LD = User/user.ld
+USER_LIB_TOY_GFX_OBJ = CodeE-User/Library/ToyGfx/ToyGfx.o
+USER_LIB_TOY_UI_OBJ = CodeE-User/Library/ToyUi/ToyUi.o
+USER_LIB_TOY_UI_WIDGETS_OBJ = CodeE-User/Library/ToyUi/ToyUiWidgets.o
+USER_LIB_TOY_NET_OBJ = CodeE-User/Library/ToyNet/ToyNet.o
+USER_LIB_FSUTIL_OBJ = CodeE-User/Library/FsUtil/FsUtil.o
+USER_LIB_TOY_GFX_A = CodeE-User/Library/ToyGfx/libToyGfx.a
+USER_LIB_TOY_UI_A = CodeE-User/Library/ToyUi/libToyUi.a
+USER_LIB_TOY_NET_A = CodeE-User/Library/ToyNet/libToyNet.a
+USER_LIB_FSUTIL_A = CodeE-User/Library/FsUtil/libFsUtil.a
+USER_LIB_TOYOS_A = CodeE-User/Library/ToyOs/libtoyos.a
+USER_LIB_TOYOS_OBJS = CodeE-User/crt/string.o CodeE-User/crt/printf.o CodeE-User/crt/malloc.o \
+	CodeE-User/crt/errno.o CodeE-User/crt/unistd.o CodeE-User/crt/sleep.o CodeE-User/crt/stdlib.o CodeE-User/crt/signal.o \
+	CodeE-User/crt/dirent.o CodeE-User/crt/stdio.o CodeE-User/crt/socket.o CodeE-User/crt/cwd.o CodeE-User/crt/sched.o \
+	CodeE-User/crt/proc.o CodeE-User/crt/stat.o CodeE-User/crt/thread_root.o CodeE-User/crt/pthread.o
+USER_LD = CodeE-User/user.ld
 USER_LDFLAGS = -z noexecstack
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
-	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -IUser/include -IInclude -IInclude/Abi
-USER_ASFLAGS = -IUser/include -IInclude -IInclude/Abi
-USER_CRT_OBJS = User/crt/crt0.o User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
+	-fno-builtin -fno-pie -fno-pic -m64 -mno-red-zone -ICodeE-User/include -IInclude -IInclude/Abi
+USER_ASFLAGS = -ICodeE-User/include -IInclude -IInclude/Abi
+USER_CRT_OBJS = CodeE-User/crt/crt0.o CodeE-User/crt/syscall.o $(USER_LIB_TOYOS_OBJS)
 else
 EXTRA_OBJS = $(HALDIR)/Startup_asm.o
 # PR-B2：Board 包 .c（BoardConfig.h 仅 HAL -I；不进 Common）
 BOARD_SRCS := $(wildcard $(BOARD_DIR)/*.c)
 BOARD_OBJS := $(patsubst $(BOARD_DIR)/%.c,$(HALDIR)/Board/%.o,$(BOARD_SRCS))
 EXTRA_OBJS += $(BOARD_OBJS)
-# PR-R5：Arm/RiscV 共享 virtio/ramfb/DTB/HalVideo（HAL/Virt）；复用 x86 Video 绘制
-INCLUDES_HAL += -IHAL/X64/Drivers -IHAL/Virt
-VIRT_SRCS := $(wildcard HAL/Virt/*.c)
-VIRT_SRCS += $(wildcard HAL/Virt/VirtioNet/*.c)
-VIRT_OBJS := $(patsubst HAL/Virt/%.c,$(HALDIR)/Virt/%.o,$(VIRT_SRCS))
-VIRT_VIDEO_SRCS := $(wildcard HAL/X64/Drivers/Video/*.c)
-VIRT_VIDEO_OBJS := $(patsubst HAL/X64/Drivers/Video/%.c,$(HALDIR)/Drivers/Video/%.o,$(VIRT_VIDEO_SRCS))
+# PR-R5：Arm/RiscV 共享 virtio/ramfb/DTB/HalVideo（CodeA-HAL/Virt）；复用 x86 Video 绘制
+INCLUDES_HAL += -ICodeA-HAL/X64/Drivers -ICodeA-HAL/Virt
+VIRT_SRCS := $(wildcard CodeA-HAL/Virt/*.c)
+VIRT_SRCS += $(wildcard CodeA-HAL/Virt/VirtioNet/*.c)
+VIRT_OBJS := $(patsubst CodeA-HAL/Virt/%.c,$(HALDIR)/Virt/%.o,$(VIRT_SRCS))
+VIRT_VIDEO_SRCS := $(wildcard CodeA-HAL/X64/Drivers/Video/*.c)
+VIRT_VIDEO_OBJS := $(patsubst CodeA-HAL/X64/Drivers/Video/%.c,$(HALDIR)/Drivers/Video/%.o,$(VIRT_VIDEO_SRCS))
 EXTRA_OBJS += $(VIRT_OBJS) $(VIRT_VIDEO_OBJS)
 ifeq ($(ARCH),riscv)
 # RiscV virt MMIO 窗与 Arm 不同；Arm 用 VirtioMmio.c 内默认值
@@ -464,18 +465,18 @@ endif
 # PR-A12：本 arch 静态 HELLO.ELF（用户 VA @ 0x100000000）；放在 Arch 目录以免换架构互相覆盖
 USER_VIRT_DIR = $(HALDIR)/user
 ifeq ($(ARCH),arm64)
-USER_LD = User/user-arm64.ld
-USER_CRT0_SRC = User/crt/crt0_aarch64.S
-USER_SYSCALL_SRC = User/crt/syscall_aarch64.S
+USER_LD = CodeE-User/user-arm64.ld
+USER_CRT0_SRC = CodeE-User/crt/crt0_aarch64.S
+USER_SYSCALL_SRC = CodeE-User/crt/syscall_aarch64.S
 USER_LDFLAGS = -z noexecstack
 else
-USER_LD = User/user-riscv.ld
-USER_CRT0_SRC = User/crt/crt0_riscv.S
-USER_SYSCALL_SRC = User/crt/syscall_riscv.S
+USER_LD = CodeE-User/user-riscv.ld
+USER_CRT0_SRC = CodeE-User/crt/crt0_riscv.S
+USER_SYSCALL_SRC = CodeE-User/crt/syscall_riscv.S
 USER_LDFLAGS = -m elf64lriscv -z noexecstack
 endif
 USER_CFLAGS = -ffreestanding -nostdlib -O2 -Wall -Wextra -fno-stack-protector \
-	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -IUser/include -IInclude -IInclude/Abi
+	-fno-builtin -fno-pie -fno-pic $(ARCH_CFLAGS) -ICodeE-User/include -IInclude -IInclude/Abi
 ifeq ($(ARCH),arm64)
 # pthread __sync_*：内联原子，避免裸链依赖 __aarch64_swp4_sync（libgcc）
 USER_CFLAGS += -mno-outline-atomics
@@ -494,9 +495,9 @@ endif
 
 SCHEDULER ?= round-robin
 ifeq ($(SCHEDULER),round-robin)
-SCHED_SRCS := Common/Modules/SchedulerRoundRobin/SchedulerRoundRobin.c
+SCHED_SRCS := CodeC-Modules/SchedulerRoundRobin/SchedulerRoundRobin.c
 else ifeq ($(SCHEDULER),priority)
-SCHED_SRCS := Common/Modules/Student/SchedulerPriority/SchedulerPriority.c
+SCHED_SRCS := CodeC-Modules/Student/SchedulerPriority/SchedulerPriority.c
 CFLAGS_COMMON += -DTOY_SCHED_PRIORITY
 else
 $(error unknown SCHEDULER=$(SCHEDULER))
@@ -505,9 +506,9 @@ SCHED_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(SCHED_SRCS))
 
 MEMORY ?= bitmap
 ifeq ($(MEMORY),bitmap)
-MEMORY_SRCS := Common/Modules/PhysicalMemoryBitmap/PhysicalMemoryBitmap.c
+MEMORY_SRCS := CodeC-Modules/PhysicalMemoryBitmap/PhysicalMemoryBitmap.c
 else ifeq ($(MEMORY),bestfit)
-MEMORY_SRCS := Common/Modules/Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c
+MEMORY_SRCS := CodeC-Modules/Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c
 CFLAGS_COMMON += -DTOY_MEM_BESTFIT
 else
 $(error Unknown MEMORY: $(MEMORY))
@@ -516,13 +517,13 @@ MEMORY_OBJS := $(patsubst %.c,$(BUILDDIR)/%.o,$(MEMORY_SRCS))
 
 FS ?= fat
 ifeq ($(FS),fat)
-FS_SRCS := Common/Modules/FileSystemFat/FatFsOps.c \
-           $(wildcard Common/Modules/FileSystemFat/Fat/*.c) \
-           Common/Modules/FileSystemFat/FatIo.c \
-           Common/Modules/FileSystemFat/FatFormat.c
+FS_SRCS := CodeC-Modules/FileSystemFat/FatFsOps.c \
+           $(wildcard CodeC-Modules/FileSystemFat/Fat/*.c) \
+           CodeC-Modules/FileSystemFat/FatIo.c \
+           CodeC-Modules/FileSystemFat/FatFormat.c
 else ifeq ($(FS),ram)
-FS_SRCS := Common/Modules/Student/FileSystemRam/FileSystemRam.c \
-           Common/Modules/Student/FileSystemRam/FileSystemRamCompat.c
+FS_SRCS := CodeC-Modules/Student/FileSystemRam/FileSystemRam.c \
+           CodeC-Modules/Student/FileSystemRam/FileSystemRamCompat.c
 CFLAGS_COMMON += -DTOY_FS_RAM
 else
 $(error Unknown FS: $(FS))
@@ -537,8 +538,8 @@ ifeq ($(BRINGUP),1)
 # PR-B2：仍链 Board.o（Startup 横幅 BoardName；HalSerial 用 BoardConfig）
 OBJS = $(HALDIR)/Startup_asm.o \
        $(HALDIR)/Startup.o \
-       $(patsubst HAL/$(HAL_ARCH)/Hal/HalSerial/%.c,$(HALDIR)/Hal/HalSerial/%.o,$(wildcard HAL/$(HAL_ARCH)/Hal/HalSerial/*.c)) \
-       $(patsubst HAL/$(HAL_ARCH)/Hal/%.c,$(HALDIR)/Hal/%.o,$(wildcard HAL/$(HAL_ARCH)/Hal/HalSerial.c)) \
+       $(patsubst CodeA-HAL/$(HAL_ARCH)/Hal/HalSerial/%.c,$(HALDIR)/Hal/HalSerial/%.o,$(wildcard CodeA-HAL/$(HAL_ARCH)/Hal/HalSerial/*.c)) \
+       $(patsubst CodeA-HAL/$(HAL_ARCH)/Hal/%.c,$(HALDIR)/Hal/%.o,$(wildcard CodeA-HAL/$(HAL_ARCH)/Hal/HalSerial.c)) \
        $(HALDIR)/Hal/Hal.o \
        $(BOARD_OBJS)
 EXTRA_OBJS =
@@ -564,7 +565,7 @@ endif
 FS_TEST_CFLAGS = -std=c11 -Wall -Wextra -DTOY_FS_HOST -I Tools/Tests/Stub -I Include -I Include/Abi -I Include/Core -I Include/Driver -I Include/Library -I Include/Services -I Include/Hal
 ifeq ($(FS),ram)
 FS_TEST_CFLAGS += -DTOY_FS_RAM
-FS_TEST_POLICY := Common/Modules/Student/FileSystemRam/FileSystemRam.c
+FS_TEST_POLICY := CodeC-Modules/Student/FileSystemRam/FileSystemRam.c
 else
 FS_TEST_POLICY := Tools/Tests/Stub/FsStub.c
 endif
@@ -574,7 +575,7 @@ scheduler: runtests
 runtests:
 	@mkdir -p $(BUILDDIR)/Tests
 	$(HOSTCC) $(TEST_CFLAGS) -c $(SCHED_SRCS) -o $(BUILDDIR)/Tests/policy.o
-	$(HOSTCC) $(TEST_CFLAGS) -c Core/Scheduler/SchedulerOps.c -o $(BUILDDIR)/Tests/ops.o
+	$(HOSTCC) $(TEST_CFLAGS) -c CodeC-Core/Scheduler/SchedulerOps.c -o $(BUILDDIR)/Tests/ops.o
 	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/Stub/SchedulerStub.c -o $(BUILDDIR)/Tests/stub.o
 	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/TestScheduler.c -o $(BUILDDIR)/Tests/test.o
 	$(HOSTCC) -o $(BUILDDIR)/Tests/TestScheduler $(BUILDDIR)/Tests/policy.o $(BUILDDIR)/Tests/ops.o $(BUILDDIR)/Tests/stub.o $(BUILDDIR)/Tests/test.o
@@ -583,7 +584,7 @@ runtests:
 runtests-memory:
 	@mkdir -p $(BUILDDIR)/Tests
 	$(HOSTCC) $(MEM_TEST_CFLAGS) -c $(MEMORY_SRCS) -o $(BUILDDIR)/Tests/mem_policy.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Core/PhysicalMemory/PhysicalMemoryOps.c -o $(BUILDDIR)/Tests/mem_ops.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c CodeC-Core/PhysicalMemory/PhysicalMemoryOps.c -o $(BUILDDIR)/Tests/mem_ops.o
 	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/Stub/MemoryStub.c -o $(BUILDDIR)/Tests/mem_stub.o
 	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/TestMemory.c -o $(BUILDDIR)/Tests/mem_test.o
 	$(HOSTCC) -o $(BUILDDIR)/Tests/TestMemory $(BUILDDIR)/Tests/mem_policy.o $(BUILDDIR)/Tests/mem_ops.o $(BUILDDIR)/Tests/mem_stub.o $(BUILDDIR)/Tests/mem_test.o
@@ -591,7 +592,7 @@ runtests-memory:
 
 runtests-fs:
 	@mkdir -p $(BUILDDIR)/Tests
-	$(HOSTCC) $(FS_TEST_CFLAGS) -c Common/Library/Vfs.c -o $(BUILDDIR)/Tests/fs_vfs.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c CodeB-Library/Vfs.c -o $(BUILDDIR)/Tests/fs_vfs.o
 	$(HOSTCC) $(FS_TEST_CFLAGS) -c $(FS_TEST_POLICY) -o $(BUILDDIR)/Tests/fs_policy.o
 	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tools/Tests/TestFs.c -o $(BUILDDIR)/Tests/fs_test.o
 	$(HOSTCC) -o $(BUILDDIR)/Tests/TestFs $(BUILDDIR)/Tests/fs_vfs.o $(BUILDDIR)/Tests/fs_policy.o $(BUILDDIR)/Tests/fs_test.o
@@ -628,10 +629,10 @@ endif
 # PR-B2：列出当前 Arch 可用板包
 boards:
 ifeq ($(ARCH),x86_64)
-	@echo "BOARD: (unused on x86_64; desktop PC is 1.3c / HAL/X64)"
+	@echo "BOARD: (unused on x86_64; desktop PC is 1.3c / CodeA-HAL/X64)"
 else
 	@echo "ARCH=$(ARCH) HAL_ARCH=$(HAL_ARCH) BOARD=$(BOARD) → $(BOARD_DIR)"
-	@ls -1 HAL/$(HAL_ARCH)/Board 2>/dev/null | sed 's/^/  /' || echo "  (none)"
+	@ls -1 CodeA-HAL/$(HAL_ARCH)/Board 2>/dev/null | sed 's/^/  /' || echo "  (none)"
 endif
 
 $(BUILDDIR) $(HALDIR):
@@ -643,44 +644,44 @@ ifneq ($(ARCH),x86_64)
 	@echo "$(BOARD)" > $(HALDIR)/.toy_board
 endif
 
-$(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
+$(BUILDDIR)/CodeC-Core/%.o: CodeC-Core/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/Common/Modules/%.o: Common/Modules/%.c | $(BUILDDIR)
+$(BUILDDIR)/CodeC-Modules/%.o: CodeC-Modules/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/Services/%.o: Services/%.c | $(BUILDDIR)
+$(BUILDDIR)/CodeD-Services/%.o: CodeD-Services/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
+$(BUILDDIR)/CodeB-Library/%.o: CodeB-Library/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/Common/Fonts/%.o: Common/Fonts/%.c | $(BUILDDIR)
+$(BUILDDIR)/CodeB-Library/Fonts/%.o: CodeB-Library/Fonts/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(HALDIR)/Drivers/%.o: HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
+$(HALDIR)/Drivers/%.o: CodeA-HAL/$(HAL_ARCH)/Drivers/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
-# 先于通用 HAL/%.o：依赖 DEMO_STAMP，换 TOY_DEMO_DRIVER=0/1 会触发重编+重链
-$(HALDIR)/Hal/HalDevices.o: HAL/$(HAL_ARCH)/Hal/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
+# 先于通用 CodeA-HAL/%.o：依赖 DEMO_STAMP，换 TOY_DEMO_DRIVER=0/1 会触发重编+重链
+$(HALDIR)/Hal/HalDevices.o: CodeA-HAL/$(HAL_ARCH)/Hal/HalDevices.c $(DEMO_STAMP) | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifneq ($(ARCH),x86_64)
-$(HALDIR)/Drivers/Video/%.o: HAL/X64/Drivers/Video/%.c | $(HALDIR)
+$(HALDIR)/Drivers/Video/%.o: CodeA-HAL/X64/Drivers/Video/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
-$(HALDIR)/Virt/%.o: HAL/Virt/%.c | $(HALDIR)
+$(HALDIR)/Virt/%.o: CodeA-HAL/Virt/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
-# PR-B2：HAL/<Arch>/Board/<board>/*.c
+# PR-B2：CodeA-HAL/<Arch>/Board/<board>/*.c
 $(HALDIR)/Board/%.o: $(BOARD_DIR)/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
 
-$(HALDIR)/%.o: HAL/$(HAL_ARCH)/%.c | $(HALDIR)
+$(HALDIR)/%.o: CodeA-HAL/$(HAL_ARCH)/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
-$(HALDIR)/LwIp/%.o: HAL/$(HAL_ARCH)/LwIp/%.c | $(HALDIR)
+$(HALDIR)/LwIp/%.o: CodeA-HAL/$(HAL_ARCH)/LwIp/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(LWIP),1)
@@ -688,17 +689,17 @@ $(BUILDDIR)/ThirdParty/lwip/src/%.o: $(LWIPDIR)/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 endif
 
-$(HALDIR)/%.o: HAL/$(HAL_ARCH)/%.S | $(HALDIR)
+$(HALDIR)/%.o: CodeA-HAL/$(HAL_ARCH)/%.S | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 # PR-A6：Startup.S 与 Startup.c 同名冲突，汇编产出 Startup_asm.o
-$(HALDIR)/Startup_asm.o: HAL/$(HAL_ARCH)/Startup.S | $(HALDIR)
+$(HALDIR)/Startup_asm.o: CodeA-HAL/$(HAL_ARCH)/Startup.S | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
 
 ifeq ($(ARCH),x86_64)
-$(HALDIR)/SmpTramp.bin: HAL/X64/SmpTrampoline.S HAL/X64/SmpTrampoline.ld | $(HALDIR)
-	$(CC) -c HAL/X64/SmpTrampoline.S -o $(HALDIR)/SmpTrampoline_low.o
-	$(LD) -z noexecstack -T HAL/X64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
+$(HALDIR)/SmpTramp.bin: CodeA-HAL/X64/SmpTrampoline.S CodeA-HAL/X64/SmpTrampoline.ld | $(HALDIR)
+	$(CC) -c CodeA-HAL/X64/SmpTrampoline.S -o $(HALDIR)/SmpTrampoline_low.o
+	$(LD) -z noexecstack -T CodeA-HAL/X64/SmpTrampoline.ld -o $(HALDIR)/SmpTrampoline_low.elf \
 		$(HALDIR)/SmpTrampoline_low.o
 	objcopy -O binary $(HALDIR)/SmpTrampoline_low.elf $@
 
@@ -706,74 +707,74 @@ $(HALDIR)/SmpTramp_blob.o: $(HALDIR)/SmpTramp.bin
 	cd $(HALDIR) && objcopy -I binary -O elf64-x86-64 -B i386:x86-64 \
 		SmpTramp.bin SmpTramp_blob.o
 
-$(USER_HELLO_OBJ): User/Apps/Hello.c User/include/stdio.h User/include/stdlib.h User/include/string.h User/include/stddef.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/Hello.c -o $@
+$(USER_HELLO_OBJ): CodeE-User/Apps/Hello.c CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/string.h CodeE-User/include/stddef.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/Hello.c -o $@
 
-User/crt/%.o: User/crt/%.c
+CodeE-User/crt/%.o: CodeE-User/crt/%.c
 	$(CC) $(USER_CFLAGS) -c $< -o $@
 
-User/crt/%.o: User/crt/%.S
+CodeE-User/crt/%.o: CodeE-User/crt/%.S
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_COUNT_OBJ): User/Apps/Count.S | $(USER_OUT)
+$(USER_COUNT_OBJ): CodeE-User/Apps/Count.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_HELLO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_EXECDEMO_OBJ): User/Apps/ExecDemo.c User/include/stdio.h User/include/unistd.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/ExecDemo.c -o $@
+$(USER_EXECDEMO_OBJ): CodeE-User/Apps/ExecDemo.c CodeE-User/include/stdio.h CodeE-User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/ExecDemo.c -o $@
 
 $(USER_EXECDEMO_ELF): $(USER_EXECDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_EXECDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_PIPEDEMO_OBJ): User/Apps/PipeDemo.c User/include/stdio.h User/include/unistd.h User/include/string.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/PipeDemo.c -o $@
+$(USER_PIPEDEMO_OBJ): CodeE-User/Apps/PipeDemo.c CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/string.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/PipeDemo.c -o $@
 
 $(USER_PIPEDEMO_ELF): $(USER_PIPEDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_PIPEDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_BRKDEMO_OBJ): User/Apps/BrkDemo.c User/include/stdio.h User/include/stdlib.h User/include/string.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/BrkDemo.c -o $@
+$(USER_BRKDEMO_OBJ): CodeE-User/Apps/BrkDemo.c CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/string.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/BrkDemo.c -o $@
 
 $(USER_BRKDEMO_ELF): $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_BRKDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_MMAPDEMO_OBJ): User/Apps/MmapDemo.c User/include/stdio.h User/include/string.h User/include/sys/mman.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/MmapDemo.c -o $@
+$(USER_MMAPDEMO_OBJ): CodeE-User/Apps/MmapDemo.c CodeE-User/include/stdio.h CodeE-User/include/string.h CodeE-User/include/sys/mman.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/MmapDemo.c -o $@
 
 $(USER_MMAPDEMO_ELF): $(USER_MMAPDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_MMAPDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_KILLDEMO_OBJ): User/Apps/KillDemo.c User/include/stdio.h User/include/unistd.h User/include/signal.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/KillDemo.c -o $@
+$(USER_KILLDEMO_OBJ): CodeE-User/Apps/KillDemo.c CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/signal.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/KillDemo.c -o $@
 
 $(USER_KILLDEMO_ELF): $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_KILLDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_SIGDEMO_OBJ): User/Apps/SigDemo.c User/include/stdio.h User/include/stdlib.h User/include/unistd.h User/include/signal.h User/include/toyos/syscall.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/SigDemo.c -o $@
+$(USER_SIGDEMO_OBJ): CodeE-User/Apps/SigDemo.c CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/unistd.h CodeE-User/include/signal.h CodeE-User/include/toyos/syscall.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/SigDemo.c -o $@
 
 $(USER_SIGDEMO_ELF): $(USER_SIGDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SIGDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_WINDEMO_OBJ): User/Apps/WinDemo.c User/include/stdio.h User/include/unistd.h User/include/ToySyscall.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/WinDemo.c -o $@
+$(USER_WINDEMO_OBJ): CodeE-User/Apps/WinDemo.c CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/ToySyscall.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/WinDemo.c -o $@
 
 $(USER_WINDEMO_ELF): $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_LIB_TOY_GFX_OBJ): User/Library/ToyGfx/ToyGfx.c User/include/ToyGfx.h User/include/unistd.h User/include/ToySyscall.h 
-	$(CC) $(USER_CFLAGS) -c User/Library/ToyGfx/ToyGfx.c -o $@
+$(USER_LIB_TOY_GFX_OBJ): CodeE-User/Library/ToyGfx/ToyGfx.c CodeE-User/include/ToyGfx.h CodeE-User/include/unistd.h CodeE-User/include/ToySyscall.h 
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyGfx/ToyGfx.c -o $@
 
-$(USER_LIB_TOY_UI_OBJ): User/Library/ToyUi/ToyUi.c User/Library/ToyUi/ToyUiPrivate.h \
-		User/include/ToyUi.h User/include/ToyGfx.h User/include/unistd.h \
-		User/include/ToySyscall.h
-	$(CC) $(USER_CFLAGS) -c User/Library/ToyUi/ToyUi.c -o $@
+$(USER_LIB_TOY_UI_OBJ): CodeE-User/Library/ToyUi/ToyUi.c CodeE-User/Library/ToyUi/ToyUiPrivate.h \
+		CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h CodeE-User/include/unistd.h \
+		CodeE-User/include/ToySyscall.h
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyUi/ToyUi.c -o $@
 
-$(USER_LIB_TOY_UI_WIDGETS_OBJ): User/Library/ToyUi/ToyUiWidgets.c \
-		User/Library/ToyUi/ToyUiPrivate.h User/include/ToyUi.h User/include/ToyGfx.h
-	$(CC) $(USER_CFLAGS) -c User/Library/ToyUi/ToyUiWidgets.c -o $@
+$(USER_LIB_TOY_UI_WIDGETS_OBJ): CodeE-User/Library/ToyUi/ToyUiWidgets.c \
+		CodeE-User/Library/ToyUi/ToyUiPrivate.h CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyUi/ToyUiWidgets.c -o $@
 
 $(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
 	ar rcs $@ $(USER_LIB_TOY_GFX_OBJ)
@@ -781,121 +782,121 @@ $(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
 $(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ)
 	ar rcs $@ $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ)
 
-$(USER_LIB_TOY_NET_OBJ): User/Library/ToyNet/ToyNet.c User/include/ToyNet.h \
-		User/include/unistd.h User/include/errno.h User/include/string.h \
-		User/include/toyos/syscall.h
-	$(CC) $(USER_CFLAGS) -c User/Library/ToyNet/ToyNet.c -o $@
+$(USER_LIB_TOY_NET_OBJ): CodeE-User/Library/ToyNet/ToyNet.c CodeE-User/include/ToyNet.h \
+		CodeE-User/include/unistd.h CodeE-User/include/errno.h CodeE-User/include/string.h \
+		CodeE-User/include/toyos/syscall.h
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyNet/ToyNet.c -o $@
 
 $(USER_LIB_TOY_NET_A): $(USER_LIB_TOY_NET_OBJ)
 	mkdir -p $(dir $@)
 	ar rcs $@ $(USER_LIB_TOY_NET_OBJ)
 
-$(USER_LIB_FSUTIL_OBJ): User/Library/FsUtil/FsUtil.c User/include/FsUtil.h User/include/dirent.h User/include/errno.h 
-	$(CC) $(USER_CFLAGS) -c User/Library/FsUtil/FsUtil.c -o $@
+$(USER_LIB_FSUTIL_OBJ): CodeE-User/Library/FsUtil/FsUtil.c CodeE-User/include/FsUtil.h CodeE-User/include/dirent.h CodeE-User/include/errno.h 
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/FsUtil/FsUtil.c -o $@
 
 $(USER_LIB_FSUTIL_A): $(USER_LIB_FSUTIL_OBJ)
 	mkdir -p $(dir $@)
 	ar rcs $@ $(USER_LIB_FSUTIL_OBJ)
 
-# PR-L1：CRT C 部分打成 libtoyos.a，供 User/Pkg 课外链接
+# PR-L1：CRT C 部分打成 libtoyos.a，供 CodeE-User/Pkg 课外链接
 $(USER_LIB_TOYOS_A): $(USER_LIB_TOYOS_OBJS)
 	mkdir -p $(dir $@)
 	ar rcs $@ $(USER_LIB_TOYOS_OBJS)
 
-$(USER_GUIDEMO_OBJ): User/Apps/GuiDemo.c User/include/ToyUi.h User/include/ToyGfx.h User/include/stdio.h User/include/unistd.h User/include/toyos/syscall.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/GuiDemo.c -o $@
+$(USER_GUIDEMO_OBJ): CodeE-User/Apps/GuiDemo.c CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/toyos/syscall.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/GuiDemo.c -o $@
 
 $(USER_GUIDEMO_ELF): $(USER_GUIDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_GUIDEMO_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
-$(USER_BLITDEMO_OBJ): User/Apps/BlitDemo.c User/include/ToyUi.h User/include/ToyGfx.h User/include/stdio.h User/include/unistd.h User/include/toyos/syscall.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/BlitDemo.c -o $@
+$(USER_BLITDEMO_OBJ): CodeE-User/Apps/BlitDemo.c CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/toyos/syscall.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/BlitDemo.c -o $@
 
 $(USER_BLITDEMO_ELF): $(USER_BLITDEMO_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_BLITDEMO_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
-$(USER_LIBCDEMO_OBJ): User/Apps/LibcDemo.c User/include/stdio.h User/include/stdlib.h User/include/string.h User/include/signal.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/LibcDemo.c -o $@
+$(USER_LIBCDEMO_OBJ): CodeE-User/Apps/LibcDemo.c CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/string.h CodeE-User/include/signal.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/LibcDemo.c -o $@
 
 $(USER_LIBCDEMO_ELF): $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_LIBCDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_SLEEPDEMO_OBJ): User/Apps/SleepDemo.c User/include/stdio.h User/include/unistd.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/SleepDemo.c -o $@
+$(USER_SLEEPDEMO_OBJ): CodeE-User/Apps/SleepDemo.c CodeE-User/include/stdio.h CodeE-User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/SleepDemo.c -o $@
 
 $(USER_SLEEPDEMO_ELF): $(USER_SLEEPDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SLEEPDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_THREADSMOKE_OBJ): User/Apps/ThreadSmoke.c User/include/stdio.h User/include/unistd.h User/include/toyos/thread.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/ThreadSmoke.c -o $@
+$(USER_THREADSMOKE_OBJ): CodeE-User/Apps/ThreadSmoke.c CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/toyos/thread.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/ThreadSmoke.c -o $@
 $(USER_THREADSMOKE_ELF): $(USER_THREADSMOKE_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_THREADSMOKE_OBJ) $(USER_CRT_OBJS)
 
-$(USER_PTHREADSMOKE_OBJ): User/Apps/PthreadSmoke.c User/include/pthread.h User/include/stdio.h User/include/unistd.h User/include/toyos/thread.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/PthreadSmoke.c -o $@
+$(USER_PTHREADSMOKE_OBJ): CodeE-User/Apps/PthreadSmoke.c CodeE-User/include/pthread.h CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/toyos/thread.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/PthreadSmoke.c -o $@
 $(USER_PTHREADSMOKE_ELF): $(USER_PTHREADSMOKE_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_PTHREADSMOKE_OBJ) $(USER_CRT_OBJS)
 
-$(USER_THREADDEMO_OBJ): User/Apps/ThreadDemo.c User/include/pthread.h User/include/stdio.h User/include/stdlib.h User/include/unistd.h User/include/sched.h User/include/toyos/thread.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/ThreadDemo.c -o $@
+$(USER_THREADDEMO_OBJ): CodeE-User/Apps/ThreadDemo.c CodeE-User/include/pthread.h CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/unistd.h CodeE-User/include/sched.h CodeE-User/include/toyos/thread.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/ThreadDemo.c -o $@
 $(USER_THREADDEMO_ELF): $(USER_THREADDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_THREADDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_SNAKE_OBJ): User/Apps/Snake.c User/include/ToyUi.h User/include/ToyGfx.h User/include/stdio.h User/include/unistd.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/Snake.c -o $@
+$(USER_SNAKE_OBJ): CodeE-User/Apps/Snake.c CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h CodeE-User/include/stdio.h CodeE-User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/Snake.c -o $@
 
 $(USER_SNAKE_ELF): $(USER_SNAKE_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SNAKE_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
-$(USER_TASKMGR_OBJ): User/Apps/TaskMgr.c User/include/ToyUi.h User/include/toyos/task.h User/include/stdio.h User/include/unistd.h User/include/signal.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/TaskMgr.c -o $@
+$(USER_TASKMGR_OBJ): CodeE-User/Apps/TaskMgr.c CodeE-User/include/ToyUi.h CodeE-User/include/toyos/task.h CodeE-User/include/stdio.h CodeE-User/include/unistd.h CodeE-User/include/signal.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/TaskMgr.c -o $@
 
 $(USER_TASKMGR_ELF): $(USER_TASKMGR_OBJ) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_TASKMGR_OBJ) \
 		$(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
-$(USER_DIRDEMO_OBJ): User/Apps/DirDemo.c User/include/stdio.h User/include/dirent.h User/include/string.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/DirDemo.c -o $@
+$(USER_DIRDEMO_OBJ): CodeE-User/Apps/DirDemo.c CodeE-User/include/stdio.h CodeE-User/include/dirent.h CodeE-User/include/string.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/DirDemo.c -o $@
 
 $(USER_DIRDEMO_ELF): $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_DIRDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_CWDDEMO_OBJ): User/Apps/CwdDemo.c User/include/stdio.h User/include/stdlib.h User/include/unistd.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/CwdDemo.c -o $@
+$(USER_CWDDEMO_OBJ): CodeE-User/Apps/CwdDemo.c CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/CwdDemo.c -o $@
 
 $(USER_CWDDEMO_ELF): $(USER_CWDDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_CWDDEMO_OBJ) $(USER_CRT_OBJS)
 
-$(USER_NETLIB_OBJ): User/Apps/NetLibDemo.c User/include/ToyNet.h User/include/stdio.h User/include/string.h User/include/unistd.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/NetLibDemo.c -o $@
+$(USER_NETLIB_OBJ): CodeE-User/Apps/NetLibDemo.c CodeE-User/include/ToyNet.h CodeE-User/include/stdio.h CodeE-User/include/string.h CodeE-User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/NetLibDemo.c -o $@
 
 $(USER_NETLIB_ELF): $(USER_NETLIB_OBJ) $(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_NETLIB_OBJ) \
 		$(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS)
 
-$(USER_SOCKDEMO_OBJ): User/Apps/SockDemo.c User/include/sys/socket.h User/include/ToyNet.h User/include/stdio.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/SockDemo.c -o $@
+$(USER_SOCKDEMO_OBJ): CodeE-User/Apps/SockDemo.c CodeE-User/include/sys/socket.h CodeE-User/include/ToyNet.h CodeE-User/include/stdio.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/SockDemo.c -o $@
 
 $(USER_SOCKDEMO_ELF): $(USER_SOCKDEMO_OBJ) $(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_SOCKDEMO_OBJ) \
 		$(USER_LIB_TOY_NET_A) $(USER_CRT_OBJS)
 
-$(USER_CHAT_OBJ): User/Apps/Chat.c User/Apps/ChatNet.h User/include/ToyNet.h User/include/ToyUi.h User/include/ToyGfx.h User/include/stdio.h User/include/unistd.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/Chat.c -o $@
+$(USER_CHAT_OBJ): CodeE-User/Apps/Chat.c CodeE-User/Apps/ChatNet.h CodeE-User/include/ToyNet.h CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h CodeE-User/include/stdio.h CodeE-User/include/unistd.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/Chat.c -o $@
 
 USER_CHAT_NET_OBJ = $(USER_OUT)/chat_net.o
-$(USER_CHAT_NET_OBJ): User/Apps/ChatNet.c User/Apps/ChatNet.h User/include/ToyNet.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/ChatNet.c -o $@
+$(USER_CHAT_NET_OBJ): CodeE-User/Apps/ChatNet.c CodeE-User/Apps/ChatNet.h CodeE-User/include/ToyNet.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/ChatNet.c -o $@
 
 $(USER_CHAT_ELF): $(USER_CHAT_OBJ) $(USER_CHAT_NET_OBJ) $(USER_LIB_TOY_NET_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_CHAT_OBJ) $(USER_CHAT_NET_OBJ) \
 		$(USER_LIB_TOY_NET_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_GFX_A) $(USER_CRT_OBJS)
 
-$(USER_ENOSYS_OBJ): User/Apps/EnosysDemo.c User/include/stdio.h User/include/errno.h User/include/toyos/syscall.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/EnosysDemo.c -o $@
+$(USER_ENOSYS_OBJ): CodeE-User/Apps/EnosysDemo.c CodeE-User/include/stdio.h CodeE-User/include/errno.h CodeE-User/include/toyos/syscall.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/EnosysDemo.c -o $@
 
 $(USER_ENOSYS_ELF): $(USER_ENOSYS_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_ENOSYS_OBJ) $(USER_CRT_OBJS)
@@ -903,34 +904,34 @@ $(USER_ENOSYS_ELF): $(USER_ENOSYS_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OUT)
 $(USER_COUNT_ELF): $(USER_COUNT_OBJ) $(USER_LD) | $(USER_OUT)
 	$(LD) -nostdlib -static $(USER_LDFLAGS) -T $(USER_LD) -o $@ $(USER_COUNT_OBJ)
 
-$(USER_FORK_OBJ): User/Apps/Fork.S | $(USER_OUT)
+$(USER_FORK_OBJ): CodeE-User/Apps/Fork.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_WAITNH_OBJ): User/Apps/WaitNoHang.S | $(USER_OUT)
+$(USER_WAITNH_OBJ): CodeE-User/Apps/WaitNoHang.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_LIBTOY_OBJ): User/Apps/LibToy.S | $(USER_OUT)
+$(USER_LIBTOY_OBJ): CodeE-User/Apps/LibToy.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -fPIC -c $< -o $@
 
-$(USER_DYNDEMO_OBJ): User/Apps/DynDemo.S | $(USER_OUT)
+$(USER_DYNDEMO_OBJ): CodeE-User/Apps/DynDemo.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_CAT_OBJ): User/Apps/Cat.c User/include/unistd.h User/include/fcntl.h User/include/errno.h User/include/stdio.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/Cat.c -o $@
+$(USER_CAT_OBJ): CodeE-User/Apps/Cat.c CodeE-User/include/unistd.h CodeE-User/include/fcntl.h CodeE-User/include/errno.h CodeE-User/include/stdio.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/Cat.c -o $@
 
-$(USER_WRITE_OBJ): User/Apps/WriteFile.c User/include/unistd.h User/include/fcntl.h User/include/errno.h User/include/stdio.h | $(USER_OUT)
-	$(CC) $(USER_CFLAGS) -c User/Apps/WriteFile.c -o $@
+$(USER_WRITE_OBJ): CodeE-User/Apps/WriteFile.c CodeE-User/include/unistd.h CodeE-User/include/fcntl.h CodeE-User/include/errno.h CodeE-User/include/stdio.h | $(USER_OUT)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/WriteFile.c -o $@
 
-$(USER_NETDEMO_OBJ): User/Apps/NetDemo.S | $(USER_OUT)
+$(USER_NETDEMO_OBJ): CodeE-User/Apps/NetDemo.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_NETSRV_OBJ): User/Apps/NetServer.S | $(USER_OUT)
+$(USER_NETSRV_OBJ): CodeE-User/Apps/NetServer.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_SYSHELLO_OBJ): User/Apps/SysHello.S | $(USER_OUT)
+$(USER_SYSHELLO_OBJ): CodeE-User/Apps/SysHello.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
-$(USER_SYSFORK_OBJ): User/Apps/SysFork.S | $(USER_OUT)
+$(USER_SYSFORK_OBJ): CodeE-User/Apps/SysFork.S | $(USER_OUT)
 	$(CC) $(USER_ASFLAGS) -c $< -o $@
 
 $(USER_FORK_ELF): $(USER_FORK_OBJ) $(USER_LD) | $(USER_OUT)
@@ -978,8 +979,8 @@ ifneq ($(BRINGUP),1)
 $(USER_VIRT_DIR):
 	mkdir -p $(USER_VIRT_DIR)
 
-$(USER_HELLO_OBJ): User/Apps/Hello.c User/include/stdio.h User/include/stdlib.h User/include/string.h User/include/stddef.h | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/Apps/Hello.c -o $@
+$(USER_HELLO_OBJ): CodeE-User/Apps/Hello.c CodeE-User/include/stdio.h CodeE-User/include/stdlib.h CodeE-User/include/string.h CodeE-User/include/stddef.h | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Apps/Hello.c -o $@
 
 $(USER_VIRT_DIR)/crt0.o: $(USER_CRT0_SRC) | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c $(USER_CRT0_SRC) -o $@
@@ -987,56 +988,56 @@ $(USER_VIRT_DIR)/crt0.o: $(USER_CRT0_SRC) | $(USER_VIRT_DIR)
 $(USER_VIRT_DIR)/syscall.o: $(USER_SYSCALL_SRC) | $(USER_VIRT_DIR)
 	$(CC) $(USER_CFLAGS) -c $(USER_SYSCALL_SRC) -o $@
 
-$(USER_VIRT_DIR)/string.o: User/crt/string.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/string.c -o $@
+$(USER_VIRT_DIR)/string.o: CodeE-User/crt/string.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/string.c -o $@
 
-$(USER_VIRT_DIR)/printf.o: User/crt/printf.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/printf.c -o $@
+$(USER_VIRT_DIR)/printf.o: CodeE-User/crt/printf.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/printf.c -o $@
 
-$(USER_VIRT_DIR)/malloc.o: User/crt/malloc.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/malloc.c -o $@
+$(USER_VIRT_DIR)/malloc.o: CodeE-User/crt/malloc.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/malloc.c -o $@
 
-$(USER_VIRT_DIR)/errno.o: User/crt/errno.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/errno.c -o $@
+$(USER_VIRT_DIR)/errno.o: CodeE-User/crt/errno.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/errno.c -o $@
 
-$(USER_VIRT_DIR)/unistd.o: User/crt/unistd.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/unistd.c -o $@
+$(USER_VIRT_DIR)/unistd.o: CodeE-User/crt/unistd.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/unistd.c -o $@
 
-$(USER_VIRT_DIR)/sleep.o: User/crt/sleep.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/sleep.c -o $@
+$(USER_VIRT_DIR)/sleep.o: CodeE-User/crt/sleep.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/sleep.c -o $@
 
-$(USER_VIRT_DIR)/stdlib.o: User/crt/stdlib.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/stdlib.c -o $@
+$(USER_VIRT_DIR)/stdlib.o: CodeE-User/crt/stdlib.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/stdlib.c -o $@
 
-$(USER_VIRT_DIR)/signal.o: User/crt/signal.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/signal.c -o $@
+$(USER_VIRT_DIR)/signal.o: CodeE-User/crt/signal.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/signal.c -o $@
 
-$(USER_VIRT_DIR)/dirent.o: User/crt/dirent.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/dirent.c -o $@
+$(USER_VIRT_DIR)/dirent.o: CodeE-User/crt/dirent.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/dirent.c -o $@
 
-$(USER_VIRT_DIR)/stdio.o: User/crt/stdio.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/stdio.c -o $@
+$(USER_VIRT_DIR)/stdio.o: CodeE-User/crt/stdio.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/stdio.c -o $@
 
-$(USER_VIRT_DIR)/socket.o: User/crt/socket.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/socket.c -o $@
+$(USER_VIRT_DIR)/socket.o: CodeE-User/crt/socket.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/socket.c -o $@
 
-$(USER_VIRT_DIR)/cwd.o: User/crt/cwd.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/cwd.c -o $@
+$(USER_VIRT_DIR)/cwd.o: CodeE-User/crt/cwd.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/cwd.c -o $@
 
-$(USER_VIRT_DIR)/sched.o: User/crt/sched.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/sched.c -o $@
+$(USER_VIRT_DIR)/sched.o: CodeE-User/crt/sched.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/sched.c -o $@
 
-$(USER_VIRT_DIR)/proc.o: User/crt/proc.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/proc.c -o $@
+$(USER_VIRT_DIR)/proc.o: CodeE-User/crt/proc.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/proc.c -o $@
 
-$(USER_VIRT_DIR)/stat.o: User/crt/stat.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/stat.c -o $@
+$(USER_VIRT_DIR)/stat.o: CodeE-User/crt/stat.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/stat.c -o $@
 
-$(USER_VIRT_DIR)/thread_root.o: User/crt/thread_root.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/thread_root.c -o $@
+$(USER_VIRT_DIR)/thread_root.o: CodeE-User/crt/thread_root.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/thread_root.c -o $@
 
-$(USER_VIRT_DIR)/pthread.o: User/crt/pthread.c | $(USER_VIRT_DIR)
-	$(CC) $(USER_CFLAGS) -c User/crt/pthread.c -o $@
+$(USER_VIRT_DIR)/pthread.o: CodeE-User/crt/pthread.c | $(USER_VIRT_DIR)
+	$(CC) $(USER_CFLAGS) -c CodeE-User/crt/pthread.c -o $@
 
 $(USER_HELLO_ELF): $(USER_HELLO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_VIRT_DIR)
 	# 与 Kernel.elf 同：arm64 __sync_* 可能仍需 libgcc（与 -mno-outline-atomics 双保险）
@@ -1045,9 +1046,9 @@ endif
 endif
 
 clean:
-	# 只清当前 Arch 的 HAL 产物；共享 Common/Services/Fonts/.o 必须清（随 ARCH 重编）
+	# 只清当前 Arch 的 HAL 产物；共享 Code* 产物 .o 必须清（随 ARCH 重编）
 	rm -rf $(HALDIR)
-	rm -rf $(BUILDDIR)/Common $(BUILDDIR)/Services $(BUILDDIR)/Fonts $(BUILDDIR)/ThirdParty/lwip $(BUILDDIR)/lwip
+	rm -rf $(BUILDDIR)/CodeA-HAL $(BUILDDIR)/CodeB-Library $(BUILDDIR)/CodeC-Core $(BUILDDIR)/CodeC-Modules $(BUILDDIR)/CodeD-Services $(BUILDDIR)/CodeE-User $(BUILDDIR)/ThirdParty/lwip $(BUILDDIR)/lwip
 	# 旧布局残留
 	rm -rf Build/arm64 Build/riscv
 	rm -f Build/Kernel.elf Build/SmpTramp.bin Build/SmpTramp_blob.o \

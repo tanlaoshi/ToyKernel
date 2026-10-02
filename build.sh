@@ -135,9 +135,9 @@ case "$ARCH" in
 esac
 
 # virt arm64/riscv 尚无 HAL/*/LwIp/lwipopts.h；默认关 lwIP，避免误编挂掉
-if [ "$LWIP" = "1" ] && [ ! -f "HAL/$HAL_ARCH/LwIp/include/lwipopts.h" ]; then
+if [ "$LWIP" = "1" ] && [ ! -f "CodeA-HAL/$HAL_ARCH/LwIp/include/lwipopts.h" ]; then
     if [ "$LWIP_SET" = "1" ]; then
-        echo "error: LWIP=1 but HAL/$HAL_ARCH/LwIp/include/lwipopts.h missing (no port yet)" >&2
+        echo "error: LWIP=1 but CodeA-HAL/$HAL_ARCH/LwIp/include/lwipopts.h missing (no port yet)" >&2
         echo "  use: ./build.sh $ARCH LWIP=0" >&2
         exit 1
     fi
@@ -146,8 +146,8 @@ if [ "$LWIP" = "1" ] && [ ! -f "HAL/$HAL_ARCH/LwIp/include/lwipopts.h" ]; then
 fi
 
 echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_KERNEL_DEBUG=$DEBUG SERIAL=$SERIAL SCREEN_LOG=$SCREEN_LOG USB=$SERIAL_USB LWIP=$LWIP BRINGUP=$BRINGUP"
-ELF="$BUILDDIR/HAL/$HAL_ARCH/Kernel.elf"
-USER_HELLO="$BUILDDIR/HAL/$HAL_ARCH/user/hello.elf"
+ELF="$BUILDDIR/CodeA-HAL/$HAL_ARCH/Kernel.elf"
+USER_HELLO="$BUILDDIR/CodeA-HAL/$HAL_ARCH/user/hello.elf"
 
 MAKE=(make)
 if [ "$QUIET" = 1 ]; then
@@ -178,8 +178,15 @@ echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRIN
 # PR-LAN-store-src：卷根仅 ROOTFS-ELF 白名单；商店在 Store/（废 Assets/Store + StoreCache）
 if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64 ]; then
     DEST=../ToyImage/RootFs/X64
+    IMAGE_STORE=../ToyImage/Store
     USER_OUT="$BUILDDIR/User"
     cp -f "$ELF" "$DEST/Kernel.elf"
+    # Image 种子：Assets → Guest Assets/
+    if [ -d ../ToyImage/Assets ]; then
+        mkdir -p "$DEST/Assets"
+        cp -a ../ToyImage/Assets/. "$DEST/Assets/"
+        rm -rf "$DEST/Assets/Store"
+    fi
 
     # 根白名单（Store/ROOTFS-ELF.md）
     cp -f "$USER_OUT/hello.elf" "$DEST/HELLO.ELF"
@@ -207,15 +214,15 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
 
     PackStore() {
         local Id="$1" Src="$2" File="$3"
-        mkdir -p "Store/packages/$Id" "$DEST/Store/packages/$Id"
-        cp -f "$Src" "Store/packages/$Id/$File"
-        if [ -f "Store/packages/$Id/PKG.TXT" ]; then
-            cp -f "Store/packages/$Id/PKG.TXT" "$DEST/Store/packages/$Id/"
+        mkdir -p "$IMAGE_STORE/packages/$Id" "$DEST/Store/packages/$Id"
+        cp -f "$Src" "$IMAGE_STORE/packages/$Id/$File"
+        if [ -f "$IMAGE_STORE/packages/$Id/PKG.TXT" ]; then
+            cp -f "$IMAGE_STORE/packages/$Id/PKG.TXT" "$DEST/Store/packages/$Id/"
         fi
         cp -f "$Src" "$DEST/Store/packages/$Id/$File"
-        if [ -d "Store/packages/$Id/Assets" ]; then
+        if [ -d "$IMAGE_STORE/packages/$Id/Assets" ]; then
             rm -rf "$DEST/Store/packages/$Id/Assets"
-            cp -a "Store/packages/$Id/Assets" "$DEST/Store/packages/$Id/"
+            cp -a "$IMAGE_STORE/packages/$Id/Assets" "$DEST/Store/packages/$Id/"
         fi
     }
     PackStore hello "$USER_OUT/hello.elf" HELLO.ELF
@@ -225,13 +232,13 @@ if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64
     PackStore snake "$USER_OUT/snake.elf" SNAKE.ELF
     PackStore windemo "$USER_OUT/windemo.elf" WINDEMO.ELF
     PackStore blitdemo "$USER_OUT/blitdemo.elf" BLITDEMO.ELF
-    # CHAT-4：chat 只入 ToyKernel/Store（供 export-store-lan），不进 Guest DEST。
-    mkdir -p Store/packages/chat
-    cp -f "$USER_OUT/chat.elf" Store/packages/chat/CHAT.ELF
-    if [ -f Store/catalog.txt ]; then
+    # CHAT-4：chat 只入 ToyImage/Store（供 export-store-lan），不进 Guest DEST。
+    mkdir -p "$IMAGE_STORE/packages/chat"
+    cp -f "$USER_OUT/chat.elf" "$IMAGE_STORE/packages/chat/CHAT.ELF"
+    if [ -f "$IMAGE_STORE/catalog.txt" ]; then
         mkdir -p "$DEST/Store"
-        # Guest catalog 去掉 chat 行；源 Store/catalog.txt 仍含 chat（导出用）
-        grep -v '^chat|' Store/catalog.txt > "$DEST/Store/catalog.txt" || true
+        # Guest catalog 去掉 chat 行；源 catalog 仍含 chat（导出用）
+        grep -v '^chat|' "$IMAGE_STORE/catalog.txt" > "$DEST/Store/catalog.txt" || true
     fi
     rm -rf "$DEST/Store/packages/chat" "$DEST/Apps/chat"
     if [ -d "$DEST/Store/packages/chat" ] || [ -d "$DEST/Apps/chat" ]; then

@@ -13,7 +13,7 @@ if [ -z "$Id" ] || [ -z "$Elf" ] || [ ! -f "$Elf" ]; then
     echo "usage: $0 <id> <elf-path> [FILE.ELF]" >&2
     exit 1
 fi
-Dest="Store/packages/$Id"
+Dest="${TOY_IMAGE_STORE:-../ToyImage/Store}/packages/$Id"
 mkdir -p "$Dest"
 if [ ! -f "$Dest/PKG.TXT" ]; then
     echo "error: missing $Dest/PKG.TXT — create package metadata first" >&2

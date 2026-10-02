@@ -1,5 +1,5 @@
 #!/bin/bash
-# 准备 Arm64/RiscV QEMU virt 系统盘：同步到 RootFs/$HAL/，打成 RootFs/$HAL.img
+# 准备 Arm64/RiscV QEMU virt 系统盘：同步到 RootFs/$HAL/，打成 RootFs/$HAL/disk.img
 # x86 不走这里（用 RootFs/X64 + run-split.sh）。
 # （QEMU fat:rw/vvfat 与 virtio-net 同机时会破坏 TX；N10 改用真 FAT 镜像）
 set -e
@@ -23,10 +23,10 @@ if [ -z "$HAL_ARCH" ]; then
 fi
 
 ROOT="RootFs/$HAL_ARCH"
-IMG="RootFs/${HAL_ARCH}.img"
+IMG="$ROOT/disk.img"
 mkdir -p "$ROOT"
 
-# 种子优先 X64 系统盘（共享演示/THEME），缺则本仓 / ToyKernel Assets
+# 种子优先 X64 系统盘（共享演示/THEME），缺则本仓 Assets
 IMG_ROOT="RootFs/X64"
 if [ -d "$IMG_ROOT" ]; then
     for F in TOYOS.ID THEME.CFG HELLO.ELF CAT.ELF WRITE.ELF \
@@ -64,26 +64,26 @@ if [ ! -f "$ROOT/Store/catalog.txt" ] && [ -d Store ]; then
     mkdir -p "$ROOT/Store"
     cp -a Store/. "$ROOT/Store/"
 fi
-# ToyKernel Assets 兜底
-if [ ! -f "$ROOT/Assets/Images/WALL.BMP" ] && [ -f ../ToyKernel/Assets/Images/WALL.BMP ]; then
+# 本仓 Assets 已是真源
+if [ ! -f "$ROOT/Assets/Images/WALL.BMP" ] && [ -f Assets/Images/WALL.BMP ]; then
     mkdir -p "$ROOT/Assets/Images"
-    cp -f ../ToyKernel/Assets/Images/WALL.BMP "$ROOT/Assets/Images/WALL.BMP"
+    cp -f Assets/Images/WALL.BMP "$ROOT/Assets/Images/WALL.BMP"
 fi
-if [ ! -f "$ROOT/Assets/Icons/bmp48/SHELL.BMP" ] && [ -d ../ToyKernel/Assets/Icons ]; then
+if [ ! -f "$ROOT/Assets/Icons/bmp48/SHELL.BMP" ] && [ -d Assets/Icons ]; then
     mkdir -p "$ROOT/Assets/Icons"
-    cp -a ../ToyKernel/Assets/Icons/. "$ROOT/Assets/Icons/"
+    cp -a Assets/Icons/. "$ROOT/Assets/Icons/"
 fi
-if [ ! -f "$ROOT/Assets/Locale/en.txt" ] && [ -d ../ToyKernel/Assets/Locale ]; then
+if [ ! -f "$ROOT/Assets/Locale/en.txt" ] && [ -d Assets/Locale ]; then
     mkdir -p "$ROOT/Assets/Locale"
-    cp -a ../ToyKernel/Assets/Locale/. "$ROOT/Assets/Locale/"
+    cp -a Assets/Locale/. "$ROOT/Assets/Locale/"
 fi
-if [ ! -f "$ROOT/Assets/Fonts/VGA8X16.FNT" ] && [ -d ../ToyKernel/Assets/Fonts ]; then
+if [ ! -f "$ROOT/Assets/Fonts/VGA8X16.FNT" ] && [ -d Assets/Fonts ]; then
     mkdir -p "$ROOT/Assets/Fonts"
-    cp -a ../ToyKernel/Assets/Fonts/. "$ROOT/Assets/Fonts/"
+    cp -a Assets/Fonts/. "$ROOT/Assets/Fonts/"
 fi
-if [ ! -f "$ROOT/Store/catalog.txt" ] && [ -d ../ToyKernel/Store ]; then
+if [ ! -f "$ROOT/Store/catalog.txt" ] && [ -d Store ]; then
     mkdir -p "$ROOT/Store"
-    cp -a ../ToyKernel/Store/. "$ROOT/Store/"
+    cp -a Store/. "$ROOT/Store/"
 fi
 mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Locale" "$ROOT/Assets/Fonts"
 mkdir -p "$ROOT/Apps" "$ROOT/Store"
@@ -338,6 +338,9 @@ class Fat16:
 def pack_tree(fat: Fat16, host: pathlib.Path, parent_cl: int):
     for p in sorted(host.iterdir()):
         if p.name.startswith("."):
+            continue
+        # 勿把产出镜像打进自身
+        if p.suffix.lower() == ".img":
             continue
         if p.is_dir():
             cl = fat.add_dir(parent_cl, p.name)

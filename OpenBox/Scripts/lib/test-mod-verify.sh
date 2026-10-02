@@ -1,6 +1,6 @@
 #!/bin/bash
 # test-mod-verify.sh — PR-MOD-app-verify：串跑 bundle expect
-# 用法：在 ToyImage 根 ./Scripts/test-mod-verify.sh
+# 用法：从树根 ./Scripts/test-mod-verify.sh（或 test.sh mod-verify）
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/toyos-common.sh"
@@ -17,7 +17,8 @@ need_expect() {
 run_one() {
   local Exp="$1"
   echo "==== $Exp ===="
-  expect -f "./Scripts/$Exp"
+  # 真源在 Scripts/lib；cwd=ToyImage；.exp spawn Scripts/lib/run-split.sh
+  expect -f "$SCRIPT_DIR/$Exp"
 }
 
 need_expect

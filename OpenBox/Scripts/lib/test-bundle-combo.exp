@@ -1,0 +1,76 @@
+#!/usr/bin/expect -f
+#
+# test-bundle-combo.exp — PR-MOD-app-verify：repack combo + 根白名单
+# 在 ToyImage 根：./Scripts/test-bundle-combo.exp
+#
+set timeout 120
+set image_root [pwd]
+if {![file exists [file join $image_root RootFs X64 TOYOS.ID]]} {
+  set image_root [file normalize [file join [pwd] .. ToyImage]]
+}
+set run_split [file normalize [file join $image_root .. Scripts lib run-split.sh]]
+if {[info exists env(TOYOS_ROOT)] && [file exists [file join $env(TOYOS_ROOT) Scripts lib run-split.sh]]} {
+  set run_split [file join $env(TOYOS_ROOT) Scripts lib run-split.sh]
+}
+spawn sh -c "cd $image_root && exec $run_split --kill-qemu --headless --smp=1"
+expect {
+    -re "ToyOS ready|就绪" {}
+    timeout { puts "boot timeout"; exit 1 }
+}
+# ShellTask 可能已打 toyos>；再发 Enter 仍应回到提示符
+send "\r"
+expect -re "toyos>"
+
+proc run {Cmd} {
+    set timeout 90
+    send "$Cmd\r"
+    expect {
+        -re "toyos>" { return $expect_out(buffer) }
+        timeout { puts "timeout after: $Cmd"; exit 1 }
+    }
+}
+proc wait_job {} {
+    for {set i 0} {$i < 120} {incr i} {
+        set b [run "store job"]
+        if {[regexp {store job: idle} $b]} { return $b }
+    }
+    puts "FAIL never idle"; exit 1
+}
+
+# 根白名单：入店类不应再出现在卷根
+set b [run "ls"]
+puts $b
+if {[regexp -nocase {SNAKE\.ELF} $b]} { puts "FAIL root still has SNAKE.ELF"; exit 1 }
+if {[regexp -nocase {TASKMGR\.ELF} $b]} { puts "FAIL root still has TASKMGR.ELF"; exit 1 }
+if {![regexp -nocase {HELLO\.ELF} $b]} { puts "FAIL root missing HELLO.ELF"; exit 1 }
+puts "ok root whitelist"
+
+run "store combo snake"
+wait_job
+set b [run "stat Apps/snake/SNAKE.ELF"]
+puts $b
+if {![regexp {size|Size|Attr|cluster|file} $b]} { puts "FAIL snake stat"; exit 1 }
+puts "ok snake combo"
+
+run "store uncombo snake"
+wait_job
+set b [run "stat Apps/snake"]
+puts $b
+if {[regexp {attr=0x00000010} $b]} { puts "FAIL Apps/snake remains"; exit 1 }
+puts "ok snake uncombo"
+
+run "store combo taskmgr"
+wait_job
+set b [run "stat Apps/taskmgr/TASKMGR.ELF"]
+puts $b
+if {![regexp {size|Size|Attr|cluster|file} $b]} { puts "FAIL taskmgr stat"; exit 1 }
+puts "ok taskmgr combo"
+
+run "store uncombo taskmgr"
+wait_job
+puts "ok taskmgr uncombo"
+
+send "halt\r"
+catch { exec pkill -9 -f qemu-system-x86_64 }
+puts "=== PASS ==="
+exit 0

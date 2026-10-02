@@ -199,7 +199,7 @@ toy_virt_build_dev_args() {
         toy_virt_paths
         "$TOY_IMAGE/Scripts/prepare-virt-rootfs.sh" >/dev/null
         # N10：用 raw FAT 镜像，避免 QEMU fat:rw(vvfat) 与 virtio-net 同机 TX 故障
-        DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=$TOY_IMAGE/RootFs/${TOY_VIRT_HAL_ARCH}.img"
+        DEV_ARGS+=(-drive "if=none,id=toyroot,format=raw,file=$TOY_IMAGE/RootFs/${TOY_VIRT_HAL_ARCH}/disk.img"
                    -device virtio-blk-device,drive=toyroot)
     fi
 

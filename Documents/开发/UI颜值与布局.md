@@ -206,7 +206,7 @@ Settings / Files / Store / Devices / Desktop **客户区可见字符串**一律 
 | 桌面 | `Services/Desktop/` |
 | 文案 | `Services/Locale/LocaleTable.c` |
 | 汉字 | `Common/Fonts/cjk32.c`；`FontCjk32Lookup` / `FontCjkBitsPerPixel`；`VideoGlyph` |
-| 控件 | `Common/Library/UI.c`；`Include/UI.h` |
+| 控件 | `Library/UI.c`；`Include/UI.h` |
 
 生成点阵：宿主 `Tools/Scripts/gen-cjk32.py`（Noto 栅格）；生成物提交进仓库，Guest **不**跑 Python。
 

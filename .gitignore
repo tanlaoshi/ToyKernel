@@ -1,5 +1,5 @@
 Build/
-# 旧 virt 盘路径（已迁 ToyImage/RootFs/{Arm64,RiscV}.img）
+# 旧 virt 盘路径（现 → ToyImage/RootFs/{Arm64,RiscV}/disk.img）
 VirtRootFs/
 VirtRootFs.img
 virt-rootfs/
@@ -27,6 +27,9 @@ ThirdParty/lwip/
 User/Pkg/build/
 User/Pkg/Gui/build/
 User/Pkg/Net/build/
+CodeE-User/Pkg/build/
+CodeE-User/Pkg/Gui/build/
+CodeE-User/Pkg/Net/build/
 
 # Build/ 已忽略；SDK 产物现为 Build/ToySDK/ + Build/ToySDK.tar.gz
 # 旧路径遗迹（若本地仍有可删）

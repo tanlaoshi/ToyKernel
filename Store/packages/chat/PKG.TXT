@@ -1,9 +1,0 @@
-name=chat
-type=app
-version=1
-file=CHAT.ELF
-sha256=-
-arch=x86_64
-title=Chat
-desktop=no
-taskbar=no

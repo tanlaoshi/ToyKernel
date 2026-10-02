@@ -17,10 +17,10 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-LOCALE = ROOT / "Services/Locale/LocaleTable.c"
+LOCALE = ROOT / "CodeD-Services/Locale/LocaleTable.c"
 SCAN_ROOTS = [
-    ROOT / "Services",
-    ROOT / "Common/Library",
+    ROOT / "CodeD-Services",
+    ROOT / "CodeB-Library",
     ROOT / "Include/Services",
 ]
 FONT_CANDIDATES = [
@@ -349,7 +349,7 @@ def main() -> int:
 
     dim = args.dim
     bpp = args.bpp
-    out = args.out or (ROOT / "Common/Fonts/cjk32.c")
+    out = args.out or (ROOT / "CodeB-Library/Fonts/cjk32.c")
     size = args.size or {16: 14, 18: 15, 20: 17, 24: 20, 28: 24, 32: 27}[dim]
     thresh = args.thresh or {16: 120, 18: 118, 20: 112, 24: 112, 28: 100, 32: 96}[dim]
 

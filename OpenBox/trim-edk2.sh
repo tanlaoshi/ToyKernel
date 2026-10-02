@@ -67,8 +67,7 @@ copy_one BaseTools
 copy_one Conf
 copy_one MdePkg
 
-for F in edksetup.sh edksetup.bat License.txt License-History.txt \
-         Maintainers.txt ReadMe.rst CONTRIBUTING.md pip-requirements.txt; do
+for F in edksetup.sh License.txt; do
     if [ -e "$SRC/$F" ]; then
         echo "  + $F"
         cp -a "$SRC/$F" "$DST/$F"
@@ -79,6 +78,48 @@ done
 ln -sfn "$(cd "$DST_ROOT/ToyBoot" && pwd)" "$DST/ToyBoot"
 echo "  + ToyBoot → $DST_ROOT/ToyBoot"
 
+# 二次瘦身：只留编 ToyBoot 所需（文档/测试/未用 Library/Brotli 多语言…）
+echo "  - strip non-build bulk"
+rm -rf "$DST/BaseTools/Tests" "$DST/BaseTools/UserManuals" \
+       "$DST/BaseTools/Plugin/DebugMacroCheck/tests" \
+       "$DST/BaseTools/Plugin/HostBasedUnitTestRunner" \
+       "$DST/BaseTools/Plugin/CodeQL" \
+       "$DST/BaseTools/Scripts/PackageDocumentTools" \
+       "$DST/MdePkg/Test" "$DST/MdePkg/Library/MipiSysTLib"
+rm -f "$DST/BaseTools/ReadMe.rst" "$DST/BaseTools/"*.bat \
+      "$DST/BaseTools/toolsetup.bat" 2>/dev/null || true
+BROT="$DST/BaseTools/Source/C/BrotliCompress/brotli"
+if [ -d "$BROT" ]; then
+    for D in js tests java csharp go research docs python scripts fetch-spec; do
+        rm -rf "$BROT/$D"
+    done
+fi
+KEEP='BaseLib|BaseMemoryLib|BaseDebugLibNull|BasePcdLibNull|BasePrintLib|UefiDevicePathLib|RegisterFilterLibNull|BaseStackCheckLib|UefiLib|UefiBootServicesTableLib|UefiRuntimeServicesTableLib|UefiApplicationEntryPoint|UefiMemoryAllocationLib'
+if [ -d "$DST/MdePkg/Library" ]; then
+    for D in "$DST/MdePkg/Library"/*; do
+        [ -d "$D" ] || continue
+        Base="$(basename "$D")"
+        echo "$Base" | grep -Eq "^($KEEP)$" && continue
+        rm -rf "$D"
+    done
+fi
+# MdePkg.dec 勿再指向已删 Include
+if [ -f "$DST/MdePkg/MdePkg.dec" ]; then
+    python3 - "$DST/MdePkg/MdePkg.dec" <<'PY'
+import pathlib, re, sys
+p = pathlib.Path(sys.argv[1])
+t = p.read_text()
+t2 = re.sub(
+    r"(?m)^(\[Includes\]\n)(?:  .+\n)*",
+    r"\1  Include\n\n",
+    t,
+    count=1,
+)
+p.write_text(t2)
+PY
+fi
+find "$DST" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+
 # 确保无 .git
 if [ -e "$DST/.git" ]; then
     rm -rf "$DST/.git"
@@ -87,36 +128,29 @@ find "$DST" -name .git -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
 # README-TRIM
 cat > "$DST/README-TRIM.md" <<EOF
-# EDK2 裁剪说明（BOX-6）
+# EDK2 裁剪说明（ToyBoot 专用）
 
-> **无 \`.git\`**。版本钉 **EDK2 202408**（与备份源一致）。仅供 \`ToyBoot\` 编 \`BOOTX64.EFI\`。
+> **无 \`.git\`**。仅供编 \`BOOTX64.EFI\`（\`ToyBoot/Boot.dsc\` → 只链 \`MdePkg\`）。
 
 ## 保留
 
 | 路径 | 用途 |
 | ---- | ---- |
 | \`edksetup.sh\` / \`Conf/\` / \`BaseTools/\` | 构建环境 |
-| \`MdePkg/\` | \`Boot.dsc\` / \`Boot.inf\` 唯一包依赖 |
-| \`ToyBoot/\` | **符号链接**到 \`\$TOYOS_ROOT/ToyBoot\`（独立 git） |
+| \`MdePkg/Include\` + \`Boot.dsc\` 用到的 \`Library/*\` | 唯一包依赖 |
+| \`ToyBoot/\` | **符号链接**到 \`\$TOYOS_ROOT/ToyBoot\` |
+| \`License.txt\` / \`README-TRIM.md\` | 许可与本说明 |
 
-## 不保留
+## 已剔除
 
-完整上游包树（OvmfPkg、MdeModulePkg、NetworkPkg、…）、备份源的 \`.git\`（约 1.6 GiB）。
+上游文档、Windows \`.bat\`、BaseTools 测试/手册、Brotli 多语言与测试数据、\`MdePkg/Test\`、未进 \`Boot.dsc\` 的 Library（含 MipiSysTLib）等。
 
-## 如何再裁 / 再生成
+## 再生成
 
 \`\`\`bash
-export TOYOS_ROOT=\$HOME/ToyOS
-# 源 = 备份整树（含 edksetup）
 bash "\$TOYOS_ROOT/ToyKernel/OpenBox/trim-edk2.sh" "\$EDK2_SRC" "\$TOYOS_ROOT"
-source "\$TOYOS_ROOT/Scripts/env.sh"
-build toyboot
+source "\$TOYOS_ROOT/Scripts/env.sh" && build toyboot
 \`\`\`
-
-## Boot 契约（极简）
-
-读 Kernel →（可选）设显示 → \`ExitBootServices\` → 跳入口。  
-桌面 Logo / 清屏在 **Kernel**（BOX-2），不在 Boot。
 EOF
 
 echo "wrote $DST/README-TRIM.md"

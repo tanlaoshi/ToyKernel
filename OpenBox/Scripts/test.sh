@@ -35,8 +35,8 @@ case "$SUITE" in
     smoke-install) "$LIB/smoke-install.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
     smoke-msc) "$LIB/smoke-msc.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
     fs|user|shell|enosys)
-        # expect 夹具仍在 ToyImage/Scripts（spawn ./Scripts/run-split.sh）
-        (cd "$IMG" && ./Scripts/test-${SUITE}.sh "${ARGS[@]+"${ARGS[@]}"}")
+        # 真源 Scripts/lib；cwd=ToyImage；run-split 走 Scripts/lib
+        (cd "$IMG" && "$LIB/test-${SUITE}.sh" "${ARGS[@]+"${ARGS[@]}"}")
         ;;
     mod-verify) "$LIB/test-mod-verify.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
     unit|all)

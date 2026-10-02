@@ -1,0 +1,72 @@
+#!/usr/bin/expect -f
+set timeout 90
+proc find_image_root {} {
+    set cand [pwd]
+    if {[file exists [file join $cand RootFs X64 TOYOS.ID]]} { return $cand }
+    if {[file exists [file join $cand TOYOS.ID]] && [file exists [file join $cand Kernel.elf]]} {
+        return [file dirname $cand]
+    }
+    foreach up {. .. ../.. ../../..} {
+        set t [file normalize [file join [pwd] $up ToyImage]]
+        if {[file exists [file join $t RootFs X64 TOYOS.ID]]} { return $t }
+        set t2 [file normalize [file join [pwd] $up]]
+        if {[file exists [file join $t2 RootFs X64 TOYOS.ID]]} { return $t2 }
+    }
+    return ""
+}
+set image_root [find_image_root]
+if {$image_root eq ""} {
+    send_user "error: ToyImage not found (need RootFs/X64/TOYOS.ID)\n"
+    exit 2
+}
+set run_split [file normalize [file join $image_root .. Scripts lib run-split.sh]]
+if {![file exists $run_split] && [info exists env(TOYOS_ROOT)]} {
+    set run_split [file join $env(TOYOS_ROOT) Scripts lib run-split.sh]
+}
+if {![file exists $run_split]} {
+    send_user "error: run-split.sh not found under Scripts/lib\n"
+    exit 2
+}
+
+spawn sh -c "cd $image_root && exec $run_split --kill-qemu --headless"
+expect {
+    -re "ToyOS ready|ToyOS 就绪" { send_user "ok boot\n" }
+    timeout { send_user "FAIL boot\n"; exit 1 }
+}
+set timeout 15
+send "\r"
+expect { -re "toyos>" { send_user "ok prompt\n" } timeout { exit 1 } }
+send "echo aaa\r"
+expect { -re "toyos>" { send_user "ok aaa\n" } timeout { exit 1 } }
+send "echo bbb\r"
+expect { -re "toyos>" { send_user "ok bbb\n" } timeout { exit 1 } }
+# single Up -> bbb
+send "\033\[A"
+after 200
+send "\r"
+expect {
+    -re "\nbbb\r?\r?\r?\ntoyos>" { send_user "ok single-up bbb\n" }
+    -re "\nccc\r?\r?\r?\ntoyos>" { send_user "FAIL ccc\n"; exit 1 }
+    -re "\naaa\r?\r?\r?\ntoyos>" { send_user "FAIL aaa\n"; exit 1 }
+    -re "toyos>" { send_user "FAIL buf=$expect_out(buffer)\n"; exit 1 }
+    timeout { send_user "FAIL timeout\n"; exit 1 }
+}
+# up-up after aaa bbb ccc: need third cmd
+send "echo ccc\r"
+expect { -re "toyos>" { send_user "ok ccc\n" } timeout { exit 1 } }
+send "\033\[A"
+after 150
+send "\033\[A"
+after 150
+send "\r"
+expect {
+    -re "\nbbb\r?\r?\r?\ntoyos>" { send_user "ok up-up bbb\n" }
+    -re "\nccc\r?\r?\r?\ntoyos>" { send_user "FAIL up-up ccc\n"; exit 1 }
+    -re "toyos>" { send_user "FAIL up-up buf=$expect_out(buffer)\n"; exit 1 }
+    timeout { send_user "FAIL up-up timeout\n"; exit 1 }
+}
+send "halt\r"
+set timeout 5
+expect { eof {} timeout {} }
+send_user "PASS hist smoke\n"
+exit 0

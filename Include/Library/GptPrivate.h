@@ -1,5 +1,5 @@
 /*
- * GptPrivate.h — Gpt 内部（仅 Common/Library/Gpt）
+ * GptPrivate.h — Gpt 内部（仅 Library/Gpt）
  *
  * 对外 API 仍在 Gpt.h。User 勿 include。
  */

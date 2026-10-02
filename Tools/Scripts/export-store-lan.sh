@@ -15,7 +15,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-StoreSrc="${STORE_SRC:-Store}"
+# 货架真源在 ToyImage/Store（Image 阶段）；可用 STORE_SRC 覆盖
+StoreSrc="${STORE_SRC:-../ToyImage/Store}"
 Catalog="$StoreSrc/catalog.txt"
 Out="${1:-Build/store-lan}"
 

@@ -52,7 +52,7 @@ theme=default
 deskgrad=0
 theme.effects=low
 EOF
-    if [ "${TOY_QEMU_VERBOSE:-0}" = 1 ]; then echo "Prepared THEME.CFG -> $ROOT/ (no mode=, classic grey)"; fi
+    if [ "${TOY_QEMU_VERBOSE:-0}" = 1 ]; then echo "Prepared THEME.CFG -> $ROOT/ (no mode=, solid grey)"; fi
 fi
 chmod u+rw "$ROOT/THEME.CFG" "$ROOT/TOYOS.DB" 2>/dev/null || true
 if [ -f "$ROOT/THEME.CFG" ] && [ ! -w "$ROOT/THEME.CFG" ]; then
@@ -64,11 +64,11 @@ mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Images"
 if [ -d Assets ]; then
     cp -a Assets/. "$ROOT/Assets/"
 fi
-# 商店权威源：ToyKernel/Store → Guest Store/（store-src；废 Assets/Store + StoreCache）
-# CHAT-4：chat 仅留在 ToyKernel/Store 供 export-store-lan；Guest 须 LAN install。
-if [ -d ../ToyKernel/Store ]; then
+# 商店权威源：ToyImage/Store → Guest Store/（store-src；废 Assets/Store + StoreCache）
+# CHAT-4：chat 仅留在 ToyImage/Store 供 export-store-lan；Guest 须 LAN install。
+if [ -d Store ]; then
     mkdir -p "$ROOT/Store"
-    cp -a ../ToyKernel/Store/. "$ROOT/Store/"
+    cp -a Store/. "$ROOT/Store/"
     rm -rf "$ROOT/Store/packages/chat" "$ROOT/Apps/chat"
     if [ -f "$ROOT/Store/catalog.txt" ]; then
         grep -v '^chat|' "$ROOT/Store/catalog.txt" > "$ROOT/Store/catalog.txt.noch" \
@@ -82,24 +82,9 @@ if [ ! -f "$ROOT/FW/IWL8265.UCODE" ]; then
 elif [ "${TOY_QEMU_VERBOSE:-0}" = 1 ]; then
     echo "FW/IWL8265.UCODE present ($(stat -c%s "$ROOT/FW/IWL8265.UCODE") bytes)"
 fi
-if [ ! -f "$ROOT/Assets/Images/WALL.BMP" ] && [ -f ../ToyKernel/Assets/Images/WALL.BMP ]; then
-    cp -f ../ToyKernel/Assets/Images/WALL.BMP "$ROOT/Assets/Images/WALL.BMP"
-fi
-if [ ! -f "$ROOT/Assets/Icons/bmp48/SHELL.BMP" ] && [ -d ../ToyKernel/Assets/Icons ]; then
-    mkdir -p "$ROOT/Assets/Icons"
-    cp -a ../ToyKernel/Assets/Icons/. "$ROOT/Assets/Icons/"
-fi
-if [ ! -f "$ROOT/Assets/Locale/en.txt" ] && [ -d ../ToyKernel/Assets/Locale ]; then
-    mkdir -p "$ROOT/Assets/Locale"
-    cp -a ../ToyKernel/Assets/Locale/. "$ROOT/Assets/Locale/"
-fi
-if [ ! -f "$ROOT/Assets/Fonts/VGA8X16.FNT" ] && [ -d ../ToyKernel/Assets/Fonts ]; then
-    mkdir -p "$ROOT/Assets/Fonts"
-    cp -a ../ToyKernel/Assets/Fonts/. "$ROOT/Assets/Fonts/"
-fi
 mkdir -p "$ROOT/Assets/Packs"
-if [ -d ../ToyKernel/Assets/Packs ]; then
-    cp -a ../ToyKernel/Assets/Packs/. "$ROOT/Assets/Packs/" 2>/dev/null || true
+if [ -d Assets/Packs ]; then
+    cp -a Assets/Packs/. "$ROOT/Assets/Packs/" 2>/dev/null || true
 fi
 
 # Guest 可写占位；已装 Apps 与根目录 ELF 对齐（防旧号段残留）

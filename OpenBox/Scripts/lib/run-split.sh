@@ -13,7 +13,7 @@
 #   TOY_DISK=nvme ./Scripts/run-split.sh
 #   TOY_NET=e1000 ./Scripts/run-split.sh
 #   TOY_USB_HUB=1 ./Scripts/run-split.sh
-#   TOY_USB_MSC=1 ./Scripts/run-split.sh   # Fixtures/msc-stick/
+#   TOY_USB_MSC=1 ./Scripts/run-split.sh   # Msc/（usb-storage）
 #   TOY_USB_UHCI=1 ./Scripts/run-split.sh  # piix3-usb-uhci + mouse（PR-H-uhci-1）
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -72,13 +72,13 @@ fi
 
 MSC_DISK_ARGS=()
 if [ "${TOY_USB_MSC:-0}" = 1 ]; then
-    if [ ! -d Fixtures/msc-stick ] || [ ! -f Fixtures/msc-stick/TOYOS.ID ]; then
-        echo "error: TOY_USB_MSC=1 needs Fixtures/msc-stick/TOYOS.ID" >&2
+    if [ ! -d Msc ] || [ ! -f Msc/TOYOS.ID ]; then
+        echo "error: TOY_USB_MSC=1 needs Msc/TOYOS.ID" >&2
         exit 1
     fi
-    toy_qemu_info "qemu: TOY_USB_MSC=1 (usb-storage ← Fixtures/msc-stick/)"
+    toy_qemu_info "qemu: TOY_USB_MSC=1 (usb-storage ← Msc/)"
     MSC_DISK_ARGS=(
-        -drive if=none,id=toymsc,format=raw,file=fat:rw:Fixtures/msc-stick
+        -drive if=none,id=toymsc,format=raw,file=fat:rw:Msc
         -device usb-storage,drive=toymsc,bus=xhci.0
     )
 fi

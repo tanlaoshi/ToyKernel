@@ -1,0 +1,62 @@
+set timeout 180
+set image_root [pwd]
+if {![file exists [file join $image_root RootFs X64 TOYOS.ID]]} {
+  set image_root [file normalize [file join [pwd] .. ToyImage]]
+}
+set run_split [file normalize [file join $image_root .. Scripts lib run-split.sh]]
+if {[info exists env(TOYOS_ROOT)] && [file exists [file join $env(TOYOS_ROOT) Scripts lib run-split.sh]]} {
+  set run_split [file join $env(TOYOS_ROOT) Scripts lib run-split.sh]
+}
+spawn sh -c "cd $image_root && exec $run_split --kill-qemu --headless --smp=1"
+expect {
+    -re "ToyOS ready|就绪" {}
+    timeout { puts "boot timeout"; exit 1 }
+}
+send "\r"
+expect -re "toyos>"
+proc run {Cmd} {
+    set timeout 120
+    send "$Cmd\r"
+    expect {
+        -re "toyos>" { return $expect_out(buffer) }
+        timeout { puts "timeout after: $Cmd"; exit 1 }
+    }
+}
+proc wait_job {} {
+    for {set i 0} {$i < 180} {incr i} {
+        set b [run "store job"]
+        if {[regexp {store job: idle} $b]} { return $b }
+    }
+    puts "FAIL never idle"; exit 1
+}
+
+run "store install sun8"
+wait_job
+run "store install demopack"
+wait_job
+run "store install guidemo"
+wait_job
+set b [run "stat Apps/guidemo/GUIDEMO.ELF"]
+puts $b
+if {![regexp {size|Size|Attr|cluster|file} $b]} { puts "FAIL pre-remove elf"; exit 1 }
+
+run "store uncombo guidemo"
+set bjob [wait_job]
+puts $bjob
+
+set b [run "stat Apps/guidemo"]
+puts $b
+# gone: error/noent text, or no DIR attr
+if {[regexp {attr=0x00000010} $b]} {
+    puts "FAIL Apps/guidemo dir remains"; exit 1
+}
+
+set b2 [run "store installed"]
+puts $b2
+if {[regexp -nocase {guidemo} $b2]} { puts "FAIL still installed"; exit 1 }
+
+puts "ok guidemo removed"
+send "halt\r"
+catch { exec pkill -9 -f qemu-system-x86_64 }
+puts "=== PASS ==="
+exit 0

@@ -103,20 +103,17 @@ cd ../ToyImage
 
 ## 目录结构（摘要）
 
-**分层**：`Boot → HAL → Library → Core → Services → User`（详见[技术手册 §I](Documents/技术手册.md#tm-i-layers)）。**`Common/` 不是层**。
+**分层**：`Boot → HAL → Library → Core → Services → User`（详见[技术手册 §I](Documents/技术手册.md#tm-i-layers)）。  
+**磁盘 Code（钉死）**：`CodeA-HAL` … `CodeE-User`。**`Assets/` / 仓顶 `Store/` → ToyImage**（Image 阶段，非 Code）。
 
 ```
 ToyKernel/
-├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
-├── Core/             # 内核、设备、调度、系统调用、PMM…
-├── Services/         # 已抬顶（Gui / Shell / Store …）
-├── Library/ Fonts/ Modules/   # 终态顶层（尚在 Common/）
-├── Common/{…}        # ★ 将删：现仍装 Library/Fonts/Modules
-├── HAL/{X64,Arm64,RiscV,Board}/
-├── Assets/  User/
-├── Documents/        # 顶层仅路线图 + 技术手册；驱动/ 开发/ 已完/ 待做/
-├── build.sh  Makefile
-└── README.md         # 本文件
+├── CodeA-HAL/ … CodeE-User/   # 唯一 Code 段
+├── Include/                   # 跨层契约
+├── Tools/  Documents/  ThirdParty/
+├── Build/                     # 编译产物（单目录）
+├── build.sh  Makefile  README.md
+└── （无 Assets/、无仓顶 Store/ — 种子在 ../ToyImage/）
 ```
 
 完整文件职责与启动顺序见 [`技术手册`](Documents/技术手册.md)「目录与启动」。抬顶排期见路线图 [拆 Common](Documents/路线图.md#pr-tree-common)。

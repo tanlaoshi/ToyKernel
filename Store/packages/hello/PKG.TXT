@@ -1,9 +1,0 @@
-name=hello
-type=app
-version=1
-file=HELLO.ELF
-sha256=-
-arch=x86_64
-title=Hello
-desktop=yes
-taskbar=yes

@@ -166,32 +166,32 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | `ToyKernel/build.sh` | 编 Kernel（ARCH=…） | `build.sh toyos <arch>` |
 | `ToyBoot/build.sh` | 编 BOOTX64（EDK2） | `build.sh toyboot <arch>`（首期 mainly x86） |
 | `ToyKernel/Tools/build-sdk.sh` | 打包 ToySDK | `build.sh sdk <arch>` |
-| `ToyImage/Scripts/run-split.sh` | x86 双盘 QEMU（主入口） | `run.sh x86 split`（默认） |
-| `ToyImage/Scripts/run.sh` | 已废弃→转 run-split | **删除对外名**；兼容期转发 `run.sh x86` |
-| `ToyImage/Scripts/run-virt-arm.sh` | aarch64 virt | `run.sh arm64 virt` |
-| `ToyImage/Scripts/run-virt-riscv.sh` | riscv64 virt | `run.sh riscv virt` |
-| `ToyImage/Scripts/run-virt-common.sh` | virt 公共逻辑 | `Scripts/lib/run-virt-common.sh` |
-| `ToyImage/Scripts/toy-qemu-lib.sh` | QEMU/NVRAM/THEME 公共 | `Scripts/lib/toy-qemu-lib.sh` |
-| `ToyImage/Scripts/prepare-rootfs.sh` | 准备 RootFs/X64 | `prepare-fs.sh x86` |
-| `ToyImage/Scripts/prepare-virt-rootfs.sh` | Arm/RiscV virt 盘镜像 | `prepare-fs.sh arm64\|riscv` |
-| `ToyImage/Scripts/smoke-boot.sh` | x86 无头冒烟 ready | `test.sh smoke x86` |
-| `ToyImage/Scripts/smoke-virt.sh` | Arm+RiscV virt 冒烟 | `test.sh smoke arm64` / `test.sh smoke riscv`（或 `test.sh smoke-virt`） |
-| `ToyImage/Scripts/smoke-install.sh` | install 第三盘冒烟 | `test.sh smoke-install x86` |
-| `ToyImage/Scripts/smoke-msc.sh` | USB MSC 冒烟 | `test.sh smoke-msc x86` |
-| `ToyImage/Scripts/test-fs.sh` | FS 自动测 | `test.sh fs x86` |
-| `ToyImage/Scripts/test-user.sh` | 用户态自动测 | `test.sh user x86` |
-| `ToyImage/Scripts/test-shell.sh` | Shell 自动测 | `test.sh shell x86` |
-| `ToyImage/Scripts/test-enosys.sh` | ENOSYS 测 | `test.sh enosys x86` |
-| `ToyImage/Scripts/test-mod-verify.sh` | bundle expect 串跑 | `test.sh mod-verify x86` |
-| `ToyImage/Scripts/test-bundle-*.exp` | expect 夹具（非 .sh） | 随 `test.sh mod-verify`；资产进 `Scripts/lib/expect/` 或仍留 Image |
+| `Scripts/run-split.sh` / `lib/run-split.sh` | x86 双盘 QEMU（主入口） | `run.sh x86`（默认） |
+| `Scripts/lib/run.sh` | Image 旧单盘入口（已转 run-split） | 用 `run.sh x86` |
+| `Scripts/run-virt-arm.sh` | aarch64 virt | `run.sh arm64` |
+| `Scripts/run-virt-riscv.sh` | riscv64 virt | `run.sh riscv` |
+| `Scripts/lib/run-virt-common.sh` | virt 公共逻辑 | （被 virt 入口 source） |
+| `Scripts/lib/toy-qemu-lib.sh` | QEMU/NVRAM/THEME 公共 | （被 run-split source） |
+| `Scripts/prepare-rootfs.sh` | 准备 RootFs/X64 | `prepare-fs.sh x86` |
+| `Scripts/prepare-virt-rootfs.sh` | Arm/RiscV virt 盘镜像 | `prepare-fs.sh arm64\|riscv` |
+| `Scripts/smoke-boot.sh` | x86 无头冒烟 ready | `test.sh smoke x86` |
+| `Scripts/smoke-virt.sh` | Arm+RiscV virt 冒烟 | `test.sh smoke-virt` |
+| `Scripts/smoke-install.sh` | install 第三盘冒烟 | `test.sh smoke-install` |
+| `Scripts/smoke-msc.sh` | USB MSC 冒烟 | `test.sh smoke-msc` |
+| `Scripts/lib/test-fs.sh` | FS 自动测 | `test.sh fs` |
+| `Scripts/lib/test-user.sh` | 用户态自动测 | `test.sh user` |
+| `Scripts/lib/test-shell.sh` | Shell 自动测 | `test.sh shell` |
+| `Scripts/lib/test-enosys.sh` | ENOSYS 测 | `test.sh enosys` |
+| `Scripts/test-mod-verify.sh` | bundle expect 串跑 | `test.sh mod-verify` |
+| `Scripts/lib/test-bundle-*.exp` | expect 夹具 | `test.sh mod-verify` |
 | `ToyKernel/Tools/Scripts/test-all.sh` | 开课前统一自动入口 | `test.sh all host`（或 `test.sh all x86` 按现语义） |
 | `ToyKernel/Tools/Scripts/runtests.sh` | 宿主 scheduler/memory/fs 单测 | `test.sh unit host`（参数透传 suite） |
-| `ToyImage/Scripts/sync-usb.sh` | 同步到 U 盘 ESP+TOYOS | `sync.sh usb` |
-| `ToyImage/Scripts/sync-nuc.sh` | 同步到 NUC SSD | `sync.sh nuc` |
-| `ToyImage/Scripts/sync-kernel-usb.sh` | → sync-usb --kernel-only | `sync.sh kernel`（或 `sync.sh usb --kernel-only`） |
-| `ToyImage/Scripts/make-usb-stick.sh` | 格式化/做成启动盘 | `usb.sh make` |
-| `ToyImage/Scripts/measure-boot.sh` | 开机墙钟 | `measure.sh boot` |
-| `ToyImage/Scripts/dock-icon.sh` | GNOME Dock 图标 | `desktop.sh dock-icon` |
+| `Scripts/sync-usb.sh` | 同步到 U 盘 ESP+TOYOS | `sync.sh usb` |
+| `Scripts/sync-nuc.sh` | 同步到 NUC SSD | `sync.sh nuc` |
+| `Scripts/sync-kernel-usb.sh` | → sync-usb --kernel-only | `sync.sh kernel` |
+| `Scripts/make-usb-stick.sh` | 格式化/做成启动盘 | `usb.sh make` |
+| `Scripts/measure-boot.sh` | 开机墙钟 | `measure.sh boot` |
+| `Scripts/lib/dock-icon.sh` | GNOME Dock 图标 | `desktop.sh dock-icon` |
 | `ToyKernel/Tools/Scripts/export-store-lan.sh` | 导出 LAN 仓库树 | `store.sh export` |
 | `ToyKernel/Tools/Scripts/serve-store-lan.sh` | 导出 + HTTP :8080 | `store.sh serve` |
 | `ToyKernel/Tools/Scripts/pack-app.sh` | ELF → Store/packages | `pack.sh` |
@@ -212,8 +212,8 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | -- | ---- |
 | bash 实现进 `OpenBox/Scripts/lib/`（权威）+ `install-to-root` | ✅ |
 | 树根 `run/test/sync/prepare-fs/usb/measure/desktop` 调 lib | ✅ |
-| `ToyImage/Scripts/*.sh`（非 expect）薄转发 | ✅ |
-| expect/`*.exp` 仍留 Image（spawn `./Scripts/run-split`） | ✅ |
+| **无** `ToyImage/Scripts/`；真源 `$TOYOS_ROOT/Scripts/{,lib/}` | ✅ |
+| expect 在 `Scripts/lib/*.exp`（spawn `Scripts/lib/run-split`） | ✅ |
 | `Scripts/test.sh smoke x86` + Image 转发 smoke | ✅ |
 
 **不做**：再增 `build-toyos.sh` / `run-virt-arm.sh` 等平行对外名；把 EDK2 `edksetup.sh` 当教学入口；收拢 ThirdParty/Extract 里的上游脚本。
@@ -264,7 +264,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | -- | ---- |
 | 做 | 环形历史（建议 ≥32 条）；↑ 更旧 / ↓ 更新；到顶/底钳制；新提交回最新空行 |
 | 不做 | 持久化到盘；Ctrl-R 搜索；多行编辑 |
-| 验收 | QEMU Shell：连敲几条命令后 ↑↓ 能回到先前行并回车重跑；`ToyImage/Scripts/smoke-hist-box1.exp` PASS |
+| 验收 | QEMU Shell：连敲几条命令后 ↑↓ 能回到先前行并回车重跑；`Scripts/lib/smoke-hist-box1.exp` PASS |
 
 ### 3.2 启动 Logo + 清屏 · BOX-2
 

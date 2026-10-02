@@ -3,57 +3,71 @@
 > **范围**：源码 / 头文件 / 脚本 / 文档 / 配置约 **1018** 项。
 > **不含**：`Build/`、`ThirdParty/lwip/` 上游树、交叉工具链解压包、`.o/.a/.elf`、字体/图标/固件等二进制。
 > **分层硬规则**：[`技术手册 · 体系结构`](../技术手册.md#i-体系结构--分层与对外接口)。**排期**：[`路线图.md`](../路线图.md)。
-> **分层终态**：`Boot → HAL → Library → Core → Services → User`。**`Common/` 不是层**——仅旧路径篮子（现装 Library/Fonts/Modules；`Services/` 已抬顶）；[拆 Common](../路线图.md#pr-tree-common) 其余抬顶后删空壳。下文 `Common/…` = **将删别名**。
-> **日期**：2026-10-03（TREE-svc：`Services/` 已顶层）。
+> **分层终态（上→下 = 依赖）**：`User → Services → Core → Library → HAL → Boot`。  
+> **磁盘 · Code（仅此钉死）**：`CodeA-HAL` → `CodeB-Library`（含 Fonts/）→ `CodeC-Core`/`CodeC-Modules` → `CodeD-Services` → `CodeE-User`。  
+> **磁盘 · Image**：`Assets/`、仓顶 `Store/`（货架）→ **`ToyImage/`**，不进 ToyKernel 顶层、不加 Code 前缀。  
+> **日期**：2026-10-03（Code 预览；**Assets/Store 已迁 ToyImage**）。
 
 ## 目录
 
-- [0. 总览与模块依赖](#0-总览与模块依赖)
-- [1. `Root/` — 仓库根：构建入口与顶层配置](#1-Root)
-- [2. `Include/` — 跨层公开 API / 契约头](#2-Include)
-- [3. `Core/` — 内核核心：启动编排、调度、进程、系统调用、虚拟内存](#3-Core)
-- [4. `Common/Modules/` — 可替换内核模块（SCHED / MEM / FS）（将抬顶 → `Modules/`）](#4-CommonModules)
-- [5. `Common/Library/` — 共享库：ELF / FAT / GPT / BlockMux / UI（将抬顶 → `Library/`）](#5-CommonLibrary)
-- [6. `Common/Fonts/` — 内嵌点阵字体数据（将抬顶 → `Fonts/`）](#6-CommonFonts)
-- [7. `Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层](#7-CommonServices)
-- [8. `HAL/Board/` — 板包约定与模板](#8-HALBoard)
-- [9. `HAL/X64/` — x86-64 HAL：启动、中断、页表、HalDevices、LwIp 移植](#9-HALX64)
-- [10. `HAL/X64/Drivers/` — x86 设备驱动（一设备一夹）](#10-HALX64Drivers)
-- [11. `HAL/Virt/` — Arm/RiscV 共享 virtio / ramfb / DTB](#11-HALVirt)
-- [12. `HAL/Arm64/` — AArch64 HAL + Board/virt](#12-HALArm64)
-- [13. `HAL/RiscV/` — RISC-V HAL + Board/virt](#13-HALRiscV)
-- [14. `User/` — 用户态 CRT / 头 / libToy* / Apps / Pkg](#14-User)
-- [15. `Assets/` — Guest 资源种子（同步到 ToyImage RootFs）](#15-Assets)
-- [16. `Tools/` — SDK / 脚本 / Host 单测 / 交叉工具链](#16-Tools)
-- [17. `ThirdParty/` — 第三方集成说明](#17-ThirdParty)
-- [18. `Documents/` — 文档](#18-Documents)
-- [19. `Meta/` — CI / 编辑器元数据](#19-Meta)
-- [附 A. 二进制资源](#附-a-二进制资源)
-- [附 B. 与 ToyBoot / ToyImage 边界](#附-b-与-toyboot--toyimage-边界)
+按**开机 Code A→E**列源码；契约 / 工具另组；**资源与货架见 ToyImage**。
+
+**Code（钉死）**
+
+- [`CodeA-HAL`](#8-HALBoard)
+- [`CodeB-Library`](#5-CommonLibrary)（含 `Fonts/`，非层）
+- [`CodeC-Core`](#3-Core) · [`CodeC-Modules`](#4-CommonModules)
+- [`CodeD-Services`](#7-CommonServices)（含商店**逻辑** `Store/` 源码）
+- [`CodeE-User`](#14-User)
+- Boot：仓外 ToyBoot；仓内 Startup ∈ CodeA-HAL
+
+**跨层契约 / 工具 / 产物**（无 Code 前缀）
+
+- [`Include/`](#2-Include)
+- [仓库根](#1-Root) · [`Tools/`](#16-Tools) · [`ThirdParty/`](#17-ThirdParty) · `Build/`
+- [`Documents/`](#18-Documents) · [`Meta/`](#19-Meta)
+
+**Image（ToyImage，非本仓顶层终态）**
+
+- `ToyImage/Assets/` — Guest 资源种子  
+- `ToyImage/Store/` — 商店目录与 packages（货架数据）  
+- Kernel 顶层已无 `Assets/` / 仓顶 `Store/`  
+
+[总览与依赖](#0-总览与模块依赖) · [附 B · ToyBoot / ToyImage](#附-b-与-toyboot--toyimage-边界)
 
 ## 0. 总览与模块依赖
 
-**层（终态）**：`Boot → HAL → Library → Core → Services → User`。  
-`Fonts` / `Modules` = 顶层目录，不是并列「层」。**`Common/` 不是层**（将删路径别名）。
+**依赖（上→下）**：`User → Services → Core → Library → HAL → Boot`。  
+**开机 / 磁盘（A→E）**：`CodeA-HAL → CodeB-Library → CodeC-Core → CodeD-Services → CodeE-User`（`ls` 即此序）。  
+两套顺序**方向相反**：依赖图从上往下看；开机从 A 走到 E。
 
-### 0.1 数据流（启动 → 用户态）
+### 0.1 分层与依赖（钉死读法）
 
-```mermaid
-flowchart TB
-  Boot[ToyBoot / virt Startup] -->|BOOT_INFO| Kernel[Core/Kernel]
-  Kernel --> Mods[Modules<br/>SCHED MEM FS]
-  Kernel --> Svc[Services]
-  Mods --> Lib[Library]
-  Svc --> Lib
-  Svc -->|Hal* 门面| Hal[HAL/Arch + Drivers]
-  Kernel --> Hal
-  User[User ELF<br/>CRT libToy] -->|syscall| Sys[Core/Syscall]
-  Sys --> Mods
-  Sys --> Svc
-  Sys --> Hal
+**两件事不要混**：
+
+- **依赖层叠** — 下图。越靠上越靠近用户。  
+- **开机 Code** — 字母 A 最早。磁盘目录用 `CodeA-…` 前缀，不靠手工编号。
+
+```
+依赖上↓                    磁盘 / 开机 →
+┌──────────── User ─────┐   CodeE-User
+│      Services         │   CodeD-Services
+│      Core (+Modules)  │   CodeC-Core / CodeC-Modules
+│      Library (+Fonts) │   CodeB-Library（Fonts/ 子目录）
+│      HAL              │   CodeA-HAL          ← 进内核最先
+│      Boot             │   （仓外 ToyBoot，早于 A）
+└───────────────────────┘
 ```
 
-> 现源码：`Services/` 已顶层；`Common/Modules`、`Common/Library`、`Common/Fonts` 仍为将删别名。图上用终态层名。
+依赖（只允许向下）：
+  User ──syscall──► Core / Services
+  Services ───────► Core / Library / Hal*
+  Core ───────────► Library / Hal* / BootInfo
+  Library ────────► Hal*
+  HAL ────────────► 本 Arch Drivers（私有）
+  Boot ──BOOT_INFO─► Core（开机交棒一次）
+
+> 现源码仍为 `HAL/` `Library/` `Services/` `User/` 等短名；`Code*` 改名 = [TREE-rest](../路线图.md#pr-tree-rest)。
 
 ### 0.2 依赖矩阵
 
@@ -69,46 +83,42 @@ flowchart TB
 
 ### 0.3 顶层树
 
-**终态**（TREE-lib/rest 完成后）：
+**终态**（TREE-rest 后；Code A→E 钉死；种子在 ToyImage）：
 
 ```
 ToyKernel/
-├── Include/           # Abi Hal Core Driver Library Services
-├── Core/              # Kernel / Syscall / VMM / Process / Device / PMM …
-├── Modules/           # 可替换 SCHED/MEM/FS + Student/
-├── Library/           # Elf Fat Gpt BlockMux UI …
-├── Fonts/
-├── Services/          # Gui* Shell Store LwIp FileSystem …
-├── HAL/ …
-├── User/  Assets/  Tools/  Documents/  ThirdParty/
+├── CodeA-HAL/
+├── CodeB-Library/       # 含 Fonts/
+├── CodeC-Core/
+├── CodeC-Modules/
+├── CodeD-Services/      # 含 Store/ 逻辑 .c（非货架）
+├── CodeE-User/
+├── Include/
+├── Tools/  Documents/  ThirdParty/
 ├── Makefile  build.sh  README.md
 └── Build/
 ```
 
-**现树**（`Services/` 已抬顶；`Common/` 仍装 Library/Fonts/Modules）：
+> Guest 资源 / 商店货架：`../ToyImage/Assets/`、`../ToyImage/…/Store/`（Image 阶段）。
+
+**现树**（短名中转；Code 改名待 TREE-rest）：
 
 ```
 ToyKernel/
-├── Include/           # Abi Hal Core Driver Library Services
-├── Core/              # Kernel / Syscall / VMM / Process / Device / PMM …
-├── Services/          # Gui* Shell Store LwIp FileSystem …（已抬顶）
-├── Common/            # ★ 将删：非分层单位
-│   ├── Modules/       # → 终态 Modules/
-│   ├── Library/       # → 终态 Library/
-│   └── Fonts/         # → 终态 Fonts/
-├── HAL/
-│   ├── Board/         # 板包约定
-│   ├── X64/           # 产品路径 + Drivers/
-│   ├── Virt/          # virt 共享
-│   ├── Arm64/  RiscV/
-├── User/              # CRT · include · Library · Apps · Pkg
-├── Assets/            # 同步到 ToyImage/RootFs
-├── Tools/             # Sdk · Scripts · Tests · build-sdk.sh
-├── Documents/
-├── ThirdParty/
+├── HAL/                 # → CodeA-HAL
+├── Library/             # → CodeB-Library（已抬顶）
+├── Services/            # → CodeD-Services（已抬顶）
+├── Core/                # → CodeC-Core
+├── User/                # → CodeE-User
+├── Common/              # ★ 将删
+│   ├── Fonts/           # → CodeB-Library/Fonts/
+│   └── Modules/         # → CodeC-Modules
+├── Include/
+├── Assets/  Tools/  Documents/  ThirdParty/
 ├── Makefile  build.sh  README.md
-└── Build/             # gitignore 产物
+└── Build/
 ```
+
 ## 1. Root — 仓库根：构建入口与顶层配置
 
 | 文件 | 用途 |
@@ -372,54 +382,54 @@ ToyKernel/
 | `Common/Modules/Student/PhysicalMemoryBestFit/PhysicalMemoryBestFit.c` | 学生分配模板（best-fit）。 |
 | `Common/Modules/Student/SchedulerPriority/SchedulerPriority.c` | 学生调度模板。 |
 
-## 5. `Common/Library/` — 共享库：ELF / FAT / GPT / BlockMux / UI
+## 5. `Library/` — 共享库：ELF / FAT / GPT / BlockMux / UI
 
 ### (Library 根)
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Library/Block.c` | 块设备抽象（后端由 HAL 注册） |
-| `Common/Library/BlockMux.c` | Primary + MSC 双后端（PR-H-msc） |
-| `Common/Library/Bmp.c` | BI_RGB BMP → RGB888（PR-G13） |
-| `Common/Library/CString.c` | freestanding 字符串/内存例程（供 lwIP 等使用） |
-| `Common/Library/Driver.c` | 驱动注册表与 Probe/Bind/Remove 生命周期（PR-D1） |
-| `Common/Library/DriverBlock.c` | Block 类适配层（PR-D2） |
-| `Common/Library/DriverInput.c` | Input 类适配层（PR-D3；PR-H-input-mux：多 backend 聚合） |
-| `Common/Library/DriverMatch.c` | 驱动匹配表过滤（PR-DRV-match-logic） |
-| `Common/Library/DriverNet.c` | Net 类适配层（PR-D3） |
-| `Common/Library/DriverNic.c` | NIC_L2 校验（PR-N-nic-l2） |
-| `Common/Library/FontData.h` | 兼容转发（PR-D1） |
-| `Common/Library/HIDKeyboard.c` | HID 键码到 ASCII 的映射 |
-| `Common/Library/LibWrite.c` | PR-R4：Library 写槽 |
-| `Common/Library/PciNames.c` | 课用 PCI 名称表（PR-DEV-names） |
-| `Common/Library/ResFs.c` | 只读「资源卷」第二 VFS 后端（PR-F3） |
-| `Common/Library/UiAction.c` | PR-GUI-btn-action：事件分发实现。 |
-| `Common/Library/UiButton.c` | PR-GUI-btn-widget：widget 层实现。 |
-| `Common/Library/Vfs.c` | FsOps 注册与分发（PR-F1；PR-F3 多后端） |
+| `Library/Block.c` | 块设备抽象（后端由 HAL 注册） |
+| `Library/BlockMux.c` | Primary + MSC 双后端（PR-H-msc） |
+| `Library/Bmp.c` | BI_RGB BMP → RGB888（PR-G13） |
+| `Library/CString.c` | freestanding 字符串/内存例程（供 lwIP 等使用） |
+| `Library/Driver.c` | 驱动注册表与 Probe/Bind/Remove 生命周期（PR-D1） |
+| `Library/DriverBlock.c` | Block 类适配层（PR-D2） |
+| `Library/DriverInput.c` | Input 类适配层（PR-D3；PR-H-input-mux：多 backend 聚合） |
+| `Library/DriverMatch.c` | 驱动匹配表过滤（PR-DRV-match-logic） |
+| `Library/DriverNet.c` | Net 类适配层（PR-D3） |
+| `Library/DriverNic.c` | NIC_L2 校验（PR-N-nic-l2） |
+| `Library/FontData.h` | 兼容转发（PR-D1） |
+| `Library/HIDKeyboard.c` | HID 键码到 ASCII 的映射 |
+| `Library/LibWrite.c` | PR-R4：Library 写槽 |
+| `Library/PciNames.c` | 课用 PCI 名称表（PR-DEV-names） |
+| `Library/ResFs.c` | 只读「资源卷」第二 VFS 后端（PR-F3） |
+| `Library/UiAction.c` | PR-GUI-btn-action：事件分发实现。 |
+| `Library/UiButton.c` | PR-GUI-btn-widget：widget 层实现。 |
+| `Library/Vfs.c` | FsOps 注册与分发（PR-F1；PR-F3 多后端） |
 
 ### Elf
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Library/Elf/Elf.c` | PR-S3-elf-1：ELF64 公共帮手（头校验 / PT_LOAD 映射 / 动态段） |
-| `Common/Library/Elf/ElfLoad.c` | PR-S3-elf-1：静态 ET_EXEC 装载（段 + 用户栈） |
-| `Common/Library/Elf/ElfReloc.c` | PR-S3-elf-1：RELA / JMPREL 重定位 |
-| `Common/Library/Elf/ElfSo.c` | PR-S3-elf-1：DT_NEEDED / ET_DYN 共享库装载 |
+| `Library/Elf/Elf.c` | PR-S3-elf-1：ELF64 公共帮手（头校验 / PT_LOAD 映射 / 动态段） |
+| `Library/Elf/ElfLoad.c` | PR-S3-elf-1：静态 ET_EXEC 装载（段 + 用户栈） |
+| `Library/Elf/ElfReloc.c` | PR-S3-elf-1：RELA / JMPREL 重定位 |
+| `Library/Elf/ElfSo.c` | PR-S3-elf-1：DT_NEEDED / ET_DYN 共享库装载 |
 
 ### Gpt
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Library/Gpt/Gpt.c` | 查找 FAT 分区（PR-S-gpt-1） |
-| `Common/Library/Gpt/GptWrite.c` | 写出课堂 GPT 布局（PR-S-gpt-1） |
+| `Library/Gpt/Gpt.c` | 查找 FAT 分区（PR-S-gpt-1） |
+| `Library/Gpt/GptWrite.c` | 写出课堂 GPT 布局（PR-S-gpt-1） |
 
 ### UI
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Library/UI/UI.c` | PR-S3-ui-1：几何核心（线/矩形/圆/三角 + 圆角） |
-| `Common/Library/UI/UIDraw.c` | PR-S3-ui-1：按钮 / 进度条 |
-| `Common/Library/UI/UILayout.c` | PR-S3-ui-1：命中测试 / 列表行 / 滚动条 |
+| `Library/UI/UI.c` | PR-S3-ui-1：几何核心（线/矩形/圆/三角 + 圆角） |
+| `Library/UI/UIDraw.c` | PR-S3-ui-1：按钮 / 进度条 |
+| `Library/UI/UILayout.c` | PR-S3-ui-1：命中测试 / 列表行 / 滚动条 |
 
 ## 6. `Common/Fonts/` — 内嵌点阵字体数据
 
@@ -1735,7 +1745,7 @@ ToyKernel/
 | ToyBoot | 仅 x86：`BOOTX64.EFI`；`BOOT_CONFIG` → `HAL/X64/Startup` → `BOOT_INFO` |
 | ToyImage `Esp/X64/` | UEFI 引导分区内容 |
 | ToyImage `RootFs/X64/` | TOYOS 系统盘：`build.sh` 同步 Kernel / ELF / Assets |
-| ToyImage `RootFs/{Arm64,RiscV}/` | virt 系统盘 staging + `.img` |
+| ToyImage `RootFs/{Arm64,RiscV}/` | virt staging；FAT 盘 `disk.img`（gitignore） |
 
 ---
 

@@ -4,7 +4,7 @@
 > **前置**：无（柱已收官）。  
 
 > **目标**：统一按钮外观（Theme + 控件层）、统一按钮行为（点击 → 事件 → 分发）、慢操作交给后台、评估进程模型。  
-> **相关**：`Include/UI.h` · `Common/Library/UI.c` · `Include/Theme.h` · `Include/Scheduler.h` · `Include/StoreJob.h`  
+> **相关**：`Include/UI.h` · `Library/UI.c` · `Include/Theme.h` · `Include/Scheduler.h` · `Include/StoreJob.h`  
 > **命名**：PascalCase；新 `.c` ≤300；三架构可编。
 
 ---
@@ -13,10 +13,10 @@
 
 | # | 决策 | 结论 |
 | - | ---- | ---- |
-| 1 | 控件层位置 | **新建** `Include/UiButton.h` + `Common/Library/UiButton.c`（widget 层）；`UI.c` 保留为**图元层**。`UiButtonDraw` 内部调 `UiDrawButtonEx`，**不**重写绘制 |
+| 1 | 控件层位置 | **新建** `Include/UiButton.h` + `Library/UiButton.c`（widget 层）；`UI.c` 保留为**图元层**。`UiButtonDraw` 内部调 `UiDrawButtonEx`，**不**重写绘制 |
 | 2 | 按钮态 | 4 态：NORMAL / HOVER / PRESSED / DISABLED。`UiDrawButtonEx` 现仅 3 态，**扩展** DISABLED |
 | 3 | Theme 按钮色 | 新增 `ThemeButtonFace/Border/Text` × {Normal,Hover,Pressed,Disabled}；先**只追加 getter**，不进 CFG/DB |
-| 4 | 事件分发 | `UiAction.h` + `Common/Library/UiAction.c`；`UI_BUTTON_ACTION` + `UiActionDispatch`；**一次迁一页** |
+| 4 | 事件分发 | `UiAction.h` + `Library/UiAction.c`；`UI_BUTTON_ACTION` + `UiActionDispatch`；**一次迁一页** |
 | 5 | 后台任务 | Store **已有** `WorkerTask`+`StoreJob`。本柱**不重写 Store**；只抽一个**通用 `KernelTask` 注册表** + `SchedulerCreateKernel(Name,Fn,Ctx)`，供**未来**慢操作用 |
 | 6 | 不引入线程 | 共享地址空间的内核任务足够；不引入 vtable / 完整线程 |
 | 7 | 第 1 刀验证页 | **EditUi**（单 Save 钮，最小）——**已确认**（2026-09-24） |
@@ -57,7 +57,7 @@
 
 ## 二、现状锚点（分析 · 2026-09-24）
 
-### 2.1 图元层 `Common/Library/UI.c`（490 行）
+### 2.1 图元层 `Library/UI.c`（490 行）
 
 已有：
 - `UiDrawButton(X,Y,W,H,Text,TextColor,BgColor)` — 无态按钮（EditUi 在用）

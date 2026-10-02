@@ -22,7 +22,7 @@
 
 ### 目标
 
-1. **大分层清晰**：`HAL` / `Common/Modules` / `Services` / `Common/Library` / `Core` 职责不变。
+1. **大分层清晰**：`HAL` / `Common/Modules` / `Services` / `Library` / `Core` 职责不变。
 2. **层内模块化**：同一模块的 `.c/.h` 落在同一目录（例外见下）。
 3. **驱动**：新增设备 = 新增文件夹；禁止再往 `HAL/*/Drivers/` **根**丢业务实现。
 4. **App 课堂**：从写代码到 Store 安装有一条可抄的正统路径（目录包）；RootFs 根 ELF 收敛为白名单，产品/课包经 catalog 注册。
@@ -48,7 +48,7 @@
 | -- | ---- | ------ | -------- |
 | 政策可替换 | `Common/Modules/<Name>/` | SCHED / MEM / FS 默认实现 | 硬件 MMIO、GUI |
 | OS/UI 服务 | `Services/<Name>/` | Shell、Desktop、Store、Tcp、Theme… | PCI/USB 寄存器 |
-| 共享库 | `Common/Library/` | Elf、UI、Vfs、Block 抽象 | 具体网卡驱动 |
+| 共享库 | `Library/` | Elf、UI、Vfs、Block 抽象 | 具体网卡驱动 |
 | 框架 | `Core/` | Device 表、Module runner、调度框架壳 | 设备私有探测细节 |
 | 硬件 | `HAL/<Arch>/Drivers/<Device>/` | 一设备一目录的实现 | Common `#include` 驱动私头 |
 | Virt 共享 | `HAL/Virt/` | 跨 arch MMIO virtio / DTB / ramfb | X64 专用 PCI 细节 |

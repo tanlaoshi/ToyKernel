@@ -1,9 +1,0 @@
-name=cat
-type=app
-version=1
-file=CAT.ELF
-sha256=-
-arch=x86_64
-title=Cat
-desktop=no
-taskbar=no

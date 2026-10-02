@@ -44,13 +44,13 @@
 | 焦点 | `Services/GuiFocus.c` | 焦点切换、输入路由 | 313 |
 | 用户窗 | `Services/GuiUser.c` | 用户态窗口协议 | 504 |
 | 桌面 | `Services/Desktop.c` | 图标、任务栏、开始菜单、壁纸 | 699 |
-| 控件 | `Common/Library/UI.c` | 几何 + 按钮/列表行/滚动条 | 455 |
+| 控件 | `Library/UI.c` | 几何 + 按钮/列表行/滚动条 | 455 |
 | 主题 | `Services/Theme.c` | 桌面/Shell 底色、字体、分辨率、缩放 | 758 |
 | 字体 | `Fonts/FontRegistry.c` | 点阵注册与 `Font*` 绘制入口 | 591 |
 | 帧缓冲 | `HAL/X64/Drivers/Video.c` | GOP、后缓冲、脏区（G9） | 800 |
 | Present | `HAL/X64/Drivers/VideoPresent.c` | 脏区 blit 到 scanout | — |
 | 像素矩形 | `HAL/X64/HalVideo.c` | `HalVideoWriteRect` 等 | — |
-| BMP | `Common/Library/Bmp.c` | BI_RGB 24/32 bpp → RGB888（G13） | 124 |
+| BMP | `Library/Bmp.c` | BI_RGB 24/32 bpp → RGB888（G13） | 124 |
 
 控件 API：[`Include/UI.h`](../../Include/UI.h)。主题 API：[`Include/Theme.h`](../../Include/Theme.h)。
 
@@ -278,7 +278,7 @@ PR-GUI-doc（本文）✅
 1. **不改 syscall 号**；Theme / UI **只扩展不破坏**
 2. **不改现有功能语义**：Shell / Files / Settings / 用户窗 Poll 不回归
 3. **保持纯 C**；不引入图形库
-4. **改动落点**：`Services/Gui*.c`、`Desktop.c`、`Theme.c`、`Common/Library/UI.c`、`Bmp.c`、`Fonts/`、`HAL/X64/Drivers/Video*.c`、`HalVideo.c`（按需）。**不要**只改 `Video.c` 却漏掉 Library
+4. **改动落点**：`Services/Gui*.c`、`Desktop.c`、`Theme.c`、`Library/UI.c`、`Bmp.c`、`Fonts/`、`HAL/X64/Drivers/Video*.c`、`HalVideo.c`（按需）。**不要**只改 `Video.c` 却漏掉 Library
 5. **每 PR 独立可验证**：编译 + QEMU；NUC 有条件
 6. **性能不回归**：鼠标/拖动流畅
 7. **`_template/` 与驱动柱无关**；本柱不改 Driver* API

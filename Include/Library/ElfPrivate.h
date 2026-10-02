@@ -1,5 +1,5 @@
 /*
- * ElfPrivate.h — Elf 内部分文件共用（仅 Common/Library/Elf；User 勿 include）
+ * ElfPrivate.h — Elf 内部分文件共用（仅 Library/Elf；User 勿 include）
  *
  * 对外 API 仍在 Elf.h。
  */
