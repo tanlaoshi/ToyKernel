@@ -20,15 +20,16 @@
 #include "Theme.h"
 #include "Debug.h"
 #include "UI.h"
+#include "UiLayout.h"
 #include "UiAction.h"
 
-/* ===== 宏（从 StoreUi.c 搬入；值不变） ===== */
-#define STORE_SIDE_W    128u
+/* ===== 宏（侧栏/按钮跟 UiLayout） ===== */
+#define STORE_SIDE_W    UI_LAYOUT_SIDE_W
 #define STORE_SIDE_BG   0x00A0A8B0u
 #define STORE_PREV_BG   0x00D8D8E0u
-#define STORE_SB_W      12u
-#define STORE_BTN_H     28u
-#define STORE_BTN_GAP   10u
+#define STORE_SB_W      UI_LAYOUT_SB_W
+#define STORE_BTN_H     UI_LAYOUT_BTN_H
+#define STORE_BTN_GAP   UI_LAYOUT_GAP
 #define STORE_BTN_N     4
 #define STORE_REPO_PATH STORE_DIR "/repo.txt"
 #define STORE_MAP_MAX   STORE_ENTRIES_MAX

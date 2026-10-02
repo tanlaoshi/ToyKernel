@@ -14,10 +14,11 @@
 #include "Locale.h"
 #include "Theme.h"
 #include "UI.h"
+#include "UiLayout.h"
 
-#define DEVUI_ROW_H     22u
-#define DEVUI_PAD       8u
-#define DEVUI_SIDE_W    128u
+#define DEVUI_ROW_H     28u /* 与 UiLayoutRowH 下限对齐；点击命中用 */
+#define DEVUI_PAD       UI_LAYOUT_PAD
+#define DEVUI_SIDE_W    UI_LAYOUT_SIDE_W
 #define DEVUI_MAP_MAX   256
 #define DEVUI_FILT_ALL  0
 #define DEVUI_FILT_BOUND 1

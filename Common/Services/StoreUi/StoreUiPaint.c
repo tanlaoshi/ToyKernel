@@ -118,13 +118,16 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
 void StorePaintList(void) {
     UINT32 Cx, Cy, Cw, Ch, Bg;
     UINT32 LineH;
+    UINT32 Pad;
     UINT32 SideW;
-    UINT32 ContentX, ContentW;
     UINT32 ListW;
+    UINT32 DetailW;
+    UINT32 ContentX;
     UINT32 RowY;
     UINT32 RowW;
     UINT32 FootH;
     UINT32 ListBottom;
+    UINT32 TitleY;
     int i;
     STORE_ENTRY *Tab = StoreScratchTab();
     char Row[72];
@@ -136,52 +139,38 @@ void StorePaintList(void) {
     HalVideoFillRect(Cx, Cy, Cw, Ch, Bg);
     HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
 
-    LineH = FontAdvanceY();
-    if (LineH < 16) {
-        LineH = 16;
-    }
-
-    SideW = (Cw > STORE_SIDE_W + 160u) ? STORE_SIDE_W : 0;
+    LineH = UiLayoutRowH();
+    Pad = UI_LAYOUT_PAD;
+    UiLayoutTriple(Cw, &SideW, &ListW, &DetailW);
     gStoreUiSideW = SideW;
+    gStoreUiPrevW = DetailW;
     ContentX = Cx + SideW;
-    ContentW = Cw - SideW;
+    TitleY = Cy + Pad;
 
     if (SideW > 0) {
         gStoreUiSideX = Cx;
-        gStoreUiSideW = SideW;
         gStoreUiSideLineH = LineH;
-        gStoreUiSideRow0 = Cy + 8 + LineH + 4;
-        RowW = SideW > 10 ? SideW - 10 : SideW;
+        gStoreUiSideRow0 = TitleY + LineH + UI_LAYOUT_GAP;
+        RowW = SideW > Pad * 2u ? SideW - Pad * 2u : SideW;
         HalVideoFillRect(Cx, Cy, SideW, Ch, ThemePanelSideBackground());
-        if (SideW > 3) {
-            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, ThemePanelSeparator());
+        if (SideW > UI_LAYOUT_SEP_W) {
+            HalVideoFillRect(Cx + SideW - UI_LAYOUT_SEP_W, Cy, UI_LAYOUT_SEP_W, Ch,
+                             ThemePanelSeparator());
         }
-        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_APP_STORE), ThemeText());
+        HalVideoDrawStringAt(Cx + Pad, TitleY, LocStr(MSG_APP_STORE), ThemeText());
         for (i = 0; i < STORE_CAT_COUNT; i++) {
-            UiDrawListRow(Cx + 4, gStoreUiSideRow0 + (UINT32)i * LineH, RowW, LineH,
+            UiDrawListRow(Cx + Pad, gStoreUiSideRow0 + (UINT32)i * LineH, RowW, LineH,
                           StoreCatLabel(i), i == gStoreUiCat, i == gHoverSide);
         }
     }
 
-    gStoreUiPrevW = 0;
-    if (ContentW > 380u) {
-        gStoreUiPrevW = ContentW * 2u / 5u;
-        if (gStoreUiPrevW < 180u) {
-            gStoreUiPrevW = 180u;
-        }
-        if (gStoreUiPrevW + 200u > ContentW) {
-            gStoreUiPrevW = ContentW > 200u ? ContentW - 200u : 0;
-        }
-    }
-
-    ListW = ContentW - gStoreUiPrevW;
     gListX = ContentX;
-    FootH = STORE_BTN_H + LineH + 16u;
+    FootH = STORE_BTN_H + LineH + Pad + UI_LAYOUT_GAP;
     if (FootH + LineH * 4 > Ch) {
-        FootH = STORE_BTN_H + 12u;
+        FootH = STORE_BTN_H + Pad;
     }
     ListBottom = Cy + Ch - FootH;
-    gStoreUiListTop = Cy + 8 + LineH + 4;
+    gStoreUiListTop = TitleY + LineH + UI_LAYOUT_GAP;
     gStoreUiListLineH = LineH;
     gStoreUiListVisible = 1;
     if (ListBottom > gStoreUiListTop + LineH) {
@@ -198,15 +187,16 @@ void StorePaintList(void) {
     if (gStoreUiSbH + gStoreUiListTop > ListBottom) {
         gStoreUiSbH = (ListBottom > gStoreUiListTop) ? (ListBottom - gStoreUiListTop) : 0;
     }
-    gStoreUiSbX = (ListW > STORE_SB_W + 8) ? (ContentX + ListW - STORE_SB_W - 4)
-                                    : (ContentX + 4);
+    gStoreUiSbX = (ListW > STORE_SB_W + Pad)
+                      ? (ContentX + ListW - STORE_SB_W - UI_LAYOUT_GAP)
+                      : (ContentX + Pad);
     gStoreUiSbY = gStoreUiListTop;
-    gStoreUiListRowW = ListW > 8 ? ListW - 8 : ListW;
-    if (gStoreUiSbVisible && gStoreUiListRowW > STORE_SB_W + 8) {
-        gStoreUiListRowW -= (STORE_SB_W + 4);
+    gStoreUiListRowW = ListW > Pad * 2u ? ListW - Pad * 2u : ListW;
+    if (gStoreUiSbVisible && gStoreUiListRowW > STORE_SB_W + Pad) {
+        gStoreUiListRowW -= (STORE_SB_W + UI_LAYOUT_GAP);
     }
 
-    HalVideoDrawStringAt(ContentX + 8, Cy + 8, StoreCatLabel(gStoreUiCat), ThemeText());
+    HalVideoDrawStringAt(ContentX + Pad, TitleY, StoreCatLabel(gStoreUiCat), ThemeText());
 
     RowY = gStoreUiListTop;
     for (i = 0; i < gStoreUiListVisible && gStoreUiScroll + i < gFiltCount; i++) {
@@ -240,24 +230,25 @@ void StorePaintList(void) {
             Row[k++] = *P++;
         }
         Row[k] = 0;
-        UiDrawListRow(ContentX + 4, RowY, gStoreUiListRowW, LineH, Row,
+        UiDrawListRow(ContentX + Pad, RowY, gStoreUiListRowW, LineH, Row,
                       Fi == gSel, Fi == gHoverRow);
         RowY += LineH;
     }
     if (gStoreUiSbVisible && gStoreUiSbH > 0) {
-        UiDrawScrollBar(gStoreUiSbX, gStoreUiSbY, gStoreUiSbW, gStoreUiSbH, gStoreUiScroll, gStoreUiListVisible, gFiltCount);
+        UiDrawScrollBar(gStoreUiSbX, gStoreUiSbY, gStoreUiSbW, gStoreUiSbH, gStoreUiScroll,
+                        gStoreUiListVisible, gFiltCount);
     }
     if (gFiltCount == 0) {
-        HalVideoDrawStringAt(ContentX + 12, gStoreUiListTop + 4, LocStr(MSG_STORE_EMPTY),
+        HalVideoDrawStringAt(ContentX + Pad, gStoreUiListTop + 4, LocStr(MSG_STORE_EMPTY),
                              ThemeTextMuted());
     }
 
-    /* 第 2 分栏下方：三钮均分中栏宽度 */
-    gBtnY = ListBottom + 4;
+    gBtnY = ListBottom + UI_LAYOUT_GAP;
     StoreBtnGeom(ContentX, ListW);
     DrawButtons();
     if (gStoreUiStatus[0]) {
-        HalVideoDrawStringAt(ContentX + 8, Cy + Ch - LineH - 2, gStoreUiStatus, ThemeTextMuted());
+        HalVideoDrawStringAt(ContentX + Pad, Cy + Ch - LineH - 2, gStoreUiStatus,
+                             ThemeTextMuted());
     }
 
     if (gStoreUiPrevW > 0) {

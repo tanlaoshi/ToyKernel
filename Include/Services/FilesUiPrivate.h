@@ -15,21 +15,22 @@
 #include "Theme.h"
 #include "Font.h"
 #include "UI.h"
+#include "UiLayout.h"
 #include "Hal.h"
 #include "Debug.h"
 #include "Locale.h"
 
-/* ===== 宏（从 FilesUi.c 搬入；值不变） ===== */
+/* ===== 宏（从 FilesUi.c 搬入；侧栏/滚动条跟 UiLayout） ===== */
 #define FILES_PATH_MAX      96
 #define FILES_VIEW_MAX      2048
 #define FILES_NAME_MAX      48
 #define FILES_DBLCLICK_MAX  2000000ULL
 #define FILES_DBLCLICK_SLOP 16u
-#define FILES_SB_W          12u
-#define FILES_SIDE_W        128u
+#define FILES_SB_W          UI_LAYOUT_SB_W
+#define FILES_SIDE_W        UI_LAYOUT_SIDE_W
 #define FILES_SIDE_BG       0x00A0A8B0u
-/* 侧栏 = 已挂载卷（动态）+ 可选 Apps/Assets；TOYOS 置顶 */
-#define FILES_PLACE_MAX        (FS_MAX_VOLUMES + 2)
+/* 侧栏 = 已挂载卷（动态）；TOYOS 置顶 */
+#define FILES_PLACE_MAX        FS_MAX_VOLUMES
 #define FILES_PLACE_LABEL_MAX  20
 #define FILES_PLACE_PATH_MAX   16
 

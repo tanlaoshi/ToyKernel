@@ -129,6 +129,7 @@ void DevicesUiPaint(void) {
     UINT32 SideW;
     UINT32 ContentX, ContentW;
     UINT32 ListW;
+    UINT32 DetailW;
     UINT32 LineH;
     UINT32 RowW;
     int Row;
@@ -150,42 +151,29 @@ void DevicesUiPaint(void) {
     HalVideoFillRect(Cx, Cy, Cw, Ch, ThemeSettingsClientBackground());
     HalVideoSetClipRegion(Cx, Cy, Cw, Ch, ThemeSettingsClientBackground());
 
-    LineH = FontAdvanceY();
-    if (LineH < 16) {
-        LineH = 16;
+    LineH = UiLayoutRowH();
+    if (LineH < DEVUI_ROW_H) {
+        LineH = DEVUI_ROW_H;
     }
 
-    SideW = 0;
-    gDevUiSideW = 0;
-    if (Cw > DEVUI_SIDE_W + 280u) {
-        SideW = DEVUI_SIDE_W;
-    }
+    UiLayoutTriple(Cw, &SideW, &ListW, &DetailW);
+    gDevUiSideW = SideW;
+    gDevUiPrevW = DetailW;
     ContentX = Cx + SideW;
     ContentW = Cw - SideW;
 
-    gDevUiPrevW = 0;
-    if (ContentW > 360u) {
-        gDevUiPrevW = ContentW * 2u / 5u;
-        if (gDevUiPrevW < 160u) {
-            gDevUiPrevW = 160u;
-        }
-        if (gDevUiPrevW + 180u > ContentW) {
-            gDevUiPrevW = ContentW > 180u ? ContentW - 180u : 0;
-        }
-    }
-    ListW = ContentW - gDevUiPrevW;
-
     if (SideW > 0) {
         gDevUiSideX = Cx;
-        gDevUiSideW = SideW;
         gDevUiSideLineH = LineH;
-        gDevUiSideRow0 = Cy + 8 + LineH + 4;
-        RowW = SideW > 10 ? SideW - 10 : SideW;
+        gDevUiSideRow0 = Cy + UI_LAYOUT_PAD + LineH + UI_LAYOUT_GAP;
+        RowW = SideW > UI_LAYOUT_PAD * 2u ? SideW - UI_LAYOUT_PAD * 2u : SideW;
         HalVideoFillRect(Cx, Cy, SideW, Ch, ThemePanelSideBackground());
-        if (SideW > 3) {
-            HalVideoFillRect(Cx + SideW - 3, Cy, 3, Ch, ThemePanelSeparator());
+        if (SideW > UI_LAYOUT_SEP_W) {
+            HalVideoFillRect(Cx + SideW - UI_LAYOUT_SEP_W, Cy, UI_LAYOUT_SEP_W, Ch,
+                             ThemePanelSeparator());
         }
-        HalVideoDrawStringAt(Cx + 8, Cy + 8, LocStr(MSG_APP_DEVICES), ThemeText());
+        HalVideoDrawStringAt(Cx + UI_LAYOUT_PAD, Cy + UI_LAYOUT_PAD, LocStr(MSG_APP_DEVICES),
+                             ThemeText());
         for (i = 0; i < DEVUI_FILT_N + 1; i++) {
             const char *Lbl;
             int Sel;
@@ -197,8 +185,8 @@ void DevicesUiPaint(void) {
                 Lbl = FiltLabel(i - 1);
                 Sel = !gDevUiSummary && (i - 1) == gDevUiFilt;
             }
-            UiDrawListRow(Cx + 4, gDevUiSideRow0 + (UINT32)i * LineH, RowW, LineH,
-                          Lbl, Sel, 0);
+            UiDrawListRow(Cx + UI_LAYOUT_PAD, gDevUiSideRow0 + (UINT32)i * LineH, RowW,
+                          LineH, Lbl, Sel, 0);
         }
     }
 

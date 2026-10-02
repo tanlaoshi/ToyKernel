@@ -7,26 +7,15 @@
 
 void PaintListDrawHeader(UINT32 Cx, UINT32 Y, UINT32 LineH, UINT32 Cw) {
     UINT32 ListW;
-    UINT32 HintMax;
+    UINT32 Pad;
     const char *Hint1 = LocStr(MSG_FILES_HINT1);
     const char *Hint2 = LocStr(MSG_FILES_HINT2);
     char PathShow[FILES_PATH_MAX + 8];
     int n;
 
-    /* 先算预览宽，再画 Path/快捷键（避免右栏盖住 mkdir 等） */
-    gPrevW = 0;
-    gPrevX = Cx;
-    if (Cw > 360u) {
-        gPrevW = Cw * 2u / 5u;
-        if (gPrevW < 160u) {
-            gPrevW = 160u;
-        }
-        if (gPrevW + 120u > Cw) {
-            gPrevW = Cw > 120u ? Cw - 120u : 0;
-        }
-    }
-
-    ListW = Cw - gPrevW;
+    /* gPrevW 由 PaintList / UiLayoutTriple 写入 */
+    Pad = UI_LAYOUT_PAD;
+    ListW = Cw > gPrevW ? Cw - gPrevW : Cw;
     PathShow[0] = 0;
     CopyStr(PathShow, sizeof(PathShow), LocStr(MSG_FILES_PATH));
     n = 0;
@@ -38,27 +27,28 @@ void PaintListDrawHeader(UINT32 Cx, UINT32 Y, UINT32 LineH, UINT32 Cw) {
     } else {
         CopyStr(PathShow + n, (int)sizeof(PathShow) - n, "/");
     }
-    HintMax = ListW > 16 ? ListW - 16 : ListW;
-    (void)HintMax;
-    DrawLine(Cx + 8, Y + 8, PathShow, ThemeText());
-    DrawLine(Cx + 8, Y + 8 + LineH, Hint1, ThemeTextMuted());
-    DrawLine(Cx + 8, Y + 8 + LineH * 2, Hint2, ThemeTextMuted());
+    (void)ListW;
+    DrawLine(Cx + Pad, Y + Pad, PathShow, ThemeText());
+    DrawLine(Cx + Pad, Y + Pad + LineH, Hint1, ThemeTextMuted());
+    DrawLine(Cx + Pad, Y + Pad + LineH * 2, Hint2, ThemeTextMuted());
     if (gStatus[0]) {
-        DrawLine(Cx + 8, Y + 8 + LineH * 3, gStatus, ThemeTextAccent());
+        DrawLine(Cx + Pad, Y + Pad + LineH * 3, gStatus, ThemeTextAccent());
     }
 }
 
 void PaintListDrawRows(UINT32 ListX, UINT32 ListW, UINT32 Y, UINT32 H, UINT32 LineH) {
     UINT32 HeadLines;
     UINT32 RowY;
+    UINT32 Pad;
     int Visible;
     int i;
     char Line[96];
 
+    Pad = UI_LAYOUT_PAD;
     HeadLines = gStatus[0] ? 4u : 3u;
     Visible = 0;
-    if (H > 8 + LineH * (HeadLines + 1)) {
-        Visible = (int)((H - 8 - LineH * (HeadLines + 1)) / LineH);
+    if (H > Pad + LineH * (HeadLines + 1)) {
+        Visible = (int)((H - Pad - LineH * (HeadLines + 1)) / LineH);
     }
     if (Visible < 1) {
         Visible = 1;
@@ -74,7 +64,7 @@ void PaintListDrawRows(UINT32 ListX, UINT32 ListW, UINT32 Y, UINT32 H, UINT32 Li
     }
 
     gListVisible = Visible;
-    gListTop = Y + 8 + LineH * HeadLines + 4;
+    gListTop = Y + Pad + LineH * HeadLines + UI_LAYOUT_GAP;
     gListLineH = LineH;
     gSbVisible = (gCount > Visible) ? 1 : 0;
     gSbW = FILES_SB_W;
@@ -82,14 +72,15 @@ void PaintListDrawRows(UINT32 ListX, UINT32 ListW, UINT32 Y, UINT32 H, UINT32 Li
     if (gSbH + gListTop > Y + H) {
         gSbH = (Y + H > gListTop) ? (Y + H - gListTop) : 0;
     }
-    gSbX = (ListW > FILES_SB_W + 8) ? (ListX + ListW - FILES_SB_W - 4) : (ListX + 4);
+    gSbX = (ListW > FILES_SB_W + Pad) ? (ListX + ListW - FILES_SB_W - UI_LAYOUT_GAP)
+                                      : (ListX + Pad);
     if (gPrevW > 0 && gSbX + gSbW > ListX + ListW) {
-        gSbX = ListX + 4;
+        gSbX = ListX + Pad;
     }
     gSbY = gListTop;
-    gListRowW = ListW > 8 ? ListW - 8 : ListW;
-    if (gSbVisible && gListRowW > FILES_SB_W + 8) {
-        gListRowW -= (FILES_SB_W + 4);
+    gListRowW = ListW > Pad * 2u ? ListW - Pad * 2u : ListW;
+    if (gSbVisible && gListRowW > FILES_SB_W + Pad) {
+        gListRowW -= (FILES_SB_W + UI_LAYOUT_GAP);
     }
 
     RowY = gListTop;
@@ -114,7 +105,7 @@ void PaintListDrawRows(UINT32 ListX, UINT32 ListW, UINT32 Y, UINT32 H, UINT32 Li
             Line[k++] = E->Name[j];
         }
         Line[k] = 0;
-        UiDrawListRow(ListX + 4, RowY, gListRowW, LineH, Line,
+        UiDrawListRow(ListX + Pad, RowY, gListRowW, LineH, Line,
                       Idx == gSelected, Idx == gHoverIdx);
         RowY += LineH;
     }

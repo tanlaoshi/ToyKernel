@@ -2,7 +2,7 @@
  * UiLayout.h — PR-UI-layout-set：三分栏 / 行高 / 边距令牌（活文档 §4.2）
  *
  * 以 1280×720 @100% 钉死；其它分辨率仍走 ThemeUiScale，令牌数值先不缩放。
- * Settings 本刀先用；Files/Store/桌面后续刀抄同一头。
+ * Settings / Files / Store / Devices 共用。
  */
 #ifndef UI_LAYOUT_H
 #define UI_LAYOUT_H

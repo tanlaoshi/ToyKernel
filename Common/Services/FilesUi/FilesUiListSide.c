@@ -7,26 +7,29 @@
 
 void PaintListDrawSide(UINT32 X, UINT32 Y, UINT32 H, UINT32 LineH, UINT32 SideW) {
     UINT32 RowW;
+    UINT32 Pad;
     int i;
 
     if (SideW == 0) {
         return;
     }
 
+    Pad = UI_LAYOUT_PAD;
     gSideX = X;
     gSideY = Y;
     gSideW = SideW;
     gSideLineH = LineH;
-    gSideRow0 = Y + 8 + LineH + 4;
-    RowW = SideW > 10 ? SideW - 10 : SideW;
+    gSideRow0 = Y + Pad + LineH + UI_LAYOUT_GAP;
+    RowW = SideW > Pad * 2u ? SideW - Pad * 2u : SideW;
 
     HalVideoFillRect(X, Y, SideW, H, ThemePanelSideBackground());
-    if (SideW > 3) {
-        HalVideoFillRect(X + SideW - 3, Y, 3, H, ThemePanelSeparator());
+    if (SideW > UI_LAYOUT_SEP_W) {
+        HalVideoFillRect(X + SideW - UI_LAYOUT_SEP_W, Y, UI_LAYOUT_SEP_W, H,
+                         ThemePanelSeparator());
     }
-    DrawLine(X + 8, Y + 8, LocStr(MSG_FILES_VOLUMES), ThemeText());
+    DrawLine(X + Pad, Y + Pad, LocStr(MSG_FILES_VOLUMES), ThemeText());
     for (i = 0; i < gPlaceCount; i++) {
-        UiDrawListRow(X + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
+        UiDrawListRow(X + Pad, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
                       gPlaces[i].Label,
                       i == gSideSel, i == gSideHover);
     }
