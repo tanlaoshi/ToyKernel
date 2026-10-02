@@ -268,5 +268,5 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 | ---- | ---- |
 | [`../路线图.md`](../路线图.md) 文首候补 / `#pr-g-igpu` | 排期指针（细表以**本文**为准） |
 | [`../技术手册.md`](../技术手册.md) | GPU 只许 HAL |
-| [`../../HAL/X64/NOTES-UEFI-PC.md`](../../HAL/X64/NOTES-UEFI-PC.md) | NUC 真机笔记 |
+| [`../../CodeA-HAL/X64/NOTES-UEFI-PC.md`](../../CodeA-HAL/X64/NOTES-UEFI-PC.md) | NUC 真机笔记 |
 | [`开机流程与加速.md`](开机流程与加速.md) | 亮屏仍走 GOP，本柱不改 Boot 选模 |

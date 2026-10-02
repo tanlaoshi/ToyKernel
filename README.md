@@ -15,7 +15,7 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 | [`Documents/技术手册.md`](Documents/技术手册.md) | 架构与操作白皮书（**文首有目录**） |
 | [`Documents/驱动/`](Documents/驱动/) | 驱动开发指南 / 匹配规范 / 网卡 L2 范例 |
 | [`Documents/开发/`](Documents/开发/) | **[`开发者接手指南`](Documents/开发/开发者接手指南.md)** / 应用开发指南 / API 速查 / 开课 ABI 冻结 |
-| [`HAL/X64/Drivers/_template/`](HAL/X64/Drivers/_template/) | 驱动拷贝源（**不**编进 Kernel） |
+| [`CodeA-HAL/X64/Drivers/_template/`](CodeA-HAL/X64/Drivers/_template/) | 驱动拷贝源（**不**编进 Kernel） |
 | [`Documents/已完/`](Documents/已完/) | 已完成专题（含应用生态规划、驱动标准化分析/拆分/设计） |
 | [`Documents/待做/`](Documents/待做/) | 开课前接口冻结（已落地）等规划 |
 

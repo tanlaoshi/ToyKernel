@@ -52,7 +52,7 @@
 | 像素矩形 | `HAL/X64/HalVideo.c` | `HalVideoWriteRect` 等 | — |
 | BMP | `Library/Bmp.c` | BI_RGB 24/32 bpp → RGB888（G13） | 124 |
 
-控件 API：[`Include/UI.h`](../../Include/UI.h)。主题 API：[`Include/Theme.h`](../../Include/Theme.h)。
+控件 API：[`Include/Library/UI.h`](../../Include/Library/UI.h)。主题 API：[`Include/Services/Theme.h`](../../Include/Services/Theme.h)。
 
 ### 2.2 视觉现状
 
