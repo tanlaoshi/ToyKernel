@@ -126,6 +126,10 @@ int HalSerialPresent(void) {
     return SerialPresent();
 }
 
+void HalSerialRxPump(void) {
+    SerialRxPump();
+}
+
 void HalSerialGopEnable(void) {
     /*
      * PR-K-log-cont：已启用则保持上滚位置与横幅，勿二次 GopBannerOnce 抹字。

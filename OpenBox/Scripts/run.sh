@@ -7,6 +7,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 ROOT="$(toyos_resolve_root "$0")"
 toyos_load_config "$ROOT"
+LIB="$(toyos_scripts_lib "$0")"
 
 ARCH_IN="${DEFAULT_ARCH:-x86}"
 MODE=""
@@ -20,20 +21,19 @@ for A in "$@"; do
 done
 
 KARCH="$(toyos_arch_kernel "$ARCH_IN")"
-IMG="$ROOT/ToyImage"
 case "$KARCH" in
     x86_64)
         MODE="${MODE:-split}"
-        echo "==> run $MODE (x86) @ $IMG"
-        (cd "$IMG" && ./Scripts/run-split.sh "${ARGS[@]+"${ARGS[@]}"}")
+        echo "==> run $MODE (x86)"
+        "$LIB/run-split.sh" "${ARGS[@]+"${ARGS[@]}"}"
         ;;
     arm64)
         echo "==> run virt (arm64)"
-        (cd "$IMG" && ./Scripts/run-virt-arm.sh "${ARGS[@]+"${ARGS[@]}"}")
+        "$LIB/run-virt-arm.sh" "${ARGS[@]+"${ARGS[@]}"}"
         ;;
     riscv)
         echo "==> run virt (riscv)"
-        (cd "$IMG" && ./Scripts/run-virt-riscv.sh "${ARGS[@]+"${ARGS[@]}"}")
+        "$LIB/run-virt-riscv.sh" "${ARGS[@]+"${ARGS[@]}"}"
         ;;
     *) toyos_die "未知 arch: $ARCH_IN" ;;
 esac

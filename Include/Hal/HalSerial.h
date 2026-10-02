@@ -43,5 +43,7 @@ char HalSerialReadChar(void);
 void HalSerialFormatHex(char *Buf, UINT64 Value, int Digits);
 /* IoApic 后开 COM1 RX IRQ→软环；失败则 poll（CoolTerm 粘贴） */
 void HalSerialEnableRxIrq(void);
+/* Present 条带间抽 RX→软环（无 IRQ 时）；非 x86 可为空操作 */
+void HalSerialRxPump(void);
 
 #endif

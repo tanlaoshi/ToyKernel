@@ -8,6 +8,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 ROOT="$(toyos_resolve_root "$0")"
 toyos_load_config "$ROOT"
+LIB="$(toyos_scripts_lib "$0")"
+IMG="$ROOT/ToyImage"
 
 SUITE="${1:-smoke}"
 shift || true
@@ -20,24 +22,23 @@ for A in "$@"; do
     esac
 done
 KARCH="$(toyos_arch_kernel "$ARCH_IN")"
-IMG="$ROOT/ToyImage/Scripts"
 
 case "$SUITE" in
     smoke)
         case "$KARCH" in
-            x86_64) (cd "$ROOT/ToyImage" && ./Scripts/smoke-boot.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-            arm64|riscv) (cd "$ROOT/ToyImage" && ./Scripts/smoke-virt.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
+            x86_64) "$LIB/smoke-boot.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
+            arm64|riscv) "$LIB/smoke-virt.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
             *) toyos_die "smoke: 不支持 arch=$ARCH_IN" ;;
         esac
         ;;
-    smoke-virt) (cd "$ROOT/ToyImage" && ./Scripts/smoke-virt.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    smoke-install) (cd "$ROOT/ToyImage" && ./Scripts/smoke-install.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    smoke-msc) (cd "$ROOT/ToyImage" && ./Scripts/smoke-msc.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    fs) (cd "$ROOT/ToyImage" && ./Scripts/test-fs.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    user) (cd "$ROOT/ToyImage" && ./Scripts/test-user.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    shell) (cd "$ROOT/ToyImage" && ./Scripts/test-shell.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    enosys) (cd "$ROOT/ToyImage" && ./Scripts/test-enosys.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
-    mod-verify) (cd "$ROOT/ToyImage" && ./Scripts/test-mod-verify.sh "${ARGS[@]+"${ARGS[@]}"}") ;;
+    smoke-virt) "$LIB/smoke-virt.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
+    smoke-install) "$LIB/smoke-install.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
+    smoke-msc) "$LIB/smoke-msc.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
+    fs|user|shell|enosys)
+        # expect 夹具仍在 ToyImage/Scripts（spawn ./Scripts/run-split.sh）
+        (cd "$IMG" && ./Scripts/test-${SUITE}.sh "${ARGS[@]+"${ARGS[@]}"}")
+        ;;
+    mod-verify) "$LIB/test-mod-verify.sh" "${ARGS[@]+"${ARGS[@]}"}" ;;
     unit|all)
         T="$ROOT/ToyKernel/Tools/Scripts"
         if [ "$SUITE" = unit ]; then

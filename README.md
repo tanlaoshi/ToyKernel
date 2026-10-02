@@ -48,7 +48,8 @@ ToyOS 的裸机内核（x86-64 为主）。与 [ToyBoot](../ToyBoot/)（UEFI 引
 ### 只编 Kernel（BOX-7 · 无旁挂 EDK2/ToyBoot）
 
 ```bash
-cd ToyKernel && ./build.sh              # → Build/HAL/X64/Kernel.elf
+cd ToyKernel && ./build.sh              # 单仓 → Build/HAL/X64/Kernel.elf
+# 有树根时产物在 $TOYOS_ROOT/Build/ToyKernel/
 # 细节：OpenBox/STANDALONE-KERNEL.md
 ```
 

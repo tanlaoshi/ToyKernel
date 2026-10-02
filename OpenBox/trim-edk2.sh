@@ -11,7 +11,10 @@ DST_ROOT="${2:-${TOYOS_ROOT:-$HOME/ToyOS}}"
 SRC="${1:-}"
 
 if [ -z "$SRC" ]; then
-    if [ -f "$DST_ROOT/Config.local.txt" ]; then
+    if [ -f "$DST_ROOT/Scripts/Config.local.txt" ]; then
+        # shellcheck disable=SC1090
+        . "$DST_ROOT/Scripts/Config.local.txt"
+    elif [ -f "$DST_ROOT/Config.local.txt" ]; then
         # shellcheck disable=SC1090
         . "$DST_ROOT/Config.local.txt"
     fi

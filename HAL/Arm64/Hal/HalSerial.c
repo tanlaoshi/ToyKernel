@@ -86,6 +86,9 @@ int HalSerialPresent(void) {
 #endif
 }
 
+void HalSerialRxPump(void) {
+}
+
 void HalSerialGopEnable(void) {
 }
 

@@ -57,10 +57,13 @@ export TOYOS_ROOT="$DST"
 bash "$OPENBOX/install-to-root.sh"
 
 # EDK2/：有 trim-edk2 则裁剪无 .git；否则临时链备份（旧行为）
+mkdir -p "$DST/Scripts"
 {
-    echo "# BOX-5/6 本机覆盖（勿提交到三仓）"
+    echo "# Scripts/Config.local.txt — 本机覆盖（勿提交）"
+    echo "# 迁自：SRC=$SRC  date=$(date -Iseconds)"
+    echo "# 日常：TOYOS_ROOT=$DST；源 edk2 仅冷备份；再裁 EDK2 用 trim-edk2.sh"
     echo "EDK2_SRC=$SRC"
-} > "$DST/Config.local.txt"
+} > "$DST/Scripts/Config.local.txt"
 
 if [ -x "$OPENBOX/trim-edk2.sh" ] && [ -f "$SRC/edksetup.sh" ]; then
     bash "$OPENBOX/trim-edk2.sh" "$SRC" "$DST"
@@ -70,15 +73,7 @@ else
         echo "linked EDK2 → $SRC （请再跑 trim-edk2.sh 去 .git）"
     fi
 fi
-echo "wrote $DST/Config.local.txt"
-
-# 标记
-{
-    echo "ToyOS tree migrated from:"
-    echo "  SRC=$SRC"
-    echo "  date=$(date -Iseconds)"
-    echo "  note=edk2 backup kept; EDK2 trim → BOX-6"
-} > "$DST/MIGRATE.txt"
+echo "wrote $DST/Scripts/Config.local.txt"
 
 echo "=========================================="
 echo "DONE: TOYOS_ROOT=$DST"

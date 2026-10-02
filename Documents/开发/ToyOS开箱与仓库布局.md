@@ -1,6 +1,6 @@
 # ToyOS 开箱与仓库布局
 
-> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#pr-box-0)…[`7`](../路线图.md#pr-box-7) **✅ TG**；[`PR-N-nic-2slot`](../路线图.md#pr-n-nic-2slot) **✅ TG**（双槽有线优先）；★ **空**。  
+> **状态**：**规格活文档**（2026-10-02）；[`PR-BOX-0`](../路线图.md#done-pr-box-0)…[`7`](../路线图.md#done-pr-box-7) **✅ GD**；[`PR-N-nic-2slot`](../路线图.md#done-pr-n-nic-2slot) **✅ GD**；[`PR-BOX-scripts-lib`](../路线图.md#pr-box-scripts-lib) **✅ TG**。  
 > **来源**：[`待做/新需求.md`](../待做/新需求.md)（需求原文；实现以**本文**为准）。  
 > **迁移策略（本机）**：当前 **`…/edk2/` 整树当作备份，先不动、不就地改名**；后续从该树**逐步拷出/迁出**到家目录 **`~/ToyOS`**（见 §5.0）。脚本仍按 `$TOYOS_ROOT` 自定位，迁完后权威根即 `~/ToyOS`。  
 > **路径铁律**：命令以 **ToyOS 树根**为准（可任意摆放）；**本柱迁移动作的目标根 = `~/ToyOS`**。禁止写死用户名（如 `/home/tank/...`）。  
@@ -53,7 +53,7 @@
 | -- | ---- |
 | 激活 | 树根 **`source Scripts/env.sh`**（可选根上 `toyosetup.sh` 转调，手感对标 `edksetup.sh`） |
 | 作用 | ① 设定/校验 `TOYOS_ROOT`；② 把 `$TOYOS_ROOT/Scripts` 加入 `PATH`（或定义 shell function）；③ 读默认配置 |
-| 默认配置 | 树根 **`Config.txt`**（可提交）；本机可用 **`Config.local.txt`** 覆盖（gitignore） |
+| 默认配置 | 树根 **`Config.txt`**（可提交）；本机覆盖 **`Scripts/Config.local.txt`**（勿提交） |
 | 默认行为 | 激活后敲 **`build`** ≡ `build.sh toyos <默认 arch>`；`build toyboot` / `build all arm64` 可覆盖 |
 
 `Config.txt` 草案：
@@ -63,7 +63,7 @@ DEFAULT_TARGET=toyos          # toyos | toyboot | all | sdk
 DEFAULT_ARCH=x86              # x86 | arm64 | riscv
 ```
 
-优先级：**命令行 > Config.local.txt > Config.txt > 内置默认（toyos + x86）**。
+优先级：**命令行 > Scripts/Config.local.txt > Config.txt > 内置默认（toyos + x86）**。
 
 ```bash
 cd /any/where/ToyOS
@@ -124,9 +124,13 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 ├── ToyBoot/                    # 独立 git；极简 UEFI
 ├── ToyImage/                   # 独立 git；RootFs / Esp / 夹具（脚本逻辑上收 Scripts/）
 ├── EDK2/                       # **裁剪后**的 EDK2 202408 子集（无 .git）；仅供 ToyBoot 编 BOOTX64
+├── Build/                      # **编译产物**（勿入库）：分目录，勿与源码仓混放
+│   ├── ToyKernel/              # ← Kernel.elf / .o（路径即权威；无仓内链接）
+│   └── ToyBoot/                # ← BOOTX64 构建树（或链到 `EDK2/Build/ToyBoot`）
 └── Scripts/                    # **对外唯一入口**：build / run / test / prepare-fs / bootstrap …
 ```
 
+> **Build 约定**：有树根时产物进 `$TOYOS_ROOT/Build/{ToyKernel,ToyBoot}`（脚本/Makefile 直接用该路径，**不**再维护 `ToyKernel/Build` 符号链接）；单仓编 Kernel（BOX-7）仍用仓内 `./Build`。
 ### 1.0 `Scripts/` 设计（同类只留一个 · 参数分流）— **可行，本柱采纳**
 
 **原则**：同一类动作只保留 **一个** 顶层脚本；用**位置参数 / 子命令**决定编谁、跑哪架构、测哪套。仓内可保留薄包装（旧 `build.sh` 一行 `exec` 转发），但**文档与开箱只教 `$TOYOS_ROOT/Scripts/`**（或树内 `./Scripts/`）。
@@ -148,7 +152,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | `measure.sh` | 开机墙钟测量等工具 | `measure.sh boot [opts]` |
 | `desktop.sh` | 宿主桌面辅助（Dock 图标等） | `desktop.sh dock-icon` |
 
-根目录另可放：`Config.txt`（默认）、`Config.local.txt`（本机覆盖，gitignore）、可选 `toyosetup.sh`（`source` 转调 `Scripts/env.sh`）。
+根目录另可放：`Config.txt`（默认）、可选 `toyosetup.sh`（`source` 转调 `Scripts/env.sh`）。本机覆盖放 **`Scripts/Config.local.txt`**（勿提交；可含 `EDK2_SRC` 与迁移备注）。
 
 激活后 PATH 上的短名：`build`/`run`/`test`/`prepare-fs`/… → 对应 `Scripts/*.sh`（或同名 function 调脚本）。
 
@@ -200,7 +204,17 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | -- | ---- |
 | 已有分流基础 | 现网已是「多文件 = 多参数」；收成单入口是改名+case，不是新能力 |
 | Boot≠Kernel 工具链 | 一个 `build.sh` 内 `case` 即可 |
-| 兼容过渡 | 旧路径保留一行 `exec "$TOYOS_ROOT/Scripts/…"`（或自定位）至 BOX-5 收官后再删对外名 |
+| 兼容过渡 | Image 旧路径 → 薄 `exec` 到 `$TOYOS_ROOT/Scripts/lib/…`（[`PR-BOX-scripts-lib`](../路线图.md#pr-box-scripts-lib)）；expect 夹具仍留 Image |
+
+**§1.0 收拢勾选（scripts-lib · JX）**
+
+| 项 | 状态 |
+| -- | ---- |
+| bash 实现进 `OpenBox/Scripts/lib/`（权威）+ `install-to-root` | ✅ |
+| 树根 `run/test/sync/prepare-fs/usb/measure/desktop` 调 lib | ✅ |
+| `ToyImage/Scripts/*.sh`（非 expect）薄转发 | ✅ |
+| expect/`*.exp` 仍留 Image（spawn `./Scripts/run-split`） | ✅ |
+| `Scripts/test.sh smoke x86` + Image 转发 smoke | ✅ |
 
 **不做**：再增 `build-toyos.sh` / `run-virt-arm.sh` 等平行对外名；把 EDK2 `edksetup.sh` 当教学入口；收拢 ThirdParty/Extract 里的上游脚本。
 
@@ -284,7 +298,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 
 ### 3.4 双网口槽位 + 有线优先 · 另刀（非 BOX-3）
 
-> **状态**：**✅ TG**（[`PR-N-nic-2slot`](../路线图.md#pr-n-nic-2slot)；骨架 + `smoke-boot`；NUC 双网手测挂后续）。
+> **状态**：**✅ GD**（[`PR-N-nic-2slot`](../路线图.md#done-pr-n-nic-2slot)；骨架 + `smoke-boot`；NUC 双网手测挂后续）。
 > **现状**：双槽 `NetAttachNicKind`；出站有线优先；托盘跟 `HalNetPrimaryKind`。
 
 | 项 | 内容 |
@@ -364,7 +378,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | -- | ---- |
 | 做 | 按 §5.0 把三仓同步进 **`~/ToyOS/`**；新建/补齐 `Scripts/`；旧 `ToyImage/Scripts/*` 收敛进参数化入口（实现可放 `Scripts/lib/`）；**保留 `edk2/` 备份** |
 | 工具 | `ToyKernel/OpenBox/migrate-to-toyos.sh [源edk2] [目标]`（默认 → `$HOME/ToyOS`） |
-| 双轨 | **`$TOYOS_ROOT/EDK2` → 符号链接备份 edk2 整树**（先占位）；`Config.local` 另记 `EDK2_SRC` 回退；**裁剪无 .git → BOX-6** |
+| 双轨 | **`$TOYOS_ROOT/EDK2` → 符号链接备份 edk2 整树**（先占位）；`Scripts/Config.local.txt` 另记 `EDK2_SRC` 回退；**裁剪无 .git → BOX-6** |
 | 验收 | `export TOYOS_ROOT=$HOME/ToyOS`；`"$TOYOS_ROOT/Scripts/build.sh" all x86` 与 `test.sh smoke x86` 闭环；三仓 git 仍独立；`edk2/` 仍在且可对照 |
 | 风险 | SYNC/CI/肌肉记忆；迁完双机按 `~/ToyOS/Scripts` 做 `TB` |
 
@@ -444,7 +458,7 @@ cd "$TOYOS_ROOT/ToyKernel"   # 或任意仅含本仓的路径
 | **PR-BOX-5** | 从 `edk2/` 逐步同步到 `~/ToyOS` + 脚本收敛 | BOX-4 |
 | **PR-BOX-6** | EDK2 202408 裁剪去 `.git` + Boot 极简契约 | BOX-5 |
 | **PR-BOX-7** | ToyKernel 零依赖 edk2/ToyBoot 源码验收 | BOX-5（可与 6 部分并行） |
-| **PR-N-nic-2slot** | 双槽 L2 + 有线优先 / 无线热备（§3.4） | wifi-2 + nic；**✅ TG** |
+| **PR-N-nic-2slot** | 双槽 L2 + 有线优先 / 无线热备（§3.4） | wifi-2 + nic；**✅ GD** |
 
 **建议课堂演示序**：0 → 1 → 2 → 3（体验可见）→ 4（别人能开箱）→ 5 → 6 → 7（仓库干净）。双网口优先另排期。
 

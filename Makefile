@@ -229,10 +229,10 @@ LDFLAGS = -nostdlib -static -z noexecstack -T HAL/$(HAL_ARCH)/link.ld -e KernelE
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
 LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
-# Build/ 镜像源码树：Common、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
-# 上述共享路径的 .o 随当前 ARCH 编译（不可三架构并存同一套 .o）；换 ARCH 时清掉它们。
-# 各 Arch 的 Kernel.elf / HAL .o 留在 Build/HAL/<Arch>/，换架构不删其它 Arch 成品。
-BUILDDIR = Build
+# 产物树：Common、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
+# 有 ToyOS 树时由 build.sh 传入 BUILDDIR=$TOYOS_ROOT/Build/ToyKernel；单仓默认 ./Build。
+# 各 Arch 的 Kernel.elf / HAL .o 留在 $(BUILDDIR)/HAL/<Arch>/，换架构不删其它 Arch 成品。
+BUILDDIR ?= Build
 HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
 # Common / Core / User / Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
@@ -240,7 +240,7 @@ HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 ARCH_STAMP := $(BUILDDIR)/.toy_arch
 _STAMP_ARCH := $(shell cat $(ARCH_STAMP) 2>/dev/null)
 ifneq ($(_STAMP_ARCH),$(ARCH))
-$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning Build/{Common,Core,User,Fonts,lwip})
+$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning $(BUILDDIR)/{Common,Core,User,Fonts,lwip})
 $(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Core' '$(BUILDDIR)/User' \
 	'$(BUILDDIR)/Fonts' '$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
 endif
@@ -572,30 +572,30 @@ endif
 scheduler: runtests
 
 runtests:
-	@mkdir -p Build/Tests
-	$(HOSTCC) $(TEST_CFLAGS) -c $(SCHED_SRCS) -o Build/Tests/policy.o
-	$(HOSTCC) $(TEST_CFLAGS) -c Core/Scheduler/SchedulerOps.c -o Build/Tests/ops.o
-	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/Stub/SchedulerStub.c -o Build/Tests/stub.o
-	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/TestScheduler.c -o Build/Tests/test.o
-	$(HOSTCC) -o Build/Tests/TestScheduler Build/Tests/policy.o Build/Tests/ops.o Build/Tests/stub.o Build/Tests/test.o
-	./Build/Tests/TestScheduler
+	@mkdir -p $(BUILDDIR)/Tests
+	$(HOSTCC) $(TEST_CFLAGS) -c $(SCHED_SRCS) -o $(BUILDDIR)/Tests/policy.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Core/Scheduler/SchedulerOps.c -o $(BUILDDIR)/Tests/ops.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/Stub/SchedulerStub.c -o $(BUILDDIR)/Tests/stub.o
+	$(HOSTCC) $(TEST_CFLAGS) -c Tools/Tests/TestScheduler.c -o $(BUILDDIR)/Tests/test.o
+	$(HOSTCC) -o $(BUILDDIR)/Tests/TestScheduler $(BUILDDIR)/Tests/policy.o $(BUILDDIR)/Tests/ops.o $(BUILDDIR)/Tests/stub.o $(BUILDDIR)/Tests/test.o
+	./$(BUILDDIR)/Tests/TestScheduler
 
 runtests-memory:
-	@mkdir -p Build/Tests
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c $(MEMORY_SRCS) -o Build/Tests/mem_policy.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Core/PhysicalMemory/PhysicalMemoryOps.c -o Build/Tests/mem_ops.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/Stub/MemoryStub.c -o Build/Tests/mem_stub.o
-	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/TestMemory.c -o Build/Tests/mem_test.o
-	$(HOSTCC) -o Build/Tests/TestMemory Build/Tests/mem_policy.o Build/Tests/mem_ops.o Build/Tests/mem_stub.o Build/Tests/mem_test.o
-	./Build/Tests/TestMemory
+	@mkdir -p $(BUILDDIR)/Tests
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c $(MEMORY_SRCS) -o $(BUILDDIR)/Tests/mem_policy.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Core/PhysicalMemory/PhysicalMemoryOps.c -o $(BUILDDIR)/Tests/mem_ops.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/Stub/MemoryStub.c -o $(BUILDDIR)/Tests/mem_stub.o
+	$(HOSTCC) $(MEM_TEST_CFLAGS) -c Tools/Tests/TestMemory.c -o $(BUILDDIR)/Tests/mem_test.o
+	$(HOSTCC) -o $(BUILDDIR)/Tests/TestMemory $(BUILDDIR)/Tests/mem_policy.o $(BUILDDIR)/Tests/mem_ops.o $(BUILDDIR)/Tests/mem_stub.o $(BUILDDIR)/Tests/mem_test.o
+	./$(BUILDDIR)/Tests/TestMemory
 
 runtests-fs:
-	@mkdir -p Build/Tests
-	$(HOSTCC) $(FS_TEST_CFLAGS) -c Common/Library/Vfs.c -o Build/Tests/fs_vfs.o
-	$(HOSTCC) $(FS_TEST_CFLAGS) -c $(FS_TEST_POLICY) -o Build/Tests/fs_policy.o
-	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tools/Tests/TestFs.c -o Build/Tests/fs_test.o
-	$(HOSTCC) -o Build/Tests/TestFs Build/Tests/fs_vfs.o Build/Tests/fs_policy.o Build/Tests/fs_test.o
-	./Build/Tests/TestFs
+	@mkdir -p $(BUILDDIR)/Tests
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c Common/Library/Vfs.c -o $(BUILDDIR)/Tests/fs_vfs.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c $(FS_TEST_POLICY) -o $(BUILDDIR)/Tests/fs_policy.o
+	$(HOSTCC) $(FS_TEST_CFLAGS) -c Tools/Tests/TestFs.c -o $(BUILDDIR)/Tests/fs_test.o
+	$(HOSTCC) -o $(BUILDDIR)/Tests/TestFs $(BUILDDIR)/Tests/fs_vfs.o $(BUILDDIR)/Tests/fs_policy.o $(BUILDDIR)/Tests/fs_test.o
+	./$(BUILDDIR)/Tests/TestFs
 
 all: $(TARGET)
 ifneq ($(ARCH),x86_64)

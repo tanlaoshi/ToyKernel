@@ -2,6 +2,39 @@
 set -e
 cd "$(dirname "$0")"
 
+# 产物：有 ToyOS 树根 → $TOYOS_ROOT/Build/ToyKernel（无仓内链接）；
+# 单仓（无旁挂 ToyBoot/Scripts）仍用 ./Build（BOX-7）。
+toyos_pick_root_for_build() {
+    if [ -n "${TOYOS_ROOT:-}" ] && [ -d "${TOYOS_ROOT}/ToyKernel" ]; then
+        (cd "${TOYOS_ROOT}" && pwd)
+        return 0
+    fi
+    if [ -d ../ToyBoot ] && { [ -d ../Scripts ] || [ -f ../Config.txt ] || [ -d ../ToyImage ]; }; then
+        (cd .. && pwd)
+        return 0
+    fi
+    return 1
+}
+
+BUILDDIR=Build
+if Root="$(toyos_pick_root_for_build)"; then
+    export TOYOS_ROOT="$Root"
+    # 去掉旧仓内 Build 符号链接 / 真目录（有内容则迁到树根）
+    if [ -L Build ]; then
+        rm -f Build
+    elif [ -d Build ]; then
+        mkdir -p "$Root/Build/ToyKernel"
+        if [ "$(ls -A Build 2>/dev/null)" ]; then
+            cp -a Build/. "$Root/Build/ToyKernel"/ 2>/dev/null || true
+        fi
+        rm -rf Build
+    fi
+    BUILDDIR="$Root/Build/ToyKernel"
+    mkdir -p "$BUILDDIR"
+    echo "BUILDDIR=$BUILDDIR"
+fi
+export BUILDDIR
+
 # 用法:
 #   ./build.sh              # ARCH=x86_64
 #   ./build.sh DEBUG=1
@@ -113,15 +146,15 @@ if [ "$LWIP" = "1" ] && [ ! -f "HAL/$HAL_ARCH/LwIp/include/lwipopts.h" ]; then
 fi
 
 echo "Building ToyKernel for ARCH=$ARCH BOARD=$BOARD TOY_KERNEL_DEBUG=$DEBUG SERIAL=$SERIAL SCREEN_LOG=$SCREEN_LOG USB=$SERIAL_USB LWIP=$LWIP BRINGUP=$BRINGUP"
-ELF="Build/HAL/$HAL_ARCH/Kernel.elf"
-USER_HELLO="Build/HAL/$HAL_ARCH/user/hello.elf"
+ELF="$BUILDDIR/HAL/$HAL_ARCH/Kernel.elf"
+USER_HELLO="$BUILDDIR/HAL/$HAL_ARCH/user/hello.elf"
 
 MAKE=(make)
 if [ "$QUIET" = 1 ]; then
     MAKE=(make -s)
 fi
-"${MAKE[@]}" clean ARCH="$ARCH" BOARD="$BOARD"
-"${MAKE[@]}" ARCH="$ARCH" BOARD="$BOARD" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" \
+"${MAKE[@]}" clean ARCH="$ARCH" BOARD="$BOARD" BUILDDIR="$BUILDDIR"
+"${MAKE[@]}" ARCH="$ARCH" BOARD="$BOARD" BUILDDIR="$BUILDDIR" DEBUG="$DEBUG" LWIP="$LWIP" BRINGUP="$BRINGUP" \
     NO_COM1="$NO_COM1" SERIAL="$SERIAL" \
     SERIAL_BOOT="$SERIAL_BOOT" SERIAL_USB="$SERIAL_USB" SERIAL_SMP="$SERIAL_SMP" \
     SERIAL_GUI="$SERIAL_GUI" SERIAL_NET="$SERIAL_NET" SERIAL_FS="$SERIAL_FS" \
@@ -145,7 +178,7 @@ echo "Build successful: $ELF (BOARD=$BOARD DEBUG=$DEBUG LWIP=$LWIP BRINGUP=$BRIN
 # PR-LAN-store-src：卷根仅 ROOTFS-ELF 白名单；商店在 Store/（废 Assets/Store + StoreCache）
 if [ "$ARCH" = "x86_64" ] && [ "$BRINGUP" = "0" ] && [ -d ../ToyImage/RootFs/X64 ]; then
     DEST=../ToyImage/RootFs/X64
-    USER_OUT=Build/User
+    USER_OUT="$BUILDDIR/User"
     cp -f "$ELF" "$DEST/Kernel.elf"
 
     # 根白名单（Store/ROOTFS-ELF.md）

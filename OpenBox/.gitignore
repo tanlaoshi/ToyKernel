@@ -1,2 +1,3 @@
-# OpenBox 本地覆盖（勿提交）
+# OpenBox / 安装后 Scripts 本机覆盖（勿提交）
 Config.local.txt
+Scripts/Config.local.txt

@@ -3,7 +3,7 @@
  */
 #include "VideoPrivate.h"
 #include "HalDevices.h"
-#include "Serial.h"
+#include "HalSerial.h"
 
 extern void *memcpy(void *Dst, const void *Src, UINTN Len);
 
@@ -78,8 +78,8 @@ void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
             }
             HalIrqRestore(Flags);
             /* 条带间抽 COM1→软环（IRQ 未开时）；勿 SchedulerIoBreath——会 GuiPoll→Present 重入 */
-            if (SerialPresent()) {
-                SerialRxPump();
+            if (HalSerialPresent()) {
+                HalSerialRxPump();
             }
         }
         return;
@@ -172,8 +172,8 @@ void PresentRectRows(UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1,
                 }
             }
             HalIrqRestore(Flags);
-            if (SerialPresent()) {
-                SerialRxPump();
+            if (HalSerialPresent()) {
+                HalSerialRxPump();
             }
         }
     }

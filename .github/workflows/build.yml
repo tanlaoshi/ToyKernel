@@ -1,4 +1,4 @@
-# Build ToyKernel (PR-CI-2：三架构 + smoke)
+# Build ToyKernel（三架构 + smoke；适配并列 ToyKernel+ToyImage / OpenBox Scripts）
 name: build
 
 on:
@@ -106,6 +106,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      # 并列布局：薄入口可落到 ToyKernel/OpenBox/Scripts/lib
+      - name: Checkout ToyKernel
+        uses: actions/checkout@v4
+        with:
+          path: ToyKernel
+
       - name: Checkout ToyImage
         uses: actions/checkout@v4
         with:
@@ -133,5 +139,6 @@ jobs:
 
       - name: Smoke boot (TOY_SMP=1)
         run: |
+          export TOYOS_ROOT="$GITHUB_WORKSPACE"
           cd ToyImage
           TOY_SMP=1 SMOKE_TIMEOUT=120 ./Scripts/smoke-boot.sh
