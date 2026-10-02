@@ -344,6 +344,8 @@ void InitRing(XHCI_TRB *Ring, RING_STATE *St, UINT32 Size);
 void Enqueue(XHCI_TRB *Ring, RING_STATE *St, UINT64 Param, UINT32 Status, UINT32 Control);
 UINT32 TrbType(UINT32 Control);
 void ProcessEventsLocked(void); /* excl-2：无锁环逻辑 */
+/* PR-F-xhci-3 */
+void XhciEventHandleTransfer(XHCI_TRB *Evt);
 void ProcessEvents(void);
 void ProcessEventsRealPc(void);
 /* PR-H-xhci-evt-excl：独占窗 + 消费锁 */
