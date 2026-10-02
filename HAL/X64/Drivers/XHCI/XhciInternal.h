@@ -362,6 +362,9 @@ UINT8 *InSlot(void);
 UINT8 *InEp(UINT32 Dci);
 int XhciInitHw(UINT64 BaseAddress);
 int XhciEnumAndBind(void);
+/* PR-F-xhci-1 */
+int XhciEnumTryRootPort(UINT32 P);
+void XhciEnumBindMouseAfterKbd(void);
 
 void TakeLegacy(void);
 void HaltControllerQuiet(void);
