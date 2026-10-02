@@ -21,4 +21,21 @@ int IwlParseBeacon(const UINT8 *Frame, UINTN Len);
 void IwlNoteBeacon(const UINT8 *Frame, UINTN Len, char *Heard);
 int IwlBuildUmacScan(UINT8 *Req, UINT32 *OutLen);
 int IwlScanCollect(void);
+
+/* PR-F-iwl-2：IwlScanCollect 拆分 */
+typedef struct {
+    UINT32 Codes[8];
+    UINT32 Ncode;
+    int GotAck;
+    int GotDone;
+    int StopAt;
+    UINT32 BeaconN;
+    UINT8 FirstFc;
+    char Heard[9];
+} IWL_SCAN_COLLECT_CTX;
+
+void IwlScanCollectCtxInit(IWL_SCAN_COLLECT_CTX *C);
+int IwlScanCollectOnPkt(IWL_SCAN_COLLECT_CTX *C, IWL_RX_PKT *Pkt, UINTN Len,
+                        UINT32 LoopI);
+void IwlScanCollectLogFail(const IWL_SCAN_COLLECT_CTX *C);
 #endif
