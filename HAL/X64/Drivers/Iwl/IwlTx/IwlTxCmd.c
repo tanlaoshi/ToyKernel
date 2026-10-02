@@ -1,9 +1,9 @@
 /*
- * IwlTxCmd.c — host command 入队与同步等回（PR-S-iwl-split-2）
+ * IwlTxCmd.c — host command 入队与同步等回编排（PR-F-iwl-3）
+ * 等回 / 超时见 IwlTxCmdWait.c
  */
 #include "IwlTxInternal.h"
 #include "PhysicalMemory.h"
-#include "HalSerial.h"
 
 int IwlSendCmd(UINT32 Id, const void *Data, UINT32 Len, int Sync) {
     UINT32 Slot;
@@ -89,158 +89,17 @@ int IwlSendCmd(UINT32 Id, const void *Data, UINT32 Len, int Sync) {
             WaitMax = 5000u;
         }
         for (Wait = 0; Wait < WaitMax; Wait++) {
-        IWL_RX_PKT *Pkt;
-        UINTN RLen;
-        int Took = 0;
-
-        IwlRxPoll();
-        /* 刀 #145：不封顶时 beacon 灌满，Wait 永不加，te=ok 后无黄字 */
-        while (Took < 24 && IwlRxTake(&Pkt, &RLen)) {
-            UINT8 Ridx = Pkt->Hdr.Idx;
-            UINT8 Rqid = Pkt->Hdr.Qid;
-            UINT8 Code = Pkt->Hdr.Code;
-            const UINT8 *Pay;
-            Took++;
-            LastCode = Code;
-            RxHits++;
-            if (Code == 0x02u && RLen >= sizeof(IWL_CMD_HDR) + 4 + 8) {
-                UINT16 BadSeq;
-                Pay = Pkt->Data;
-                BadSeq = (UINT16)Pay[6] | ((UINT16)Pay[7] << 8);
-                if (Ridx == (UINT8)Seq || BadSeq == (UINT16)Seq) {
-                    char Line[56];
-                    char Hex[12];
-                    int n = 0;
-                    const char *P = "cmderr e=";
-                    UINT32 Et = (UINT32)Pay[0] | ((UINT32)Pay[1] << 8)
-                              | ((UINT32)Pay[2] << 16) | ((UINT32)Pay[3] << 24);
-                    while (*P) {
-                        Line[n++] = *P++;
-                    }
-                    HalSerialFormatHex(Hex, Et, 8);
-                    Line[n++] = Hex[2];
-                    Line[n++] = Hex[3];
-                    Line[n++] = Hex[4];
-                    Line[n++] = Hex[5];
-                    Line[n++] = Hex[6];
-                    Line[n++] = Hex[7];
-                    Line[n++] = Hex[8];
-                    Line[n++] = Hex[9];
-                    Line[n++] = ' ';
-                    Line[n++] = 'o';
-                    Line[n++] = '=';
-                    HalSerialFormatHex(Hex, Pay[4], 2);
-                    Line[n++] = Hex[2];
-                    Line[n++] = Hex[3];
-                    Line[n++] = ' ';
-                    Line[n++] = 'w';
-                    Line[n++] = '=';
-                    HalSerialFormatHex(Hex, Opcode, 2);
-                    Line[n++] = Hex[2];
-                    Line[n++] = Hex[3];
-                    Line[n] = 0;
-                    IwlLogStage(Line);
-                    IwlLogCmdq(Seq);
-                    gCmdRead = (gCmdRead + 1) & IWL_CMD_Q_MASK;
-                    return -1;
-                }
-            }
-            /*
-             * OpenBSD cmd_done：qid bit7=0 且 idx 对上即认。
-             * REPLY_ERROR(0x02) 另计；其余一律成功（空 ACK 的 Code 即 opcode）。
-             */
-            if (!(Rqid & 0x80u) && Ridx == (UINT8)Seq) {
-                if (Code == 0x02u) {
-                    continue;
-                }
-                gCmdRead = (gCmdRead + 1) & IWL_CMD_Q_MASK;
+            int Rc = IwlSendCmdPollOnce(Seq, Opcode, &LastCode, &RxHits);
+            if (Rc == 1) {
                 return 0;
             }
-            /* 刀 #98：同步等命令时勿丢 RX_MPDU（assoc 后 msg1 会来） */
-            if (Code == IWL_RX_MPDU_CMD) {
-                IwlRxHoldMpdu(Pkt, RLen);
-                continue;
+            if (Rc < 0) {
+                return -1;
             }
-            /* 刀 #45：host 回包（非 bit7）错序则暂存，供 scfg kick 认领 */
-            if (!(Rqid & 0x80u) && Code != 0x02u) {
-                gRspStash = 1;
-                gRspStashCode = Code;
-                gRspStashIdx = Ridx;
-                gRspStashQid = Rqid;
-            }
-            if (RxHits <= 3u) {
-                char Line[40];
-                char Hex[12];
-                int n = 0;
-                const char *P = "rxmiss c=";
-                while (*P) {
-                    Line[n++] = *P++;
-                }
-                HalSerialFormatHex(Hex, Code, 2);
-                Line[n++] = Hex[2];
-                Line[n++] = Hex[3];
-                Line[n++] = ' ';
-                Line[n++] = 'i';
-                Line[n++] = '=';
-                HalSerialFormatHex(Hex, Ridx, 2);
-                Line[n++] = Hex[2];
-                Line[n++] = Hex[3];
-                Line[n++] = ' ';
-                Line[n++] = 'q';
-                Line[n++] = '=';
-                HalSerialFormatHex(Hex, Rqid, 2);
-                Line[n++] = Hex[2];
-                Line[n++] = Hex[3];
-                Line[n++] = ' ';
-                Line[n++] = 's';
-                Line[n++] = '=';
-                HalSerialFormatHex(Hex, Seq & 0xffu, 2);
-                Line[n++] = Hex[2];
-                Line[n++] = Hex[3];
-                Line[n] = 0;
-                IwlLogVerb(Line);
-            }
+            IwlStallMs(1);
         }
-        IwlStallMs(1);
     }
-    } /* WaitMax */
     gCmdRead = (gCmdRead + 1) & IWL_CMD_Q_MASK;
-    {
-        char Line[48];
-        char Hex[12];
-        int n = 0;
-        const char *P = "cmdto n=";
-        while (*P) {
-            Line[n++] = *P++;
-        }
-        HalSerialFormatHex(Hex, RxHits & 0xffu, 2);
-        Line[n++] = Hex[2];
-        Line[n++] = Hex[3];
-        Line[n++] = ' ';
-        Line[n++] = 'c';
-        Line[n++] = '=';
-        HalSerialFormatHex(Hex, LastCode, 2);
-        Line[n++] = Hex[2];
-        Line[n++] = Hex[3];
-        Line[n++] = ' ';
-        Line[n++] = 'o';
-        Line[n++] = '=';
-        HalSerialFormatHex(Hex, Opcode, 2);
-        Line[n++] = Hex[2];
-        Line[n++] = Hex[3];
-        Line[n++] = ' ';
-        Line[n++] = 'r';
-        Line[n++] = '=';
-        HalSerialFormatHex(Hex, IwlRxDiagClosed() & 0xffu, 2);
-        Line[n++] = Hex[2];
-        Line[n++] = Hex[3];
-        Line[n++] = '/';
-        HalSerialFormatHex(Hex, IwlRxDiagRead() & 0xffu, 2);
-        Line[n++] = Hex[2];
-        Line[n++] = Hex[3];
-        Line[n] = 0;
-        IwlLogStage(Line);
-        IwlLogCmdq(Seq);
-    }
+    IwlSendCmdLogTimeout(Seq, Opcode, LastCode, RxHits);
     return -1;
 }

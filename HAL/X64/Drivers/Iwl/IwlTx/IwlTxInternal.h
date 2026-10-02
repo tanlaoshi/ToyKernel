@@ -52,4 +52,10 @@ int IwlEnableCmdTxq(void);
 int IwlFhTxDrain(void);
 void IwlFhTxStart(void);
 
+/* PR-F-iwl-3：IwlSendCmd 同步等回 */
+int IwlSendCmdPollOnce(UINT32 Seq, UINT32 Opcode, UINT8 *LastCode,
+                       UINT32 *RxHits);
+void IwlSendCmdLogTimeout(UINT32 Seq, UINT32 Opcode, UINT8 LastCode,
+                          UINT32 RxHits);
+
 #endif
