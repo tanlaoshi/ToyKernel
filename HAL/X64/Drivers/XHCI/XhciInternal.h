@@ -365,6 +365,11 @@ int XhciEnumAndBind(void);
 /* PR-F-xhci-1 */
 int XhciEnumTryRootPort(UINT32 P);
 void XhciEnumBindMouseAfterKbd(void);
+/* PR-F-xhci-2 */
+void XhciInitHwRealPcDmar(void);
+int XhciInitHwMapCap(UINT64 BaseAddress, int RealPc, char *B);
+int XhciInitHwStartCtrl(UINT32 MaxSlots, int RealPc);
+void XhciInitHwSurveyPorts(void);
 
 void TakeLegacy(void);
 void HaltControllerQuiet(void);
