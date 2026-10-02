@@ -25,10 +25,6 @@ int gHoverRow = -1;
 int gHoverBtn = -1;
 int gPressBtn = -1;
 
-const char *const gBtnLabel[STORE_BTN_N] = {
-    "Install", "Remove", "Sync", "Repo"
-};
-
 /* PR-GUI-migrate-store / store-2：底栏四钮 */
 UI_BUTTON_ACTION gStoreAct[STORE_BTN_N];
 
@@ -48,7 +44,7 @@ void StoreUiActInitialize(void) {
         gStoreAct[i].Button.Y = 0;
         gStoreAct[i].Button.W = 0;
         gStoreAct[i].Button.H = STORE_BTN_H;
-        gStoreAct[i].Button.Text = gBtnLabel[i];
+        gStoreAct[i].Button.Text = StoreBtnLabel(i);
         gStoreAct[i].Button.Enabled = 1;
         gStoreAct[i].Button.Visible = 1;
         gStoreAct[i].Button.m_State = UI_BUTTON_STATE_NORMAL;
@@ -69,7 +65,7 @@ int StoreUiActDispatch(int Btn, int Pressed, int Hit) {
         gStoreAct[i].Button.Y = gBtnY;
         gStoreAct[i].Button.W = gBtnW;
         gStoreAct[i].Button.H = STORE_BTN_H;
-        gStoreAct[i].Button.Text = gBtnLabel[i];
+        gStoreAct[i].Button.Text = StoreBtnLabel(i);
         gStoreAct[i].Button.Visible = 1;
         gStoreAct[i].Button.Enabled = 1;
     }

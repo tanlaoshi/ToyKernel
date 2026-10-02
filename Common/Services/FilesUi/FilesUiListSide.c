@@ -24,7 +24,7 @@ void PaintListDrawSide(UINT32 X, UINT32 Y, UINT32 H, UINT32 LineH, UINT32 SideW)
     if (SideW > 3) {
         HalVideoFillRect(X + SideW - 3, Y, 3, H, ThemePanelSeparator());
     }
-    DrawLine(X + 8, Y + 8, "Volumes", ThemeText());
+    DrawLine(X + 8, Y + 8, LocStr(MSG_FILES_VOLUMES), ThemeText());
     for (i = 0; i < gPlaceCount; i++) {
         UiDrawListRow(X + 4, gSideRow0 + (UINT32)i * LineH, RowW, LineH,
                       gPlaces[i].Label,

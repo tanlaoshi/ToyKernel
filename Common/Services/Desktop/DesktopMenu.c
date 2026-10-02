@@ -107,4 +107,29 @@ void RebuildStartMenu(void) {
     L = LocStr(MSG_ICON_REBOOT);
     MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1,
                MENU_ICON_SRC_REBOOT);
+    /* 预热汉字测宽+绘制路径（裁到空区），避免首开菜单卡在 4bpp */
+    {
+        int i;
+
+        HalVideoSetClipRegion(0, 0, 0, 0, 0);
+        for (i = 0; i < gMenuCount; i++) {
+            if (gMenuRows[i].Label[0]) {
+                (void)FontStringWidth(gMenuRows[i].Label);
+                HalVideoDrawStringAt(0, 0, gMenuRows[i].Label, 0);
+            }
+        }
+        for (i = 0; i < gMenuAppCount; i++) {
+            if (gMenuAppRows[i].Label[0]) {
+                (void)FontStringWidth(gMenuAppRows[i].Label);
+                HalVideoDrawStringAt(0, 0, gMenuAppRows[i].Label, 0);
+            }
+        }
+        for (i = 0; i < gMenuGameCount; i++) {
+            if (gMenuGameRows[i].Label[0]) {
+                (void)FontStringWidth(gMenuGameRows[i].Label);
+                HalVideoDrawStringAt(0, 0, gMenuGameRows[i].Label, 0);
+            }
+        }
+        HalVideoClearClip();
+    }
 }

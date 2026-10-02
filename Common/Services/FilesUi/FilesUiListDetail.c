@@ -29,8 +29,8 @@ void PaintListDrawPreview(UINT32 Cx, UINT32 Y, UINT32 H, UINT32 LineH, UINT32 Cw
     gPrevX = Px;
     HalVideoFillRect(Px, Y, 2, H, ThemePanelSeparator());
     HalVideoFillRect(Px + 2, Y, Pw > 2 ? Pw - 2 : Pw, H, ThemePanelDetailBackground());
-    DrawLine(Px + 10, Py, "Preview", ThemeText());
-    DrawLine(Px + 10, Py + LineH, gViewTitle[0] ? gViewTitle : "(none)",
+    DrawLine(Px + 10, Py, LocStr(MSG_FILES_PREVIEW), ThemeText());
+    DrawLine(Px + 10, Py + LineH, gViewTitle[0] ? gViewTitle : LocStr(MSG_FILES_NONE),
              ThemeTextMuted());
 
     InnerX = Px + 8;
@@ -49,16 +49,16 @@ void PaintListDrawPreview(UINT32 Cx, UINT32 Y, UINT32 H, UINT32 LineH, UINT32 Cw
                      LocStr(MSG_FILES_EMPTY), ThemeTextMuted());
         }
     } else if (gPrevKind == PREV_DIR) {
-        DrawLine(InnerX, InnerY, "[Directory]", ThemeTextAccent());
-        DrawLine(InnerX, InnerY + LineH, "Enter to open", ThemeTextMuted());
+        DrawLine(InnerX, InnerY, LocStr(MSG_FILES_DIR), ThemeTextAccent());
+        DrawLine(InnerX, InnerY + LineH, LocStr(MSG_FILES_ENTER_OPEN), ThemeTextMuted());
     } else if (gPrevKind == PREV_ELF) {
-        DrawLine(InnerX, InnerY, "ELF executable", ThemeTextAccent());
-        DrawLine(InnerX, InnerY + LineH, "Enter to run", ThemeTextMuted());
+        DrawLine(InnerX, InnerY, LocStr(MSG_FILES_ELF), ThemeTextAccent());
+        DrawLine(InnerX, InnerY + LineH, LocStr(MSG_FILES_ENTER_RUN), ThemeTextMuted());
     } else if (gPrevKind == PREV_ERR) {
-        DrawLine(InnerX, InnerY, "Cannot read file", ThemeTextAccent());
+        DrawLine(InnerX, InnerY, LocStr(MSG_FILES_CANT_READ), ThemeTextAccent());
     } else if (gPrevKind == PREV_BIN) {
-        DrawLine(InnerX, InnerY, "Binary file", ThemeTextAccent());
-        DrawLine(InnerX, InnerY + LineH, "Enter = hex-ish view", ThemeTextMuted());
+        DrawLine(InnerX, InnerY, LocStr(MSG_FILES_BINARY), ThemeTextAccent());
+        DrawLine(InnerX, InnerY + LineH, LocStr(MSG_FILES_HEX), ThemeTextMuted());
     } else if (gPrevKind == PREV_TEXT && InnerH > LineH) {
         char Row[72];
         int Col = 0;

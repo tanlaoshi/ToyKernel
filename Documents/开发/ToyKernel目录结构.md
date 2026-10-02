@@ -1700,7 +1700,7 @@ ToyKernel/
 | `Assets/Fonts/*.FNT` | Assets | 点阵字体；prepare-rootfs 同步 |
 | `Assets/Icons/**` | Assets | 桌面/任务栏图标（svg/png/bmp48） |
 | `Assets/Images/WALL.BMP` | Assets | 壁纸 |
-| `Assets/BEEP.WAV` | Assets | HDA `play` 样例 |
+| `Assets/Sounds/BEEP.WAV` | Assets/Sounds | HDA `play` 样例 |
 | `Assets/Store/packages/**/*.ELF` | Assets | 商店包载荷（构建副本） |
 | `ThirdParty/lwip/` | ThirdParty | lwIP 上游；见 `ThirdParty/README.md` |
 | `Build/` | 产物 | `Kernel.elf`、各 `.o`、**`Build/ToySDK/`** |

@@ -18,12 +18,12 @@ static void PutHex8(char *Dst, UINTN *N, UINTN Max, UINT32 V) {
 
 static const char *FiltLabel(int Filt) {
     if (Filt == DEVUI_FILT_BOUND) {
-        return LocaleGet() == LOC_LANG_ZH ? "已绑定" : "Bound";
+        return LocStr(MSG_DEV_BOUND);
     }
     if (Filt == DEVUI_FILT_FREE) {
-        return LocaleGet() == LOC_LANG_ZH ? "未绑定" : "Free";
+        return LocStr(MSG_DEV_FREE);
     }
-    return LocaleGet() == LOC_LANG_ZH ? "全部" : "All";
+    return LocStr(MSG_DEV_ALL);
 }
 
 static int DrawLine(UINT32 X, UINT32 *Ty, UINT32 MaxY, const char *S, UINT32 Fg) {

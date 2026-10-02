@@ -78,12 +78,15 @@ void DesktopNetTrayDrawPopup(void) {
     Ty += FontCellH();
 
     if (!HalNetReady()) {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", ThemeTextMuted());
+        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, LocStr(MSG_NET_LINK_NA),
+                             ThemeTextMuted());
     } else if (HalNetGetLinkInfo(&Up, &Mbps, &Fd)) {
         HalVideoDrawStringAt(Px + NET_POP_PAD, Ty,
-                             Up ? "link up" : "link down", ThemeTextMuted());
+                             Up ? LocStr(MSG_NET_LINK_UP) : LocStr(MSG_NET_LINK_DOWN),
+                             ThemeTextMuted());
     } else {
-        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, "link n/a", ThemeTextMuted());
+        HalVideoDrawStringAt(Px + NET_POP_PAD, Ty, LocStr(MSG_NET_LINK_NA),
+                             ThemeTextMuted());
     }
 }
 

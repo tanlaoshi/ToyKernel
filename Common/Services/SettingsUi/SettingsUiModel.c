@@ -107,10 +107,10 @@ void ItemLabel(int Idx, char *Out, int OutMax) {
     }
     switch (gCat) {
     case SETTINGS_CAT_DESKTOP:
-        CopyStr(Out, OutMax, gDesktopColors[Idx].Label);
+        CopyStr(Out, OutMax, LocStr(gDesktopColors[Idx].Msg));
         break;
     case SETTINGS_CAT_SHELL:
-        CopyStr(Out, OutMax, gShellColors[Idx].Label);
+        CopyStr(Out, OutMax, LocStr(gShellColors[Idx].Msg));
         break;
     case SETTINGS_CAT_FONT:
         Face = FontGetById((UINT32)Idx);
@@ -118,7 +118,7 @@ void ItemLabel(int Idx, char *Out, int OutMax) {
         break;
     case SETTINGS_CAT_DISPLAY:
         if (Idx == 0) {
-            CopyStr(Out, OutMax, "Auto");
+            CopyStr(Out, OutMax, LocStr(MSG_SET_DISP_AUTO));
         } else {
             CopyStr(Out, OutMax, gModes[Idx - 1].Label);
         }

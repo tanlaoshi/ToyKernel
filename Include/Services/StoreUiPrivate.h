@@ -65,7 +65,6 @@ extern int gHoverRow;
 extern int gHoverBtn;
 extern int gPressBtn;
 
-extern const char *const gBtnLabel[STORE_BTN_N];
 extern UI_BUTTON_ACTION gStoreAct[STORE_BTN_N];
 
 /* Console / Store 已有同名符号，这里不能再导出。 */
@@ -81,6 +80,7 @@ static inline int StrEq(const char *A, const char *B) {
 }
 
 /* ===== StoreUiModel.c ===== */
+const char *StoreBtnLabel(int I);
 const char *StoreCatLabel(int C);
 int CachedInstalled(int CatalogIdx);
 void StoreSetStatus(const char *S);

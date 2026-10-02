@@ -25,20 +25,20 @@ int gSetSbVisible;
 UINT32 gSetPrevX, gSetPrevW;
 
 const SETTINGS_COLOR gDesktopColors[DESKTOP_COLOR_COUNT] = {
-    { "Wallpaper", DESKTOP_COLOR_WALLPAPER },
-    { "Dark Gray", COLOR_DARK_GRAY },
-    { "Blue",      COLOR_BLUE },
-    { "Green",     COLOR_GREEN },
-    { "Black",     COLOR_BLACK },
-    { "Gray",      COLOR_GRAY },
+    { MSG_COLOR_WALLPAPER, DESKTOP_COLOR_WALLPAPER },
+    { MSG_COLOR_DARK_GRAY, COLOR_DARK_GRAY },
+    { MSG_COLOR_BLUE, COLOR_BLUE },
+    { MSG_COLOR_GREEN, COLOR_GREEN },
+    { MSG_COLOR_BLACK, COLOR_BLACK },
+    { MSG_COLOR_GRAY, COLOR_GRAY },
 };
 
 const SETTINGS_COLOR gShellColors[SHELL_COLOR_COUNT] = {
-    { "Light Gray", COLOR_LIGHT_GRAY },
-    { "White",      COLOR_WHITE },
-    { "Cyan",       COLOR_CYAN },
-    { "Yellow",     COLOR_YELLOW },
-    { "Gray",      COLOR_GRAY },
+    { MSG_COLOR_LIGHT_GRAY, COLOR_LIGHT_GRAY },
+    { MSG_COLOR_WHITE, COLOR_WHITE },
+    { MSG_COLOR_CYAN, COLOR_CYAN },
+    { MSG_COLOR_YELLOW, COLOR_YELLOW },
+    { MSG_COLOR_GRAY, COLOR_GRAY },
 };
 
 const SETTINGS_MODE gModesFallback[MODES_FALLBACK_COUNT] = {

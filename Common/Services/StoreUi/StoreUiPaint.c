@@ -13,25 +13,40 @@ static void DrawButtons(void) {
     for (i = 0; i < STORE_BTN_N; i++) {
         Bx = gBtnX0 + (UINT32)i * (gBtnW + STORE_BTN_GAP);
         if (ShellBusy) {
-            UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], ThemeTextMuted(),
+            UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, StoreBtnLabel(i), ThemeTextMuted(),
                            ThemePanelSideBackground(), 0, 0);
         } else if (UiBusy) {
             if (i == 0) {
                 UINT32 Face = (gHoverBtn == 0) ? ThemeControlAccent() : ThemeControlFace();
                 UINT32 Fg = (gHoverBtn == 0) ? ThemeTextOnAccent() : ThemeText();
-                UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, "Cancel", Fg, Face,
+                UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, LocStr(MSG_STORE_CANCEL), Fg, Face,
                                gHoverBtn == 0, gPressBtn == 0);
             } else {
-                UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], ThemeTextMuted(),
+                UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, StoreBtnLabel(i), ThemeTextMuted(),
                                ThemePanelSideBackground(), 0, 0);
             }
         } else {
             UINT32 Face = (gHoverBtn == i) ? ThemeControlAccent() : ThemeControlFace();
             UINT32 Fg = (gHoverBtn == i) ? ThemeTextOnAccent() : ThemeText();
-            UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, gBtnLabel[i], Fg, Face,
+            UiDrawButtonEx(Bx, gBtnY, gBtnW, STORE_BTN_H, StoreBtnLabel(i), Fg, Face,
                            gHoverBtn == i, gPressBtn == i);
         }
     }
+}
+
+static void PutPrefixed(char *Dst, int Max, const char *Pref, const char *Val) {
+    int K = 0;
+
+    if (!Dst || Max < 2) {
+        return;
+    }
+    while (Pref && *Pref && K < Max - 1) {
+        Dst[K++] = *Pref++;
+    }
+    while (Val && *Val && K < Max - 1) {
+        Dst[K++] = *Val++;
+    }
+    Dst[K] = 0;
 }
 
 static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
@@ -53,13 +68,13 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
     Ty = Y + 8;
     MaxY = Y + H - 4;
-    HalVideoDrawStringAt(X + 10, Ty, "Detail", ThemeText());
+    HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_DEV_DETAIL), ThemeText());
     Ty += LineH + 4;
 
     E = SelectedEntry();
     MapIdx = (gSel >= 0 && gSel < gFiltCount) ? gMap[gSel] : -1;
     if (!E) {
-        HalVideoDrawStringAt(X + 10, Ty, "(no selection)", ThemeTextMuted());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_STORE_NO_SEL), ThemeTextMuted());
         return;
     }
     Inst = CachedInstalled(MapIdx);
@@ -68,28 +83,22 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         Ty += LineH + 2;
     }
     if (Ty + LineH < MaxY) {
-        Line[0]='i'; Line[1]='d'; Line[2]=':'; Line[3]=' ';
-        { int k=4; const char *P=E->Id; while (*P && k<70) Line[k++]=*P++; Line[k]=0; }
+        PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_ID), E->Id);
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        Line[0]='t'; Line[1]='y'; Line[2]='p'; Line[3]='e'; Line[4]=':'; Line[5]=' ';
-        { int k=6; const char *P=E->Type; while (*P && k<70) Line[k++]=*P++; Line[k]=0; }
+        PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_TYPE), E->Type);
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->Arch[0] && Ty + LineH < MaxY) {
-        Line[0]='a'; Line[1]='r'; Line[2]='c'; Line[3]='h'; Line[4]=':'; Line[5]=' ';
-        { int k=6; const char *P=E->Arch; while (*P && k<70) Line[k++]=*P++; Line[k]=0; }
+        PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_ARCH), E->Arch);
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
     if (E->File[0] && Ty + LineH < MaxY) {
-        Line[0] = 'f'; Line[1] = 'i'; Line[2] = 'l'; Line[3] = 'e';
-        Line[4] = ':'; Line[5] = ' ';
-        { int k = 6; const char *P = E->File;
-          while (*P && k < 70) { Line[k++] = *P++; } Line[k] = 0; }
+        PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_FILE), E->File);
         HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
         Ty += LineH;
     }
@@ -100,7 +109,8 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, Inst ? "status: installed" : "status: not installed",
+        HalVideoDrawStringAt(X + 10, Ty,
+                             Inst ? LocStr(MSG_STORE_INSTALLED) : LocStr(MSG_STORE_NOT_INST),
                              Inst ? ThemeTextAccent() : ThemeTextMuted());
     }
 }
@@ -234,7 +244,8 @@ void StorePaintList(void) {
         UiDrawScrollBar(gStoreUiSbX, gStoreUiSbY, gStoreUiSbW, gStoreUiSbH, gStoreUiScroll, gStoreUiListVisible, gFiltCount);
     }
     if (gFiltCount == 0) {
-        HalVideoDrawStringAt(ContentX + 12, gStoreUiListTop + 4, "(empty)", ThemeTextMuted());
+        HalVideoDrawStringAt(ContentX + 12, gStoreUiListTop + 4, LocStr(MSG_STORE_EMPTY),
+                             ThemeTextMuted());
     }
 
     /* 第 2 分栏下方：三钮均分中栏宽度 */

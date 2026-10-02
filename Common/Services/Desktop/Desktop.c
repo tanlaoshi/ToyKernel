@@ -225,11 +225,9 @@ void DesktopRefreshLabels(void) {
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
     gIcons[3].Label = LocStr(MSG_ICON_STORE);
     gIcons[4].Label = LocStr(MSG_ICON_DEVICES);
-    /* lang 切换后须重建：否则 gMenuCount>0 会一直复用开机时的英文一级菜单 */
-    gMenuCount = 0;
-    gMenuAppCount = 0;
-    gMenuGameCount = 0;
-    if (gMenuOpen) {
-        RebuildStartMenu();
-    }
+    /*
+     * 先前只在菜单已打开时 Rebuild：关着切 lang 会把 gMenuCount 清零，
+     * 第一次点开始才扫 Store/Apps → 中文首击明显卡。切语言即预建。
+     */
+    RebuildStartMenu();
 }

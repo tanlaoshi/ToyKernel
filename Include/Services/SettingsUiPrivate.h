@@ -32,8 +32,8 @@ typedef enum {
 } SETTINGS_CAT;
 
 typedef struct {
-    const char *Label;
-    UINT32      Color;
+    MSG_ID Msg;
+    UINT32 Color;
 } SETTINGS_COLOR;
 
 typedef struct {

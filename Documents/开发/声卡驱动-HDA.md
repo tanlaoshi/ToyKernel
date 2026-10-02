@@ -162,9 +162,9 @@
 
 | 项 | 内容 |
 | -- | ---- |
-| 改 | `ShellCommandsAudio.c`；`play [path]`；`Assets/BEEP.WAV` |
+| 改 | `ShellCommandsAudio.c`；`play [path]`；`Assets/Sounds/BEEP.WAV` |
 | 不改 | 商店/流媒体；任意采样率混音 |
-| 验收 | NUC：`play` 与 `play BEEP.WAV`（✅）；smoke 绿（✅）；清单勾完（✅） |
+| 验收 | NUC：`play` 与 `play Assets/Sounds/BEEP.WAV`（✅）；smoke 绿（✅）；清单勾完（✅） |
 | 下一刀 | ★ 空（另选题 / 可 GD 归档） |
 
 ---

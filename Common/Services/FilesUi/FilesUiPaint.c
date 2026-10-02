@@ -92,7 +92,7 @@ void PaintView(void) {
     }
     CopyStr(Title + ti, (int)sizeof(Title) - ti, gViewTitle);
     DrawLine(X + 8, Y + 8, Title, ThemeText());
-    DrawLine(X + 8, Y + 8 + LineH, "Esc = back to list", ThemeTextMuted());
+    DrawLine(X + 8, Y + 8 + LineH, LocStr(MSG_FILES_ESC_BACK), ThemeTextMuted());
 
     CurY = Y + 8 + LineH * 2 + 4;
     {
@@ -144,7 +144,7 @@ void PaintConfirm(void) {
     if (gSelected >= 0 && gSelected < gCount) {
         Name = gEnts[gSelected].Name;
     }
-    CopyStr(Line2, sizeof(Line2), "Delete ");
+    CopyStr(Line2, sizeof(Line2), LocStr(MSG_FILES_DEL_PRE));
     {
         int n = 0;
         while (Line2[n]) {
@@ -158,7 +158,7 @@ void PaintConfirm(void) {
         CopyStr(Line2 + n, (int)sizeof(Line2) - n, " ?");
     }
     PaintList();
-    PaintOverlay("Confirm delete", Line2, "Y = yes   N/Esc = cancel");
+    PaintOverlay(LocStr(MSG_FILES_DEL_TITLE), Line2, LocStr(MSG_FILES_DEL_HINT));
 }
 
 void PaintPrompt(void) {

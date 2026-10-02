@@ -8,8 +8,8 @@
 void PaintListDrawHeader(UINT32 Cx, UINT32 Y, UINT32 LineH, UINT32 Cw) {
     UINT32 ListW;
     UINT32 HintMax;
-    const char *Hint1 = "Enter open  d/Del delete";
-    const char *Hint2 = "n mkdir  f newfile  r rename";
+    const char *Hint1 = LocStr(MSG_FILES_HINT1);
+    const char *Hint2 = LocStr(MSG_FILES_HINT2);
     char PathShow[FILES_PATH_MAX + 8];
     int n;
 
@@ -28,7 +28,7 @@ void PaintListDrawHeader(UINT32 Cx, UINT32 Y, UINT32 LineH, UINT32 Cw) {
 
     ListW = Cw - gPrevW;
     PathShow[0] = 0;
-    CopyStr(PathShow, sizeof(PathShow), "Path: ");
+    CopyStr(PathShow, sizeof(PathShow), LocStr(MSG_FILES_PATH));
     n = 0;
     while (PathShow[n]) {
         n++;

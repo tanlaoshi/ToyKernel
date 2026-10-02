@@ -7,14 +7,35 @@
 #include "Fat.h"
 #include "Hal.h"
 
+const char *StoreBtnLabel(int I) {
+    switch (I) {
+    case 0:
+        return LocStr(MSG_STORE_INSTALL);
+    case 1:
+        return LocStr(MSG_STORE_REMOVE);
+    case 2:
+        return LocStr(MSG_STORE_SYNC);
+    case 3:
+        return LocStr(MSG_STORE_REPO);
+    default:
+        return "?";
+    }
+}
+
 const char *StoreCatLabel(int C) {
     switch (C) {
-    case STORE_CAT_ALL:       return "All";
-    case STORE_CAT_APP:       return "Apps";
-    case STORE_CAT_FONT:      return "Fonts";
-    case STORE_CAT_ASSET:     return "Assets";
-    case STORE_CAT_INSTALLED: return "Installed";
-    default:                  return "?";
+    case STORE_CAT_ALL:
+        return LocStr(MSG_STORE_CAT_ALL);
+    case STORE_CAT_APP:
+        return LocStr(MSG_STORE_CAT_APP);
+    case STORE_CAT_FONT:
+        return LocStr(MSG_STORE_CAT_FONT);
+    case STORE_CAT_ASSET:
+        return LocStr(MSG_STORE_CAT_ASSET);
+    case STORE_CAT_INSTALLED:
+        return LocStr(MSG_STORE_CAT_INST);
+    default:
+        return "?";
     }
 }
 
@@ -133,7 +154,7 @@ void StoreBtnGeom(UINT32 ListX, UINT32 ListW) {
     UINT32 Pad = 24u;
 
     for (i = 0; i < (UINT32)STORE_BTN_N; i++) {
-        Tw = FontStringWidth(gBtnLabel[i]);
+        Tw = FontStringWidth(StoreBtnLabel(i));
         if (Tw > MaxLabel) {
             MaxLabel = Tw;
         }

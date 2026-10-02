@@ -26,7 +26,7 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
     Ty = Y + 8;
     MaxY = Y + H - 4;
-    HalVideoDrawStringAt(X + 10, Ty, "Detail", ThemeText());
+    HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_DEV_DETAIL), ThemeText());
     Ty += LineH + 4;
     HalVideoDrawStringAt(X + 10, Ty, CatLabel(gCat), ThemeTextMuted());
     Ty += LineH + 2;
@@ -52,14 +52,13 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             Ty += 36;
         }
     } else if (gCat == SETTINGS_CAT_FONT && Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "The quick brown fox", ThemeText());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_FONT_SAMPLE), ThemeText());
         Ty += LineH + 4;
     } else if (gCat == SETTINGS_CAT_DISPLAY) {
         if (Ty + LineH < MaxY) {
             HalVideoDrawStringAt(X + 10, Ty,
-                                 HalCpuIsHypervisor()
-                                     ? "Change may need quit QEMU + rerun"
-                                     : "Change may need reboot to apply",
+                                 LocStr(HalCpuIsHypervisor() ? MSG_SET_DISP_QEMU
+                                                             : MSG_SET_DISP_PC),
                                  ThemeTextMuted());
             Ty += LineH + 2;
         }
@@ -84,9 +83,9 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             }
         }
     } else if (gCat == SETTINGS_CAT_SCALE && Ty + LineH * 2 < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "50=small 100=normal", ThemeTextMuted());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_SCALE_HINT1), ThemeTextMuted());
         Ty += LineH;
-        HalVideoDrawStringAt(X + 10, Ty, "150/200=large", ThemeTextMuted());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_SCALE_HINT2), ThemeTextMuted());
         Ty += LineH + 2;
         FormatNowDisplay(Line, sizeof(Line));
         if (Ty + LineH < MaxY) {
@@ -94,21 +93,21 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
             Ty += LineH + 2;
         }
     } else if (gCat == SETTINGS_CAT_THEME && Ty + LineH * 2 < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "Default / Tech / Gradient", ThemeTextMuted());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_THEME_HINT), ThemeTextMuted());
         Ty += LineH;
-        HalVideoDrawStringAt(X + 10, Ty, "Applies live; saved to DB", ThemeTextMuted());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_LIVE_DB), ThemeTextMuted());
         Ty += LineH + 2;
     } else if (gCat == SETTINGS_CAT_EFFECTS && Ty + LineH * 2 < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "Minimal / Low / Medium / High",
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_EFFECTS_HINT),
                              ThemeTextMuted());
         Ty += LineH;
-        HalVideoDrawStringAt(X + 10, Ty, "Applies live; saved to DB",
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_LIVE_DB),
                              ThemeTextMuted());
         Ty += LineH + 2;
     }
 
     if (gDisplayHint == 2 && Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "Applied (live)", ThemeTextAccent());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_APPLIED_LIVE), ThemeTextAccent());
         Ty += LineH;
     } else if (gDisplayHint == 1 && Ty + LineH < MaxY) {
         HalVideoDrawStringAt(
@@ -117,7 +116,7 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
         Ty += LineH;
     }
     if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, "Click item to apply", ThemeTextMuted());
+        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_SET_CLICK_APPLY), ThemeTextMuted());
     }
 }
 
