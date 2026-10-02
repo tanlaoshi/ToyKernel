@@ -3,8 +3,8 @@
 > **范围**：源码 / 头文件 / 脚本 / 文档 / 配置约 **1018** 项。
 > **不含**：`Build/`、`ThirdParty/lwip/` 上游树、交叉工具链解压包、`.o/.a/.elf`、字体/图标/固件等二进制。
 > **分层硬规则**：[`技术手册 · 体系结构`](../技术手册.md#i-体系结构--分层与对外接口)。**排期**：[`路线图.md`](../路线图.md)。
-> **分层终态**：`Boot → HAL → Library → Core → Services → User`。**`Common/` 不是层**——仅旧路径篮子（现装 Services/Library/Fonts/Modules）；[拆 Common](../路线图.md#pr-tree-common) 抬顶后删空壳。下文 `Common/…` = **将删别名**。
-> **日期**：2026-10-03（TREE-doc 钉死分层；文件清单路径仍为抬顶前）。
+> **分层终态**：`Boot → HAL → Library → Core → Services → User`。**`Common/` 不是层**——仅旧路径篮子（现装 Library/Fonts/Modules；`Services/` 已抬顶）；[拆 Common](../路线图.md#pr-tree-common) 其余抬顶后删空壳。下文 `Common/…` = **将删别名**。
+> **日期**：2026-10-03（TREE-svc：`Services/` 已顶层）。
 
 ## 目录
 
@@ -15,7 +15,7 @@
 - [4. `Common/Modules/` — 可替换内核模块（SCHED / MEM / FS）（将抬顶 → `Modules/`）](#4-CommonModules)
 - [5. `Common/Library/` — 共享库：ELF / FAT / GPT / BlockMux / UI（将抬顶 → `Library/`）](#5-CommonLibrary)
 - [6. `Common/Fonts/` — 内嵌点阵字体数据（将抬顶 → `Fonts/`）](#6-CommonFonts)
-- [7. `Common/Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层（将抬顶 → `Services/`）](#7-CommonServices)
+- [7. `Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层](#7-CommonServices)
 - [8. `HAL/Board/` — 板包约定与模板](#8-HALBoard)
 - [9. `HAL/X64/` — x86-64 HAL：启动、中断、页表、HalDevices、LwIp 移植](#9-HALX64)
 - [10. `HAL/X64/Drivers/` — x86 设备驱动（一设备一夹）](#10-HALX64Drivers)
@@ -53,7 +53,7 @@ flowchart TB
   Sys --> Hal
 ```
 
-> 现源码路径仍为 `Common/Modules`、`Common/Services`、`Common/Library`（将删别名）；图上用终态层名。
+> 现源码：`Services/` 已顶层；`Common/Modules`、`Common/Library`、`Common/Fonts` 仍为将删别名。图上用终态层名。
 
 ### 0.2 依赖矩阵
 
@@ -69,7 +69,7 @@ flowchart TB
 
 ### 0.3 顶层树
 
-**终态**（TREE-svc/lib/rest 完成后）：
+**终态**（TREE-lib/rest 完成后）：
 
 ```
 ToyKernel/
@@ -85,17 +85,17 @@ ToyKernel/
 └── Build/
 ```
 
-**现树**（抬顶前；`Common/` = 将删篮子）：
+**现树**（`Services/` 已抬顶；`Common/` 仍装 Library/Fonts/Modules）：
 
 ```
 ToyKernel/
 ├── Include/           # Abi Hal Core Driver Library Services
 ├── Core/              # Kernel / Syscall / VMM / Process / Device / PMM …
+├── Services/          # Gui* Shell Store LwIp FileSystem …（已抬顶）
 ├── Common/            # ★ 将删：非分层单位
 │   ├── Modules/       # → 终态 Modules/
 │   ├── Library/       # → 终态 Library/
-│   ├── Fonts/         # → 终态 Fonts/
-│   └── Services/      # → 终态 Services/
+│   └── Fonts/         # → 终态 Fonts/
 ├── HAL/
 │   ├── Board/         # 板包约定
 │   ├── X64/           # 产品路径 + Drivers/
@@ -430,328 +430,328 @@ ToyKernel/
 | `Common/Fonts/terminus10x18.c` | Terminus 10×18 点阵（摘自 Linux font_ter10x18.c） |
 | `Common/Fonts/terminus16x32.c` | Terminus 16×32 点阵（摘自 Linux font_ter16x32.c） |
 
-## 7. `Common/Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层
+## 7. `Services/` — 系统服务：Shell / GUI / FS / Store / 网络上层
 
 ### Console
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Console/Console.c` | Shell 提示符与 Job 输出（PR-S3-console-2） |
-| `Common/Services/Console/ConsoleAlias.c` | 用户别名与 alias / unalias |
-| `Common/Services/Console/ConsoleBuiltin.c` | help / clear / echo 与内置注册 |
-| `Common/Services/Console/ConsoleCmd.c` | 命令表 / Register / 分发 |
-| `Common/Services/Console/ConsoleFocus.c` | Shell 焦点 / 开窗 / 重画（PR-S3-console-2） |
-| `Common/Services/Console/ConsoleInput.c` | 按键、回车与串口壳 |
-| `Common/Services/Console/ConsoleSbBar.c` | Shell 客户区滚动条（PR-GUI-shell-sb） |
-| `Common/Services/Console/ConsoleSbPaint.c` | Shell scrollback 重画（PR-S3-consolescroll-1） |
-| `Common/Services/Console/ConsoleSbSlot.c` | 每 Shell 窗独立 scrollback |
-| `Common/Services/Console/ConsoleScroll.c` | Shell 行缓冲 / 历史 / 滚轮（PR-S3-consolescroll-1） |
-| `Common/Services/Console/ConsoleWrite.c` | 串口与屏幕输出 |
+| `Services/Console/Console.c` | Shell 提示符与 Job 输出（PR-S3-console-2） |
+| `Services/Console/ConsoleAlias.c` | 用户别名与 alias / unalias |
+| `Services/Console/ConsoleBuiltin.c` | help / clear / echo 与内置注册 |
+| `Services/Console/ConsoleCmd.c` | 命令表 / Register / 分发 |
+| `Services/Console/ConsoleFocus.c` | Shell 焦点 / 开窗 / 重画（PR-S3-console-2） |
+| `Services/Console/ConsoleInput.c` | 按键、回车与串口壳 |
+| `Services/Console/ConsoleSbBar.c` | Shell 客户区滚动条（PR-GUI-shell-sb） |
+| `Services/Console/ConsoleSbPaint.c` | Shell scrollback 重画（PR-S3-consolescroll-1） |
+| `Services/Console/ConsoleSbSlot.c` | 每 Shell 窗独立 scrollback |
+| `Services/Console/ConsoleScroll.c` | Shell 行缓冲 / 历史 / 滚轮（PR-S3-consolescroll-1） |
+| `Services/Console/ConsoleWrite.c` | 串口与屏幕输出 |
 
 ### Db
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Db/Db.c` | TOYOS.DB 文本 KV（PR-DB1） |
-| `Common/Services/Db/DbFile.c` | TOYOS.DB 读盘 / 写盘（PR-S-db-1） |
+| `Services/Db/Db.c` | TOYOS.DB 文本 KV（PR-DB1） |
+| `Services/Db/DbFile.c` | TOYOS.DB 读盘 / 写盘（PR-S-db-1） |
 
 ### Desktop
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Desktop/Desktop.c` | 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-S3-desktop-1） |
-| `Common/Services/Desktop/DesktopAppIcons.c` | PR-S-bundle-desktop：desktop=yes 动态桌面图标 |
-| `Common/Services/Desktop/DesktopClick.c` | 图标点选（PR-S3-desktopclick-1） |
-| `Common/Services/Desktop/DesktopClock.c` | 任务栏时钟 / MSC 热拔节流（PR-S3-desktop-1） |
-| `Common/Services/Desktop/DesktopGeom.c` | 图标 / 任务栏 / 菜单几何 |
-| `Common/Services/Desktop/DesktopIconDrag.c` | 桌面图标拖放 |
-| `Common/Services/Desktop/DesktopIconLayout.c` | 图标坐标读写与摆放（PR-S3-deskiconlayout-1） |
-| `Common/Services/Desktop/DesktopIconMove.c` | 图标拖移擦旧画新（PR-S3-deskiconlayout-1） |
-| `Common/Services/Desktop/DesktopIcons.c` | 图标 BMP / 布局 / 拖放移动（PR-S-desktop-split-3） |
-| `Common/Services/Desktop/DesktopMenu.c` | 开始菜单重建（系统项 + Game；Apps 见 DesktopMenuApps.c） |
-| `Common/Services/Desktop/DesktopMenuApps.c` | 开始菜单 Apps 二级（INST taskbar + 旧扁平 ELF） |
-| `Common/Services/Desktop/DesktopMenuCover.c` | 开始菜单覆盖矩形（局部刷新擦除用） |
-| `Common/Services/Desktop/DesktopMenuIcon.c` | 开始菜单行图标（关机/重启专用 BMP） |
-| `Common/Services/Desktop/DesktopNetTray.c` | 任务栏时钟左侧网络短状态（PR-N-nic-tray） |
-| `Common/Services/Desktop/DesktopPaint.c` | 桌面绘制（图标/任务栏/开始菜单）（PR-S-desktop-split-2） |
-| `Common/Services/Desktop/DesktopSample.c` | 桌面矩形重画与像素采样 |
-| `Common/Services/Desktop/DesktopTaskbar.c` | 任务栏与开始菜单绘制 |
-| `Common/Services/Desktop/DesktopTaskbarClick.c` | 任务栏 / 开始菜单点击（PR-S3-desktopclick-1） |
-| `Common/Services/Desktop/DesktopWallpaper.c` | 壁纸缓存 / DesktopBgAt / DesktopFillRect（PR-S-desktop-split-1） |
+| `Services/Desktop/Desktop.c` | 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-S3-desktop-1） |
+| `Services/Desktop/DesktopAppIcons.c` | PR-S-bundle-desktop：desktop=yes 动态桌面图标 |
+| `Services/Desktop/DesktopClick.c` | 图标点选（PR-S3-desktopclick-1） |
+| `Services/Desktop/DesktopClock.c` | 任务栏时钟 / MSC 热拔节流（PR-S3-desktop-1） |
+| `Services/Desktop/DesktopGeom.c` | 图标 / 任务栏 / 菜单几何 |
+| `Services/Desktop/DesktopIconDrag.c` | 桌面图标拖放 |
+| `Services/Desktop/DesktopIconLayout.c` | 图标坐标读写与摆放（PR-S3-deskiconlayout-1） |
+| `Services/Desktop/DesktopIconMove.c` | 图标拖移擦旧画新（PR-S3-deskiconlayout-1） |
+| `Services/Desktop/DesktopIcons.c` | 图标 BMP / 布局 / 拖放移动（PR-S-desktop-split-3） |
+| `Services/Desktop/DesktopMenu.c` | 开始菜单重建（系统项 + Game；Apps 见 DesktopMenuApps.c） |
+| `Services/Desktop/DesktopMenuApps.c` | 开始菜单 Apps 二级（INST taskbar + 旧扁平 ELF） |
+| `Services/Desktop/DesktopMenuCover.c` | 开始菜单覆盖矩形（局部刷新擦除用） |
+| `Services/Desktop/DesktopMenuIcon.c` | 开始菜单行图标（关机/重启专用 BMP） |
+| `Services/Desktop/DesktopNetTray.c` | 任务栏时钟左侧网络短状态（PR-N-nic-tray） |
+| `Services/Desktop/DesktopPaint.c` | 桌面绘制（图标/任务栏/开始菜单）（PR-S-desktop-split-2） |
+| `Services/Desktop/DesktopSample.c` | 桌面矩形重画与像素采样 |
+| `Services/Desktop/DesktopTaskbar.c` | 任务栏与开始菜单绘制 |
+| `Services/Desktop/DesktopTaskbarClick.c` | 任务栏 / 开始菜单点击（PR-S3-desktopclick-1） |
+| `Services/Desktop/DesktopWallpaper.c` | 壁纸缓存 / DesktopBgAt / DesktopFillRect（PR-S-desktop-split-1） |
 
 ### DevicesUi
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/DevicesUi/DevicesUi.c` | 设备管理器开窗 / 焦点 / 点击（PR-DEV-6） |
-| `Common/Services/DevicesUi/DevicesUiModel.c` | Device 表格式化 / 筛选（PR-DEV-6） |
-| `Common/Services/DevicesUi/DevicesUiPaint.c` | 三栏：筛选 / 列表 / 详情（PR-DEV-6） |
-| `Common/Services/DevicesUi/DevicesUiSummary.c` | 设备管理器「系统摘要」只读数据采集（PR-DEV-ui-summary-data） |
+| `Services/DevicesUi/DevicesUi.c` | 设备管理器开窗 / 焦点 / 点击（PR-DEV-6） |
+| `Services/DevicesUi/DevicesUiModel.c` | Device 表格式化 / 筛选（PR-DEV-6） |
+| `Services/DevicesUi/DevicesUiPaint.c` | 三栏：筛选 / 列表 / 详情（PR-DEV-6） |
+| `Services/DevicesUi/DevicesUiSummary.c` | 设备管理器「系统摘要」只读数据采集（PR-DEV-ui-summary-data） |
 
 ### EditUi
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/EditUi/EditUi.c` | 简易编辑器核心（缓冲、开关、保存） |
-| `Common/Services/EditUi/EditUiInput.c` | 点击与按键 |
-| `Common/Services/EditUi/EditUiPaint.c` | 客户区、光标、Save 按钮 |
+| `Services/EditUi/EditUi.c` | 简易编辑器核心（缓冲、开关、保存） |
+| `Services/EditUi/EditUiInput.c` | 点击与按键 |
+| `Services/EditUi/EditUiPaint.c` | 客户区、光标、Save 按钮 |
 
 ### FilesUi
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/FilesUi/FilesUi.c` | 文件浏览器（PR-FB1/FB2 + PR-U1/U2/U3） |
-| `Common/Services/FilesUi/FilesUiActions.c` | Files 打开/删除/新建/改名（PR-S-filesui-split-3） |
-| `Common/Services/FilesUi/FilesUiClick.c` | 列表点击与悬停 |
-| `Common/Services/FilesUi/FilesUiKeys.c` | 键盘与滚轮 |
-| `Common/Services/FilesUi/FilesUiList.c` | 文件列表绘制（PR-F-filesui-1） |
-| `Common/Services/FilesUi/FilesUiListDetail.c` | PaintList 右栏预览（PR-F-filesui-1） |
-| `Common/Services/FilesUi/FilesUiListRows.c` | PaintList 路径头 + 文件行（PR-F-filesui-1） |
-| `Common/Services/FilesUi/FilesUiListSide.c` | PaintList 左栏卷列表（PR-F-filesui-1） |
-| `Common/Services/FilesUi/FilesUiNav.c` | Files 路径/卷侧栏/预览 |
-| `Common/Services/FilesUi/FilesUiPaint.c` | Files 绘制（PR-S-filesui-split-1） |
-| `Common/Services/FilesUi/FilesUiPreview.c` | 跳转、重载列表与预览 |
+| `Services/FilesUi/FilesUi.c` | 文件浏览器（PR-FB1/FB2 + PR-U1/U2/U3） |
+| `Services/FilesUi/FilesUiActions.c` | Files 打开/删除/新建/改名（PR-S-filesui-split-3） |
+| `Services/FilesUi/FilesUiClick.c` | 列表点击与悬停 |
+| `Services/FilesUi/FilesUiKeys.c` | 键盘与滚轮 |
+| `Services/FilesUi/FilesUiList.c` | 文件列表绘制（PR-F-filesui-1） |
+| `Services/FilesUi/FilesUiListDetail.c` | PaintList 右栏预览（PR-F-filesui-1） |
+| `Services/FilesUi/FilesUiListRows.c` | PaintList 路径头 + 文件行（PR-F-filesui-1） |
+| `Services/FilesUi/FilesUiListSide.c` | PaintList 左栏卷列表（PR-F-filesui-1） |
+| `Services/FilesUi/FilesUiNav.c` | Files 路径/卷侧栏/预览 |
+| `Services/FilesUi/FilesUiPaint.c` | Files 绘制（PR-S-filesui-split-1） |
+| `Services/FilesUi/FilesUiPreview.c` | 跳转、重载列表与预览 |
 
 ### FileSystem
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/FileSystem/FileSystem.c` | 卷激活与路径解析（PR-S-filesystem-1） |
-| `Common/Services/FileSystem/FileSystemInit.c` | 重挂与启动（PR-S-filesystem-1） |
-| `Common/Services/FileSystem/FileSystemMount.c` | 扫描并挂上各卷（编排；PR-F-fs-1） |
-| `Common/Services/FileSystem/FileSystemMountPick.c` | 选默认卷 / 无名 ESP 命名（PR-F-fs-1） |
-| `Common/Services/FileSystem/FileSystemMountVol.c` | 单 FAT 分区挂载 + RES（PR-F-fs-1） |
-| `Common/Services/FileSystem/FileSystemOps.c` | 路径上的读写与目录操作（PR-S-filesystem-1） |
-| `Common/Services/FileSystem/FileSystemTree.c` | PR-S-bundle-fs：递归建路径 / 删树 |
-| `Common/Services/FileSystem/Install.c` | PR-FS-inst-1：Guest 安装器骨架 |
+| `Services/FileSystem/FileSystem.c` | 卷激活与路径解析（PR-S-filesystem-1） |
+| `Services/FileSystem/FileSystemInit.c` | 重挂与启动（PR-S-filesystem-1） |
+| `Services/FileSystem/FileSystemMount.c` | 扫描并挂上各卷（编排；PR-F-fs-1） |
+| `Services/FileSystem/FileSystemMountPick.c` | 选默认卷 / 无名 ESP 命名（PR-F-fs-1） |
+| `Services/FileSystem/FileSystemMountVol.c` | 单 FAT 分区挂载 + RES（PR-F-fs-1） |
+| `Services/FileSystem/FileSystemOps.c` | 路径上的读写与目录操作（PR-S-filesystem-1） |
+| `Services/FileSystem/FileSystemTree.c` | PR-S-bundle-fs：递归建路径 / 删树 |
+| `Services/FileSystem/Install.c` | PR-FS-inst-1：Guest 安装器骨架 |
 
 ### GuiBackup
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiBackup/GuiBackup.c` | 窗备份缓冲（核心） |
-| `Common/Services/GuiBackup/GuiBackupSample.c` | 备份像素采样与上层覆盖判断 |
+| `Services/GuiBackup/GuiBackup.c` | 窗备份缓冲（核心） |
+| `Services/GuiBackup/GuiBackupSample.c` | 备份像素采样与上层覆盖判断 |
 
 ### GuiCompose
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiCompose/GuiCompose.c` | Present / 主题场景编排（PR-S-compose-split-1） |
-| `Common/Services/GuiCompose/GuiComposeRefresh.c` | GuiRefreshDesktop（开始菜单局部刷新） |
-| `Common/Services/GuiCompose/GuiFade.c` | PR-GUI-l3-fade：开关窗淡入淡出中间帧 |
+| `Services/GuiCompose/GuiCompose.c` | Present / 主题场景编排（PR-S-compose-split-1） |
+| `Services/GuiCompose/GuiComposeRefresh.c` | GuiRefreshDesktop（开始菜单局部刷新） |
+| `Services/GuiCompose/GuiFade.c` | PR-GUI-l3-fade：开关窗淡入淡出中间帧 |
 
 ### GuiCursor
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiCursor/GuiCursor.c` | 鼠标光标：save-under + 移动/显隐 |
-| `Common/Services/GuiCursor/GuiCursorAxis.c` | resize 光标：↔ / ↕ / 对角双向箭头 |
-| `Common/Services/GuiCursor/GuiCursorShape.c` | 光标字形：指针箭头 / ↔ / ↕ / 对角 resize |
+| `Services/GuiCursor/GuiCursor.c` | 鼠标光标：save-under + 移动/显隐 |
+| `Services/GuiCursor/GuiCursorAxis.c` | resize 光标：↔ / ↕ / 对角双向箭头 |
+| `Services/GuiCursor/GuiCursorShape.c` | 光标字形：指针箭头 / ↔ / ↕ / 对角 resize |
 
 ### GuiDrag
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiDrag/GuiDrag.c` | 标题栏拖动生命周期（PR-S3-guidrag-1） |
-| `Common/Services/GuiDrag/GuiDragBackup.c` | 拖动备份缓冲与起始抓屏 |
-| `Common/Services/GuiDrag/GuiDragComposite.c` | 拖动脏区合成与脚印 |
-| `Common/Services/GuiDrag/GuiDragMove.c` | 窗位夹紧与拖移重画（PR-S3-guidrag-1） |
-| `Common/Services/GuiDrag/GuiDragSlide.c` | CopyRect 平移 + 只擦露出条（减左右拖频闪） |
+| `Services/GuiDrag/GuiDrag.c` | 标题栏拖动生命周期（PR-S3-guidrag-1） |
+| `Services/GuiDrag/GuiDragBackup.c` | 拖动备份缓冲与起始抓屏 |
+| `Services/GuiDrag/GuiDragComposite.c` | 拖动脏区合成与脚印 |
+| `Services/GuiDrag/GuiDragMove.c` | 窗位夹紧与拖移重画（PR-S3-guidrag-1） |
+| `Services/GuiDrag/GuiDragSlide.c` | CopyRect 平移 + 只擦露出条（减左右拖频闪） |
 
 ### GuiDraw
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiDraw/GuiDraw.c` | 窗绘制入口（核心） |
-| `Common/Services/GuiDraw/GuiDrawChrome.c` | 标题栏、边框、关闭钮与遮挡画线 |
-| `Common/Services/GuiDraw/GuiDrawShadow.c` | 窗口右下阴影 |
+| `Services/GuiDraw/GuiDraw.c` | 窗绘制入口（核心） |
+| `Services/GuiDraw/GuiDrawChrome.c` | 标题栏、边框、关闭钮与遮挡画线 |
+| `Services/GuiDraw/GuiDrawShadow.c` | 窗口右下阴影 |
 
 ### GuiFocus
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiFocus/GuiFocus.c` | 焦点窗裁剪与光标（核心） |
-| `Common/Services/GuiFocus/GuiFocusConsole.c` | Shell 输入行与是否接受输入 |
+| `Services/GuiFocus/GuiFocus.c` | 焦点窗裁剪与光标（核心） |
+| `Services/GuiFocus/GuiFocusConsole.c` | Shell 输入行与是否接受输入 |
 
 ### GuiOpen
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiOpen/GuiOpen.c` | 开窗辅助 / 槽位（PR-S3-guiopen-1） |
-| `Common/Services/GuiOpen/GuiOpenApps.c` | Shell / Settings / Store / Files / Edit 开窗 |
-| `Common/Services/GuiOpen/GuiOpenClose.c` | 关窗与 Closing 等待（PR-S3-guiopen-1） |
-| `Common/Services/GuiOpen/GuiOpenDevices.c` | 设备管理器开窗（PR-DEV-6） |
-| `Common/Services/GuiOpen/GuiOpenTty.c` | 串口会话窗开窗（PR-GUI-tty-win） |
+| `Services/GuiOpen/GuiOpen.c` | 开窗辅助 / 槽位（PR-S3-guiopen-1） |
+| `Services/GuiOpen/GuiOpenApps.c` | Shell / Settings / Store / Files / Edit 开窗 |
+| `Services/GuiOpen/GuiOpenClose.c` | 关窗与 Closing 等待（PR-S3-guiopen-1） |
+| `Services/GuiOpen/GuiOpenDevices.c` | 设备管理器开窗（PR-DEV-6） |
+| `Services/GuiOpen/GuiOpenTty.c` | 串口会话窗开窗（PR-GUI-tty-win） |
 
 ### GuiPointer
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiPointer/GuiClick.c` | 按下命中编排（PR-F-guiclick-1） |
-| `Common/Services/GuiPointer/GuiClickDesktop.c` | 桌面/菜单/托盘点击与 DESKTOP_ACTION（PR-F-guiclick-1） |
-| `Common/Services/GuiPointer/GuiClickFocus.c` | USER 命中与置顶后按窗种类分发（PR-F-guiclick-1） |
-| `Common/Services/GuiPointer/GuiPointer.c` | 鼠标队列轮询与输入锁（PR-S3-guipointer-1） |
-| `Common/Services/GuiPointer/GuiPointerMotion.c` | Store 长 IO 期间仅挪光标（PR-S3-guipointer-1） |
-| `Common/Services/GuiPointer/GuiPointerMouse.c` | 分辨率钳窗、方向键、右键与按键边沿 |
-| `Common/Services/GuiPointer/GuiPollHold.c` | 拖帧进行中排空鼠标，帧后再补边沿 |
+| `Services/GuiPointer/GuiClick.c` | 按下命中编排（PR-F-guiclick-1） |
+| `Services/GuiPointer/GuiClickDesktop.c` | 桌面/菜单/托盘点击与 DESKTOP_ACTION（PR-F-guiclick-1） |
+| `Services/GuiPointer/GuiClickFocus.c` | USER 命中与置顶后按窗种类分发（PR-F-guiclick-1） |
+| `Services/GuiPointer/GuiPointer.c` | 鼠标队列轮询与输入锁（PR-S3-guipointer-1） |
+| `Services/GuiPointer/GuiPointerMotion.c` | Store 长 IO 期间仅挪光标（PR-S3-guipointer-1） |
+| `Services/GuiPointer/GuiPointerMouse.c` | 分辨率钳窗、方向键、右键与按键边沿 |
+| `Services/GuiPointer/GuiPollHold.c` | 拖帧进行中排空鼠标，帧后再补边沿 |
 
 ### GuiResize
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiResize/GuiResize.c` | 右/底边与右下角拖拽改大小生命周期（PR-S3-guiresize-1） |
-| `Common/Services/GuiResize/GuiResizeBand.c` | 线框预览与尺寸计算（PR-S3-guiresize-1） |
-| `Common/Services/GuiResize/GuiResizeHit.c` | 改大小热区命中与光标外形（PR-S3-guiresize-1） |
+| `Services/GuiResize/GuiResize.c` | 右/底边与右下角拖拽改大小生命周期（PR-S3-guiresize-1） |
+| `Services/GuiResize/GuiResizeBand.c` | 线框预览与尺寸计算（PR-S3-guiresize-1） |
+| `Services/GuiResize/GuiResizeHit.c` | 改大小热区命中与光标外形（PR-S3-guiresize-1） |
 
 ### GuiUser
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiUser/GuiUser.c` | 用户态窗口协议（核心） |
-| `Common/Services/GuiUser/GuiUserBlit.c` | 客户区文字、按钮绘制与像素 blit |
-| `Common/Services/GuiUser/GuiUserKey.c` | 用户窗键盘入队（焦点路由） |
-| `Common/Services/GuiUser/GuiUserPoll.c` | GuiPollUserInput（关 / 按钮 / 键 / 客户区点） |
+| `Services/GuiUser/GuiUser.c` | 用户态窗口协议（核心） |
+| `Services/GuiUser/GuiUserBlit.c` | 客户区文字、按钮绘制与像素 blit |
+| `Services/GuiUser/GuiUserKey.c` | 用户窗键盘入队（焦点路由） |
+| `Services/GuiUser/GuiUserPoll.c` | GuiPollUserInput（关 / 按钮 / 键 / 客户区点） |
 
 ### GuiWm
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/GuiWm/GuiHit.c` | 命中测试 / 叠放 Raise（PR-S-guiwm-split-1） |
-| `Common/Services/GuiWm/GuiWm.c` | 窗口全局态 / Init / 标题刷新（PR-S-guiwm-split-2） |
+| `Services/GuiWm/GuiHit.c` | 命中测试 / 叠放 Raise（PR-S-guiwm-split-1） |
+| `Services/GuiWm/GuiWm.c` | 窗口全局态 / Init / 标题刷新（PR-S-guiwm-split-2） |
 
 ### Locale
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Locale/Locale.c` | PR-S3-locale-1：语言状态与对外 API |
-| `Common/Services/Locale/LocaleParse.c` | PR-S3-locale-1：catalog 文本解析与装载 |
-| `Common/Services/Locale/LocaleTable.c` | PR-S3-locale-1：MSG 键名与 en/zh 内建 fallback |
+| `Services/Locale/Locale.c` | PR-S3-locale-1：语言状态与对外 API |
+| `Services/Locale/LocaleParse.c` | PR-S3-locale-1：catalog 文本解析与装载 |
+| `Services/Locale/LocaleTable.c` | PR-S3-locale-1：MSG 键名与 en/zh 内建 fallback |
 
 ### LwIp
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/LwIp/LwIp.c` | lwIP 初始化与轮询（NO_SYS）（PR-S3-lwip-1） |
-| `Common/Services/LwIp/LwIpConfig.c` | 从 NetConfig 绑 netif / DNS（PR-N-nic-addr） |
-| `Common/Services/LwIp/LwIpDhcp.c` | DHCP 客户端（PR-N-nic-dhcp / 前后端分离） |
-| `Common/Services/LwIp/LwIpPrivate.h` | LwIp*.c 内部（PR-N-nic-addr） |
-| `Common/Services/LwIp/LwIpSocket.c` | lwIP socket / DNS 胶水（PR-S3-lwip-1） |
-| `Common/Services/LwIp/NetConfig.c` | 静态地址配置（PR-N-nic-addr） |
-| `Common/Services/LwIp/README.md` | LwIp/ — 网络服务簇（lwIP + 地址配置 + legacy UDP） |
-| `Common/Services/LwIp/Udp.c` | 极简 UDP |
+| `Services/LwIp/LwIp.c` | lwIP 初始化与轮询（NO_SYS）（PR-S3-lwip-1） |
+| `Services/LwIp/LwIpConfig.c` | 从 NetConfig 绑 netif / DNS（PR-N-nic-addr） |
+| `Services/LwIp/LwIpDhcp.c` | DHCP 客户端（PR-N-nic-dhcp / 前后端分离） |
+| `Services/LwIp/LwIpPrivate.h` | LwIp*.c 内部（PR-N-nic-addr） |
+| `Services/LwIp/LwIpSocket.c` | lwIP socket / DNS 胶水（PR-S3-lwip-1） |
+| `Services/LwIp/NetConfig.c` | 静态地址配置（PR-N-nic-addr） |
+| `Services/LwIp/README.md` | LwIp/ — 网络服务簇（lwIP + 地址配置 + legacy UDP） |
+| `Services/LwIp/Udp.c` | 极简 UDP |
 
 ### SettingsUi
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/SettingsUi/SettingsUi.c` | Settings 三分栏核心（全局、命中、开窗） |
-| `Common/Services/SettingsUi/SettingsUiApply.c` | 点选条目后写 Theme |
-| `Common/Services/SettingsUi/SettingsUiInput.c` | 键鼠与 Esc |
-| `Common/Services/SettingsUi/SettingsUiModel.c` | 分类/条目文案与显示模式表 |
-| `Common/Services/SettingsUi/SettingsUiPaint.c` | 三分栏绘制 |
+| `Services/SettingsUi/SettingsUi.c` | Settings 三分栏核心（全局、命中、开窗） |
+| `Services/SettingsUi/SettingsUiApply.c` | 点选条目后写 Theme |
+| `Services/SettingsUi/SettingsUiInput.c` | 键鼠与 Esc |
+| `Services/SettingsUi/SettingsUiModel.c` | 分类/条目文案与显示模式表 |
+| `Services/SettingsUi/SettingsUiPaint.c` | 三分栏绘制 |
 
 ### ShellCommands
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/ShellCommands/ShellCommands.c` | PR-S-shell-split-3：注册汇总（命令体见 ShellCommands*.c） |
-| `Common/Services/ShellCommands/ShellCommandsAudio.c` | PR-G-audio-5：play [path]；无参=蜂鸣；WAV=PCM 48k/16 |
-| `Common/Services/ShellCommands/ShellCommandsFs.c` | PR-S3-shellfs-1：ls/cat/write/rm/mkdir/rmdir/mv + 注册汇总 |
-| `Common/Services/ShellCommands/ShellCommandsFsExtra.c` | PR-S3-shellfs-1：wrbig / vols / filestat / filesync / dirstress |
-| `Common/Services/ShellCommands/ShellCommandsFsUi.c` | PR-S3-shellfsui-1：开窗 / font / lang + 注册汇总 |
-| `Common/Services/ShellCommands/ShellCommandsFsUiStore.c` | PR-S3-shellfsui-1：CommandStore + 注册 |
-| `Common/Services/ShellCommands/ShellCommandsFsUiStoreJob.c` | PR-S3-shellfsui-1：store Job/列表帮手 |
-| `Common/Services/ShellCommands/ShellCommandsInstall.c` | install 命令（PR-S-shellfs-split-1） |
-| `Common/Services/ShellCommands/ShellCommandsNet.c` | PR-S3-shellnet-1：net / ping / dns + 注册汇总 |
-| `Common/Services/ShellCommands/ShellCommandsNetAddr.c` | net config / set ip\|gw\|dns（PR-N-nic-addr） |
-| `Common/Services/ShellCommands/ShellCommandsNetLwip.c` | PR-S3-shellnet-1：lwip on\|status\|dhcp（从 Net.c 搬家） |
-| `Common/Services/ShellCommands/ShellCommandsNetTcp.c` | PR-S3-shellnet-1：tcp + ShellOnInterrupt（从 Net.c 搬家） |
-| `Common/Services/ShellCommands/ShellCommandsNetUdp.c` | PR-S3-shellnet-1：udp listen / send（从 Net.c 搬家） |
-| `Common/Services/ShellCommands/ShellCommandsSystem.c` | PR-S3-shellsys-1：info/mem/reboot/halt/lsdev + 注册汇总 |
-| `Common/Services/ShellCommands/ShellCommandsSystemProc.c` | PR-S3-shellsys-1：exec / ps / kill / set priority / runuser |
-| `Common/Services/ShellCommands/ShellCommandsTheme.c` | set effects（PR-GUI-effects） |
-| `Common/Services/ShellCommands/ShellCommandsThread.c` | PR-U-thread：test thread（栈+TLS+同 CR3） |
-| `Common/Services/ShellCommands/ShellCommandsUsb.c` | PR-S-shell-split-1：xhci / msc Shell 命令 |
+| `Services/ShellCommands/ShellCommands.c` | PR-S-shell-split-3：注册汇总（命令体见 ShellCommands*.c） |
+| `Services/ShellCommands/ShellCommandsAudio.c` | PR-G-audio-5：play [path]；无参=蜂鸣；WAV=PCM 48k/16 |
+| `Services/ShellCommands/ShellCommandsFs.c` | PR-S3-shellfs-1：ls/cat/write/rm/mkdir/rmdir/mv + 注册汇总 |
+| `Services/ShellCommands/ShellCommandsFsExtra.c` | PR-S3-shellfs-1：wrbig / vols / filestat / filesync / dirstress |
+| `Services/ShellCommands/ShellCommandsFsUi.c` | PR-S3-shellfsui-1：开窗 / font / lang + 注册汇总 |
+| `Services/ShellCommands/ShellCommandsFsUiStore.c` | PR-S3-shellfsui-1：CommandStore + 注册 |
+| `Services/ShellCommands/ShellCommandsFsUiStoreJob.c` | PR-S3-shellfsui-1：store Job/列表帮手 |
+| `Services/ShellCommands/ShellCommandsInstall.c` | install 命令（PR-S-shellfs-split-1） |
+| `Services/ShellCommands/ShellCommandsNet.c` | PR-S3-shellnet-1：net / ping / dns + 注册汇总 |
+| `Services/ShellCommands/ShellCommandsNetAddr.c` | net config / set ip\|gw\|dns（PR-N-nic-addr） |
+| `Services/ShellCommands/ShellCommandsNetLwip.c` | PR-S3-shellnet-1：lwip on\|status\|dhcp（从 Net.c 搬家） |
+| `Services/ShellCommands/ShellCommandsNetTcp.c` | PR-S3-shellnet-1：tcp + ShellOnInterrupt（从 Net.c 搬家） |
+| `Services/ShellCommands/ShellCommandsNetUdp.c` | PR-S3-shellnet-1：udp listen / send（从 Net.c 搬家） |
+| `Services/ShellCommands/ShellCommandsSystem.c` | PR-S3-shellsys-1：info/mem/reboot/halt/lsdev + 注册汇总 |
+| `Services/ShellCommands/ShellCommandsSystemProc.c` | PR-S3-shellsys-1：exec / ps / kill / set priority / runuser |
+| `Services/ShellCommands/ShellCommandsTheme.c` | set effects（PR-GUI-effects） |
+| `Services/ShellCommands/ShellCommandsThread.c` | PR-U-thread：test thread（栈+TLS+同 CR3） |
+| `Services/ShellCommands/ShellCommandsUsb.c` | PR-S-shell-split-1：xhci / msc Shell 命令 |
 
 ### Store
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Store/Store.c` | PR-S1：离线 catalog 安装；PR-S3：font/asset → Assets/ |
-| `Common/Services/Store/StoreCatalog.c` | catalog 解析与加载 |
-| `Common/Services/Store/StoreCombo.c` | 按依赖顺序装卸多包 |
-| `Common/Services/Store/StoreDb.c` | ToyDB 清单键与包类型查询 |
-| `Common/Services/Store/StoreDepends.c` | PKG 依赖解析与已装检查 |
-| `Common/Services/Store/StoreInstall.c` | 单包安装与登记 |
-| `Common/Services/Store/StoreInstallBundle.c` | PR-S-bundle-install：app → Apps/<id>/ |
-| `Common/Services/Store/StoreInstallCopy.c` | 可切片拷贝（PR-S-job-chunk） |
-| `Common/Services/Store/StoreManaged.c` | 托管载荷判定与内部删除 |
-| `Common/Services/Store/StorePkgMeta.c` | PR-S-bundle-desktop：读 Apps/<id>/PKG.TXT 桌面相关键 |
-| `Common/Services/Store/StoreQuery.c` | 已装清单与依赖查询 |
-| `Common/Services/Store/StoreRemove.c` | 卸装已装包 |
+| `Services/Store/Store.c` | PR-S1：离线 catalog 安装；PR-S3：font/asset → Assets/ |
+| `Services/Store/StoreCatalog.c` | catalog 解析与加载 |
+| `Services/Store/StoreCombo.c` | 按依赖顺序装卸多包 |
+| `Services/Store/StoreDb.c` | ToyDB 清单键与包类型查询 |
+| `Services/Store/StoreDepends.c` | PKG 依赖解析与已装检查 |
+| `Services/Store/StoreInstall.c` | 单包安装与登记 |
+| `Services/Store/StoreInstallBundle.c` | PR-S-bundle-install：app → Apps/<id>/ |
+| `Services/Store/StoreInstallCopy.c` | 可切片拷贝（PR-S-job-chunk） |
+| `Services/Store/StoreManaged.c` | 托管载荷判定与内部删除 |
+| `Services/Store/StorePkgMeta.c` | PR-S-bundle-desktop：读 Apps/<id>/PKG.TXT 桌面相关键 |
+| `Services/Store/StoreQuery.c` | 已装清单与依赖查询 |
+| `Services/Store/StoreRemove.c` | 卸装已装包 |
 
 ### StoreNet
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/StoreNet/StoreNet.c` | 仓库地址与 fetch/sync |
-| `Common/Services/StoreNet/StoreNetHttp.c` | HTTP/1.0 GET（内建 TCP） |
-| `Common/Services/StoreNet/StoreNetHttpLwip.c` | HTTP/1.0 GET via lwIP socket（lwip on 后必走此路） |
-| `Common/Services/StoreNet/StoreNetParse.c` | 响应正文与 FNV-1a-32 |
+| `Services/StoreNet/StoreNet.c` | 仓库地址与 fetch/sync |
+| `Services/StoreNet/StoreNetHttp.c` | HTTP/1.0 GET（内建 TCP） |
+| `Services/StoreNet/StoreNetHttpLwip.c` | HTTP/1.0 GET via lwIP socket（lwip on 后必走此路） |
+| `Services/StoreNet/StoreNetParse.c` | 响应正文与 FNV-1a-32 |
 
 ### StoreUi
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/StoreUi/StoreJob.c` | Store UI 作业入队 / 忙态 / 取消（PR-S3-storejob-1） |
-| `Common/Services/StoreUi/StoreJobShell.c` | Shell ↔ StoreJob：Shell 只做 INTERFACE（rm-exc-11） |
-| `Common/Services/StoreUi/StoreJobStatus.c` | Job 状态行文案（PR-S-job） |
-| `Common/Services/StoreUi/StoreJobStep.c` | Store 作业步进状态机（PR-S3-storejob-1） |
-| `Common/Services/StoreUi/StoreUi.c` | 商店三分栏核心（全局、开窗） |
-| `Common/Services/StoreUi/StoreUiInput.c` | 点击、悬停、装卸队列 |
-| `Common/Services/StoreUi/StoreUiModel.c` | 分类过滤、已装缓存、选中项 |
-| `Common/Services/StoreUi/StoreUiPaint.c` | 左栏 / 列表 / 详情 / 底栏按钮 |
+| `Services/StoreUi/StoreJob.c` | Store UI 作业入队 / 忙态 / 取消（PR-S3-storejob-1） |
+| `Services/StoreUi/StoreJobShell.c` | Shell ↔ StoreJob：Shell 只做 INTERFACE（rm-exc-11） |
+| `Services/StoreUi/StoreJobStatus.c` | Job 状态行文案（PR-S-job） |
+| `Services/StoreUi/StoreJobStep.c` | Store 作业步进状态机（PR-S3-storejob-1） |
+| `Services/StoreUi/StoreUi.c` | 商店三分栏核心（全局、开窗） |
+| `Services/StoreUi/StoreUiInput.c` | 点击、悬停、装卸队列 |
+| `Services/StoreUi/StoreUiModel.c` | 分类过滤、已装缓存、选中项 |
+| `Services/StoreUi/StoreUiPaint.c` | 左栏 / 列表 / 详情 / 底栏按钮 |
 
 ### Tasks
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Tasks/Tasks.c` | GUI / Worker / 输入专核（PR-S-tasks-1） |
-| `Common/Services/Tasks/TasksHid.c` | HID 报告送进控制台（PR-S-tasks-1） |
-| `Common/Services/Tasks/TasksShell.c` | Shell 任务（PR-S-tasks-1） |
+| `Services/Tasks/Tasks.c` | GUI / Worker / 输入专核（PR-S-tasks-1） |
+| `Services/Tasks/TasksHid.c` | HID 报告送进控制台（PR-S-tasks-1） |
+| `Services/Tasks/TasksShell.c` | Shell 任务（PR-S-tasks-1） |
 
 ### Tcp
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Tcp/Tcp.c` | 自研单连接 TCP（legacy）：握手/回显 + 发送缓冲、对端窗口、超时重传 |
-| `Common/Services/Tcp/TcpInput.c` | 入站段编排（PR-F-tcp-1） |
-| `Common/Services/Tcp/TcpInputEst.c` | ESTABLISHED 入站（数据 / RST / FIN）（PR-F-tcp-1） |
-| `Common/Services/Tcp/TcpInputSyn.c` | LISTEN / SYN_SENT / SYN_RECEIVED（PR-F-tcp-1） |
-| `Common/Services/Tcp/TcpPrivate.h` | 单连接 TCP 状态（PR-S-tcp-1） |
-| `Common/Services/Tcp/TcpSend.c` | 校验、发送缓冲、重传（PR-S-tcp-1） |
+| `Services/Tcp/Tcp.c` | 自研单连接 TCP（legacy）：握手/回显 + 发送缓冲、对端窗口、超时重传 |
+| `Services/Tcp/TcpInput.c` | 入站段编排（PR-F-tcp-1） |
+| `Services/Tcp/TcpInputEst.c` | ESTABLISHED 入站（数据 / RST / FIN）（PR-F-tcp-1） |
+| `Services/Tcp/TcpInputSyn.c` | LISTEN / SYN_SENT / SYN_RECEIVED（PR-F-tcp-1） |
+| `Services/Tcp/TcpPrivate.h` | 单连接 TCP 状态（PR-S-tcp-1） |
+| `Services/Tcp/TcpSend.c` | 校验、发送缓冲、重传（PR-S-tcp-1） |
 
 ### Theme
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/Theme/Theme.c` | 主题状态、getter/setter、Apply |
-| `Common/Services/Theme/ThemeCfg.c` | 读 THEME.CFG 与 ThemeLoad |
-| `Common/Services/Theme/ThemeLive.c` | 运行时改缩放 / 分辨率 |
-| `Common/Services/Theme/ThemeParse.c` | THEME.CFG / DB 行解析 |
-| `Common/Services/Theme/ThemeSave.c` | 写 THEME.CFG 与 TOYOS.DB（编排；PR-F-theme-1） |
-| `Common/Services/Theme/ThemeSaveCfg.c` | 拼 THEME.CFG 缓冲并写盘（PR-F-theme-1） |
-| `Common/Services/Theme/ThemeSaveDb.c` | 批量写 TOYOS.DB（PR-F-theme-1） |
-| `Common/Services/Theme/ThemeSaveFmt.c` | THEME.CFG / DB 数值格式化与 FillVals |
-| `Common/Services/Theme/ThemeTech.c` | PR-GUI-tech-1：tech 色板 + chrome getter 分支 |
-| `Common/Services/Theme/ThemeTechUi.c` | PR-GUI-tech-2：文字 / 图标 / 菜单 / 面板 / 滚动条 getter |
+| `Services/Theme/Theme.c` | 主题状态、getter/setter、Apply |
+| `Services/Theme/ThemeCfg.c` | 读 THEME.CFG 与 ThemeLoad |
+| `Services/Theme/ThemeLive.c` | 运行时改缩放 / 分辨率 |
+| `Services/Theme/ThemeParse.c` | THEME.CFG / DB 行解析 |
+| `Services/Theme/ThemeSave.c` | 写 THEME.CFG 与 TOYOS.DB（编排；PR-F-theme-1） |
+| `Services/Theme/ThemeSaveCfg.c` | 拼 THEME.CFG 缓冲并写盘（PR-F-theme-1） |
+| `Services/Theme/ThemeSaveDb.c` | 批量写 TOYOS.DB（PR-F-theme-1） |
+| `Services/Theme/ThemeSaveFmt.c` | THEME.CFG / DB 数值格式化与 FillVals |
+| `Services/Theme/ThemeTech.c` | PR-GUI-tech-1：tech 色板 + chrome getter 分支 |
+| `Services/Theme/ThemeTechUi.c` | PR-GUI-tech-2：文字 / 图标 / 菜单 / 面板 / 滚动条 getter |
 
 ### TtyUi
 
 | 文件 | 用途 |
 | ---- | ---- |
-| `Common/Services/TtyUi/TtyUi.c` | 串口会话缓冲 / 键入 TX |
-| `Common/Services/TtyUi/TtyUiPaint.c` | 会话缓冲绘制 |
+| `Services/TtyUi/TtyUi.c` | 串口会话缓冲 / 键入 TX |
+| `Services/TtyUi/TtyUiPaint.c` | 会话缓冲绘制 |
 
 ## 8. `HAL/Board/` — 板包约定与模板
 

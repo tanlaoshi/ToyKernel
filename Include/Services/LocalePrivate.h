@@ -1,5 +1,5 @@
 /*
- * LocalePrivate.h — Locale 内部分文件共用（仅 Common/Services/Locale；User 勿 include）
+ * LocalePrivate.h — Locale 内部分文件共用（仅 Services/Locale；User 勿 include）
  *
  * 对外 API 仍在 Locale.h。
  */

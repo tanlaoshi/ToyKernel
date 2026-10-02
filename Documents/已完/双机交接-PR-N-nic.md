@@ -41,7 +41,7 @@ cd ToyKernel && git status -sb && git log -6 --oneline
 
 ## 3. 序 7 tray（待 TG）做了什么
 
-- **新文件**：`Common/Services/DesktopNetTray.c`（≤300）
+- **新文件**：`Services/DesktopNetTray.c`（≤300）
 - **行为**：任务栏时钟**左侧**短文案（`net-` / `down` / IPv4）；点击弹简况（ip/gw/dns/link）；与开始菜单互斥；合成路径叠画；标签变化随时钟轮询刷新
 - **已改**：`DesktopPaint.c`、`Desktop.c`、`Desktop.h` / `DesktopPrivate.h`、`GuiCompose.c`、`GuiDraw.c`、`GuiPointer.c`、路线图 / 范例文档
 - **冒烟**：`./smoke-boot.sh`、`TOY_NET=e1000e ./smoke-boot.sh` → PASS  

@@ -229,19 +229,19 @@ LDFLAGS = -nostdlib -static -z noexecstack -T HAL/$(HAL_ARCH)/link.ld -e KernelE
 # SpinLock 的 __sync_* 需要 libgcc（如 __aarch64_swp4_sync）
 LIBGCC := $(shell $(CC) $(ARCH_CFLAGS) -print-libgcc-file-name 2>/dev/null)
 
-# 产物树：Common、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
+# 产物树：Common、Services、Core、User、Fonts 与 HAL 同级；HAL 下按 Arch 分目录。
 # 有 ToyOS 树时由 build.sh 传入 BUILDDIR=$TOYOS_ROOT/Build/ToyKernel；单仓默认 ./Build。
 # 各 Arch 的 Kernel.elf / HAL .o 留在 $(BUILDDIR)/HAL/<Arch>/，换架构不删其它 Arch 成品。
 BUILDDIR ?= Build
 HALDIR = $(BUILDDIR)/HAL/$(HAL_ARCH)
 
-# Common / Core / User / Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
+# Common / Services / Core / User / Fonts 的 .o 跨 Arch 共用路径：换 ARCH 时若仍用旧 .o 会链错格式
 # （如 EM:62 x86_64 → aarch64/riscv）。勿只清 Common。
 ARCH_STAMP := $(BUILDDIR)/.toy_arch
 _STAMP_ARCH := $(shell cat $(ARCH_STAMP) 2>/dev/null)
 ifneq ($(_STAMP_ARCH),$(ARCH))
-$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning $(BUILDDIR)/{Common,Core,User,Fonts,lwip})
-$(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Core' '$(BUILDDIR)/User' \
+$(info ARCH: stale '$(_STAMP_ARCH)' → '$(ARCH)'; cleaning $(BUILDDIR)/{Common,Services,Core,User,Fonts,lwip})
+$(shell rm -rf '$(BUILDDIR)/Common' '$(BUILDDIR)/Services' '$(BUILDDIR)/Core' '$(BUILDDIR)/User' \
 	'$(BUILDDIR)/Fonts' '$(BUILDDIR)/ThirdParty/lwip' '$(BUILDDIR)/lwip')
 endif
 $(shell mkdir -p '$(BUILDDIR)' && echo '$(ARCH)' > '$(ARCH_STAMP)')
@@ -276,37 +276,37 @@ CORE_SRCS     += $(wildcard Core/Syscall/*.c)
 CORE_SRCS     += $(wildcard Core/VirtualMemory/*.c)
 CORE_SRCS     += $(wildcard Core/PhysicalMemory/*.c)
 CORE_SRCS     += $(wildcard Core/Device/*.c)
-SERVICES_SRCS := $(wildcard Common/Services/*.c)
+SERVICES_SRCS := $(wildcard Services/*.c)
 # Services/*.c 不进子目录；每个模块开目录时补一行
-SERVICES_SRCS += $(wildcard Common/Services/Locale/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiDrag/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiDraw/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiPointer/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiResize/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiUser/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiOpen/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiBackup/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiFocus/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Console/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Desktop/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/FilesUi/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Store/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/SettingsUi/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Theme/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/StoreUi/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/DevicesUi/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/EditUi/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/TtyUi/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/StoreNet/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Db/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/FileSystem/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Tasks/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/ShellCommands/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/Tcp/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/LwIp/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiCompose/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiCursor/*.c)
-SERVICES_SRCS += $(wildcard Common/Services/GuiWm/*.c)
+SERVICES_SRCS += $(wildcard Services/Locale/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiDrag/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiDraw/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiPointer/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiResize/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiUser/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiOpen/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiBackup/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiFocus/*.c)
+SERVICES_SRCS += $(wildcard Services/Console/*.c)
+SERVICES_SRCS += $(wildcard Services/Desktop/*.c)
+SERVICES_SRCS += $(wildcard Services/FilesUi/*.c)
+SERVICES_SRCS += $(wildcard Services/Store/*.c)
+SERVICES_SRCS += $(wildcard Services/SettingsUi/*.c)
+SERVICES_SRCS += $(wildcard Services/Theme/*.c)
+SERVICES_SRCS += $(wildcard Services/StoreUi/*.c)
+SERVICES_SRCS += $(wildcard Services/DevicesUi/*.c)
+SERVICES_SRCS += $(wildcard Services/EditUi/*.c)
+SERVICES_SRCS += $(wildcard Services/TtyUi/*.c)
+SERVICES_SRCS += $(wildcard Services/StoreNet/*.c)
+SERVICES_SRCS += $(wildcard Services/Db/*.c)
+SERVICES_SRCS += $(wildcard Services/FileSystem/*.c)
+SERVICES_SRCS += $(wildcard Services/Tasks/*.c)
+SERVICES_SRCS += $(wildcard Services/ShellCommands/*.c)
+SERVICES_SRCS += $(wildcard Services/Tcp/*.c)
+SERVICES_SRCS += $(wildcard Services/LwIp/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiCompose/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiCursor/*.c)
+SERVICES_SRCS += $(wildcard Services/GuiWm/*.c)
 LIB_SRCS      := $(wildcard Common/Library/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Gpt/*.c)
 LIB_SRCS      += $(wildcard Common/Library/Elf/*.c)
@@ -342,7 +342,7 @@ ARCH_ASM_ALL  := $(wildcard HAL/$(HAL_ARCH)/*.S)
 ARCH_ASM      := $(filter-out HAL/$(HAL_ARCH)/SmpTrampoline.S HAL/$(HAL_ARCH)/Startup.S,$(ARCH_ASM_ALL))
 
 CORE_OBJS     := $(patsubst Core/%.c,$(BUILDDIR)/Core/%.o,$(CORE_SRCS))
-SERVICES_OBJS := $(patsubst Common/Services/%.c,$(BUILDDIR)/Common/Services/%.o,$(SERVICES_SRCS))
+SERVICES_OBJS := $(patsubst Services/%.c,$(BUILDDIR)/Services/%.o,$(SERVICES_SRCS))
 LIB_OBJS      := $(patsubst Common/Library/%.c,$(BUILDDIR)/Common/Library/%.o,$(LIB_SRCS))
 FONT_OBJS     := $(patsubst Common/Fonts/%.c,$(BUILDDIR)/Common/Fonts/%.o,$(FONT_SRCS))
 DRIVER_OBJS   := $(patsubst HAL/$(HAL_ARCH)/Drivers/%.c,$(HALDIR)/Drivers/%.o,$(DRIVER_SRCS))
@@ -649,7 +649,7 @@ $(BUILDDIR)/Core/%.o: Core/%.c | $(BUILDDIR)
 $(BUILDDIR)/Common/Modules/%.o: Common/Modules/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
-$(BUILDDIR)/Common/Services/%.o: Common/Services/%.c | $(BUILDDIR)
+$(BUILDDIR)/Services/%.o: Services/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
 
 $(BUILDDIR)/Common/Library/%.o: Common/Library/%.c | $(BUILDDIR)
@@ -1045,9 +1045,9 @@ endif
 endif
 
 clean:
-	# 只清当前 Arch 的 HAL 产物；共享 Common/Fonts/.o 必须清（随 ARCH 重编）
+	# 只清当前 Arch 的 HAL 产物；共享 Common/Services/Fonts/.o 必须清（随 ARCH 重编）
 	rm -rf $(HALDIR)
-	rm -rf $(BUILDDIR)/Common $(BUILDDIR)/Fonts $(BUILDDIR)/ThirdParty/lwip $(BUILDDIR)/lwip
+	rm -rf $(BUILDDIR)/Common $(BUILDDIR)/Services $(BUILDDIR)/Fonts $(BUILDDIR)/ThirdParty/lwip $(BUILDDIR)/lwip
 	# 旧布局残留
 	rm -rf Build/arm64 Build/riscv
 	rm -f Build/Kernel.elf Build/SmpTramp.bin Build/SmpTramp_blob.o \

@@ -1,8 +1,8 @@
 /*
- * EditUiPrivate.h — EditUi 内部共享头（仅 Common/Services/EditUi 使用）
+ * EditUiPrivate.h — EditUi 内部共享头（仅 Services/EditUi 使用）
  *
  * 禁止 User 程序、HAL、Core 包含本文件。
- * 源文件在 Common/Services/EditUi/（核心 EditUi.c）。
+ * 源文件在 Services/EditUi/（核心 EditUi.c）。
  * 对外 API 仍在 EditUi.h。
  */
 #ifndef EDIT_UI_PRIVATE_H

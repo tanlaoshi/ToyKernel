@@ -1,5 +1,5 @@
 /*
- * DevicesUiPrivate.h — DevicesUi 内部（仅 Common/Services/DevicesUi）
+ * DevicesUiPrivate.h — DevicesUi 内部（仅 Services/DevicesUi）
  */
 #ifndef DEVICES_UI_PRIVATE_H
 #define DEVICES_UI_PRIVATE_H

@@ -1,5 +1,5 @@
 /*
- * StorePrivate.h — Store 内部（仅 Common/Services/Store）
+ * StorePrivate.h — Store 内部（仅 Services/Store）
  *
  * 对外 API 仍在 Store.h。User 勿 include。
  */

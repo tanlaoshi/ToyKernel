@@ -1,5 +1,5 @@
 /*
- * FileSystemPrivate.h — FileSystem 内部（仅 Common/Services/FileSystem）
+ * FileSystemPrivate.h — FileSystem 内部（仅 Services/FileSystem）
  *
  * 对外 API 仍在 FileSystem.h。User 勿 include。
  */

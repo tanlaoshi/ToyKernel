@@ -48,7 +48,7 @@ cd ../ToyImage
 - `HAL/X64/HalSerial.c`：BootMark、PhotoHold
 - `Common/Core/KernelModules.c`：`usb` + PhotoHold；gui 内插 Poll
 - `Common/Core/Module.c`：模块间 `HalInputPoll`（真机）
-- `Common/Services/Tasks.c`：Shell **先 Poll/Dequeue 再 Halt**
+- `Services/Tasks.c`：Shell **先 Poll/Dequeue 再 Halt**
 
 ## 协作
 

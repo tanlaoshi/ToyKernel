@@ -94,8 +94,8 @@
 
 ### 2.4 后台任务（**Store 已有**）
 
-- `WorkerTask`（`Common/Services/Tasks/Tasks.c`，Kernel.c 创建为 `"worker"` 内核任务）：循环 `StoreJobStep()` + `SchedulerIoBreath()`。
-- `StoreJob`（`Common/Services/StoreUi/StoreJob.c`，321 行）：`StoreJobEnqueue(Kind,Id)` 入队即返回；`StoreJobStep` 推进状态机；`StoreJobIsBusy/IsRunning/Cancel`；`StoreJobStatusProgress` 写进度文案。
+- `WorkerTask`（`Services/Tasks/Tasks.c`，Kernel.c 创建为 `"worker"` 内核任务）：循环 `StoreJobStep()` + `SchedulerIoBreath()`。
+- `StoreJob`（`Services/StoreUi/StoreJob.c`，321 行）：`StoreJobEnqueue(Kind,Id)` 入队即返回；`StoreJobStep` 推进状态机；`StoreJobIsBusy/IsRunning/Cancel`；`StoreJobStatusProgress` 写进度文案。
 - UI（`StoreUiPump`）**刻意不 Step**——注释明说：旧路径在 GuiPollMouse 里 Step 会占死 Gui，装卸期鼠标必卡。**这是已验证的后台模型**。
 
 → 用户前提「安装/下载会卡住 UI」**对 Store 已过时**；Store 早已后台化。真正还同步的慢操作只有 FilesUi Delete / EditUi Save（FAT，快）。

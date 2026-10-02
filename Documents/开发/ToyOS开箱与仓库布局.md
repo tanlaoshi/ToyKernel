@@ -248,7 +248,7 @@ $TOYOS_ROOT/                    # 树根（任意摆放；脚本自定位或 exp
 | 主题 | 现状锚点 | 备注 |
 | ---- | -------- | ---- |
 | Shell 行编辑 | Console / Shell 任务；HID `HID_KEY_UP` 已有 | 缺「命令历史环 + ↑↓ 填回」 |
-| 任务栏网态 | `Common/Services/Desktop/DesktopNetTray.c` | 现格式化 IP；改为三态图标 |
+| 任务栏网态 | `Services/Desktop/DesktopNetTray.c` | 现格式化 IP；改为三态图标 |
 | 开机清屏 | `ToyBoot/Video/BootVideo.c` 设分辨率后清屏 | Logo 若画在 Kernel，桌面 `LoadWallpaper` 前再清一次 |
 | 同步文档 | 仓外 `edk2/SYNC.md`；常写死 `/home/tank/...` | BOX-4 起一律 `$TOYOS_ROOT/...` |
 | 宿主依赖 | 无统一 bootstrap；靠 README 手装 | BOX-4：`$TOYOS_ROOT/Scripts/bootstrap.sh` |

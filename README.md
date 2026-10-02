@@ -109,8 +109,9 @@ cd ../ToyImage
 ToyKernel/
 ├── Include/          # 公共 API（BOOT_INFO、Hal*、Syscall…）
 ├── Core/             # 内核、设备、调度、系统调用、PMM…
-├── Services/ Library/ Fonts/ Modules/   # 终态顶层
-├── Common/{…}        # ★ 将删：现仍装上四者（路径别名）
+├── Services/         # 已抬顶（Gui / Shell / Store …）
+├── Library/ Fonts/ Modules/   # 终态顶层（尚在 Common/）
+├── Common/{…}        # ★ 将删：现仍装 Library/Fonts/Modules
 ├── HAL/{X64,Arm64,RiscV,Board}/
 ├── Assets/  User/
 ├── Documents/        # 顶层仅路线图 + 技术手册；驱动/ 开发/ 已完/ 待做/

@@ -1,5 +1,5 @@
 /*
- * DbPrivate.h — Db 内部（仅 Common/Services/Db）
+ * DbPrivate.h — Db 内部（仅 Services/Db）
  *
  * 对外 API 仍在 Db.h。User 勿 include。
  */

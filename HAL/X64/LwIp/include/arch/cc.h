@@ -36,7 +36,7 @@ typedef uintptr_t mem_ptr_t;
 
 /*
  * lwipopts.h 的 LWIP_RAND() 会调用 sys_now()；tcp/udp/dns 等编译单元
- * 不包含 lwip/sys.h，需在此提供原型（实现见 Common/Services/LwIp.c）。
+ * 不包含 lwip/sys.h，需在此提供原型（实现见 Services/LwIp.c）。
  */
 u32_t sys_now(void);
 

@@ -20,7 +20,7 @@
 
 ## 一、背景
 
-`Common/Services/FilesUi.c` 约 1411 行，职责混杂：工具、书签导航、绘制、写动作、事件入口、生命周期。按职责拆成 **4×`.c` + 1×内部头**。
+`Services/FilesUi.c` 约 1411 行，职责混杂：工具、书签导航、绘制、写动作、事件入口、生命周期。按职责拆成 **4×`.c` + 1×内部头**。
 
 ---
 
@@ -31,7 +31,7 @@
 3. **不改宏值 / 结构体布局**：`FILES_MODE` / `FILES_PROMPT_KIND` / `FILES_BOOKMARK` / `PREV_KIND` 等。  
 4. **全局定义全部留在 `FilesUi.c`（宿主）**；其它 `.c` 经 `FilesUiPrivate.h` `extern`。  
    - 现为文件内 `static`；跨 TU 后改为**去掉 static** 的文件作用域定义（语义仍仅 FilesUi 族使用）。  
-5. 每 PR 可编译 + smoke；`Makefile` 已 `wildcard Common/Services/*.c`，**不必改**。  
+5. 每 PR 可编译 + smoke；`Makefile` 已 `wildcard Services/*.c`，**不必改**。  
 6. 原 `static` 跨文件后去掉 static，在 Private.h 声明；**命名保持原样**（不加前缀）。
 
 ### 2.1 Private.h 修正点（相对初稿）
@@ -48,7 +48,7 @@
 ## 三、目标结构
 
 ```
-Common/Services/
+Services/
 ├── FilesUi.c              # 工具 + 事件 + 生命周期 + 全部全局定义
 ├── FilesUiPaint.c         # Paint*（第 1 刀）
 ├── FilesUiNav.c           # 路径/书签/Reload/预览（第 2 刀）
@@ -158,7 +158,7 @@ static void UpdatePreview(void);
 ### 第 1 刀 — **PR-S-filesui-split-1** ✅ TG `b3825db`
 
 1. 创建 `Include/FilesUiPrivate.h`（宏/类型/全部全局 extern/全部内部函数声明）。  
-2. 创建 `Common/Services/FilesUiPaint.c`：搬 `PaintOverlay` / `PaintList` / `PaintView` / `PaintConfirm` / `PaintPrompt` / `Paint`，去 `static`。  
+2. 创建 `Services/FilesUiPaint.c`：搬 `PaintOverlay` / `PaintList` / `PaintView` / `PaintConfirm` / `PaintPrompt` / `Paint`，去 `static`。  
 3. `FilesUi.c`：删已搬 Paint*；宏/类型可先留在 `.c` **或** 已迁 Priv 则删重复；全局仍 `static`→改为非 static 定义以便其它 TU `extern`（**第 1 刀就必须去掉这些全局的 static**，否则 Paint.c 链不上）。  
 4. 宿主顶部改为 `#include "FilesUiPrivate.h"`。  
 5. `./build.sh` + `ToyImage/smoke-boot.sh`；QEMU 开 Files：列表/预览/侧栏**显示**正常。

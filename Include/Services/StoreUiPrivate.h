@@ -1,8 +1,8 @@
 /*
- * StoreUiPrivate.h — StoreUi 内部共享头（仅 Common/Services/StoreUi 使用）
+ * StoreUiPrivate.h — StoreUi 内部共享头（仅 Services/StoreUi 使用）
  *
  * 禁止 User 程序、HAL、Core 包含本文件。
- * 源文件在 Common/Services/StoreUi/（核心 StoreUi.c）。
+ * 源文件在 Services/StoreUi/（核心 StoreUi.c）。
  * 对外 API 仍在 StoreUi.h。
  */
 #ifndef STORE_UI_PRIVATE_H

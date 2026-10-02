@@ -84,7 +84,7 @@ MAGIC_GLOBS=(
     --glob '!**/FontData*'
     --glob '!**/PciNames*'
     --glob '!**/*Test*'
-    --glob '!Common/Services/Theme/**'
+    --glob '!Services/Theme/**'
     "${GLOBS[@]}"
 )
 MAGIC=$(rg -n "${MAGIC_GLOBS[@]}" '\b(0x[0-9A-Fa-f]{4,}|[0-9]{3,})\b' Core/ Common/ HAL/ 2>/dev/null \

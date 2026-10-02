@@ -22,7 +22,7 @@
 
 ## 1. 先想清楚：能展示什么？
 
-Shell 里敲 `ps`（实现：`Common/Services/ShellCommands/ShellCommandsSystem.c` → `CommandPs`）已经打印：
+Shell 里敲 `ps`（实现：`Services/ShellCommands/ShellCommandsSystem.c` → `CommandPs`）已经打印：
 
 | 字段 | 含义 |
 | ---- | ---- |

@@ -199,12 +199,12 @@ Settings / Files / Store / Devices / Desktop **客户区可见字符串**一律 
 
 | 件 | 路径 |
 | -- | ---- |
-| 主题 | `Include/Theme.h`；`Common/Services/Theme/Theme*.c`；`ThemeTech.c` |
-| 设置 | `Common/Services/SettingsUi/` |
-| 文件 | `Common/Services/FilesUi/` |
-| 商店 | `Common/Services/StoreUi/` |
-| 桌面 | `Common/Services/Desktop/` |
-| 文案 | `Common/Services/Locale/LocaleTable.c` |
+| 主题 | `Include/Theme.h`；`Services/Theme/Theme*.c`；`ThemeTech.c` |
+| 设置 | `Services/SettingsUi/` |
+| 文件 | `Services/FilesUi/` |
+| 商店 | `Services/StoreUi/` |
+| 桌面 | `Services/Desktop/` |
+| 文案 | `Services/Locale/LocaleTable.c` |
 | 汉字 | `Common/Fonts/cjk32.c`；`FontCjk32Lookup` / `FontCjkBitsPerPixel`；`VideoGlyph` |
 | 控件 | `Common/Library/UI.c`；`Include/UI.h` |
 
