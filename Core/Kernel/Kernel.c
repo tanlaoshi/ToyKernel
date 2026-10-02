@@ -13,9 +13,10 @@
 #include "Font.h"
 #include "Theme.h"
 
-/* 启动常驻任务：失败则打日志，由调用方决定是否停机 */
+/* 启动常驻任务：失败则打日志，由调用方决定是否停机。
+ * SchedulerCreate 成功返回槽号（≥0），失败 -1——勿用 !=0。 */
 static int KernelSpawn(const char *Name, void (*Entry)(void)) {
-    if (SchedulerCreate(Name, Entry) != 0) {
+    if (SchedulerCreate(Name, Entry) < 0) {
         ToyLogBoot("kernel: SchedulerCreate failed\n");
         return -1;
     }
