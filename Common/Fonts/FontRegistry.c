@@ -568,21 +568,20 @@ const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH) {
         }
         return G;
     }
-    return FontCjk16Lookup(Cp, OutW, OutH);
+    return FontCjk32Lookup(Cp, OutW, OutH);
 }
 
 UINT32 FontGlyphStretch(UINT32 GlyphH) {
     const FONT_FACE *F = FontGetCurrent();
     UINT32 FaceScale = (F && F->Scale) ? F->Scale : 1u;
-    UINT32 CellH = FontCellH();
 
-    if (GlyphH == 0) {
-        return FaceScale;
-    }
-    if (GlyphH * FaceScale >= CellH) {
-        return FaceScale;
-    }
-    return CellH / GlyphH;
+    (void)GlyphH;
+    /*
+     * PR-UI-cjk：只尊重 Face->Scale，禁止 CellH/GlyphH 整数拉高。
+     * 旧 PR-T1 把 CJK16×2→32 行高，锯齿被放大，NUC 上明显糊。
+     * 矮于行高时由 VideoDrawBitmapAt 垂直居中。
+     */
+    return FaceScale;
 }
 
 UINT32 FontCodepointAdvance(UINT32 Cp) {
@@ -594,7 +593,8 @@ UINT32 FontCodepointAdvance(UINT32 Cp) {
         return FontAdvanceX();
     }
     if (!FontGlyphCp(Cp, &W, &H)) {
-        return FontAdvanceX();
+        W = FontCjkDim();
+        H = W;
     }
     Scale = FontGlyphStretch(H);
     W = W * Scale;

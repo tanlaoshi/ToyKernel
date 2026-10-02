@@ -104,6 +104,54 @@ static void PaintGlyph(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
     }
 }
 
+static UINT8 GlyphNibble4(const UINT8 *Glyph, UINT32 Bpr, UINT32 Width,
+                          UINT32 Height, UINT32 Col, UINT32 Row) {
+    UINT8 Byte;
+
+    if (Col >= Width || Row >= Height || !Glyph || Bpr == 0) {
+        return 0;
+    }
+    Byte = Glyph[Row * Bpr + (Col / 2u)];
+    if ((Col & 1u) == 0) {
+        return (UINT8)((Byte >> 4) & 0xFu);
+    }
+    return (UINT8)(Byte & 0xFu);
+}
+
+/* PR-UI-cjk-gray：每像素 4bit（0..15）→ alpha = n*17 */
+static void PaintGlyph4(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
+                        UINT32 Height, UINT32 Bpr, UINT32 ScaleX, UINT32 ScaleY,
+                        UINT32 OffY, UINT32 Color) {
+    UINT32 Row;
+    UINT32 Col;
+
+    if (!Glyph || Width == 0 || Height == 0 || Bpr == 0) {
+        return;
+    }
+    if (ScaleX < 1) {
+        ScaleX = 1;
+    }
+    if (ScaleY < 1) {
+        ScaleY = 1;
+    }
+    for (Row = 0; Row < Height; Row++) {
+        for (Col = 0; Col < Width; Col++) {
+            UINT8 N = GlyphNibble4(Glyph, Bpr, Width, Height, Col, Row);
+            UINT8 Alpha;
+            UINT32 Dx;
+            UINT32 Dy;
+
+            if (N == 0) {
+                continue;
+            }
+            Alpha = (UINT8)(N * 17u);
+            Dx = X + Col * ScaleX;
+            Dy = Y + OffY + Row * ScaleY;
+            PaintBlock(Dx, Dy, ScaleX, ScaleY, Color, Alpha);
+        }
+    }
+}
+
 void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
     const FONT_FACE *F;
     const UINT8 *Glyph;
@@ -119,14 +167,16 @@ void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
                0, Color);
 }
 
-/* 任意点阵：BytesPerRow = (Width+7)/8；CJK 短于行高时 PR-T1 拉伸至 FontCellH */
+/* 点阵：1bpp 或 4bpp（CJK gray）；BytesPerRow 随 bpp */
 static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
-                              UINT32 Width, UINT32 Height, UINT32 Color) {
+                              UINT32 Width, UINT32 Height, UINT32 Color,
+                              UINT32 Bpp) {
     UINT32 ScaleX;
     UINT32 ScaleY;
     UINT32 CellH;
     UINT32 OffY;
     UINT32 DrawnH;
+    UINT32 Bpr;
 
     if (!Glyph || Width == 0 || Height == 0) {
         return;
@@ -144,9 +194,71 @@ static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
     OffY = 0;
     if (CellH > DrawnH) {
         OffY = (CellH - DrawnH) / 2;
+    } else if (DrawnH > CellH && Height > 0) {
+        Height = CellH / ScaleY;
+        if (Height == 0) {
+            Height = 1;
+        }
+        DrawnH = Height * ScaleY;
+        OffY = 0;
     }
-    PaintGlyph(X, Y, Glyph, Width, Height, (Width + 7) / 8, ScaleX, ScaleY, OffY,
-               Color);
+    if (Bpp == 4) {
+        Bpr = (Width + 1u) / 2u;
+        PaintGlyph4(X, Y, Glyph, Width, Height, Bpr, ScaleX, ScaleY, OffY, Color);
+        return;
+    }
+    Bpr = (Width + 7u) / 8u;
+    PaintGlyph(X, Y, Glyph, Width, Height, Bpr, ScaleX, ScaleY, OffY, Color);
+}
+
+/* PR-UI-cjk：缺字空心框（边长 = FontCjkDim） */
+static void VideoDrawMissingGlyphBox(UINT32 X, UINT32 Y, UINT32 Color) {
+    UINT32 Native = FontCjkDim();
+    UINT32 Scale = FontGlyphStretch(Native);
+    UINT32 W;
+    UINT32 H;
+    UINT32 OffY;
+    UINT32 DrawnH;
+    UINT32 CellH;
+    UINT32 Col;
+    UINT32 Row;
+    UINT32 Dy;
+
+    if (Scale < 1) {
+        Scale = 1;
+    }
+    W = Native * Scale;
+    H = Native * Scale;
+    CellH = FontCellH();
+    DrawnH = H;
+    OffY = 0;
+    if (CellH > DrawnH) {
+        OffY = (CellH - DrawnH) / 2;
+    }
+    if (DrawnH > CellH) {
+        H = CellH;
+        DrawnH = CellH;
+        OffY = 0;
+        if (W > FontAdvanceX() * 2u) {
+            W = FontAdvanceX() * 2u;
+            if (W < 12) {
+                W = 12;
+            }
+        }
+    }
+    for (Col = 0; Col < W; Col++) {
+        VideoDrawPixel(X + Col, Y + OffY, Color);
+        if (H > 0) {
+            VideoDrawPixel(X + Col, Y + OffY + H - 1, Color);
+        }
+    }
+    for (Row = 0; Row < H; Row++) {
+        Dy = Y + OffY + Row;
+        VideoDrawPixel(X, Dy, Color);
+        if (W > 0) {
+            VideoDrawPixel(X + W - 1, Dy, Color);
+        }
+    }
 }
 
 void VideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
@@ -160,9 +272,10 @@ void VideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
     }
     G = FontGlyphCp(Cp, &W, &H);
     if (!G) {
+        VideoDrawMissingGlyphBox(X, Y, Color);
         return;
     }
-    VideoDrawBitmapAt(X, Y, G, W, H, Color);
+    VideoDrawBitmapAt(X, Y, G, W, H, Color, FontCjkBitsPerPixel());
 }
 
 void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {

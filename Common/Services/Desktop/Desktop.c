@@ -225,4 +225,11 @@ void DesktopRefreshLabels(void) {
     gIcons[2].Label = LocStr(MSG_ICON_FILES);
     gIcons[3].Label = LocStr(MSG_ICON_STORE);
     gIcons[4].Label = LocStr(MSG_ICON_DEVICES);
+    /* lang 切换后须重建：否则 gMenuCount>0 会一直复用开机时的英文一级菜单 */
+    gMenuCount = 0;
+    gMenuAppCount = 0;
+    gMenuGameCount = 0;
+    if (gMenuOpen) {
+        RebuildStartMenu();
+    }
 }

@@ -187,9 +187,7 @@ void VideoDrawCodepoint(UINT32 Cp, UINT32 Color) {
     if (Cp < 128 && (Cp < 32 || Cp > 126)) {
         return;
     }
-    if (Cp >= 128 && !FontGlyphCp(Cp, (UINT32 *)0, (UINT32 *)0)) {
-        return;
-    }
+    /* PR-UI-cjk-cover：缺字形仍占位画框（VideoDrawCodepointAt），勿静默 return */
 
     if (gClipOn) {
         MaxX = gClipX + gClipW;

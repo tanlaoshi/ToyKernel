@@ -61,16 +61,18 @@ const UINT8 *FontGlyph(char C);
 
 /*
  * UTF-8：解析一个码点，返回消费字节数；非法序列返回 0。
- * 汉字等宽字形见 FontCjk16Lookup / FontGlyphCp。
+ * 汉字等宽字形见 FontCjk32Lookup / FontGlyphCp。
  */
 UINTN Utf8Decode(const char *S, UINT32 *OutCp);
-/* ASCII→Terminus；基本汉字→CJK16；OutW/OutH 为点阵像素（未乘 Scale） */
+/* ASCII→Terminus；汉字→CJK（默认 16×16×4bpp）；OutW/OutH 未乘 Scale */
 const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
+const UINT8 *FontCjk32Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
 const UINT8 *FontCjk16Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
-/*
- * PR-T1：短于当前行高的字形（CJK 16）拉伸倍数，使绘制高度 = FontCellH()。
- * ASCII 等本已同高时返回当前 Face->Scale。
- */
+/* PR-UI-cjk-gray：CJK 点阵位深（1 或 4）；ASCII 仍 1bpp */
+UINT32 FontCjkBitsPerPixel(void);
+/* 当前 CJK 原生边长（与 gen --dim 一致） */
+UINT32 FontCjkDim(void);
+/* 仅 Face->Scale；不再为凑行高整数拉高字形 */
 UINT32 FontGlyphStretch(UINT32 GlyphH);
 /* UTF-8 字符串像素宽（含汉字前进） */
 UINT32 FontCodepointAdvance(UINT32 Cp);
