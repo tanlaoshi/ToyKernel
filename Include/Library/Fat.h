@@ -46,7 +46,7 @@ typedef struct {
 
 const char *FatStrError(int Err);
 
-int FatInit(UINT32 StartLba);
+int FatInitialize(UINT32 StartLba);
 int FatListRoot(void);
 int FatListDir(const char *Path);
 /* 枚举目录项到 Out[0..*OutCount)；成功 FAT_OK；Max<=0 或 Out 空 → INVAL */

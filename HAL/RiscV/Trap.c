@@ -127,7 +127,7 @@ UINT64 HalTrapDispatch(HAL_INTERRUPT_FRAME *Frame) {
             HalSerialWrite("user: U-mode syscall ok (exit)\n");
             gUserSelfTest = 0;
             if (gUserSelfRoot) {
-                HalLoadPageTable(VirtualMemoryKernelRoot());
+                HalPageTableLoad(VirtualMemoryKernelRoot());
             }
             __asm__ volatile("csrw sscratch, zero");
             HalUserSelfTestReturn();
@@ -273,7 +273,7 @@ void HalUserSelfTest(void) {
     gUserSelfSpace = Space;
     gUserSelfRoot = VirtualMemorySpaceRoot(Space);
     gUserSelfTest = 1;
-    HalLoadPageTable(gUserSelfRoot);
+    HalPageTableLoad(gUserSelfRoot);
 
     Ksp = (UINT64)(UINTN)(gUserSelfKStack + sizeof(gUserSelfKStack));
     HalSerialWrite("user: enter U-mode at ");
@@ -287,6 +287,6 @@ void HalUserSelfTest(void) {
         gUserSelfSpace = 0;
     }
     gUserSelfRoot = 0;
-    HalLoadPageTable(VirtualMemoryKernelRoot());
+    HalPageTableLoad(VirtualMemoryKernelRoot());
     __asm__ volatile("csrw sscratch, zero");
 }

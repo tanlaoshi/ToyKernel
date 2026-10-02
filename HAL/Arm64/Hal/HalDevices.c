@@ -15,15 +15,15 @@ void HalDriverRegister(void) {
     VirtioNetRegister();
 }
 
-int HalBlockInit(void) {
+int HalBlockInitialize(void) {
     return VirtioBlockInit();
 }
 
-int HalUsbInit(void) {
+int HalUsbInitialize(void) {
     return VirtioInputInit();
 }
 
-int HalUsbMscInit(void) {
+int HalUsbMscInitialize(void) {
     return -1;
 }
 
@@ -114,16 +114,16 @@ int HalIwlBgBusy(void) {
 void HalIwlBgPump(void) {
 }
 
-void HalIgpuMmioInit(void) {
+void HalIgpuMmioInitialize(void) {
 }
 
-void HalHdaMmioInit(void) {
+void HalHdaMmioInitialize(void) {
 }
 
-void HalHdaCodecInit(void) {
+void HalHdaCodecInitialize(void) {
 }
 
-void HalHdaStreamInit(void) {
+void HalHdaStreamInitialize(void) {
 }
 
 int HalAudioProbe(void) {
@@ -146,13 +146,13 @@ void HalAudioStop(void) {
 void HalAudioBeep(void) {
 }
 
-void HalIgpuGttInit(void) {
+void HalIgpuGttInitialize(void) {
 }
 
-void HalIgpuForcewakeInit(void) {
+void HalIgpuForcewakeInitialize(void) {
 }
 
-void HalIgpuBlitInit(void) {
+void HalIgpuBlitInitialize(void) {
 }
 
 void HalIgpuBlitColorTest(void) {

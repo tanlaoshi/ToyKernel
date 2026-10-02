@@ -7,7 +7,7 @@
 #include "BootTypes.h"
 #include "Udp.h"
 
-int  LwIpInit(void);
+int  LwIpInitialize(void);
 /* PR-N-nic-addr：lwIP 已开时按 NetConfig 刷新地址/DNS；未开则 0 */
 int  LwIpApplyConfig(void);
 /* PR-N-nic-dhcp：Shell 只 Enqueue；Worker 调 Step（同 store job） */

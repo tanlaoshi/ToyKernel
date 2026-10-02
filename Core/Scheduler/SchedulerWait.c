@@ -128,7 +128,7 @@ UINT64 SchedulerExitUser(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
 
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     Next = SchedulerOpsGet()->PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -203,7 +203,7 @@ UINT64 SchedulerWait(HAL_INTERRUPT_FRAME *Frame) {
     Self->State = TASK_BLOCKED;
     Self->OnCpu = -1;
 
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     Next = SchedulerOpsGet()->PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);

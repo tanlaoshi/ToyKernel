@@ -88,7 +88,7 @@ int InitializeVideo(void) {
     HalVideoSet(&V);
     /* PR-G-fb-wc：PAT PA1=WC，仅 LFB 映成 PWT（xHCI 仍 PTE_MMIO/UC） */
     HalVideoEnableFbWc();
-    HalVideoInitBackbuffer();
+    HalVideoInitializeBackbuffer();
     /*
      * PR-K-log-cont：勿再 ClearScreen / 顶带 Fill——接 Boot+KernelMain 已滚的黑底。
      * 桌面底色由 gui 进桌面时再画。GopEnable 幂等，不重置上滚位置。
@@ -97,38 +97,38 @@ int InitializeVideo(void) {
     /* PR-G-fb-pte：映后核验；期望 cache=WC */
     HalVideoLogFbPte();
     /* PR-G-igpu-1：VMM 已开；核显 BAR 只读指纹（无卡/失败软退） */
-    HalIgpuMmioInit();
+    HalIgpuMmioInitialize();
     /* PR-G-audio-1：HDA BAR 只读指纹（无卡/失败软退） */
-    HalHdaMmioInit();
+    HalHdaMmioInitialize();
     /* PR-G-audio-2：CORB/RIRB + codec/pin 枚举（无卡/失败软退） */
-    HalHdaCodecInit();
+    HalHdaCodecInitialize();
     /* PR-G-igpu-3：forcewake 须在显示侧 AUD / Stream 之前 */
-    HalIgpuForcewakeInit();
+    HalIgpuForcewakeInitialize();
     /* PR-G-audio-3：Stream 短 PCM（DP；须 igpu AUD 使能） */
-    HalHdaStreamInit();
-    HalIgpuGttInit();
-    HalIgpuBlitInit();
+    HalHdaStreamInitialize();
+    HalIgpuGttInitialize();
+    HalIgpuBlitInitialize();
     HalIgpuPresentPrepare();
     return 0;
 }
 
 int InitializeCpu(void) {
-    if (HalInit() != 0) {
+    if (HalInitialize() != 0) {
         return -1;
     }
     HalTimerInitialize();
-    HalSyscallInit();
+    HalSyscallInitialize();
     /* virt：仍在此挂 virtio-input；x86 真机在 file-system 前的 usb 模块（PR-H-msc-7a） */
     if (HalPlatformIsVirtSerialConsole()) {
-        (void)HalUsbInit();
+        (void)HalUsbInitialize();
     }
     return 0;
 }
 
 /*
  * Cpu 后 / Smp 前：只再探 COM1。
- * 勿在此 HalUsbInit/UartClaim：FTDI 扫口会 Force 复位尚未认领的 hub 根口，
- * NUC 上随之 MSC bulk 全超时，DesktopInit 读壁纸/图标时像「不进桌面」。
+ * 勿在此 HalUsbInitialize/UartClaim：FTDI 扫口会 Force 复位尚未认领的 hub 根口，
+ * NUC 上随之 MSC bulk 全超时，DesktopInitialize 读壁纸/图标时像「不进桌面」。
  * USB-UART 仍在 FS 认盘后再 claim（见 FileSystemInit）。
  */
 int InitializeSerialEarly(void) {
@@ -149,7 +149,7 @@ int InitializeSmp(void) {
 
 int InitializeUsb(void) {
     ToyLogBoot("Boot: Input Probe (USB Then PS/2)\n");
-    (void)HalUsbInit();
+    (void)HalUsbInitialize();
     /* USB-UART 挪到 FS MSC 认盘后，避免 Force 扫口打坏 hub */
     if (ToyDriverInputReady()) {
         ToyLogBoot("Boot: Input Backend Ready\n");
@@ -203,7 +203,7 @@ int InitializeGui(void) {
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();
     }
-    (void)DbInit();
+    (void)DbInitialize();
     (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();
@@ -213,11 +213,11 @@ int InitializeGui(void) {
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();
     }
-    /* ThemeLoad 后的 scale=：重配逻辑分辨率后再 GuiInit */
+    /* ThemeLoad 后的 scale=：重配逻辑分辨率后再 GuiInitialize */
     if (ThemeUiScale() != 100) {
         (void)HalVideoSetUiScale(ThemeUiScale());
     }
-    GuiInit(); /* 内已 Deferred 补鼠 + Handoff；此处只抽空残留 */
+    GuiInitialize(); /* 内已 Deferred 补鼠 + Handoff；此处只抽空残留 */
     if (!HalCpuIsHypervisor()) {
         HAL_MOUSE_REPORT Mdump;
 
@@ -229,11 +229,11 @@ int InitializeGui(void) {
 }
 
 int InitializeNetwork(void) {
-    if (HalNetInit() != 0) {
+    if (HalNetInitialize() != 0) {
         return -1;
     }
-    UdpInit();
-    TcpInit();
+    UdpInitialize();
+    TcpInitialize();
     return 0;
 }
 

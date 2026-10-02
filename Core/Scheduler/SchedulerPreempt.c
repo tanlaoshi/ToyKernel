@@ -10,7 +10,7 @@
 static int gPreemptCount[HAL_MAX_CPUS];
 
 void SchedulerPreemptDisable(void) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
 
     if (Cpu >= HAL_MAX_CPUS) {
         Cpu = 0;
@@ -19,7 +19,7 @@ void SchedulerPreemptDisable(void) {
 }
 
 void SchedulerPreemptEnable(void) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
 
     if (Cpu >= HAL_MAX_CPUS) {
         Cpu = 0;
@@ -30,7 +30,7 @@ void SchedulerPreemptEnable(void) {
 }
 
 int SchedulerPreemptCount(void) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
 
     if (Cpu >= HAL_MAX_CPUS) {
         Cpu = 0;

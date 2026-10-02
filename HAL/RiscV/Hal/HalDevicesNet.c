@@ -8,7 +8,7 @@
 #include "VirtioNet.h"
 #endif
 
-int HalNetInit(void) {
+int HalNetInitialize(void) {
 #if TOY_BOARD_HAS_NET
     return VirtioNetInit();
 #else

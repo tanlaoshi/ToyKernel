@@ -125,7 +125,7 @@ static void CommandPing(int Argc, char **Argv) {
             ConsoleWrite("bad ip\n");
             return;
         }
-        if (!LwIpActive() && LwIpInit() != 0) {
+        if (!LwIpActive() && LwIpInitialize() != 0) {
             ConsoleWrite("lwip: init failed\n");
             return;
         }

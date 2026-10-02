@@ -33,7 +33,7 @@ static void LwIpDnsFound(const char *Name, const ip_addr_t *Addr, void *Arg) {
 }
 
 int LwIpSocketCreate(void) {
-    if (!LwIpActive() && LwIpInit() != 0) {
+    if (!LwIpActive() && LwIpInitialize() != 0) {
         return -1;
     }
     return ToySocketCreate();
@@ -91,7 +91,7 @@ int LwIpDnsLookup(const char *Name, UINT32 *OutIp, int TimeoutMs) {
     if (HalNetParseIp(Name, OutIp) == 0) {
         return 0;
     }
-    if (!LwIpActive() && LwIpInit() != 0) {
+    if (!LwIpActive() && LwIpInitialize() != 0) {
         return -TOY_ENETUNREACH;
     }
     gDnsDone = 0;

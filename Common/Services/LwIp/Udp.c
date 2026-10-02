@@ -20,7 +20,7 @@ static int gRxHead;
 static int gRxTail;
 static int gRxCount;
 
-void UdpInit(void) {
+void UdpInitialize(void) {
     gBindPort = 0;
     gRxHead = gRxTail = gRxCount = 0;
 }

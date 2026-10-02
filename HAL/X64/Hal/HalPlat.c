@@ -105,7 +105,7 @@ void HalVirtPlatformIdleLoop(void) {
 void HalTimerPoll(void) {
 }
 
-/* SmpBoot.c 提供 HalCpuCount / HalGetCpuId / HalSmpStartApplicationProcessors */
+/* SmpBoot.c 提供 HalCpuCount / HalCpuGetId / HalSmpStartApplicationProcessors */
 
 void HalSmpNoteDtb(UINT64 DtbPhys) {
     (void)DtbPhys;

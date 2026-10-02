@@ -30,7 +30,7 @@ int FileSystemVolBackend(int Idx, const char **OutName);
 /* 解析 Path → 卷下标 + 卷内相对路径（可指向 Path 内子串） */
 int FileSystemResolve(const char *Path, int *OutVol, const char **OutRel);
 
-/* 切换 Block + FatInit 到指定卷；成功 FAT_OK */
+/* 切换 Block + FatInitialize 到指定卷；成功 FAT_OK */
 int FileSystemActivate(int VolIdx);
 
 /* 带前缀的路径操作（内部 Resolve+Activate+Vfs*；写操作拒只读卷） */

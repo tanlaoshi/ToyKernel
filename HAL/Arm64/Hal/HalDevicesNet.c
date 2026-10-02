@@ -5,7 +5,7 @@
 #include "DriverNet.h"
 #include "VirtioNet.h"
 
-int HalNetInit(void) {
+int HalNetInitialize(void) {
     return VirtioNetInit();
 }
 

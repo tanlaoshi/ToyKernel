@@ -39,7 +39,7 @@ void HdaDriverRegister(void);  /* PR-G-audio-0：Intel HDA 认卡 */
 void DemoDriverRegister(void); /* PR-D-tpl-2 */
 
 void HalDriverRegister(void) {
-    /* 后注册者在 HalBlockInit 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
+    /* 后注册者在 HalBlockInitialize 再 Probe 时可覆盖后端：NVMe > AHCI > ATA */
     AhciDriverRegister();
     AtaDriverRegister();
     NvmeDriverRegister();
@@ -61,11 +61,11 @@ void HalDriverRegister(void) {
 #endif
 }
 
-int HalUsbInit(void) {
+int HalUsbInitialize(void) {
     return InputXhciInit();
 }
 
-int HalUsbMscInit(void) {
+int HalUsbMscInitialize(void) {
     return UsbMscInit();
 }
 
@@ -173,19 +173,19 @@ void HalIwlBgPump(void) {
     IwlNetBgPump();
 }
 
-void HalIgpuMmioInit(void) {
+void HalIgpuMmioInitialize(void) {
     (void)IgpuMmioInit();
 }
 
-void HalHdaMmioInit(void) {
+void HalHdaMmioInitialize(void) {
     (void)HdaMmioInit();
 }
 
-void HalHdaCodecInit(void) {
+void HalHdaCodecInitialize(void) {
     (void)HdaCodecInit();
 }
 
-void HalHdaStreamInit(void) {
+void HalHdaStreamInitialize(void) {
     (void)HdaStreamInit();
 }
 
@@ -206,15 +206,15 @@ void HalAudioBeep(void) {
     (void)HdaAudioPlayPcm(0, 0, 48000u, 2u, 16u);
 }
 
-void HalIgpuGttInit(void) {
+void HalIgpuGttInitialize(void) {
     (void)IgpuGttInit();
 }
 
-void HalIgpuForcewakeInit(void) {
+void HalIgpuForcewakeInitialize(void) {
     (void)IgpuForcewakeInit();
 }
 
-void HalIgpuBlitInit(void) {
+void HalIgpuBlitInitialize(void) {
     (void)IgpuBlitInit();
 }
 

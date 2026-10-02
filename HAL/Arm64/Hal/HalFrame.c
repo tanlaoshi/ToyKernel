@@ -34,7 +34,7 @@ void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStack
     F->Vec = VEC_SYSCALL;
 }
 
-void HalSetTlsBase(UINT64 UserTlsBase) {
+void HalTlsSetBase(UINT64 UserTlsBase) {
     __asm__ volatile("msr tpidr_el0, %0" :: "r"(UserTlsBase) : "memory");
 }
 

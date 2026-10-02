@@ -4,7 +4,7 @@
  * SYS_SOCKET / SYS_BIND / SYS_LISTEN / SYS_ACCEPT / SYS_CONNECT
  * SYS_WRITE / SYS_READ / SYS_CLOSE 在 socket fd 上即 send/recv/close
  *
- * 默认 make LWIP=1（可用 LWIP=0 关掉）；首次 socket() 会自动 LwIpInit。
+ * 默认 make LWIP=1（可用 LWIP=0 关掉）；首次 socket() 会自动 LwIpInitialize。
  * PR-A-net-dns：type=TOY_NET_SOCK_RESOLVE 时 rdx 为 TOY_NET_DNS_QUERY*（不占新 syscall 号）。
  */
 #ifndef SOCKET_H

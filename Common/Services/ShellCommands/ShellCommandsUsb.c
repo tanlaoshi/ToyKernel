@@ -238,7 +238,7 @@ static void CommandMsc(int Argc, char **Argv) {
         return;
     }
 
-    Rc = HalUsbMscInit();
+    Rc = HalUsbMscInitialize();
     ConsoleWrite("msc: bringup=");
     ConsoleWrite(Rc == 0 ? "ok" : "fail");
     ConsoleWrite(" ready=");

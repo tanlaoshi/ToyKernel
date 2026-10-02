@@ -188,7 +188,7 @@ int HttpGetLwIp(UINT32 Ip, UINT16 Port, const char *Path,
     }
     *OutGot = 0;
 
-    if (!LwIpActive() && LwIpInit() != 0) {
+    if (!LwIpActive() && LwIpInitialize() != 0) {
         HalConsoleWriteSerial("store: lwip init fail\n");
         return STORE_ERR_NET;
     }

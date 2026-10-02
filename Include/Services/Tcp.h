@@ -17,7 +17,7 @@ typedef enum {
     TCP_ESTABLISHED,
 } TCP_STATE;
 
-void TcpInit(void);
+void TcpInitialize(void);
 int  TcpListen(UINT16 Port);
 void TcpListenStop(void);
 int  TcpConnect(UINT32 DstIp, UINT16 DstPort);

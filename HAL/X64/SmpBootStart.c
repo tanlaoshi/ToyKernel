@@ -80,7 +80,7 @@ void MemZero(void *Dst, UINTN Len) {
     }
 }
 
-/* 保证 BSP 在 gApicIds[0]，便于 HalGetCpuId()==0 表示 BSP */
+/* 保证 BSP 在 gApicIds[0]，便于 HalCpuGetId()==0 表示 BSP */
 void SetupTrampolineGdt(void) {
     UINT64 *Gdt = (UINT64 *)(UINTN)SMP_GDT_PHYS;
     UINT16 *Gdtr = (UINT16 *)(UINTN)SMP_GDTR_PHYS;

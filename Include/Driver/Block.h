@@ -26,7 +26,7 @@ const BLOCK_BACKEND *BlockPeekBackend(void);
 
 int BlockSelect(UINT32 Drive);
 UINT32 BlockCurrentDrive(void);
-int BlockInit(void);
+int BlockInitialize(void);
 /* 是否已挂后端（PR-D2：Driver Bind 之后为真） */
 int BlockBackendReady(void);
 /* PR-FS-inst-1：槽位是否 Probe 成功 */

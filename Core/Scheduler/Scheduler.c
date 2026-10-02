@@ -41,7 +41,7 @@ TASK *IdleTaskForCpu(UINT32 Cpu) {
 }
 
 TASK *CurrentTask(void) {
-    UINT32 Id = HalGetCpuId();
+    UINT32 Id = HalCpuGetId();
     if (Id >= HAL_MAX_CPUS) {
         return 0;
     }
@@ -49,7 +49,7 @@ TASK *CurrentTask(void) {
 }
 
 void SetCurrentTask(TASK *T) {
-    UINT32 Id = HalGetCpuId();
+    UINT32 Id = HalCpuGetId();
     if (Id < HAL_MAX_CPUS) {
         gCurrentCpu[Id] = T;
     }
@@ -83,7 +83,7 @@ INT32 TaskSlot(const TASK *T) {
 void SchedulerInitialize(void) {
     int c;
 
-    SpinLockInit(&gSchedulerLock);
+    SpinLockInitialize(&gSchedulerLock);
     gSchedulerOnline = 0;
 #ifdef TOY_SCHED_PRIORITY
     SchedulerOpsRegister(SchedulerPriorityOps());
@@ -219,7 +219,7 @@ UINT64 SchedulerResumeFrame(TASK *T) {
 
 /* Ring3 中断/系统调用走 TSS.RSP0；每用户任务必须用自己的内核栈 */
 void ActivateTask(TASK *T) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
     TASK *Prev = CurrentTask();
 
     if (Prev && Prev != T && Prev->State == TASK_RUNNING) {
@@ -234,8 +234,8 @@ void ActivateTask(TASK *T) {
     T->State = TASK_RUNNING;
     T->OnCpu = (INT32)Cpu;
     if (T->IsUser) {
-        HalSetKernelStack((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
-        HalSetTlsBase(T->TlsBase);
+        HalKernelSetStack((UINT64)(UINTN)(T->Stack + sizeof(T->Stack)));
+        HalTlsSetBase(T->TlsBase);
     }
     if (T->PageRoot != 0) {
         VirtualMemoryLoadPageTable(T->PageRoot);

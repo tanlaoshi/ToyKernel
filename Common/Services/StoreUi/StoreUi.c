@@ -37,7 +37,7 @@ static void ActRemove(void *Ctx)  { (void)Ctx; StoreUiDoButton(1); }
 static void ActSync(void *Ctx)    { (void)Ctx; StoreUiDoButton(2); }
 static void ActRepo(void *Ctx)    { (void)Ctx; StoreUiDoButton(3); }
 
-void StoreUiActInit(void) {
+void StoreUiActInitialize(void) {
     static UI_ACTION_FN const Fns[STORE_BTN_N] = {
         ActInstall, ActRemove, ActSync, ActRepo
     };
@@ -103,7 +103,7 @@ void StoreUiOpen(void) {
     gHoverRow = -1;
     gHoverBtn = -1;
     gPressBtn = -1;
-    StoreUiActInit();
+    StoreUiActInitialize();
     StoreUiApplyRepoFile();
     Reload();
     StoreSetStatus(gFiltCount > 0 ? "Install|Remove|Sync|Repo" : "no catalog");

@@ -17,7 +17,7 @@ typedef struct {
     UINT8  Data[UDP_PAYLOAD_MAX];
 } UDP_DATAGRAM;
 
-void UdpInit(void);
+void UdpInitialize(void);
 int  UdpBind(UINT16 Port);
 UINT16 UdpBoundPort(void);
 int  UdpSend(UINT32 DstIp, UINT16 DstPort, const void *Data, UINTN Len);

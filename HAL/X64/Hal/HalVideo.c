@@ -28,7 +28,7 @@ void HalVideoSet(const VIDEO_CONFIG *Config) {
  * PR-G9：PMM 分配与屏同尺寸后缓冲并挂上。须在 PhysicalMemoryInitialize 之后调用。
  * 分配失败则保持直写 GOP（功能仍可用，仍可能撕裂）。
  */
-void HalVideoInitBackbuffer(void) {
+void HalVideoInitializeBackbuffer(void) {
     UINT32 W;
     UINT32 H;
     UINT64 Bytes;
@@ -73,7 +73,7 @@ int HalVideoSetMode(UINT32 Width, UINT32 Height) {
     if (Rc != 0) {
         return -1;
     }
-    HalVideoInitBackbuffer();
+    HalVideoInitializeBackbuffer();
     return 0;
 }
 
@@ -168,12 +168,12 @@ int HalVideoSetUiScale(UINT32 Percent) {
     if (VideoSetUiScale(Percent) != 0) {
         return -1;
     }
-    HalVideoInitBackbuffer();
+    HalVideoInitializeBackbuffer();
     if (!VideoBackbufferEnabled() && Percent != 100 &&
         VideoGetUiScale() != 100) {
         /* 无后缓冲无法缩放 Present；退回 100% */
         (void)VideoSetUiScale(100);
-        HalVideoInitBackbuffer();
+        HalVideoInitializeBackbuffer();
         return -1;
     }
     return 0;

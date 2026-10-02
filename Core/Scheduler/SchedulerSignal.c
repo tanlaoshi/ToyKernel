@@ -59,7 +59,7 @@ int DeliverToHandlerFrame(TASK *T, HAL_INTERRUPT_FRAME *F, UINT64 Handler,
     if (NeedPush == 1) {
         /* 压栈须在目标用户页表下（含 fork COW 拆页） */
         if (T != CurrentTask() && T->PageRoot != 0) {
-            SavedRoot = HalGetCurrentPageTable();
+            SavedRoot = HalPageTableGetCurrent();
             VirtualMemoryLoadPageTable(T->PageRoot);
             Switched = 1;
         }
@@ -100,7 +100,7 @@ int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt,
         return 0;
     }
     if (Sig != SIGKILL && Handler > SIG_HANDLER_IGN) {
-        CurCpu = HalGetCpuId();
+        CurCpu = HalCpuGetId();
         if (T->State == TASK_RUNNING && T->OnCpu >= 0 &&
             (UINT32)T->OnCpu != CurCpu && T != CurrentTask()) {
             T->PendingKill = Sig;
@@ -119,7 +119,7 @@ int DeliverKillLocked(TASK *T, INT32 Sig, int *ShowPrompt,
     }
 
     Code = 128 + Sig;
-    CurCpu = HalGetCpuId();
+    CurCpu = HalCpuGetId();
 
     /* 他核 RUNNING：挂起，待该核 timer/syscall 入口完成终止 */
     if (T->State == TASK_RUNNING && T->OnCpu >= 0 &&
@@ -142,7 +142,7 @@ UINT64 SchedulerOnTimer(HAL_INTERRUPT_FRAME *Frame) {
     if (!gSchedulerOnline) {
         return 0;
     }
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     Cur = CurrentTask();
     if (Cur == 0) {
         return 0;
@@ -239,7 +239,7 @@ void SchedulerCoopDrainUsers(void) {
     }
 
     gCoopDrain = 1;
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
 
     for (;;) {
         TASK *U = 0;
@@ -262,7 +262,7 @@ void SchedulerCoopDrainUsers(void) {
         Ksp = (UINT64)(UINTN)(U->Stack + sizeof(U->Stack));
         SpinLockRelease(&gSchedulerLock);
 
-        HalSetKernelStack(Ksp);
+        HalKernelSetStack(Ksp);
         HalSyncICache(0, 0);
         HalUserCoopEnter(Ksp, U->Frame);
 

@@ -50,7 +50,7 @@ void AtaDriverRegister(void) {
     (void)ToyDriverRegister(&gAtaDriver);
 }
 
-int HalBlockInit(void) {
+int HalBlockInitialize(void) {
     /*
      * VMM 之后再 Probe Block 类：
      * - ATA 多在 InitDriver 已绑（PIO，无需 MMIO）
@@ -60,5 +60,5 @@ int HalBlockInit(void) {
     if (!BlockBackendReady()) {
         return 0;
     }
-    return BlockInit();
+    return BlockInitialize();
 }

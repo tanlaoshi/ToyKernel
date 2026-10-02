@@ -8,7 +8,7 @@
 void HalInputArmIrq(void) {
 }
 
-void HalInputInitMouseDeferred(void) {
+void HalInputInitializeMouseDeferred(void) {
 }
 
 void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY) {

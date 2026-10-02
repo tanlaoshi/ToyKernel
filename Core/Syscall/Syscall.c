@@ -5,7 +5,7 @@
  *   - legacy：int 0x80 → IDT 门 → InterruptDispatch → SyscallDispatch
  *   - 快速：syscall → SyscallEntry → SyscallDispatch → sysretq
  * 号与 ABI（rax / rdi,rsi,rdx）两条路径共用。
- * 向量/MSR 安装在 HalSyscallInit（PR-A1），本文件只做分发。
+ * 向量/MSR 安装在 HalSyscallInitialize（PR-A1），本文件只做分发。
  * 实现：SyscallFs.c / SyscallProc.c（PR-S-syscall-split-1）。
  */
 #include "Syscall.h"
@@ -16,8 +16,8 @@
 #include "Process.h"
 #include "Errno.h"
 
-void SyscallInit(void) {
-    /* 硬件入口已由 HalSyscallInit 安装；保留符号供旧调用点 / 文档 */
+void SyscallInitialize(void) {
+    /* 硬件入口已由 HalSyscallInitialize 安装；保留符号供旧调用点 / 文档 */
 }
 
 UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {

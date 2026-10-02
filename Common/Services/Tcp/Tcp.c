@@ -34,7 +34,7 @@ UINT32 gRcvBufLen;
 UINT32 gRcvTotal; /* 本连接已接受字节数（排空缓冲后仍 >0） */
 int    gPeerClosed;
 
-void TcpInit(void) {
+void TcpInitialize(void) {
     gState = TCP_CLOSED;
     gLocalPort = 0;
     gPeerPort = 0;
@@ -55,7 +55,7 @@ void TcpInit(void) {
 }
 
 int TcpListen(UINT16 Port) {
-    TcpInit();
+    TcpInitialize();
     gLocalPort = Port;
     gState = TCP_LISTEN;
     DebugWrite("tcp: listen ");
@@ -66,12 +66,12 @@ int TcpListen(UINT16 Port) {
 
 void TcpListenStop(void) {
     if (gState == TCP_LISTEN) {
-        TcpInit();
+        TcpInitialize();
     }
 }
 
 int TcpConnect(UINT32 DstIp, UINT16 DstPort) {
-    TcpInit();
+    TcpInitialize();
     gClientMode = 1;
     gLocalPort = (UINT16)(40000 + (gIss & 0xFF));
     gPeerIp = DstIp;

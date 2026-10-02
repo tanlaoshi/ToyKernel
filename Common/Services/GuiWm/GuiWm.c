@@ -138,7 +138,7 @@ void GuiRefreshTitles(void) {
 }
 
 
-void GuiInit(void) {
+void GuiInitialize(void) {
     HalVideoGetSize(&gScreenWidth, &gScreenHeight);
     if (gScreenWidth == 0) {
         gScreenWidth = 1024;
@@ -179,7 +179,7 @@ void GuiInit(void) {
     DesktopSetRequestRefresh(GuiRefreshDesktop);
     DesktopSetClearIconFootprint(GuiClearIconDragFootprint);
     DesktopBootLogoShow();
-    DesktopInit();
+    DesktopInitialize();
     {
         WINDOW_OPS Ops;
 
@@ -194,7 +194,7 @@ void GuiInit(void) {
     /* 桌面已铺满：停 GOP 叠字 boot log，避免「gui ready / ToyOS ready」留在壁纸上 */
     HalSerialGopMute(1);
     /* #117：仅漏绑时补鼠（InitMouseDeferred 内部已绑则跳过）；坐标对齐一次即可 */
-    HalInputInitMouseDeferred();
+    HalInputInitializeMouseDeferred();
     HalInputMouseHandoffDesktop(gCursorX, gCursorY);
     DebugWrite("Gui: desktop ready\n");
 }

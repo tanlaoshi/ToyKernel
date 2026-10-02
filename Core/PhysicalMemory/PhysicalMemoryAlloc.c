@@ -10,7 +10,7 @@ static SPIN_LOCK gPhysLock;
 
 void PmmPhysLockInit(void)
 {
-    SpinLockInit(&gPhysLock);
+    SpinLockInitialize(&gPhysLock);
 }
 
 PMM_SEGMENT *PmmLookup(UINT64 Phys, UINT32 *Idx)

@@ -22,7 +22,7 @@
 #define DB_INVAL (-4)
 
 /* 读盘或空库；可重复调用。注册 dbget/dbset/dblist */
-int DbInit(void);
+int DbInitialize(void);
 
 int DbGet(const char *Key, char *Out, UINTN OutMax);
 /* 内存更新；默认立刻刷盘。Batch 期间只标脏，DbEndBatch 一次写出 */

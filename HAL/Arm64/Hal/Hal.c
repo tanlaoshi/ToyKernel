@@ -16,12 +16,12 @@ static int gTimerIrq;
 
 extern void HalExceptionVectorsInstall(void);
 extern void HalUserEnter(struct HAL_INTERRUPT_FRAME *Frame);
-extern void HalGicInit(void);
+extern void HalGicInitialize(void);
 extern UINT32 HalGicAck(void);
 extern void HalGicEoi(UINT32 IntId);
 extern int HalGicIsTimer(UINT32 IntId);
 
-int HalInit(void) {
+int HalInitialize(void) {
     /* PR-A14：BSP 逻辑 CPU=0（TPIDR_EL1） */
     __asm__ volatile("msr tpidr_el1, xzr" ::: "memory");
     return 0;
@@ -121,7 +121,7 @@ void HalTimerStart(void) {
         HalTimerInitialize();
     }
     HalExceptionVectorsInstall();
-    HalGicInit();
+    HalGicInitialize();
     HalTimerSetInterval(gTimerMs);
     ArmTimerArm();
     gTimerIrq = 1;
@@ -134,13 +134,13 @@ UINT32 HalTicksPerSec(void) {
 
 /* PR-A14：AP 在 BSP HalTimerStart 之前也可本地开 CNTV（gCntPeriod 已在 InitCpu） */
 void HalTimerStartAp(void) {
-    extern void HalGicInitCpu(void);
+    extern void HalGicInitializeCpu(void);
 
     if (!gTimerReady) {
         HalTimerInitialize();
     }
     HalExceptionVectorsInstall();
-    HalGicInitCpu();
+    HalGicInitializeCpu();
     ArmTimerArm();
     gTimerIrq = 1;
 }
@@ -184,13 +184,13 @@ void HalInstallUserMode(void) {
     HalExceptionVectorsInstall();
 }
 
-void HalSyscallInit(void) {
+void HalSyscallInitialize(void) {
     HalExceptionVectorsInstall();
     HalSerialWrite("syscall: Arm64 SVC (EL0) ready\n");
     HalUserSelfTest();
 }
 
-void HalSetKernelStack(UINT64 StackTop) {
+void HalKernelSetStack(UINT64 StackTop) {
     (void)StackTop;
 }
 

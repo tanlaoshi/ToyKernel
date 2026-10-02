@@ -26,7 +26,7 @@ void RunQueueInitialize(void) {
     int i;
     gStealCount = 0;
     for (c = 0; c < HAL_MAX_CPUS; c++) {
-        SpinLockInit(&gRunQueueLock[c]);
+        SpinLockInitialize(&gRunQueueLock[c]);
         gRunQueue[c].Count = 0;
         for (i = 0; i < MAX_TASKS; i++) {
             gRunQueue[c].Slot[i] = 0;

@@ -42,7 +42,7 @@ static int WritePartFile(UINT32 PartLba, const char *Path, const void *Data, UIN
     if (!BlockFlush()) {
         return -1;
     }
-    Err = FatInit(PartLba);
+    Err = FatInitialize(PartLba);
     if (Err != FAT_OK) {
         return Err;
     }
@@ -50,7 +50,7 @@ static int WritePartFile(UINT32 PartLba, const char *Path, const void *Data, UIN
 }
 
 static int EnsureDir(UINT32 PartLba, const char *Path) {
-    int Err = FatInit(PartLba);
+    int Err = FatInitialize(PartLba);
     if (Err != FAT_OK) {
         return Err;
     }

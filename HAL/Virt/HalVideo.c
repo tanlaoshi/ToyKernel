@@ -21,7 +21,7 @@ void HalVideoSet(const VIDEO_CONFIG *Config) {
     VideoSet(&Local);
 }
 
-void HalVideoInitBackbuffer(void) {
+void HalVideoInitializeBackbuffer(void) {
     UINT32 W;
     UINT32 H;
     UINT64 Bytes;
@@ -150,11 +150,11 @@ int HalVideoSetUiScale(UINT32 Percent) {
     if (VideoSetUiScale(Percent) != 0) {
         return -1;
     }
-    HalVideoInitBackbuffer();
+    HalVideoInitializeBackbuffer();
     if (!VideoBackbufferEnabled() && Percent != 100 &&
         VideoGetUiScale() != 100) {
         (void)VideoSetUiScale(100);
-        HalVideoInitBackbuffer();
+        HalVideoInitializeBackbuffer();
         return -1;
     }
     return 0;

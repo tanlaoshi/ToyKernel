@@ -47,7 +47,7 @@ void ToyNetAddrIn(ToySockAddrIn *Sa, unsigned Ip, unsigned Port);
 int ToyNetConnectIn(int Fd, const ToySockAddrIn *Sa);
 int ToyNetBindIn(int Fd, const ToySockAddrIn *Sa);
 int ToyNetGetAddrIn(ToySockAddrIn *Sa, const char *Name, unsigned Port);
-/* 点分 IPv4 / localhost 本地解析；其它名字走内核 lwIP DNS（Guest 需网卡；socket 会 LwIpInit） */
+/* 点分 IPv4 / localhost 本地解析；其它名字走内核 lwIP DNS（Guest 需网卡；socket 会 LwIpInitialize） */
 int ToyNetResolve(const char *Name, unsigned *OutIp);
 
 #endif

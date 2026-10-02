@@ -66,7 +66,7 @@ static void CommandLwIp(int Argc, char **Argv) {
             ConsoleWrite("lwip: already on\n");
             return;
         }
-        if (LwIpInit() != 0) {
+        if (LwIpInitialize() != 0) {
             ConsoleWrite("lwip: init failed\n");
             return;
         }

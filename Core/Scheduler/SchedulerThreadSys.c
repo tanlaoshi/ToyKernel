@@ -119,7 +119,7 @@ UINT64 SchedulerThreadJoin(HAL_INTERRUPT_FRAME *Frame) {
     Self->State = TASK_BLOCKED;
     SchedulerOpsGet()->Remove(Self);
 
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     Next = SchedulerOpsGet()->PickNext(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);

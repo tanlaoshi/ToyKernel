@@ -227,7 +227,7 @@ static void CommandDbList(int Argc, char **Argv) {
     (void)DbForEach(ListCb, 0);
 }
 
-int DbInit(void) {
+int DbInitialize(void) {
     int Err;
 
     if (gReady) {

@@ -39,7 +39,7 @@
  * socket fd 上 SYS_WRITE/SYS_READ = send/recv（默认 LWIP=1）
  */
 
-void SyscallInit(void);
+void SyscallInitialize(void);
 UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame); /* int 0x80 与 SYSCALL 共用 */
 
 #endif

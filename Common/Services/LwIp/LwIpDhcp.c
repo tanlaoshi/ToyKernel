@@ -148,7 +148,7 @@ int LwIpDhcpEnqueue(int TimeoutMs) {
     if (!HalNetReady()) {
         return -2;
     }
-    if (!LwIpActive() && LwIpInit() != 0) {
+    if (!LwIpActive() && LwIpInitialize() != 0) {
         return -2;
     }
     Netif = ToyNetifGet();

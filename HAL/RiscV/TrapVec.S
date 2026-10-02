@@ -148,7 +148,7 @@ HalUserEnter:
     ld      gp, 24(a0)
     /*
      * PR-V-ap-interactive：勿从帧恢复 tp。
-     * tp = 逻辑 CPU id（HalGetCpuId）；用户帧常为 0，恢复后 AP 上
+     * tp = 逻辑 CPU id（HalCpuGetId）；用户帧常为 0，恢复后 AP 上
      * CurrentTask/ActivateTask 会砸到 gCurrentCpu[0]。Arm64 用 tpidr_el1 隔离。
      */
     ld      t0, 40(a0)

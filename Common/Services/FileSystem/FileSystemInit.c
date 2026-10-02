@@ -15,15 +15,15 @@
 
 int FileSystemRemountVolumes(void) {
     /*
-     * 勿再 HalBlockInit()/ProbeClass：会重绑 AHCI 冲掉已装的 BlockMux。
-     * 后端已在时只 BlockInit 重 Probe（Mux 会挂上 MSC 盘号）。
+     * 勿再 HalBlockInitialize()/ProbeClass：会重绑 AHCI 冲掉已装的 BlockMux。
+     * 后端已在时只 BlockInitialize 重 Probe（Mux 会挂上 MSC 盘号）。
      */
     if (!BlockBackendReady()) {
-        if (HalBlockInit() <= 0) {
+        if (HalBlockInitialize() <= 0) {
             DebugWrite("FS: remount no block backend\n");
         }
-    } else if (BlockInit() <= 0) {
-        DebugWrite("FS: remount BlockInit found 0 drives\n");
+    } else if (BlockInitialize() <= 0) {
+        DebugWrite("FS: remount BlockInitialize found 0 drives\n");
     }
     if (!MountAllVolumes()) {
         DebugWrite("FS: remount no volumes\n");
@@ -88,7 +88,7 @@ int FileSystemInitialize(void) {
      * 主盘只有 ESP、尚无 TOYOS.ID 时不得关 auto（NUC Live：否则永远读不到 U 盘 TOYOS）。
      */
     Auto = HalUsbMscAutoEnabled();
-    if (HalBlockInit() > 0 && MountAllVolumes()) {
+    if (HalBlockInitialize() > 0 && MountAllVolumes()) {
         HaveVols = 1;
         HasToy = AnyVolumeHasToyId();
         if (Auto && MscPolicySaysOff()) {
@@ -114,8 +114,8 @@ int FileSystemInitialize(void) {
     if (Auto) {
         if (HalUsbMscAutoBeforeFs() == 0) {
             MuxOk = 1;
-            if (BlockInit() <= 0) {
-                DebugWrite("FS: BlockInit after msc auto failed\n");
+            if (BlockInitialize() <= 0) {
+                DebugWrite("FS: BlockInitialize after msc auto failed\n");
             }
             if (!MountAllVolumes()) {
                 DebugWrite("FS: mount after msc auto failed\n");
@@ -135,7 +135,7 @@ int FileSystemInitialize(void) {
             ToyLogBoot("Boot: MSC Auto Retry (No TOYOS)\n");
             if (HalUsbMscAutoBeforeFs() == 0) {
                 MuxOk = 1;
-                if (BlockInit() > 0 && MountAllVolumes()) {
+                if (BlockInitialize() > 0 && MountAllVolumes()) {
                     HaveVols = 1;
                     HasToy = AnyVolumeHasToyId();
                 }
@@ -161,7 +161,7 @@ int FileSystemInitialize(void) {
      */
 
     if (!HaveVols && !MuxOk) {
-        if (HalBlockInit() <= 0) {
+        if (HalBlockInitialize() <= 0) {
             DebugWrite("FS: no block device (RES-only possible)\n");
         }
         if (!MountAllVolumes()) {

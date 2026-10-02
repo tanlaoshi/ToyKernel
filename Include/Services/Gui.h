@@ -41,7 +41,7 @@ typedef struct {
 
 void GuiRegisterConsoleOps(const GUI_CONSOLE_OPS *Ops);
 
-void GuiInit(void);
+void GuiInitialize(void);
 /* PR-G-hotres：HalVideoSetMode 成功后钳窗/光标并整桌重绘 */
 void GuiOnDisplayResize(void);
 void GuiPointerMove(UINT32 X, UINT32 Y);

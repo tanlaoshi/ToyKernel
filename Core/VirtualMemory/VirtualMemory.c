@@ -127,7 +127,7 @@ void VirtualMemorySpaceDestroy(VIRTUAL_ADDRESS_SPACE *Space) {
 }
 
 void VirtualMemoryLoadPageTable(UINT64 Root) {
-    HalLoadPageTable(Root);
+    HalPageTableLoad(Root);
 }
 
 int VirtualMemoryUserAccessOk(UINT64 Virt, UINTN Len) {

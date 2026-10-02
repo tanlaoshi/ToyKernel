@@ -36,13 +36,13 @@ typedef struct {
     UINT8  Absolute; /* 1：X/Y 为 0..32767 平板坐标（QEMU usb-tablet） */
 } HAL_MOUSE_REPORT;
 
-int HalBlockInit(void);
+int HalBlockInitialize(void);
 /* PR-D2：注册平台驱动描述符（ATA / virtio-blk 等）；InitDriver 内调用 */
 void HalDriverRegister(void);
 
-int HalUsbInit(void);
+int HalUsbInitialize(void);
 /* PR-H-msc-2：MSC BringUp 壳；不自动认盘 */
-int HalUsbMscInit(void);
+int HalUsbMscInitialize(void);
 int HalUsbMscReady(void);
 /* PR-H-msc-3：Shell msc scan */
 int HalUsbMscScan(void);
@@ -77,13 +77,13 @@ int HalIwlAssociated(void);
 int HalIwlBgBusy(void);
 void HalIwlBgPump(void);
 /* PR-G-igpu-1：核显 BAR 指纹；非 x86 空操作 */
-void HalIgpuMmioInit(void);
+void HalIgpuMmioInitialize(void);
 /* PR-G-audio-1：HDA BAR 指纹；非 x86 空操作 */
-void HalHdaMmioInit(void);
+void HalHdaMmioInitialize(void);
 /* PR-G-audio-2：CORB/RIRB + codec 枚举；非 x86 空操作 */
-void HalHdaCodecInit(void);
+void HalHdaCodecInitialize(void);
 /* PR-G-audio-3：输出 Stream DMA；非 x86 空操作 */
-void HalHdaStreamInit(void);
+void HalHdaStreamInitialize(void);
 /* PR-G-audio-4：播 PCM；非 x86 恒失败；Samples=NULL→内置蜂鸣 */
 int HalAudioProbe(void);
 int HalAudioPlayPcm(const void *Samples, UINTN Bytes, UINT32 RateHz,
@@ -91,10 +91,10 @@ int HalAudioPlayPcm(const void *Samples, UINTN Bytes, UINT32 RateHz,
 void HalAudioStop(void);
 void HalAudioBeep(void); /* PlayPcm(NULL) 快捷 */
 /* PR-G-igpu-2：观察固件 GGTT/scanout；非 x86 空操作 */
-void HalIgpuGttInit(void);
+void HalIgpuGttInitialize(void);
 /* PR-G-igpu-3：forcewake + blit 骨架；非 x86 空操作 */
-void HalIgpuForcewakeInit(void);
-void HalIgpuBlitInit(void);
+void HalIgpuForcewakeInitialize(void);
+void HalIgpuBlitInitialize(void);
 /* 可选自测：右上角 XY_COLOR_BLT（非 x86 空）；桌面不再自动调用（PR-G-igpu-corner） */
 void HalIgpuBlitColorTest(void);
 /* PR-G-igpu-4：大矩形 Present/CopyRect；非 x86 恒失败→CPU */
@@ -111,7 +111,7 @@ int HalIgpuCopyRectBack(const UINT32 *Back, UINT32 PitchPx, UINT32 BufH,
 /* 真机：usb 模块末尾开 xHCI MSI-X；其它平台空操作 */
 void HalInputArmIrq(void);
 /* 真机：键鼠 ready 后再枚举鼠标，避免踩键盘 IN */
-void HalInputInitMouseDeferred(void);
+void HalInputInitializeMouseDeferred(void);
 /* 进桌面前：清空鼠队列并对齐累加坐标 */
 void HalInputMouseHandoffDesktop(UINT32 CursorX, UINT32 CursorY);
 void HalInputPoll(void);
@@ -133,7 +133,7 @@ int HalKeyboardSetLeds(UINT8 Leds);
 int HalMousePresent(void);
 int HalMouseDequeue(HAL_MOUSE_REPORT *Report);
 
-int HalNetInit(void);
+int HalNetInitialize(void);
 int HalNetReady(void);
 /* 当前 L2 挂接次数；未挂过或本架构无此外置网卡时为 0 */
 UINT32 HalNetNicEpoch(void);

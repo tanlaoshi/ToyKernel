@@ -94,7 +94,7 @@ void StoreUiApplyRepoFile(void);               /* 读 Store/repo.txt → store.r
 int  StoreUiWriteRepoFile(void);               /* 当前源写入 repo.txt；0=ok */
 
 /* ===== StoreUi.c ===== */
-void StoreUiActInit(void);
+void StoreUiActInitialize(void);
 int StoreUiActDispatch(int Btn, int Pressed, int Hit);
 
 /* ===== StoreUiInput.c ===== */

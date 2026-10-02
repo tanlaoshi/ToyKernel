@@ -13,7 +13,7 @@
 static int gNeedResched[HAL_MAX_CPUS];
 
 void SchedulerSetNeedResched(void) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
 
     if (Cpu >= HAL_MAX_CPUS) {
         Cpu = 0;
@@ -22,7 +22,7 @@ void SchedulerSetNeedResched(void) {
 }
 
 int SchedulerCondResched(void) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
     TASK *Cur;
 
     if (Cpu >= HAL_MAX_CPUS) {

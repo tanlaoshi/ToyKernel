@@ -7,7 +7,7 @@
 #include "E1000.h"
 #include "LwIp.h"
 
-int HalNetInit(void) {
+int HalNetInitialize(void) {
     return NetInit();
 }
 

@@ -124,7 +124,7 @@ void VirtioInputDiagOnTimer(void) {
     UINT64 Ticks;
 
     /* 仅 BSP 采样，且只打前 3 次（约 1s/2s/3s @10ms） */
-    if (HalGetCpuId() != 0) {
+    if (HalCpuGetId() != 0) {
         return;
     }
     if (gTickSamples >= 3u) {

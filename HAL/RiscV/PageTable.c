@@ -15,14 +15,14 @@ UINT64 gCurrentRoot;
 int gMmuOn;
 
 
-void HalFlushTlb(UINT64 VirtualAddress) {
+void HalTlbFlush(UINT64 VirtualAddress) {
     if (!gMmuOn) {
         return;
     }
     __asm__ volatile("sfence.vma %0, zero" :: "r"(VirtualAddress) : "memory");
 }
 
-void HalLoadPageTable(UINT64 Root) {
+void HalPageTableLoad(UINT64 Root) {
     gCurrentRoot = Root;
     if (!gMmuOn) {
         return;
@@ -33,7 +33,7 @@ void HalLoadPageTable(UINT64 Root) {
         :: "r"(SATP_MODE_SV39 | (Root >> 12)) : "memory");
 }
 
-UINT64 HalGetCurrentPageTable(void) {
+UINT64 HalPageTableGetCurrent(void) {
     if (gMmuOn) {
         UINT64 Satp;
         __asm__ volatile("csrr %0, satp" : "=r"(Satp));
@@ -183,7 +183,7 @@ int HalPageMap(UINT64 Root, UINT64 VirtualAddress, UINT64 PhysicalAddress, UINT6
         return -1;
     }
     *Pte = NativeFromHal(PhysicalAddress, Flags);
-    HalFlushTlb(VirtualAddress);
+    HalTlbFlush(VirtualAddress);
     return 0;
 }
 
@@ -199,7 +199,7 @@ int HalPageUnmapRange(UINT64 Root, UINT64 Start, UINT64 End) {
             continue;
         }
         *Pte = 0;
-        HalFlushTlb(Virt);
+        HalTlbFlush(Virt);
     }
     return 0;
 }
@@ -225,7 +225,7 @@ UINT64 HalPageGetEntry(UINT64 Root, UINT64 Virt) {
 }
 
 UINT64 HalPageGetEntryCurrent(UINT64 Virt) {
-    return HalPageGetEntry(HalGetCurrentPageTable(), Virt);
+    return HalPageGetEntry(HalPageTableGetCurrent(), Virt);
 }
 
 void HalPatApplyWc(void) {

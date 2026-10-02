@@ -225,7 +225,7 @@ char SerialReadChar(void) {
 }
 
 void SerialClaimException(void) {
-    INT32 Cpu = (INT32)HalGetCpuId();
+    INT32 Cpu = (INT32)HalCpuGetId();
     INT32 Expected = -1;
 
     if (__sync_bool_compare_and_swap(&gSerialExcOwner, Expected, Cpu)) {
@@ -246,7 +246,7 @@ void SerialWrite(const char *Text) {
         return;
     }
     Own = gSerialExcOwner;
-    if (Own >= 0 && Own != (INT32)HalGetCpuId()) {
+    if (Own >= 0 && Own != (INT32)HalCpuGetId()) {
         return;
     }
     while (*Text) {

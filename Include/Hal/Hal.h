@@ -38,7 +38,7 @@ int HalRtcGetTime(UINT16 *Year, UINT8 *Month, UINT8 *Day,
 
 typedef void *(*HalPageAllocateFunction)(void *Ctx);
 
-int HalInit(void);
+int HalInitialize(void);
 
 void HalCpuHalt(void);
 void HalCpuPark(void);
@@ -65,9 +65,9 @@ void HalTimerAck(void);
 void HalTimerStart(void);
 
 void HalInstallUserMode(void);
-void HalSyscallInit(void);
+void HalSyscallInitialize(void);
 /* 用户任务内核栈顶 → TSS.RSP0 / 等价结构（PR-A1；取代 Common 调 ArchSetRsp0） */
-void HalSetKernelStack(UINT64 StackTop);
+void HalKernelSetStack(UINT64 StackTop);
 
 /*
  * PR-A11：用户虚址布局（Common 不写死 0x40000000）。
@@ -93,7 +93,7 @@ void HalUserSelfTest(void);
 void HalFrameSetKernelEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 StackTop);
 void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStackTop);
 /* PR-U-thread-2：用户 TLS 基（x86=FS，Arm64=TPIDR_EL0，RiscV=tp/X4） */
-void HalSetTlsBase(UINT64 UserTlsBase);
+void HalTlsSetBase(UINT64 UserTlsBase);
 void HalFrameSetTls(HAL_INTERRUPT_FRAME *F, UINT64 UserTlsBase);
 void HalFrameCopy(HAL_INTERRUPT_FRAME *Dst, const HAL_INTERRUPT_FRAME *Src);
 UINT64 HalFrameGetInstructionPointer(const HAL_INTERRUPT_FRAME *F);
@@ -131,9 +131,9 @@ void   HalIoWrite16(UINT16 Port, UINT16 Value);
 void   HalIoWrite32(UINT16 Port, UINT32 Value);
 
 /* 分页：CPU 当前页表根（x86 为 CR3；其它架构为等价寄存器） */
-void HalFlushTlb(UINT64 VirtualAddress);
-void HalLoadPageTable(UINT64 Root);
-UINT64 HalGetCurrentPageTable(void);
+void HalTlbFlush(UINT64 VirtualAddress);
+void HalPageTableLoad(UINT64 Root);
+UINT64 HalPageTableGetCurrent(void);
 void HalPagingEnable(UINT64 RootPhys);
 /* PR-A10：故意触未映射 VA，验收缺页路径（x86 可为空） */
 void HalPagingSelfTest(void);
@@ -211,7 +211,7 @@ int HalCpuIsHypervisor(void);
 #define HAL_MAX_CPUS 8
 
 int HalCpuCount(void);
-UINT32 HalGetCpuId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
+UINT32 HalCpuGetId(void);          /* 逻辑 CPU：0=BSP，1..N-1=AP */
 UINT8 HalCpuApicId(UINT32 LogicalCpu); /* x86：LAPIC ID；其它 arch：0 */
 int HalCpuIsBootstrapProcessor(void);
 UINT64 HalCpuTicks(UINT32 Cpu); /* 每核 LAPIC/定时器原始拍 */

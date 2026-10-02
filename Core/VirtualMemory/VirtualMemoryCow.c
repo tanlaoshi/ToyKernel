@@ -73,7 +73,7 @@ int VirtualMemoryHandlePageFault(UINT64 FaultAddress, UINT64 ErrorCode) {
     if (Va < USER_CODE_VIRT || Va >= USER_VIRT_END) {
         return -1;
     }
-    Root = HalGetCurrentPageTable();
+    Root = HalPageTableGetCurrent();
     Pte = HalPageGetEntry(Root, Va);
     if (!(Pte & HAL_PAGE_PRESENT) || !(Pte & HAL_PAGE_USER) || !HalPageIsCopyOnWrite(Pte)) {
         return -1;

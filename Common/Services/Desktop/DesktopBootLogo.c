@@ -1,5 +1,5 @@
 /*
- * DesktopBootLogo.c — PR-BOX-2：启动占位 Logo → 清屏 → 再进 DesktopInit
+ * DesktopBootLogo.c — PR-BOX-2：启动占位 Logo → 清屏 → 再进 DesktopInitialize
  * T=锤、O=足球、Y=弹弓；旁衬 ToyOS。不做动画引擎。
  */
 #include "Desktop.h"

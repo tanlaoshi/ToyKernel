@@ -46,7 +46,7 @@ void SchedulerApStart(void) {
     TASK *Idle;
     HAL_INTERRUPT_FRAME *Frame;
 
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     while (!gSchedulerOnline) {
         HalCpuRelax();
     }

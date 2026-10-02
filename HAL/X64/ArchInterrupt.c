@@ -197,7 +197,7 @@ static void ExceptionHalt(HAL_INTERRUPT_FRAME *F) {
     ExcAppend(Line, (int)sizeof(Line), &Len, " rfl=");
     ExcAppendHex(Line, (int)sizeof(Line), &Len, F->Rflags, 8);
     ExcAppend(Line, (int)sizeof(Line), &Len, " cpu=");
-    ExcAppendHex(Line, (int)sizeof(Line), &Len, (UINT32)HalGetCpuId(), 2);
+    ExcAppendHex(Line, (int)sizeof(Line), &Len, (UINT32)HalCpuGetId(), 2);
     if (F->Vector == 14) {
         UINT64 Cr2;
         __asm__ volatile ("mov %%cr2, %0" : "=r"(Cr2));

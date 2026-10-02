@@ -90,7 +90,7 @@ UINT8 HalCpuApicId(UINT32 LogicalCpu) {
     return gApicIds[LogicalCpu];
 }
 
-UINT32 HalGetCpuId(void) {
+UINT32 HalCpuGetId(void) {
     UINT8 Apic = LapicGetId();
     int i;
 
@@ -110,7 +110,7 @@ int HalCpuIsBootstrapProcessor(void) {
 }
 
 void HalCpuIncrementTicks(void) {
-    UINT32 Id = HalGetCpuId();
+    UINT32 Id = HalCpuGetId();
     if (Id < HAL_MAX_CPUS) {
         gCpuTicks[Id]++;
     }

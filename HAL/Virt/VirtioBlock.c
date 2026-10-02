@@ -222,5 +222,5 @@ int VirtioBlockInit(void) {
     if (!BlockBackendReady()) {
         return 0;
     }
-    return BlockInit();
+    return BlockInitialize();
 }

@@ -191,7 +191,7 @@ const char *FatStrError(int Err) {
     default:                return "error";
     }
 }
-int FatInit(UINT32 StartLba) {
+int FatInitialize(UINT32 StartLba) {
     UINT32 TotSec;
     UINT32 DataSectors;
 

@@ -39,7 +39,7 @@ void HalFrameSetUserEntry(HAL_INTERRUPT_FRAME *F, UINT64 Entry, UINT64 UserStack
     F->ErrorCode = 0;
 }
 
-void HalSetTlsBase(UINT64 UserTlsBase) {
+void HalTlsSetBase(UINT64 UserTlsBase) {
     UINT32 Lo = (UINT32)UserTlsBase;
     UINT32 Hi = (UINT32)(UserTlsBase >> 32);
 

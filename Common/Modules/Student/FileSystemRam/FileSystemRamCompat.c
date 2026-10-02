@@ -10,7 +10,7 @@ const char *FatStrError(int Err)
     return "ramfs";
 }
 
-int FatInit(UINT32 StartLba)
+int FatInitialize(UINT32 StartLba)
 {
     (void)StartLba;
     return FAT_OK;

@@ -16,7 +16,7 @@ void HalInputArmIrq(void) {
     InputXhciArmIrq();
 }
 
-void HalInputInitMouseDeferred(void) {
+void HalInputInitializeMouseDeferred(void) {
     /*
      * 刀 #117：勿在 MSC 认盘后再扫 hub 鼠（会 Reset 子口 → 桌面假死）。
      * 枚举期已绑则此处为空操作；仅漏绑时补一次（少见）。

@@ -35,7 +35,7 @@ UINT32 BlockCurrentDrive(void) {
     return gDrive;
 }
 
-int BlockInit(void) {
+int BlockInitialize(void) {
     UINT32 n = 0;
     UINT32 d;
 

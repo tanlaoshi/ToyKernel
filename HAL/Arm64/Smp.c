@@ -91,18 +91,18 @@ UINT8 HalCpuApicId(UINT32 LogicalCpu) {
     return 0;
 }
 
-UINT32 HalGetCpuId(void) {
+UINT32 HalCpuGetId(void) {
     UINT64 V;
     __asm__ volatile("mrs %0, tpidr_el1" : "=r"(V));
     return (UINT32)V;
 }
 
 int HalCpuIsBootstrapProcessor(void) {
-    return HalGetCpuId() == 0;
+    return HalCpuGetId() == 0;
 }
 
 void HalCpuIncrementTicks(void) {
-    UINT32 Id = HalGetCpuId();
+    UINT32 Id = HalCpuGetId();
     if (Id < HAL_MAX_CPUS) {
         gCpuTicks[Id]++;
     }

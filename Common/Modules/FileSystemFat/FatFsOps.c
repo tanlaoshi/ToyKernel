@@ -6,7 +6,7 @@
 
 static const FS_OPS gFatFsOps = {
     .Name = "fat",
-    .Mount = FatInit,
+    .Mount = FatInitialize,
     .ListDir = FatListDir,
     .ListEntries = FatListEntries,
     .ReadFile = FatReadFile,

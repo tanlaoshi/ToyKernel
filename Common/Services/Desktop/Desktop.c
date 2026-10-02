@@ -58,7 +58,7 @@ UINT32 *gWallScreen;
 UINT32  gWallScreenW;
 UINT32  gWallScreenH;
 UINT32  gWallScreenPages;
-int     gDesktopBusy; /* 防 DesktopInit / OnDisplayResize 重入 */
+int     gDesktopBusy; /* 防 DesktopInitialize / OnDisplayResize 重入 */
 
 /* PR-R2：由 Gui 注册，Desktop 不 include Gui.h */
 int (*gPointOccupied)(UINT32 X, UINT32 Y);
@@ -155,7 +155,7 @@ void DesktopNotifyAppsChanged(void) {
     DesktopEnsureIconsLoaded();
 }
 
-void DesktopInit(void) {
+void DesktopInitialize(void) {
     if (gDesktopBusy) {
         DebugWrite("desktop: Init reenter ignored\n");
         return;

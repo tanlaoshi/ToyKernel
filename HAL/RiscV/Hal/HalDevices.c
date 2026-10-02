@@ -29,7 +29,7 @@ void HalDriverRegister(void) {
 #endif
 }
 
-int HalBlockInit(void) {
+int HalBlockInitialize(void) {
 #if TOY_BOARD_HAS_BLOCK
     return VirtioBlockInit();
 #else
@@ -37,7 +37,7 @@ int HalBlockInit(void) {
 #endif
 }
 
-int HalUsbInit(void) {
+int HalUsbInitialize(void) {
 #if TOY_BOARD_HAS_FRAMEBUFFER
     return VirtioInputInit();
 #else
@@ -45,7 +45,7 @@ int HalUsbInit(void) {
 #endif
 }
 
-int HalUsbMscInit(void) {
+int HalUsbMscInitialize(void) {
     return -1;
 }
 
@@ -136,16 +136,16 @@ int HalIwlBgBusy(void) {
 void HalIwlBgPump(void) {
 }
 
-void HalIgpuMmioInit(void) {
+void HalIgpuMmioInitialize(void) {
 }
 
-void HalHdaMmioInit(void) {
+void HalHdaMmioInitialize(void) {
 }
 
-void HalHdaCodecInit(void) {
+void HalHdaCodecInitialize(void) {
 }
 
-void HalHdaStreamInit(void) {
+void HalHdaStreamInitialize(void) {
 }
 
 int HalAudioProbe(void) {
@@ -168,13 +168,13 @@ void HalAudioStop(void) {
 void HalAudioBeep(void) {
 }
 
-void HalIgpuGttInit(void) {
+void HalIgpuGttInitialize(void) {
 }
 
-void HalIgpuForcewakeInit(void) {
+void HalIgpuForcewakeInitialize(void) {
 }
 
-void HalIgpuBlitInit(void) {
+void HalIgpuBlitInitialize(void) {
 }
 
 void HalIgpuBlitColorTest(void) {

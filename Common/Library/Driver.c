@@ -41,7 +41,7 @@ static int DriverAlreadyBound(const TOY_DRIVER *D) {
 
 /*
  * Class == TOY_DRIVER_CLASS_NONE：Probe 全部（D1 行为）。
- * 其它：只 Probe 该类；已绑定的驱动跳过（供 HalBlockInit 在 VMM 后再试 virtio-blk）。
+ * 其它：只 Probe 该类；已绑定的驱动跳过（供 HalBlockInitialize 在 VMM 后再试 virtio-blk）。
  *
  * PR-DRV-match-logic：
  *   Match==NULL → 旧路径 Probe(Self, 0, …)（驱动自扫 PCI/DTB）。

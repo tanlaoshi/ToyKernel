@@ -144,7 +144,7 @@ UINT64 *PageWalk(UINT64 *Pml4, UINT64 Virt, int Create, int User,
         }
         Pd[Pdi] = PagePhys(NewPt) | TableFlags;
         for (i = 0; i < 512; i++) {
-            HalFlushTlb(PhysBase + ((UINT64)i << 12));
+            HalTlbFlush(PhysBase + ((UINT64)i << 12));
         }
     }
 

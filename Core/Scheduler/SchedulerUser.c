@@ -53,7 +53,7 @@ UINT64 SchedulerKill(HAL_INTERRUPT_FRAME *Frame) {
     }
 
     /* 杀自身：切到其他可运行任务 */
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -162,7 +162,7 @@ int SchedulerKillPid(INT32 Pid, INT32 Sig) {
         return 0;
     }
 
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     Next = FindRunnable(Cpu);
     if (!Next) {
         SpinLockRelease(&gSchedulerLock);
@@ -190,7 +190,7 @@ UINT64 SchedulerYield(HAL_INTERRUPT_FRAME *Frame) {
         return 0;
     }
     Cur->Frame = Frame;
-    Cpu = HalGetCpuId();
+    Cpu = HalCpuGetId();
     /* PR-S-runq：yield 与 timer 同形，不持任务大锁 */
     Next = SchedulerOpsGet()->PickNext(Cpu);
     if (Next == Cur || Next == 0) {

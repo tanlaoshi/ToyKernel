@@ -16,7 +16,7 @@ typedef struct {
     UINT64          IrqFlags; /* 持有者私有；持锁期间有效 */
 } SPIN_LOCK;
 
-static inline void SpinLockInit(SPIN_LOCK *Lock) {
+static inline void SpinLockInitialize(SPIN_LOCK *Lock) {
     if (Lock) {
         Lock->Locked = 0;
         Lock->IrqFlags = 0;

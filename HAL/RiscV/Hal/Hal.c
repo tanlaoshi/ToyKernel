@@ -51,7 +51,7 @@ static void RiscvTimerArm(void) {
     SbiSetTimer(Next);
 }
 
-int HalInit(void) {
+int HalInitialize(void) {
     /* PR-A14：BSP 逻辑 CPU=0（tp） */
     __asm__ volatile("mv tp, zero" ::: "memory");
     return 0;
@@ -198,13 +198,13 @@ void HalInstallUserMode(void) {
     __asm__ volatile("csrw sstatus, %0" :: "r"(Status));
 }
 
-void HalSyscallInit(void) {
+void HalSyscallInitialize(void) {
     HalInstallUserMode();
     HalSerialWrite("syscall: RiscV ecall (U-mode) ready\n");
     HalUserSelfTest();
 }
 
-void HalSetKernelStack(UINT64 StackTop) {
+void HalKernelSetStack(UINT64 StackTop) {
     /* U 态 sscratch=内核栈顶；此处供调度路径调用 */
     __asm__ volatile("csrw sscratch, %0" :: "r"(StackTop));
 }

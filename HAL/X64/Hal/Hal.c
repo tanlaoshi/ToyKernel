@@ -8,7 +8,7 @@
 #include "Debug.h"
 #include "AcpiMadt.h"
 
-int HalInit(void) {
+int HalInitialize(void) {
     return ArchInit();
 }
 
@@ -171,7 +171,7 @@ void HalInstallUserMode(void) {
     ArchTssInstall();
 }
 
-void HalSyscallInit(void) {
+void HalSyscallInitialize(void) {
     extern void Isr128(void);
 
     /* legacy：IDT 0x80，DPL=3（不进 Common） */
@@ -182,7 +182,7 @@ void HalSyscallInit(void) {
     DebugWrite("syscall: SYSCALL/SYSRET MSR ready\n");
 }
 
-void HalSetKernelStack(UINT64 StackTop) {
+void HalKernelSetStack(UINT64 StackTop) {
     ArchSetRsp0(StackTop);
 }
 

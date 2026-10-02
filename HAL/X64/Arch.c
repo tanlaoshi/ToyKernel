@@ -161,7 +161,7 @@ static void GdtLoad(void) {
 
 /* 每核 TSS.RSP0：用户态陷入内核时用的栈（int 0x80 与 SYSCALL 共用） */
 void ArchSetRsp0(UINT64 Rsp0) {
-    UINT32 Cpu = HalGetCpuId();
+    UINT32 Cpu = HalCpuGetId();
     if (Cpu >= HAL_MAX_CPUS) {
         Cpu = 0;
     }

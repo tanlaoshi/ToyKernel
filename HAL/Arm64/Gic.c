@@ -2,7 +2,7 @@
  * Gic.c — PR-A13/A14：QEMU virt GICv2（distributor + CPU interface）
  * 硬编码 virt 布局；PPI 27 = CNTV。
  * 用 MMIO GICC，避免部分工具链/CPU 上 ICC 系统寄存器未实现。
- * A14：Distributor 只初始化一次；每核调用 HalGicInitCpu（banked PPI + GICC）。
+ * A14：Distributor 只初始化一次；每核调用 HalGicInitializeCpu（banked PPI + GICC）。
  */
 #include "Hal.h"
 
@@ -40,19 +40,19 @@ static void W8(UINT64 Base, UINT32 Off, UINT8 Val) {
 }
 
 /* 每核：banked PPI enable + CPU interface */
-void HalGicInitCpu(void) {
+void HalGicInitializeCpu(void) {
     W8(GICD_BASE, GICD_IPRIORITYR + GIC_TIMER_PPI, 0x80);
     W32(GICD_BASE, GICD_ISENABLER + 0, 1u << GIC_TIMER_PPI);
     W32(GICC_BASE, GICC_PMR, 0xF0);
     W32(GICC_BASE, GICC_CTLR, 1);
 }
 
-void HalGicInit(void) {
+void HalGicInitialize(void) {
     if (!gDistReady) {
         W32(GICD_BASE, GICD_CTLR, 1);
         gDistReady = 1;
     }
-    HalGicInitCpu();
+    HalGicInitializeCpu();
 }
 
 UINT32 HalGicAck(void) {

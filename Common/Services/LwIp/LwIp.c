@@ -49,15 +49,15 @@ void LwIpUnlock(void) {
     __sync_lock_release(&gLwIpSoft);
 }
 
-int LwIpInit(void) {
+int LwIpInitialize(void) {
     if (!HalNetReady()) {
         return -1;
     }
     NetConfigEnsure();
     HalNetSetIpAddress(NetConfigGetIp());
     LwIpLock();
-    TcpInit();
-    UdpInit();
+    TcpInitialize();
+    UdpInitialize();
     lwip_init();
     if (LwIpConfigBindNetif() != 0) {
         LwIpUnlock();
@@ -114,7 +114,7 @@ int LwIpPing(UINT32 DstIp, int TimeoutMs) {
 
 #else
 
-int LwIpInit(void) {
+int LwIpInitialize(void) {
     return -1;
 }
 
