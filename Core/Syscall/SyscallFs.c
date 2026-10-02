@@ -270,8 +270,8 @@ int SysPipe(UINT64 UserPtr) {
     VirtualMemoryLoadPageTable(T->PageRoot);
     if (VirtualMemoryCopyToUser(UserPtr, Fds, sizeof(Fds)) < 0) {
         VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());
-        SchedulerFdClose(T, Fds[0]);
-        SchedulerFdClose(T, Fds[1]);
+        (void)SchedulerFdClose(T, Fds[0]);
+        (void)SchedulerFdClose(T, Fds[1]);
         return -1;
     }
     VirtualMemoryLoadPageTable(VirtualMemoryKernelRoot());

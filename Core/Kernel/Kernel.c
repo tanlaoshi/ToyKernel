@@ -13,6 +13,21 @@
 #include "Font.h"
 #include "Theme.h"
 
+/* 启动常驻任务：失败则打日志，由调用方决定是否停机 */
+static int KernelSpawn(const char *Name, void (*Entry)(void)) {
+    if (SchedulerCreate(Name, Entry) != 0) {
+        ToyLogBoot("kernel: SchedulerCreate failed\n");
+        return -1;
+    }
+    return 0;
+}
+
+static void KernelParkForever(void) {
+    for (;;) {
+        HalCpuPark();
+    }
+}
+
 void KernelMain(void) {
     const BOOT_INFO *Info = BootInfoGet();
     VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
@@ -60,9 +75,7 @@ void KernelMain(void) {
     }
 
     if (KernelModulesRun() != 0) {
-        for (;;) {
-            HalCpuPark();
-        }
+        KernelParkForever();
     }
 
     /*
@@ -76,7 +89,9 @@ void KernelMain(void) {
     if (HalConsoleOnly()) {
         /* PR-A14：多核时也走 SchedulerStart，让 AP 进 idle；单核仍直跑串口壳 */
         if (HalCpuCount() > 1) {
-            SchedulerCreate("shell", ConsoleSerialRun);
+            if (KernelSpawn("shell", ConsoleSerialRun) != 0) {
+                KernelParkForever();
+            }
             SchedulerStart();
             return;
         }
@@ -86,24 +101,28 @@ void KernelMain(void) {
     }
 
     if (HalHasFrameBuffer() && HalPlatformIsVirtSerialConsole()) {
-        SchedulerCreate("shell", ShellTask);
-        SchedulerCreate("gui", GuiTask);
-        SchedulerCreate("worker", WorkerTask);
+        if (KernelSpawn("shell", ShellTask) != 0 ||
+            KernelSpawn("gui", GuiTask) != 0 ||
+            KernelSpawn("worker", WorkerTask) != 0) {
+            KernelParkForever();
+        }
         KernelTaskDemoStart();
         /* PR-S-input-pin 序 2：SMP≥3 才起 InputTask 钉 CPU2；SMP=2 留序 1 等价 yield-path drain */
         if (HalCpuCount() > 2) {
-            SchedulerCreate("input", InputTask);
+            (void)KernelSpawn("input", InputTask);
         }
         SchedulerStart();
         return;
     }
 
-    SchedulerCreate("shell", ShellTask);
-    SchedulerCreate("gui", GuiTask);
-    SchedulerCreate("worker", WorkerTask);
+    if (KernelSpawn("shell", ShellTask) != 0 ||
+        KernelSpawn("gui", GuiTask) != 0 ||
+        KernelSpawn("worker", WorkerTask) != 0) {
+        KernelParkForever();
+    }
     KernelTaskDemoStart();
     if (HalCpuCount() > 2) {
-        SchedulerCreate("input", InputTask);
+        (void)KernelSpawn("input", InputTask);
     }
     SchedulerStart();
 }

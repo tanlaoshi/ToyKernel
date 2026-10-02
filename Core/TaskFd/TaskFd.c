@@ -89,7 +89,7 @@ void SchedulerFdCloseAll(TASK *T) {
     }
     for (i = 0; i < MAX_FDS; i++) {
         if (T->Fds[i].Used) {
-            SchedulerFdClose(T, i);
+            (void)SchedulerFdClose(T, i);
         }
     }
 }

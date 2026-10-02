@@ -26,16 +26,19 @@
 #include "Device.h"
 #include "ToySerialLog.h"
 
-static void VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
+static int VirtualMemoryMapIdentity(UINT64 Phys, UINT64 Size) {
     if (Size == 0) {
-        return;
+        return 0;
     }
     UINT64 Start = Phys & ~(UINT64)(PAGE_SIZE - 1);
     UINT64 End = Phys + Size;
     while (Start < End) {
-        VirtualMemoryMapPage(Start, Start, PTE_PRESENT | PTE_WRITABLE);
+        if (VirtualMemoryMapPage(Start, Start, PTE_PRESENT | PTE_WRITABLE) != 0) {
+            return -1;
+        }
         Start += PAGE_SIZE;
     }
+    return 0;
 }
 
 int InitializeSerial(void) {
@@ -66,7 +69,9 @@ int InitializeVirtualMemory(void) {
             FbBytes = Layout;
         }
         if (FbBytes != 0) {
-            VirtualMemoryMapIdentity(Info->FrameBufferBase, FbBytes);
+            if (VirtualMemoryMapIdentity(Info->FrameBufferBase, FbBytes) != 0) {
+                return -1;
+            }
         }
     }
     HalPlatformMapMmio();
