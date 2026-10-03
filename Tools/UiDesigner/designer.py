@@ -14,8 +14,8 @@ DESIGN_H = 720
 GRID = 40
 DEFAULT_W, DEFAULT_H = 80, 28
 HANDLE = 8
-CANVAS_DISP_W = 640  # 显示缩放（逻辑仍 1280×720）
-CANVAS_DISP_H = 360
+CANVAS_DISP_W = 900  # 画布初始显示尺寸（会随窗口缩放）
+CANVAS_DISP_H = 506
 
 KINDS = ("button", "label", "checkbox", "textbox")
 KIND_LABEL = {
@@ -65,6 +65,10 @@ class DesignerApp(object):
         self._prop_lock = False
         self.sx = float(CANVAS_DISP_W) / DESIGN_W
         self.sy = float(CANVAS_DISP_H) / DESIGN_H
+        self.offx = 0.0
+        self.offy = 0.0
+        self.canvas_w = CANVAS_DISP_W
+        self.canvas_h = CANVAS_DISP_H
         self.history = []      # 撤销栈：snapshot = (widgets, selected, counters, title, path)
         self.future = []       # 重做栈
         self.HIST_MAX = 100
@@ -72,7 +76,7 @@ class DesignerApp(object):
 
         self.root = tk.Tk()
         self.root.title("ToyOS UI Designer")
-        self.root.geometry("1100x520")
+        self.root.geometry("1500x860")
         self._build_menu()
         self._build_body()
         self._build_status()
@@ -107,29 +111,32 @@ class DesignerApp(object):
         body = tk.Frame(self.root)
         body.pack(fill=tk.BOTH, expand=True)
 
-        left = tk.Frame(body, width=120)
+        left = tk.Frame(body, width=100)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
+        left.pack_propagate(False)
         tk.Label(left, text="控件面板").pack()
         for k in KINDS:
             tk.Button(
-                left, text=KIND_LABEL[k], width=12,
+                left, text=KIND_LABEL[k], width=10,
                 command=lambda kk=k: self.set_place(kk)
-            ).pack(pady=2)
+            ).pack(pady=2, fill=tk.X)
 
         mid = tk.Frame(body)
         mid.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4, pady=4)
-        tk.Label(mid, text="画布 %d×%d（显示缩小）" % (DESIGN_W, DESIGN_H)).pack()
+        tk.Label(mid, text="画布 %d×%d（随窗口缩放，逻辑尺寸不变）" % (DESIGN_W, DESIGN_H)).pack()
         self.canvas = tk.Canvas(
             mid, width=CANVAS_DISP_W, height=CANVAS_DISP_H,
             bg="#f4f4f4", highlightthickness=1, highlightbackground="#888"
         )
-        self.canvas.pack()
+        self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<Button-1>", self.on_down)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_up)
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
 
-        right = tk.Frame(body, width=200)
+        right = tk.Frame(body, width=180)
         right.pack(side=tk.RIGHT, fill=tk.Y, padx=4, pady=4)
+        right.pack_propagate(False)
         tk.Label(right, text="属性栏").pack()
         self.ents = {}
         for key in ("id", "text", "x", "y", "w", "h"):
@@ -221,17 +228,27 @@ class DesignerApp(object):
         # 进入属性编辑前压栈；若未改值则 _push_undo 自身去重
         self._push_undo()
 
+    def on_canvas_resize(self, ev):
+        # 画布随窗口缩放：uniform scale 保 16:9，居中
+        self.canvas_w = max(1, ev.width)
+        self.canvas_h = max(1, ev.height)
+        s = min(float(self.canvas_w) / DESIGN_W, float(self.canvas_h) / DESIGN_H)
+        self.sx = self.sy = s
+        self.offx = (self.canvas_w - DESIGN_W * s) / 2.0
+        self.offy = (self.canvas_h - DESIGN_H * s) / 2.0
+        self.draw()
+
     def lx(self, cx):
-        return int(cx / self.sx)
+        return int((cx - self.offx) / self.sx)
 
     def ly(self, cy):
-        return int(cy / self.sy)
+        return int((cy - self.offy) / self.sy)
 
     def cx(self, x):
-        return x * self.sx
+        return self.offx + x * self.sx
 
     def cy(self, y):
-        return y * self.sy
+        return self.offy + y * self.sy
 
     def hit(self, lx, ly):
         for i in range(len(self.widgets) - 1, -1, -1):
@@ -478,25 +495,54 @@ class DesignerApp(object):
     def draw(self):
         c = self.canvas
         c.delete("all")
+        # 设计区背景（1280×720 逻辑，居中）
+        dx1, dy1 = self.cx(0), self.cy(0)
+        dx2, dy2 = self.cx(DESIGN_W), self.cy(DESIGN_H)
+        c.create_rectangle(dx1, dy1, dx2, dy2, fill="#ffffff", outline="#bbb", width=1)
         for x in range(0, DESIGN_W + 1, GRID):
-            c.create_line(self.cx(x), 0, self.cx(x), CANVAS_DISP_H, fill="#ddd")
+            c.create_line(self.cx(x), dy1, self.cx(x), dy2, fill="#eee")
         for y in range(0, DESIGN_H + 1, GRID):
-            c.create_line(0, self.cy(y), CANVAS_DISP_W, self.cy(y), fill="#ddd")
+            c.create_line(dx1, self.cy(y), dx2, self.cy(y), fill="#eee")
         for i, w in enumerate(self.widgets):
-            x1, y1 = self.cx(w["x"]), self.cy(w["y"])
-            x2, y2 = self.cx(w["x"] + w["w"]), self.cy(w["y"] + w["h"])
-            fill = "#e8f0ff" if i == self.selected else "#ffffff"
-            outline = "#2060c0" if i == self.selected else "#333333"
-            width = 2 if i == self.selected else 1
-            c.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline, width=width)
-            c.create_text(
-                (x1 + x2) / 2, (y1 + y2) / 2, text=w["text"][:24], fill="#111"
+            self.draw_widget(c, w, i == self.selected)
+
+    def draw_widget(self, c, w, selected):
+        x1, y1 = self.cx(w["x"]), self.cy(w["y"])
+        x2, y2 = self.cx(w["x"] + w["w"]), self.cy(w["y"] + w["h"])
+        k = w["kind"]
+        if k == "button":
+            # 凸起 3D：深蓝边 + 上/左白高光 + 下/右灰阴影
+            c.create_rectangle(x1, y1, x2, y2, fill="#b8d0f0", outline="#2a5a9a", width=2)
+            c.create_line(x1 + 2, y1 + 2, x2 - 2, y1 + 2, fill="#ffffff", width=2)
+            c.create_line(x1 + 2, y1 + 2, x1 + 2, y2 - 2, fill="#ffffff", width=2)
+            c.create_line(x2 - 2, y1 + 2, x2 - 2, y2 - 2, fill="#6080a8", width=2)
+            c.create_line(x1 + 2, y2 - 2, x2 - 2, y2 - 2, fill="#6080a8", width=2)
+            c.create_text((x1 + x2) / 2, (y1 + y2) / 2, text=w["text"][:24], fill="#111")
+        elif k == "label":
+            # 无边框纯文字
+            c.create_text(x1 + 2, (y1 + y2) / 2, text=w["text"][:24], fill="#222", anchor="w")
+        elif k == "checkbox":
+            box = min(self.cx(20) - self.cx(0), x2 - x1, y2 - y1)
+            c.create_rectangle(x1, y1, x1 + box, y1 + box, fill="#fff", outline="#333", width=2)
+            # 勾（粗）
+            c.create_line(x1 + 3, y1 + box * 0.55, x1 + box * 0.45, y1 + box - 4, fill="#111", width=3)
+            c.create_line(x1 + box * 0.45, y1 + box - 4, x1 + box - 4, y1 + 4, fill="#111", width=3)
+            c.create_text(x1 + box + 5, (y1 + y2) / 2, text=w["text"][:24], fill="#111", anchor="w")
+        elif k == "textbox":
+            # 内陷 3D：上/左灰暗线 + 下/右白高光，浅黄底
+            c.create_rectangle(x1, y1, x2, y2, fill="#fff8d0", outline="#666", width=1)
+            c.create_line(x1 + 1, y1 + 1, x2 - 1, y1 + 1, fill="#666", width=1)
+            c.create_line(x1 + 1, y1 + 1, x1 + 1, y2 - 1, fill="#666", width=1)
+            c.create_line(x2 - 1, y1 + 1, x2 - 1, y2 - 1, fill="#ffffff", width=1)
+            c.create_line(x1 + 1, y2 - 1, x2 - 1, y2 - 1, fill="#ffffff", width=1)
+            c.create_text(x1 + 4, (y1 + y2) / 2, text=w["text"][:24], fill="#333", anchor="w")
+        # 选中：虚线框 + 右下角 handle
+        if selected:
+            c.create_rectangle(x1 - 2, y1 - 2, x2 + 2, y2 + 2, outline="#2060c0", width=2, dash=(4, 2))
+            c.create_rectangle(
+                x2 - HANDLE * self.sx, y2 - HANDLE * self.sy, x2, y2,
+                fill="#2060c0", outline="#2060c0"
             )
-            if i == self.selected:
-                c.create_rectangle(
-                    x2 - HANDLE * self.sx, y2 - HANDLE * self.sy, x2, y2,
-                    fill="#2060c0", outline="#2060c0"
-                )
 
     def update_status(self):
         msg = "%d 个控件" % len(self.widgets)
