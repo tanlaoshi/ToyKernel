@@ -4,7 +4,7 @@
 
 TOYKERNEL ?= $(abspath ../../..)
 PROG      ?= PAGES
-SRCS      ?= main.c Route.c PageHome.c PageSettings.c
+SRCS      ?= main.c Route.c PageHome.c PageSettings.c PageAbout.c
 
 EXTRA_LIBS = $(TOYKERNEL)/CodeE-User/Library/ToyUi/libToyUi.a \
              $(TOYKERNEL)/CodeE-User/Library/ToyGfx/libToyGfx.a

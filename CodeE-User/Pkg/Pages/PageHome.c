@@ -9,6 +9,7 @@ void HomeCreate(int Wid) {
     ToyUiSetLabel(Wid, "Home 1000  nav=9000");
     ToyUiAddButton(Wid, 0, "Ping");
     ToyUiAddButton(Wid, 1, "->Set");
+    ToyUiAddButton(Wid, 2, "->About");
 }
 
 void HomeDestroy(int Wid) {

@@ -9,6 +9,7 @@ void SettingsCreate(int Wid) {
     ToyUiSetLabel(Wid, "Settings 1100  nav=9001");
     ToyUiAddButton(Wid, 0, "OK");
     ToyUiAddButton(Wid, 1, "->Home");
+    ToyUiAddButton(Wid, 2, "->About");
 }
 
 void SettingsDestroy(int Wid) {
