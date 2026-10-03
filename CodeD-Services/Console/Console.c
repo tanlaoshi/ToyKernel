@@ -10,6 +10,7 @@
 #include "Gui.h"
 #include "Font.h"
 #include "Scheduler.h"
+#include "Locale.h"
 
 char gLine[LINE_MAX];
 int gLen;
@@ -22,6 +23,7 @@ static int gJobPromptWin = -2;
 static int gJobSkipAfterCommand;
 /* -2=非命令输出；-1=串口；>=0=本条命令输出归属窗（跟发起窗，不跟焦点） */
 static int gCmdOutWin = -2;
+static int gBootReadyAnnounced;
 
 /* 用户 ELF read(0)：Shell 泄串口/键盘入环；须 ≥ 真机单轮 MaxRx，防粘贴丢字 */
 #define STDIN_Q_CAP 256
@@ -68,6 +70,17 @@ char ConsoleStdinGetChar(void) {
         }
         HalCpuHalt();
     }
+}
+
+void ConsoleAnnounceBootReady(void) {
+    if (gBootReadyAnnounced) {
+        return;
+    }
+    gBootReadyAnnounced = 1;
+    HalConsoleWriteSerial(LocStr(MSG_CON_READY));
+    HalConsoleWriteSerial("\n");
+    HalConsoleWriteSerial("hint: type commands in THIS terminal (not QEMU window)\n");
+    Prompt();
 }
 
 void Prompt(void) {

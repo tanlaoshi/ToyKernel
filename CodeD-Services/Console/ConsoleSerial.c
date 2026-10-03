@@ -80,7 +80,7 @@ void ConsoleSerialRun(void) {
     } else {
         HalConsoleWriteSerial("serial shell (help/mem/ps/halt)\n");
     }
-    Prompt();
+    ConsoleAnnounceBootReady();
     for (;;) {
         HalCpuHalt();
         HalInputPoll();

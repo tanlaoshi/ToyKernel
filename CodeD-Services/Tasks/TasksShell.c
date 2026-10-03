@@ -28,10 +28,9 @@ void ShellTask(void) {
     HAL_KEYBOARD_REPORT Previous = {0};
     DebugWrite("shell task running (preemptive)\n");
     /*
-     * 串口首提示放在进调度之后：ConsoleInitialize 过早 Prompt 会被 AP idle 抢行；
-     * 又不能只靠开 GUI 窗（开窗失败/卡住时 Enter 永远无 toyos>）。
+     * 串口 ready/toyos> 由 Worker 在 iwl BgPump 结束后 Announce。
+     * 此处勿 Prompt：否则夹在 Boot: iwl8265 assoc/gtk 中间。
      */
-    Prompt();
     for (;;) {
         /*
          * 真机 xHCI 为 poll（无 MSI）：必须先 Drain/取键再 hlt。

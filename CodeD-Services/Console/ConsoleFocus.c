@@ -100,14 +100,11 @@ void ConsoleInitialize(void) {
     gLen = 0;
     gWaitPrompt = 0;
     gAtLineStart = 1;
-    HalConsoleWriteSerial(LocStr(MSG_CON_READY));
-    HalConsoleWriteSerial("\n");
     /*
-     * 勿在此 Prompt：SchedulerStart 后 AP idle 会抢行。
-     * 桌面路径由 ShellTask 首轮打串口 toyos>；ConsoleOnly 由 ConsoleSerialRun。
-     * 串口收键不依赖 GUI 开窗（见 ConsoleEnsureShell FromSerial）。
+     * 勿在此打 ready / toyos>：iwl 在 Worker 里 Claim+BgPump，会插到提示符后面。
+     * 桌面：Worker 在 !HalIwlBgBusy 后 ConsoleAnnounceBootReady。
+     * ConsoleOnly：ConsoleSerialRun 里 Announce。
      */
-    HalConsoleWriteSerial("hint: type commands in THIS terminal (not QEMU window)\n");
 }
 
 void ConsoleOnShellOpened(void) {

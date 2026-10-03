@@ -104,6 +104,7 @@ void WorkerTask(void) {
             SchedulerIoBreath();
             continue;
         }
+        ConsoleAnnounceBootReady();
         if (!HalCpuIsHypervisor()) {
             static UINT32 DhcpEpoch;
             UINT32 Ep = HalNetNicEpoch();

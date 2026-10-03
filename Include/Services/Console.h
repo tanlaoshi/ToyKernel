@@ -97,6 +97,9 @@ void ConsoleSbWinForget(int Idx);
 void ConsoleSbShiftRaise(int Idx, int Top);
 void ConsoleJobShiftRaise(int Idx, int Top);
 
+/* Worker：iwl 后台关联结束（或无卡）后打一次 ready + toyos>；可重入 */
+void ConsoleAnnounceBootReady(void);
+
 /* PR-A9：virt 串口 Shell（轮询 HalSerial + HalTimerPoll） */
 void ConsoleSerialRun(void);
 
