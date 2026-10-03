@@ -229,4 +229,15 @@ void HalDebugWrite(const char *Text);
 void HalDebugWriteHex32(UINT32 Value);
 void HalDebugHex64(UINT64 Value);
 
+/*
+ * PR-UI-ttf-fpu：内核 FPU/SSE 岛。默认编译仍 -mgeneral-regs-only。
+ * 仅 HalFpuBegin…End 之间可跑带 float 的 TU（如日后 TTF 栅格）。
+ * 非 x86：Begin 返回 0。IRQ 路径禁止 Begin。
+ */
+void HalFpuEnableThisCpu(void);
+int HalFpuBegin(void); /* 1=已进岛 */
+void HalFpuEnd(void);
+int HalFpuOk(void);    /* 1=BSP 探针通过 */
+int HalFpuSelfTest(void); /* 0=通过 */
+
 #endif

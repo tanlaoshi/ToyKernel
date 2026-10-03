@@ -104,7 +104,6 @@ void WorkerTask(void) {
             SchedulerIoBreath();
             continue;
         }
-        ConsoleAnnounceBootReady();
         if (!HalCpuIsHypervisor()) {
             static UINT32 DhcpEpoch;
             UINT32 Ep = HalNetNicEpoch();
@@ -112,7 +111,6 @@ void WorkerTask(void) {
             if (Ep != 0 && Ep != DhcpEpoch) {
                 if (LwIpDhcpRestart(12000) == 0) {
                     DhcpEpoch = Ep;
-                    /* 整行 ToyLogNet（勿 Console 逐字），避免与 Boot: iwl 交错 */
                     ToyLogNet("Net: dhcp queued\n");
                 }
             }
@@ -122,6 +120,8 @@ void WorkerTask(void) {
             SchedulerIoBreath();
             continue;
         }
+        /* iwl 后台 + 首轮 DHCP 打完再 ready，避免 toyos> 夹在 dhcp/iwl 黄字中间 */
+        ConsoleAnnounceBootReady();
         HalCpuHalt();
         (void)SchedulerCondResched();
     }

@@ -179,6 +179,7 @@ void ArchTssInstall(void) {
 
 /* 完整 CPU 中断环境初始化；自 IPI 测试成功返回 0 */
 int ArchInit(void) {
+    HalFpuEnableThisCpu();
     GdtLoad();
     ArchTssInstall();
     ArchPicMaskAll();
@@ -242,6 +243,7 @@ void ArchApInit(UINT32 LogicalCpu) {
     ArchLapicEnable();
     ArchSyscallMsrInit(LogicalCpu);
     HalPatApplyWc(); /* 与 BSP 同形：PA1=WC，LFB WC 映射对其它核也生效 */
+    HalFpuEnableThisCpu();
 }
 
 /* 开中断 */

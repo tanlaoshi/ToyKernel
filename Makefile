@@ -221,6 +221,8 @@ endif
 
 CFLAGS_COMMON = $(CFLAGS_BASE) $(INCLUDES_COMMON) $(LWIPINCLUDES)
 CFLAGS_HAL    = $(CFLAGS_BASE) $(INCLUDES_HAL) $(LWIPINCLUDES) -ICodeA-HAL/$(HAL_ARCH)/LwIp
+# PR-UI-ttf-fpu：仅 HalFpuSse.c 去掉 general-regs-only，允许 SSE
+CFLAGS_FPU    = $(filter-out -mgeneral-regs-only,$(CFLAGS_HAL)) -msse2
 ifneq ($(BOARD_DIR),)
 CFLAGS_HAL += -DTOY_BOARD=\"$(BOARD)\"
 endif
@@ -679,6 +681,11 @@ $(HALDIR)/Virt/%.o: CodeA-HAL/Virt/%.c | $(HALDIR)
 # PR-B2：CodeA-HAL/<Arch>/Board/<board>/*.c
 $(HALDIR)/Board/%.o: $(BOARD_DIR)/%.c | $(HALDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_HAL) -c $< -o $@
+endif
+
+ifeq ($(ARCH),x86_64)
+$(HALDIR)/Hal/HalFpuSse.o: CodeA-HAL/X64/Hal/HalFpuSse.c | $(HALDIR)
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_FPU) -c $< -o $@
 endif
 
 $(HALDIR)/%.o: CodeA-HAL/$(HAL_ARCH)/%.c | $(HALDIR)

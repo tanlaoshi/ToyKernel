@@ -1,8 +1,8 @@
 # TTF 最小规格（评估用）
 
-> 状态：分析（**对照 2026-10 代码**）。  
+> 状态：分析 + **`PR-UI-ttf-fpu` ✅ TG**；下一刀排队 `ttf-0`（未开刀）。  
 > 目标：若要「运行时 TrueType」汉字，最小可落地长什么样、拆哪些 PR、卡在哪。  
-> **不改路线图 ★**；D.9 默认仍是点阵。开课前不做代码。  
+> **不改路线图 ★ 条目名以外的排期**；D.9 默认仍是点阵。TTF 柱开课后按本文 PR 表。  
 > 配套：[`UI颜值与布局.md`](UI颜值与布局.md) §5、技术手册字体节、[`Nuklear学习与ToyUi深化.md`](Nuklear学习与ToyUi深化.md)（stb 烘焙 ≠ 内核栅格）。
 
 权威路径：`Include/Library/Font.h`、`CodeB-Library/Fonts/`、`CodeA-HAL/X64/Drivers/Video/VideoGlyph.c`。
@@ -139,3 +139,5 @@ NUC 手测：`lang zh` 开始菜单 / Settings / Files 侧栏；对比现 4bpp �
 - **2026-10-04**：规格落地（评估）。未进 ★、未写代码。
 - **2026-10-04**：`PR-UI-cjk-crisp` ★ JX — `VideoGlyph.c` `GlyphCrispAlpha4`；待 NUC 汉字边缘。
 - **2026-10-04**：`PR-UI-cjk-crisp` ✅ TG — NUC 略改善；仍是 18px 点阵上限。
+- **2026-10-04**：`PR-UI-ttf-fpu` ★ JX — 方案 B：x86 OSFXSR 岛；Arm/RiscV 桩。待 `Boot: fpu island ok`。
+- **2026-10-04**：`PR-UI-ttf-fpu` ✅ TG — NUC `Boot: fpu island ok`。下一刀 `ttf-0` 读 `CJK.TTF`，等 JX。

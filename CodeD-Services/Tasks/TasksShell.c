@@ -28,8 +28,8 @@ void ShellTask(void) {
     HAL_KEYBOARD_REPORT Previous = {0};
     DebugWrite("shell task running (preemptive)\n");
     /*
-     * 串口 ready/toyos> 由 Worker 在 iwl BgPump 结束后 Announce。
-     * 此处勿 Prompt：否则夹在 Boot: iwl8265 assoc/gtk 中间。
+     * 串口 ready/toyos> 由 Worker 在 iwl + 首轮 DHCP 结束后 Announce。
+     * 此处勿 Prompt：否则夹在 Boot: iwl8265 / dhcp 中间。
      */
     for (;;) {
         /*

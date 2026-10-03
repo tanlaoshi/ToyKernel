@@ -140,6 +140,11 @@ int InitializeSerialEarly(void) {
     } else {
         ToyLogBoot("Boot: COM1 Early Miss\n");
     }
+    if (HalFpuSelfTest() == 0) {
+        ToyLogBoot("Boot: fpu island ok\n");
+    } else {
+        ToyLogBoot("Boot: fpu island skip\n");
+    }
     return 0;
 }
 

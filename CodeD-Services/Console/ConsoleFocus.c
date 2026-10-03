@@ -102,7 +102,7 @@ void ConsoleInitialize(void) {
     gAtLineStart = 1;
     /*
      * 勿在此打 ready / toyos>：iwl 在 Worker 里 Claim+BgPump，会插到提示符后面。
-     * 桌面：Worker 在 !HalIwlBgBusy 后 ConsoleAnnounceBootReady。
+     * 桌面：Worker 在 iwl 后台和首轮 DHCP 结束后 ConsoleAnnounceBootReady。
      * ConsoleOnly：ConsoleSerialRun 里 Announce。
      */
 }
