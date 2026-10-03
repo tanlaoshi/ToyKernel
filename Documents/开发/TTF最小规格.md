@@ -1,6 +1,6 @@
 # TTF 最小规格（评估用）
 
-> 状态：分析 + **ttf-fpu / 0 / 1 / 2 ✅ TG**；**★ `PR-UI-ttf-3` JX**（预热 zh ∪ 开始菜单）。  
+> 状态：分析 + **ttf-fpu / 0 / 1 / 2 / 3 ✅ TG**；最小柱收口（`ttf-4` 不做）。  
 > 目标：若要「运行时 TrueType」汉字，最小可落地长什么样、拆哪些 PR、卡在哪。  
 > **不改路线图 ★ 条目名以外的排期**；D.9 默认仍是点阵。TTF 柱开课后按本文 PR 表。  
 > 配套：[`UI颜值与布局.md`](UI颜值与布局.md) §5、技术手册字体节、[`Nuklear学习与ToyUi深化.md`](Nuklear学习与ToyUi深化.md)（stb 烘焙 ≠ 内核栅格）。
@@ -147,4 +147,5 @@ NUC 手测：`lang zh` 开始菜单 / Settings / Files 侧栏；对比现 4bpp �
 - **2026-10-04**：`PR-UI-ttf-1` ✅ TG — NUC `ttf sfnt ok` + `ttf init ok`。挂钩绘制仍是 `ttf-2`。
 - **2026-10-04**：`PR-UI-ttf-2` ★ JX — `FontGlyphCp` 优先缓存；`PaintGlyph8`；失败 `cjk32`。待 `lang zh`。
 - **2026-10-04**：`PR-UI-ttf-2` ✅ TG — 挂钩绘制；stub 仍 miss。下一刀 `ttf-3` 预热。
-- **2026-10-04**：`PR-UI-ttf-3` ★ JX — Locale zh ∪ 开始菜单 `FontTtfPreheatUtf8`。待首开不卡。
+- **2026-10-04**：`PR-UI-ttf-3` ★ JX — Locale zh → Worker `LocaleTtfPreheatStep`；绘制只 Lookup。待 `lang zh` 不卡鼠。
+- **2026-10-04**：`PR-UI-ttf-3` ✅ TG — Worker 分片 + Lookup；stub 仍点阵。最小柱完；真字库另说。

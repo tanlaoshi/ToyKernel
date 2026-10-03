@@ -110,7 +110,7 @@ void RebuildStartMenu(void) {
     L = LocStr(MSG_ICON_REBOOT);
     MenuAddRow(DESKTOP_ACTION_REBOOT, L ? L : "Reboot", 0, 1,
                MENU_ICON_SRC_REBOOT);
-    /* 预热汉字测宽+绘制路径（裁到空区），避免首开菜单卡在 4bpp */
+    /* 预热汉字测宽+绘制路径（裁到空区）；TTF miss 已缓存，勿再三次栅格 */
     {
         int i;
 

@@ -166,5 +166,7 @@ int LocaleSet(LOC_LANG Lang);
 const char *LocStr(MSG_ID Id);
 /* 语言变更后刷新桌面图标与窗标题（调用方负责重绘） */
 void LocaleApplyUi(void);
+/* PR-UI-ttf-3：Worker 每圈最多 1 条 zh 文案；1=仍忙，0=空闲 */
+int LocaleTtfPreheatStep(void);
 
 #endif

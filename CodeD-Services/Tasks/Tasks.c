@@ -10,6 +10,7 @@
 #include "Console.h"
 #include "Gui.h"
 #include "Desktop.h"
+#include "Locale.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "EditUi.h"
@@ -81,6 +82,13 @@ void WorkerTask(void) {
          * 真机曾见 #GP@IsrCommon iretq（rsp=0）。
          */
         DesktopEnsureIconsLoaded();
+        /*
+         * PR-UI-ttf-3：zh 目录分片预热（每圈 1 条）。不 continue：
+         * 与 iwl/DHCP 同圈交替，勿挡 Gui/鼠标。
+         */
+        if (LocaleTtfPreheatStep()) {
+            SchedulerIoBreath();
+        }
         /*
          * PR-BOOT-fast-3：桌面就绪后再 Claim iwl（BAR）；FW/关联仍走下方 BgPump。
          * FS/Net 模块内不再 Claim，避免拖长进桌面。
