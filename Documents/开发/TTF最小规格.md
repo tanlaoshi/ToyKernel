@@ -1,8 +1,9 @@
 # TTF 最小规格（评估用）
 
-> 状态：分析 + **ttf-fpu / 0 / 1 / 2 / 3 ✅ TG**；最小柱收口（`ttf-4` 不做）。  
+> 状态：分析 + **ttf-fpu / 0 / 1 / 2 / 3 ✅ TG**；**★ `PR-UI-ttf-subset` JX**（真子集进镜像；`ttf-4` 不做）。  
 > 目标：若要「运行时 TrueType」汉字，最小可落地长什么样、拆哪些 PR、卡在哪。  
 > **不改路线图 ★ 条目名以外的排期**；D.9 默认仍是点阵。TTF 柱开课后按本文 PR 表。  
+> **观感验收钉死真子集**：仅 stub 的 sfnt 探针**不算**柱完成；NUC `lang zh` 须见 8bpp 矢量（可仍略虚）。  
 > 配套：[`UI颜值与布局.md`](UI颜值与布局.md) §5、技术手册字体节、[`Nuklear学习与ToyUi深化.md`](Nuklear学习与ToyUi深化.md)（stb 烘焙 ≠ 内核栅格）。
 
 权威路径：`Include/Library/Font.h`、`CodeB-Library/Fonts/`、`CodeA-HAL/X64/Drivers/Video/VideoGlyph.c`。
@@ -66,7 +67,7 @@
 | | 现在点阵 | 最小运行时 TTF |
 | - | -------- | -------------- |
 | Kernel.elf 汉字 | ~1.2 MB `cjk32` | 可暂留作 fallback（总 ELF 不降） |
-| RootFs | TOYF 小样本 | 子集 TTF **约 2～8 MB**（全量 Noto CJK 十几～三十 MB，**禁止当最小**） |
+| RootFs | TOYF 小样本 | **UI 子集 ≈100KB**（默认）；`cjk32`/`gb2312` 可到 **2～8 MB**（全量 Noto **禁止**） |
 | 首次出字 | 查表 | 栅格 + 填缓存（菜单要预热） |
 | 18px 锐利 | 4bpp 软边 | stb **几乎无 hint**，只比点阵 AA **略自然**；要「印刷锐」仍要 FreeType hint（柱外） |
 | 任意字号 | 否 | 最小规格 **先锁 18px**；多号另柱 |
@@ -83,15 +84,31 @@
 | -- | ------ | ---- | ------ | ------ | ------ | ---- |
 | **PR-UI-cjk-crisp** | `PaintGlyph4` 淡灰丢、深灰实心 | 无 | `VideoGlyph.c` 十来行 | ≤40 | 否 | **锐利优先走这条**，与 TTF 无关 |
 | **PR-UI-ttf-fpu** | 定 B 或 C，或宣布不做运行时 | 无 | 短文 + 若 B：FPU 岛骨架（save/restore） | 80–250 | 否 | **门闩**；过不了后面全停 |
-| **PR-UI-ttf-0** | 启动读 `Assets/Fonts/CJK.TTF`，校验 sfnt，打 log | T3 路径 | `FontTtfLoad.c`；`prepare-rootfs` 拷子集 | 100–200 | 否 | 无 FPU 也能做；不绘制 |
+| **PR-UI-ttf-0** | 启动读 `Assets/Fonts/CJK.TTF`，校验 sfnt，打 log | T3 路径 | `FontTtfLoad.c`；可先 stub 探路 | 100–200 | 否 | **仅探针**；不绘制、**不验收观感** |
+| **PR-UI-ttf-subset** | 宿主切真子集并进镜像（替换 stub） | 0 | `gen-cjk-ttf-subset.py`；`Tools/Fonts/CJK.TTF`；`prepare-rootfs` 强制拷种子 | ≤150 + 资源 | 否 | **观感门闩**；默认可 `--set ui` |
 | **PR-UI-ttf-1** | 栅一号 18px + 定长缓存 | **fpu** + 0 | `FontTtfRaster.c` / `FontTtfCache.c` | 200–300×2 | 否 | 单测：`test glyph` 几个码点 |
-| **PR-UI-ttf-2** | `FontGlyphCp` 优先缓存，失败 `cjk32` | 1 | `FontRegistry.c` 挂钩；`PaintGlyph4` 可接 8bpp | 80–150 | 否 | 验收：`lang zh` 桌面/Settings |
-| **PR-UI-ttf-3** | 预热 Locale zh ∪ 开始菜单码点 | 2 | Desktop 预热扩到 TTF | ≤80 | 否 | 防首开卡 |
-| **PR-UI-ttf-4** | （可选）ELF 去掉 `cjk32`，仅 TTF | 2+3 且镜像必有 TTF | 链接与 fallback | 50–100 | 否 | 即手册 **T4**；最小柱 **不做** |
+| **PR-UI-ttf-2** | `FontGlyphCp` 优先缓存，失败 `cjk32` | 1 + **subset** | `FontRegistry.c` 挂钩；`PaintGlyph8` | 80–150 | 否 | 验收：`lang zh` 见 8bpp（须真子集） |
+| **PR-UI-ttf-3** | Worker 分片预热 Locale zh | 2 | `LocaleTtfPreheatStep`；绘制只 Lookup | ≤80 | 否 | 防首开卡鼠 |
+| **PR-UI-ttf-4** | （可选）ELF 去掉 `cjk32`，仅 TTF | 2+3+subset | 链接与 fallback | 50–100 | 否 | 即手册 **T4**；最小柱 **不做** |
 
 **不要拆进这些 PR 的**：FreeType、完整 Unicode、ASCII 也改 TTF、变宽步进、Settings 新「TTF 开关」大页、modeset。
 
-宿主子集脚本（`fonttools` pyftsubset，按现 `gCjk32Cp` + Locale）可附在 **ttf-0**，不算独立刀。
+### `PR-UI-ttf-subset` 钉死
+
+| 项 | 约定 |
+| -- | ---- |
+| 脚本 | `Tools/Scripts/gen-cjk-ttf-subset.py`（`fonttools`） |
+| 源字体 | **必须 TrueType `glyf`**。优先 `DroidSansFallbackFull.ttf` 或 `Tools/Fonts/src/NotoSansSC[wght].ttf` |
+| 禁源 | **`NotoSansCJK*.ttc`（CFF）**——`sfnt ok` 但 stb **栅不出字**，观感=点阵 |
+| 默认集 | `--set ui`：Locale zh ∪ 源码 UI 汉字 ∪ 课用词（约数百码点、≈70～100KB） |
+| 可选集 | `--set cjk32`（对齐 `gCjk32Cp`）；`--set gb2312`（更大，2～8MB 级） |
+| 种子路径 | `ToyKernel/Tools/Fonts/CJK.TTF`（脚本断言输出含 `glyf`、抽样有轮廓） |
+| 进镜像 | `prepare-rootfs`：**有种子则覆盖** `Assets/Fonts/CJK.TTF` → RootFs；无种子才回退 stub |
+| QEMU 探针 | `Boot: ttf sfnt ok bytes=` **≠** stub 的 `0x184`；且表内须有 `glyf` |
+| NUC 验收 | `lang zh` 后菜单/Settings **须见非点阵 8bpp**（可仍略虚）→ 才可 ✅ TG |
+| 禁 | 全量 Noto TTC/OTF/CFF 进镜像；无脚本只手改二进制却不入库种子 |
+
+> 教训：stub 只服务 ttf-0 探针。**不得**省略真子集；子集还必须是 **glyf**，CFF 等于没换。
 
 ---
 
@@ -100,7 +117,9 @@
 ```text
 先：cjk-crisp（或不做字）
 若仍要运行时 TTF：
-  ttf-fpu 决策 → 0 读文件 → 1 栅+缓存 → 2 挂钩 → 3 预热
+  ttf-fpu → 0 读文件(可 stub) → subset 真子集进镜像
+  → 1 栅+缓存 → 2 挂钩 → 3 Worker 预热
+  （观感验收在 subset+2；无 subset 禁止报「TTF 可见」）
   ttf-4 卸点阵：观察一周再谈
 ```
 
@@ -128,7 +147,8 @@ NUC 手测：`lang zh` 开始菜单 / Settings / Files 侧栏；对比现 4bpp �
 ## 9. 参考
 
 - `Font.h` / `FontRegistry.c` / `cjk32.c` / `VideoGlyph.c`
-- `gen-cjk32.py`（宿主 Noto）
+- `gen-cjk32.py`（宿主 Noto → 点阵）
+- `gen-cjk-ttf-subset.py`（宿主 Noto → 真 `CJK.TTF` 子集）
 - 技术手册 Assets/Fonts（T3）与 **T4 可选外置大字库**
 - [`../路线图.md`](../路线图.md) D.9：TTF 非默认
 
@@ -148,4 +168,6 @@ NUC 手测：`lang zh` 开始菜单 / Settings / Files 侧栏；对比现 4bpp �
 - **2026-10-04**：`PR-UI-ttf-2` ★ JX — `FontGlyphCp` 优先缓存；`PaintGlyph8`；失败 `cjk32`。待 `lang zh`。
 - **2026-10-04**：`PR-UI-ttf-2` ✅ TG — 挂钩绘制；stub 仍 miss。下一刀 `ttf-3` 预热。
 - **2026-10-04**：`PR-UI-ttf-3` ★ JX — Locale zh → Worker `LocaleTtfPreheatStep`；绘制只 Lookup。待 `lang zh` 不卡鼠。
-- **2026-10-04**：`PR-UI-ttf-3` ✅ TG — Worker 分片 + Lookup；stub 仍点阵。最小柱完；真字库另说。
+- **2026-10-04**：`PR-UI-ttf-3` ✅ TG — Worker 分片 + Lookup；当时仍 stub，观感未验收。
+- **2026-10-04**：补正式刀 **`PR-UI-ttf-subset`**（原「附 ttf-0」改为独立门闩）。
+- **2026-10-04**：`PR-UI-ttf-subset` ★ JX — 初版误用 Noto CFF TTC → 无观感；改 Droid glyf 源，种子 ≈74KB/455；待 NUC `lang zh`。

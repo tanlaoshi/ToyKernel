@@ -59,17 +59,15 @@ if [ -f "$ROOT/THEME.CFG" ] && [ ! -w "$ROOT/THEME.CFG" ]; then
     echo "warning: $ROOT/THEME.CFG not writable by $(id -un) — Settings resolution will not persist" >&2
 fi
 
-# PR-UI-ttf-0：种子缺 CJK.TTF 时从仓库 stub 拷入（或生成）
+# PR-UI-ttf：仓库种子 Tools/Fonts/CJK.TTF → Assets（真子集优先；缺则 gen stub）
 SEED="$(toyos_resolve_root "$0")/ToyKernel/Tools/Fonts/CJK.TTF"
-GEN="$(toyos_resolve_root "$0")/ToyKernel/Tools/Scripts/gen-cjk-ttf-stub.py"
+GEN_STUB="$(toyos_resolve_root "$0")/ToyKernel/Tools/Scripts/gen-cjk-ttf-stub.py"
 mkdir -p Assets/Fonts
-if [ ! -f Assets/Fonts/CJK.TTF ]; then
-    if [ -f "$SEED" ]; then
-        cp -f "$SEED" Assets/Fonts/CJK.TTF
-    elif [ -f "$GEN" ]; then
-        python3 "$GEN" || echo "warning: gen-cjk-ttf-stub failed — Boot: ttf miss" >&2
-        [ -f "$SEED" ] && cp -f "$SEED" Assets/Fonts/CJK.TTF
-    fi
+if [ -f "$SEED" ]; then
+    cp -f "$SEED" Assets/Fonts/CJK.TTF
+elif [ ! -f Assets/Fonts/CJK.TTF ] && [ -f "$GEN_STUB" ]; then
+    python3 "$GEN_STUB" || echo "warning: gen-cjk-ttf-stub failed — Boot: ttf miss" >&2
+    [ -f "$SEED" ] && cp -f "$SEED" Assets/Fonts/CJK.TTF
 fi
 
 # 运行时资源 — 公共 Assets/ 种子 → RootFs/X64/Assets/

@@ -17,7 +17,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-LOCALE = ROOT / "CodeD-Services/Locale/LocaleTable.c"
+LOCALE = ROOT / "CodeD-Services/Locale/LocaleTableZh.c"
 SCAN_ROOTS = [
     ROOT / "CodeD-Services",
     ROOT / "CodeB-Library",
