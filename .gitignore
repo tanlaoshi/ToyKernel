@@ -32,6 +32,10 @@ CodeE-User/Pkg/Gui/build/
 CodeE-User/Pkg/Net/build/
 CodeE-User/Pkg/UiText/build/
 CodeE-User/Pkg/UiDesigner/build/
+CodeE-User/Pkg/GuiIm/build/
+CodeE-User/Pkg/Batch/build/
+CodeE-User/Pkg/Pages/build/
+CodeE-User/Pkg/Style/build/
 CodeE-User/Pkg/UiText/MyAppUi.h
 CodeE-User/Pkg/UiDesigner/MyAppUi.h
 

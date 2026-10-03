@@ -50,5 +50,8 @@ int SysDamage(int Wid, UINT64 UserText);
 int SysDamageRect(int Wid, UINT64 UserDesc);
 int SysPollInput(int Wid);
 int SysUiButton(int Wid, int ButtonId, UINT64 UserLabel);
+int SysScreenSize(UINT64 UserW, UINT64 UserH);
+int SysSetFontId(UINT32 Id);
+int SysFontCount(void);
 
 #endif

@@ -5,12 +5,14 @@
  */
 #include <ToyUi.h>
 #include <ToyGfx.h>
+#include <ToyUiStyle.h>
 
 #include "ToyUiPrivate.h"
 
 void ToyUiRedrawWin(int WindowId, TOY_UI_WIN *St) {
     int I;
     unsigned RowY;
+    const TOY_UI_STYLE *S = ToyUiStyleCurrent();
 
     if (!St) {
         return;
@@ -20,15 +22,15 @@ void ToyUiRedrawWin(int WindowId, TOY_UI_WIN *St) {
             continue;
         }
         ToyGfxDrawRect(WindowId, St->Check[I].X, St->Check[I].Y,
-                       TOY_UI_CHECK_SIZE, TOY_UI_CHECK_SIZE, 0x00202020u);
+                       TOY_UI_CHECK_SIZE, TOY_UI_CHECK_SIZE, S->CheckBorder);
         if (St->Check[I].Checked) {
             ToyGfxFillRect(WindowId, St->Check[I].X + 3, St->Check[I].Y + 3,
                            TOY_UI_CHECK_SIZE - 6, TOY_UI_CHECK_SIZE - 6,
-                           0x00208040u);
+                           S->CheckFillOn);
         } else {
             ToyGfxFillRect(WindowId, St->Check[I].X + 3, St->Check[I].Y + 3,
                            TOY_UI_CHECK_SIZE - 6, TOY_UI_CHECK_SIZE - 6,
-                           TOY_GFX_COLOR_WHITE);
+                           S->CheckFillOff);
         }
     }
     if (St->List.Used) {
@@ -36,21 +38,21 @@ void ToyUiRedrawWin(int WindowId, TOY_UI_WIN *St) {
             RowY = St->List.Y + (unsigned)I * TOY_UI_LIST_ROW;
             if (I == St->List.Selected) {
                 ToyGfxFillRect(WindowId, St->List.X, RowY, St->List.W,
-                               TOY_UI_LIST_ROW - 2, 0x00A0C8E8u);
+                               TOY_UI_LIST_ROW - 2, S->ListRowSelBg);
             } else {
                 ToyGfxFillRect(WindowId, St->List.X, RowY, St->List.W,
-                               TOY_UI_LIST_ROW - 2, TOY_GFX_COLOR_WHITE);
+                               TOY_UI_LIST_ROW - 2, S->ListRowBg);
             }
             ToyGfxDrawRect(WindowId, St->List.X, RowY, St->List.W,
-                           TOY_UI_LIST_ROW - 2, 0x00606060u);
+                           TOY_UI_LIST_ROW - 2, S->ListRowBorder);
         }
     }
     if (St->Field.Used) {
         ToyGfxFillRect(WindowId, St->Field.X, St->Field.Y, St->Field.W,
-                       TOY_UI_FIELD_H, TOY_GFX_COLOR_WHITE);
+                       TOY_UI_FIELD_H, S->FieldBg);
         ToyGfxDrawRect(WindowId, St->Field.X, St->Field.Y, St->Field.W,
                        TOY_UI_FIELD_H,
-                       St->Field.Focus ? 0x002040C0u : 0x00606060u);
+                       St->Field.Focus ? S->FieldBorderFocus : S->FieldBorder);
     }
 }
 
@@ -93,8 +95,12 @@ int ToyUiHitWidgets(int WindowId, unsigned X, unsigned Y) {
     }
     if (St->Field.Used) {
         St->Field.Focus = 0;
-        ToyUiRedrawWin(WindowId, St);
     }
+    /*
+     * 客户区空白点击会走 GuiRaiseToFront→PaintUserClient，整块刷底，
+     * 用户态复选/列表像素被清掉。未命中控件时仍须重画。
+     */
+    ToyUiRedrawWin(WindowId, St);
     return TOY_UI_EVENT_CLICK;
 }
 

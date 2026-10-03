@@ -9,6 +9,8 @@
 #include "PhysicalMemory.h"
 #include "Tasks.h"
 #include "Hal.h"
+#include "Theme.h"
+#include "Font.h"
 
 /* 与 User/include/toyos/task.h 同步；改布局须升 VER */
 #define TASK_SNAP_MAGIC 0x31535054u
@@ -278,5 +280,55 @@ int SysTaskSnap(UINT64 UserOut, UINTN Cap) {
         return -1;
     }
     return 0;
+}
+
+/* PR-UID-screen：查屏宽/高，写两个用户 int；0=成功，-1=失败/非用户 */
+int SysScreenSize(UINT64 UserW, UINT64 UserH) {
+    TASK *T = SchedulerCurrent();
+    UINT32 W = 0;
+    UINT32 H = 0;
+    int Wi;
+    int Hi;
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    HalVideoGetSize(&W, &H);
+    if (W == 0) {
+        W = 1024;
+    }
+    if (H == 0) {
+        H = 768;
+    }
+    Wi = (int)W;
+    Hi = (int)H;
+    if (UserW != 0 && VirtualMemoryCopyToUser(UserW, &Wi, sizeof(Wi)) < 0) {
+        return -1;
+    }
+    if (UserH != 0 && VirtualMemoryCopyToUser(UserH, &Hi, sizeof(Hi)) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+/* PR-UID-font：公开换字 API（薄封装 ThemeSetFontId）。注意：改的是全局当前字，
+ * 影响桌面/Shell；退出前不自动恢复。per-app 私有字仍走 PKG font=（ProcessAppFont）。
+ */
+int SysSetFontId(UINT32 Id) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return ThemeSetFontId(Id);
+}
+
+int SysFontCount(void) {
+    TASK *T = SchedulerCurrent();
+
+    if (!T || !T->IsUser) {
+        return -1;
+    }
+    return (int)FontCount();
 }
 

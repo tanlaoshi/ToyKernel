@@ -101,8 +101,8 @@ void RebuildStartMenu(void) {
 
     FillStartMenuAppRows(MenuMaxAppSlots());
 
-    /* 应用组 / 电源组分隔（不可点） */
-    MenuAddRow(DESKTOP_ACTION_NONE, "", 0, 0, MENU_ICON_SRC_SEP);
+    /* 应用组 / 电源组之间不再插空行：Game 与 Shutdown 直接相邻，
+       行边框（ThemeMenuSep）即视觉分隔，避免菜单出现无文字无图标的空行。 */
 
     L = LocStr(MSG_ICON_SHUTDOWN);
     MenuAddRow(DESKTOP_ACTION_SHUTDOWN, L ? L : "Shutdown", 0, 1,

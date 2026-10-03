@@ -99,6 +99,21 @@ static inline long toy_ui_button(long wid, long button_id, const char *label) {
     return toy_syscall(SYS_UI_BUTTON, wid, button_id, (long)label);
 }
 
+/* PR-UID-screen：查屏宽/高，写两个用户 int；0=成功 */
+static inline long toy_screen_size(int *out_w, int *out_h) {
+    return toy_syscall(SYS_SCREEN_SIZE, (long)out_w, (long)out_h, 0);
+}
+
+/* PR-UID-font：公开换字 API（薄封装；改全局当前字）。0=成功 */
+static inline long toy_set_font_id(long id) {
+    return toy_syscall(SYS_SET_FONT_ID, id, 0, 0);
+}
+
+/* 返回已注册字体数（<0=非用户/失败） */
+static inline long toy_font_count(void) {
+    return toy_syscall(SYS_FONT_COUNT, 0, 0, 0);
+}
+
 static inline long toy_file_stat(const char *path, void *out) {
     return toy_syscall(SYS_FILE_STAT, (long)path, (long)out, 0);
 }

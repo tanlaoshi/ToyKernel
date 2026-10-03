@@ -24,7 +24,14 @@ typedef struct {
 int ToyUiLoadWindow(const char *Title, int DesignW, int DesignH,
                     const TOY_UI_WIDGET *Widgets, int Count);
 
-/* 屏宽；无查询时占位 1280（见 Tools/UiDesigner/README） */
+/* 屏宽/高；经 SYS_SCREEN_SIZE 查询，失败回退 1280/720（见 Tools/UiDesigner/README） */
 int ToyUiScreenWidth(void);
+int ToyUiScreenHeight(void);
+
+/*
+ * PR-UID-font：scale(千分) → 字号档位（1=默认, 2=×2, 3=×3）。
+ * 只算档位；是否调 toy_set_font_id 由 App 自决（改全局字影响桌面/Shell）。
+ */
+int ToyUiFontTier(int Scale1000);
 
 #endif

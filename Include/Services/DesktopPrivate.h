@@ -48,7 +48,7 @@
 #define MENU_ICON_SZ          18u
 #define MENU_FIXED_TOP        7 /* Shell/Settings/Files/Store/Devices/Apps/Game */
 #define MENU_GAME_MAX         4
-#define MENU_SEP_ROWS         1 /* 应用组与电源组之间分隔 */
+#define MENU_SEP_ROWS         0 /* 应用组与电源组之间不再留空行（Game 与 Shutdown 相邻） */
 #define MENU_FIXED_BOT        2
 #define MENU_APP_MAX          16
 #define MENU_ROWS_MAX         (MENU_FIXED_TOP + MENU_SEP_ROWS + MENU_FIXED_BOT)

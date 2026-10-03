@@ -39,7 +39,8 @@ int GuiClickTryUserClient(UINT32 X, UINT32 Y) {
                 GuiFocusApply();
                 return 1;
             }
-            /* 客户区：记下点击并置顶重画。只 Raise 不合成时窗仍画在 Shell 下面。 */
+            /* 客户区：记下点击。已在最前时勿 GuiRaiseToFront：
+             * DrawWindowAtEx/PaintUserClient 会整块刷底，抹掉 ToyGfx 复选框。 */
             {
                 UINT32 Cx = gWindows[i].X + 1 + GUI_CLIENT_PAD;
                 UINT32 Cy = gWindows[i].Y + TITLE_HEIGHT + GUI_CLIENT_PAD;
@@ -47,8 +48,10 @@ int GuiClickTryUserClient(UINT32 X, UINT32 Y) {
                     gWindows[i].UserClientClick = 1;
                     gWindows[i].UserClickX = X - Cx;
                     gWindows[i].UserClickY = Y - Cy;
-                    GuiFocusSave();
-                    GuiRaiseToFront(i);
+                    if (i != gFocusWin) {
+                        GuiFocusSave();
+                        GuiRaiseToFront(i);
+                    }
                     return 1;
                 }
             }

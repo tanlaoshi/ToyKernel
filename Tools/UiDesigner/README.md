@@ -29,7 +29,7 @@ python3 Tools/UiDesigner/designer.py --help
 
 - 头：`Include/ToyUiLayout.h`  
 - 实现：`Common/Services/ToyUiLayout/ToyUiLayout.c`（**只链进 Guest**，不进内核镜像）  
-- `ToyUiScreenWidth()` 现占位 **1280**；scale = ScreenW / DesignW  
+- `ToyUiScreenWidth()` / `ToyUiScreenHeight()` 经 `SYS_SCREEN_SIZE` 查真屏宽/高（失败回退 1280/720）；scale = ScreenW / DesignW  
 - 字体档位：约定已写，尚无公开换字号 API（不改 `ToyUi.h`）
 
 ## 限制

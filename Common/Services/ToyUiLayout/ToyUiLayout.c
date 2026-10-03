@@ -3,46 +3,81 @@
  * 路径保留 Common/Services/… 以对验收；树迁后仍只由 Pkg EXTRA_OBJS 链接。
  */
 #include "ToyUiLayout.h"
+#include "toyos/syscall.h"
 
 int ToyUiScreenWidth(void) {
-    /* 占位：后续可走 Gui/Framebuffer 查询；三架构先固定设计宽 */
-    return 1280;
-}
-
-static int ScalePx(int V, int ScreenW, int DesignW) {
-    if (DesignW <= 0) {
-        return V;
+    int W = 0;
+    int H = 0;
+    if (toy_screen_size(&W, &H) != 0 || W <= 0) {
+        return 1280;
     }
-    return (int)((long)V * (long)ScreenW / (long)DesignW);
+    return W;
 }
 
-static void ApplyFontTier(int ScreenW, int DesignW) {
+int ToyUiScreenHeight(void) {
+    int W = 0;
+    int H = 0;
+    if (toy_screen_size(&W, &H) != 0 || H <= 0) {
+        return 720;
+    }
+    return H;
+}
+
+/*
+ * PR-UID-screen：只缩不放。设计画布 1280×720 为基准；屏比设计大 → scale=1
+ * （窗口保持设计尺寸，居中留白）；屏比设计小 → 按宽高比取小者缩到放得下。
+ * 旧 ScalePx(DesignW, ScreenW, DesignW)=ScreenW 会把窗口撑满整屏 →「现在很大」。
+ */
+static int FitScale(int ScreenW, int ScreenH, int DesignW, int DesignH) {
+    int Sx;
+    int Sy;
+
+    if (DesignW <= 0 || DesignH <= 0) {
+        return 1;
+    }
+    Sx = (ScreenW * 1000) / DesignW;
+    Sy = (ScreenH * 1000) / DesignH;
+    if (Sy < Sx) {
+        Sx = Sy;
+    }
+    if (Sx > 1000) {
+        Sx = 1000; /* 不放大 */
+    }
+    if (Sx < 1) {
+        Sx = 1;
+    }
+    return Sx;
+}
+
+static int ApplyScale(int V, int Scale1000) {
+    return (int)((long)V * (long)Scale1000 / 1000L);
+}
+
+static void ApplyFontTier(int Scale1000, int Unused) {
+    (void)Unused;
+    (void)ToyUiFontTier(Scale1000);
+}
+
+/* PR-UID-font：scale(千分) → 档位。<1500→1, <2500→2, <3500→3, 否则+1。
+ * 只缩不放下 scale≤1000 → 恒为 1。App 可据此调 toy_set_font_id。 */
+int ToyUiFontTier(int Scale1000) {
     int Tier;
-
-    /* 无公开 ToyUi 换字号 API：档位约定留给后续；避免破 ABI */
-    if (DesignW <= 0) {
-        return;
-    }
-    Tier = ScreenW / DesignW;
-    if (ScreenW % DesignW != 0) {
-        /* 1.5 → 当 1；用整数近似：ScreenW*2 >= DesignW*3 → tier 2 */
-        if (ScreenW * 2 >= DesignW * 5) {
-            Tier = 3;
-        } else if (ScreenW * 2 >= DesignW * 3) {
-            Tier = 2;
-        } else {
-            Tier = 1;
-        }
-    }
-    if (Tier < 1) {
+    if (Scale1000 < 1500) {
         Tier = 1;
+    } else if (Scale1000 < 2500) {
+        Tier = 2;
+    } else if (Scale1000 < 3500) {
+        Tier = 3;
+    } else {
+        Tier = 3 + (Scale1000 - 3500) / 1000 + 1;
     }
-    (void)Tier;
+    return Tier;
 }
 
 int ToyUiLoadWindow(const char *Title, int DesignW, int DesignH,
                     const TOY_UI_WIDGET *Widgets, int Count) {
     int ScreenW;
+    int Scale;
     int WinW;
     int WinH;
     int Wid;
@@ -61,10 +96,17 @@ int ToyUiLoadWindow(const char *Title, int DesignW, int DesignH,
     if (ScreenW <= 0) {
         ScreenW = 1280;
     }
-    ApplyFontTier(ScreenW, DesignW);
+    {
+        int ScreenH = ToyUiScreenHeight();
+        if (ScreenH <= 0) {
+            ScreenH = 720;
+        }
+        Scale = FitScale(ScreenW, ScreenH, DesignW, DesignH);
+    }
+    ApplyFontTier(Scale, 1000);
 
-    WinW = ScalePx(DesignW, ScreenW, DesignW);
-    WinH = ScalePx(DesignH, ScreenW, DesignW);
+    WinW = ApplyScale(DesignW, Scale);
+    WinH = ApplyScale(DesignH, Scale);
     if (WinW < 64) {
         WinW = 64;
     }
@@ -79,10 +121,10 @@ int ToyUiLoadWindow(const char *Title, int DesignW, int DesignH,
 
     for (I = 0; I < Count; I++) {
         Wgt = &Widgets[I];
-        X = ScalePx(Wgt->X, ScreenW, DesignW);
-        Y = ScalePx(Wgt->Y, ScreenW, DesignW);
-        W = ScalePx(Wgt->W, ScreenW, DesignW);
-        H = ScalePx(Wgt->H, ScreenW, DesignW);
+        X = ApplyScale(Wgt->X, Scale);
+        Y = ApplyScale(Wgt->Y, Scale);
+        W = ApplyScale(Wgt->W, Scale);
+        H = ApplyScale(Wgt->H, Scale);
         if (W < 1) {
             W = 1;
         }

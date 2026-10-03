@@ -180,6 +180,13 @@ ToyUiSetStyle(&Style);
 
 实现进度只更新本文 +（若用）`待做/进展-YYYY-MM.md`；路线图合并日再并。
 
+### 进度
+
+- **2026-10-03**：`PR-UI-im-0` ✅ TG — Begin/End/Button + `GUIIM.ELF`；底栏按钮优先于南向改大小。
+- **2026-10-03**：`PR-UI-im-1` ✅ TG — Label/Check；空白点击不抹复选框。
+- **2026-10-03**：`PR-GFX-batch-0` ✅ TG — `ToyGfxBatch` 入 `libToyGfx.a`；`Pkg/Batch`；勿混 `BatchText`。
+- **2026-10-03**：`PR-UI-style-0` JX — `ToyUiStyle.h/.c` 入 `libToyUi.a`；`ToyUiRedrawWin` 读表；`Pkg/Style` → `STYLE.ELF`。待 TG。
+
 ---
 
 ## 7. 参考

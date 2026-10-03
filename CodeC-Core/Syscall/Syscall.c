@@ -139,6 +139,17 @@ UINT64 SyscallDispatch(HAL_INTERRUPT_FRAME *Frame) {
             (int)HalFrameGetArgument0(Frame), (int)HalFrameGetArgument1(Frame),
             HalFrameGetArgument2(Frame)));
         break;
+    case SYS_SCREEN_SIZE:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysScreenSize(
+            HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));
+        break;
+    case SYS_SET_FONT_ID:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysSetFontId(
+            (UINT32)HalFrameGetArgument0(Frame)));
+        break;
+    case SYS_FONT_COUNT:
+        HalFrameSetReturn(Frame, (UINT64)(long)SysFontCount());
+        break;
     case SYS_FILE_STAT:
         HalFrameSetReturn(Frame, (UINT64)(long)SysFileStat(
             HalFrameGetArgument0(Frame), HalFrameGetArgument1(Frame)));

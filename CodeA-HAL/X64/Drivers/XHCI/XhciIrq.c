@@ -103,16 +103,11 @@ void XhciDrainEvents(void) {
         }
     } else if (gIrqMode == XHCI_IRQ_MODE_DUAL) {
         /*
-         * 懒升 IRQ：仅 QEMU。真机永留 dual（Drain×32 backup）；
-         * 归档 PR-H-xhci-irq：真机 q 再大也不升，否则易误 irq-stall。
+         * QEMU 亦永留 dual：exec 用户 ELF 后 qemu-xhci MSI 常停 → irq-stall，
+         * 200000 drain 阈值期间 Passes=1 无备份，鼠标假死。dual 的 Drain×32
+         * 备份足以兜底，且 QEMU 无真机省电诉求。真机本就永留 dual（见上注释）。
          */
-        if (HalCpuIsHypervisor() && gStatIrq >= 3u && gUseIrq) {
-            gIrqMode = XHCI_IRQ_MODE_IRQ;
-            sLastIrq = gStatIrq;
-            sIrqStall = 0;
-            BootLog("Boot: XHCI IRQ=MSI (IRQ)\n");
-            Passes = 1;
-        }
+        (void)gStatIrq;
     }
 
     /*

@@ -147,9 +147,10 @@ void GuiRaiseToFront(int Idx) {
     } else if (gWindows[Top].Kind == GUI_WIN_TTY) {
         TtyUiPaintFocused();
         BackupWindowAt(Top);
-    } else if (gWindows[Top].Kind == GUI_WIN_USER && !gWindows[Top].FixedSize) {
-        /* Sync 已画过光标；先擦再重画客户区，避免旧底盖住按钮。
-         * FixedSize 的像素在备份里，再 Fill 背景会把棋盘清掉。 */
+    } else if (gWindows[Top].Kind == GUI_WIN_USER && !gWindows[Top].FixedSize &&
+               !gWinBackupValid[Top]) {
+        /* Sync 已画过光标；无备份时才 Fill 客户区。
+         * 有备份则与 FixedSize 一样贴备份（ToyGfx 复选等在里面），Fill 会抹掉。 */
         GfxIrqEnter();
         CursorRestore();
         GfxIrqLeave();

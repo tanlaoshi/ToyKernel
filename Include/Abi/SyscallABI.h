@@ -142,7 +142,10 @@
 #define SYS_DAMAGE         1001
 #define SYS_POLL_INPUT     1002
 #define SYS_UI_BUTTON      1003
-/* 1004-1049 预留 */
+#define SYS_SCREEN_SIZE    1004 /* 查屏宽/高（写用户指针；0=成功） */
+#define SYS_SET_FONT_ID    1005 /* 设全局字体 id（ThemeSetFontId；0=成功） */
+#define SYS_FONT_COUNT     1006 /* 返回已注册字体数 */
+/* 1007-1049 预留 */
 
 /* POSIX 子段 1050-1099：预留（GUI 为 ToyOS 独有） */
 

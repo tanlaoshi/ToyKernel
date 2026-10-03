@@ -423,8 +423,11 @@ USER_SOCKDEMO_OBJ = $(USER_OUT)/sockdemo.o
 USER_CHAT_OBJ = $(USER_OUT)/chat.o
 USER_ENOSYS_OBJ = $(USER_OUT)/enosysdemo.o
 USER_LIB_TOY_GFX_OBJ = CodeE-User/Library/ToyGfx/ToyGfx.o
+USER_LIB_TOY_GFX_BATCH_OBJ = CodeE-User/Library/ToyGfx/ToyGfxBatch.o
 USER_LIB_TOY_UI_OBJ = CodeE-User/Library/ToyUi/ToyUi.o
 USER_LIB_TOY_UI_WIDGETS_OBJ = CodeE-User/Library/ToyUi/ToyUiWidgets.o
+USER_LIB_TOY_UI_IM_OBJ = CodeE-User/Library/ToyUi/ToyUiIm.o
+USER_LIB_TOY_UI_STYLE_OBJ = CodeE-User/Library/ToyUi/ToyUiStyle.o
 USER_LIB_TOY_NET_OBJ = CodeE-User/Library/ToyNet/ToyNet.o
 USER_LIB_FSUTIL_OBJ = CodeE-User/Library/FsUtil/FsUtil.o
 USER_LIB_TOY_GFX_A = CodeE-User/Library/ToyGfx/libToyGfx.a
@@ -767,6 +770,10 @@ $(USER_WINDEMO_ELF): $(USER_WINDEMO_OBJ) $(USER_CRT_OBJS) $(USER_LD) | $(USER_OU
 $(USER_LIB_TOY_GFX_OBJ): CodeE-User/Library/ToyGfx/ToyGfx.c CodeE-User/include/ToyGfx.h CodeE-User/include/unistd.h CodeE-User/include/ToySyscall.h 
 	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyGfx/ToyGfx.c -o $@
 
+$(USER_LIB_TOY_GFX_BATCH_OBJ): CodeE-User/Library/ToyGfx/ToyGfxBatch.c \
+		CodeE-User/include/ToyGfxBatch.h CodeE-User/include/ToyGfx.h
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyGfx/ToyGfxBatch.c -o $@
+
 $(USER_LIB_TOY_UI_OBJ): CodeE-User/Library/ToyUi/ToyUi.c CodeE-User/Library/ToyUi/ToyUiPrivate.h \
 		CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h CodeE-User/include/unistd.h \
 		CodeE-User/include/ToySyscall.h
@@ -776,11 +783,19 @@ $(USER_LIB_TOY_UI_WIDGETS_OBJ): CodeE-User/Library/ToyUi/ToyUiWidgets.c \
 		CodeE-User/Library/ToyUi/ToyUiPrivate.h CodeE-User/include/ToyUi.h CodeE-User/include/ToyGfx.h
 	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyUi/ToyUiWidgets.c -o $@
 
-$(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ)
-	ar rcs $@ $(USER_LIB_TOY_GFX_OBJ)
+$(USER_LIB_TOY_UI_IM_OBJ): CodeE-User/Library/ToyUi/ToyUiIm.c \
+		CodeE-User/include/ToyUiIm.h CodeE-User/include/ToyUi.h
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyUi/ToyUiIm.c -o $@
 
-$(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ)
-	ar rcs $@ $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ)
+$(USER_LIB_TOY_UI_STYLE_OBJ): CodeE-User/Library/ToyUi/ToyUiStyle.c \
+		CodeE-User/include/ToyUiStyle.h
+	$(CC) $(USER_CFLAGS) -c CodeE-User/Library/ToyUi/ToyUiStyle.c -o $@
+
+$(USER_LIB_TOY_GFX_A): $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_GFX_BATCH_OBJ)
+	ar rcs $@ $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_GFX_BATCH_OBJ)
+
+$(USER_LIB_TOY_UI_A): $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) $(USER_LIB_TOY_UI_IM_OBJ) $(USER_LIB_TOY_UI_STYLE_OBJ)
+	ar rcs $@ $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) $(USER_LIB_TOY_UI_IM_OBJ) $(USER_LIB_TOY_UI_STYLE_OBJ)
 
 $(USER_LIB_TOY_NET_OBJ): CodeE-User/Library/ToyNet/ToyNet.c CodeE-User/include/ToyNet.h \
 		CodeE-User/include/unistd.h CodeE-User/include/errno.h CodeE-User/include/string.h \
@@ -1061,7 +1076,8 @@ ifeq ($(ARCH),x86_64)
 	rm -f $(USER_EXECDEMO_OBJ) $(USER_PIPEDEMO_OBJ) $(USER_BRKDEMO_OBJ) $(USER_MMAPDEMO_OBJ) $(USER_KILLDEMO_OBJ) $(USER_SIGDEMO_OBJ)
 	rm -f $(USER_WINDEMO_OBJ) $(USER_GUIDEMO_OBJ) $(USER_BLITDEMO_OBJ) $(USER_LIBCDEMO_OBJ) $(USER_SLEEPDEMO_OBJ) $(USER_THREADSMOKE_OBJ) $(USER_PTHREADSMOKE_OBJ) $(USER_THREADDEMO_OBJ) $(USER_SNAKE_OBJ) $(USER_DIRDEMO_OBJ) $(USER_CWDDEMO_OBJ)
 	rm -f $(USER_NETLIB_OBJ) $(USER_SOCKDEMO_OBJ) $(USER_CHAT_OBJ) $(USER_CHAT_NET_OBJ) $(USER_ENOSYS_OBJ)
-	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) \
+	rm -f $(USER_LIB_TOY_GFX_OBJ) $(USER_LIB_TOY_GFX_BATCH_OBJ) $(USER_LIB_TOY_UI_OBJ) $(USER_LIB_TOY_UI_WIDGETS_OBJ) \
+		$(USER_LIB_TOY_UI_IM_OBJ) $(USER_LIB_TOY_UI_STYLE_OBJ) \
 		$(USER_LIB_TOY_NET_OBJ) $(USER_LIB_FSUTIL_OBJ)
 	rm -f $(USER_LIB_TOY_GFX_A) $(USER_LIB_TOY_UI_A) $(USER_LIB_TOY_NET_A) $(USER_LIB_FSUTIL_A) $(USER_LIB_TOYOS_A)
 	rm -f $(USER_CRT_OBJS)
