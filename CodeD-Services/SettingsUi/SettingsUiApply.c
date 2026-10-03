@@ -211,23 +211,8 @@ void FormatNowDisplay(char *Out, UINTN Max) {
     while (Out[N]) {
         N++;
     }
+    /* scale= 另起一行画，避免详情栏右侧出格 */
     Sc = ThemeUiScale();
-    if (N + 12 < Max) {
-        Out[N++] = ' ';
-        Out[N++] = 's';
-        Out[N++] = 'c';
-        Out[N++] = 'a';
-        Out[N++] = 'l';
-        Out[N++] = 'e';
-        Out[N++] = '=';
-        if (Sc >= 100) {
-            Out[N++] = (char)('0' + (Sc / 100) % 10);
-        }
-        Out[N++] = (char)('0' + (Sc / 10) % 10);
-        Out[N++] = (char)('0' + (Sc % 10));
-        Out[N++] = '%';
-        Out[N] = 0;
-    }
     if (Sc != 100 && (LogW != PhysW || LogH != PhysH) && N + 16 < Max) {
         Out[N++] = ' ';
         Out[N++] = 'U';
@@ -235,6 +220,33 @@ void FormatNowDisplay(char *Out, UINTN Max) {
         Out[N++] = ' ';
         FormatUxU(Out + N, Max - N, LogW, LogH);
     }
+}
+
+void FormatNowScale(char *Out, UINTN Max) {
+    UINT32 Sc;
+    UINTN N = 0;
+
+    if (Max == 0) {
+        return;
+    }
+    Sc = ThemeUiScale();
+    if (Max < 12) {
+        Out[0] = 0;
+        return;
+    }
+    Out[N++] = 's';
+    Out[N++] = 'c';
+    Out[N++] = 'a';
+    Out[N++] = 'l';
+    Out[N++] = 'e';
+    Out[N++] = '=';
+    if (Sc >= 100) {
+        Out[N++] = (char)('0' + (Sc / 100) % 10);
+    }
+    Out[N++] = (char)('0' + (Sc / 10) % 10);
+    Out[N++] = (char)('0' + (Sc % 10));
+    Out[N++] = '%';
+    Out[N] = 0;
 }
 
 void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B) {

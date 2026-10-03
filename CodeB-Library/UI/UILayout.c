@@ -14,6 +14,9 @@ void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *
                    int Selected, int Hovered) {
     UINT32 Fg = ThemeText();
     UINT32 Pad = 4;
+    char Fit[96];
+    int i;
+    UINT32 TextMaxW;
 
     if (!Text) {
         Text = "";
@@ -28,8 +31,14 @@ void UiDrawListRow(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, const char *
         Fg = ThemeText();
     }
     if (Width > Pad * 2 && Height > 2) {
+        TextMaxW = Width - Pad * 2u;
+        for (i = 0; Text[i] && i < (int)sizeof(Fit) - 1; i++) {
+            Fit[i] = Text[i];
+        }
+        Fit[i] = 0;
+        UiFitTextUtf8(Fit, TextMaxW);
         HalVideoDrawStringAt(X + Pad, Y + (Height > FontCellH() ? (Height - FontCellH()) / 2 : 0),
-                             Text, Fg);
+                             Fit, Fg);
     }
 }
 

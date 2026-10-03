@@ -2,8 +2,8 @@
 # gen-cjk-ttf-subset.py — 切真 CJK.TTF 子集（stb 只认 TrueType glyf，禁 CFF）
 # 依赖宿主：fonttools + 含 glyf 的 CJK 源（优先 DroidSansFallbackFull / Noto SC TTF）
 """Usage:
-  python3 Tools/Scripts/gen-cjk-ttf-subset.py           # UI 汉字（默认）
-  python3 Tools/Scripts/gen-cjk-ttf-subset.py --set cjk32
+  python3 Tools/Scripts/gen-cjk-ttf-subset.py           # 对齐 gCjk32Cp（默认）
+  python3 Tools/Scripts/gen-cjk-ttf-subset.py --set ui
   python3 Tools/Scripts/gen-cjk-ttf-subset.py --set gb2312
 """
 from __future__ import annotations
@@ -152,21 +152,24 @@ def assert_glyf_usable(path: Path, sample_cps: set[int]) -> None:
     cmap = font.getBestCmap() or {}
     glyf = font["glyf"]
     ok = 0
-    for cp in sorted(sample_cps)[:32]:
+    # 复合字 numberOfContours=-1，仍算有轮廓；抽样用常见 UI 字
+    probe = [ord(c) for c in "设置语言外壳开始文件"]
+    probe += sorted(cp for cp in sample_cps if cp >= 0x4E00)[:24]
+    for cp in probe:
         name = cmap.get(cp)
         if not name or name not in glyf:
             continue
-        g = glyf[name]
-        if getattr(g, "numberOfContours", 0) != 0:
+        nc = getattr(glyf[name], "numberOfContours", 0)
+        if nc != 0:  # >0 简单轮廓；<0 复合字
             ok += 1
     if ok == 0:
         raise SystemExit(f"output glyf has no outlines for sample UI cps: {path}")
-    print(f"glyf ok sample_hits={ok}", file=sys.stderr)
+    print(f"glyf ok sample_hits={ok} cmap={len(cmap)}", file=sys.stderr)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build real Assets/Fonts/CJK.TTF subset (glyf)")
-    ap.add_argument("--set", choices=("ui", "cjk32", "gb2312"), default="ui")
+    ap.add_argument("--set", choices=("ui", "cjk32", "gb2312"), default="cjk32")
     ap.add_argument("--font", type=Path, default=None, help="source .ttc/.ttf (must be glyf)")
     ap.add_argument("--face", type=int, default=-1, help="TTC face index (−1=SC≈2)")
     args = ap.parse_args()

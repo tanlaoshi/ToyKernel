@@ -168,16 +168,78 @@ int StoreIsInstalled(const char *Id) {
     return 0;
 }
 
+static int DirListOnce(const char *Dir, FAT_DIRECTORY_ENTRY *Ents, int *N) {
+    if (*N >= 0) {
+        return *N;
+    }
+    *N = 0;
+    if (FileSystemListEntries(Dir, Ents, FAT_LIST_MAX, N) != FAT_OK) {
+        *N = 0;
+    }
+    StoreIoBreath();
+    return *N;
+}
+
+static int DirListHasFile(const FAT_DIRECTORY_ENTRY *Ents, int N, const char *File) {
+    int j;
+
+    if (!Ents || !File || !File[0] || N <= 0) {
+        return 0;
+    }
+    for (j = 0; j < N; j++) {
+        if (!(Ents[j].Attr & FAT_ATTR_DIR) && StrEqIgnoreCase(Ents[j].Name, File)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void ClearSiOrphan(const char *Id) {
+    char Key[DB_KEY_MAX];
+    char DepKey[DB_KEY_MAX];
+
+    if (MakeDbKey(Key, (int)sizeof(Key), "si.", Id)) {
+        (void)DbDelete(Key);
+    }
+    if (MakeDbKey(DepKey, (int)sizeof(DepKey), "sd.", Id)) {
+        (void)DbDelete(DepKey);
+    }
+}
+
+static int AppElfPresent(const char *Id, const char *File, FAT_DIRECTORY_ENTRY *Apps,
+                         int *Na) {
+    char Path[160];
+    FAT_FILE_STAT St;
+
+    if (!File || !File[0]) {
+        return 0;
+    }
+    if (Id && Id[0]) {
+        StoreAppElfPath(Path, (int)sizeof(Path), Id, File);
+        if (FileSystemFileStat(Path, &St) == FAT_OK && !(St.Attr & FAT_ATTR_DIR)) {
+            return 1;
+        }
+    }
+    (void)DirListOnce(STORE_APPS_DIR, Apps, Na);
+    return DirListHasFile(Apps, *Na, File);
+}
+
 void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags) {
     static FAT_DIRECTORY_ENTRY Fonts[FAT_LIST_MAX];
     static FAT_DIRECTORY_ENTRY Packs[FAT_LIST_MAX];
+    static FAT_DIRECTORY_ENTRY Apps[FAT_LIST_MAX];
     char Key[DB_KEY_MAX];
     char Val[DB_VAL_MAX];
+    char Type[12];
+    char File[STORE_FILE_MAX];
+    const char *Bar;
     int Nf = -1;
     int Np = -1;
+    int Na = -1;
     int i;
-    int j;
+    int t;
     int Kind;
+    int Ok;
 
     if (!OutFlags) {
         return;
@@ -196,45 +258,57 @@ void StoreFillInstalledFlags(const STORE_ENTRY *Tab, int Count, int *OutFlags) {
         }
         if (MakeDbKey(Key, (int)sizeof(Key), "si.", Tab[i].Id) &&
             DbGet(Key, Val, sizeof(Val)) == DB_OK) {
-            /* 与 StoreIsInstalled 一致：有 si 无文件 → 不算已装（清孤儿） */
-            OutFlags[i] = StoreIsInstalled(Tab[i].Id) ? 1 : 0;
+            /* 勿再调 StoreIsInstalled：会二次 DbGet，且无 si 时还整表 LoadCatalog */
+            t = 0;
+            while (Val[t] && Val[t] != '|' && t < (int)sizeof(Type) - 1) {
+                Type[t] = Val[t];
+                t++;
+            }
+            Type[t] = 0;
+            File[0] = 0;
+            Bar = Val;
+            while (*Bar && *Bar != '|') {
+                Bar++;
+            }
+            if (*Bar == '|') {
+                Bar++;
+                t = 0;
+                while (Bar[t] && t < STORE_FILE_MAX - 1) {
+                    File[t] = Bar[t];
+                    t++;
+                }
+                File[t] = 0;
+            }
+            Kind = EntryKind(Type);
+            Ok = 0;
+            if (Kind == STORE_KIND_APP) {
+                Ok = AppElfPresent(Tab[i].Id, File[0] ? File : Tab[i].File, Apps, &Na);
+            } else if (Kind == STORE_KIND_FONT) {
+                (void)DirListOnce(STORE_FONTS_DIR, Fonts, &Nf);
+                Ok = DirListHasFile(Fonts, Nf, File[0] ? File : Tab[i].File);
+            } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
+                (void)DirListOnce(STORE_PACKS_DIR, Packs, &Np);
+                Ok = DirListHasFile(Packs, Np, File[0] ? File : Tab[i].File);
+            } else {
+                (void)DirListOnce(STORE_APPS_DIR, Apps, &Na);
+                Ok = DirListHasFile(Apps, Na, File[0] ? File : Tab[i].File);
+            }
+            if (Ok) {
+                OutFlags[i] = 1;
+            } else {
+                ClearSiOrphan(Tab[i].Id);
+            }
             continue;
         }
         Kind = EntryKind(Tab[i].Type);
         if (Kind == STORE_KIND_APP) {
-            OutFlags[i] = StoreAppElfExists(Tab[i].Id, Tab[i].File) ? 1 : 0;
+            OutFlags[i] = AppElfPresent(Tab[i].Id, Tab[i].File, Apps, &Na) ? 1 : 0;
         } else if (Kind == STORE_KIND_FONT) {
-            if (Nf < 0) {
-                Nf = 0;
-                if (FileSystemListEntries(STORE_FONTS_DIR, Fonts, FAT_LIST_MAX, &Nf) !=
-                    FAT_OK) {
-                    Nf = 0;
-                }
-                StoreIoBreath();
-            }
-            for (j = 0; j < Nf; j++) {
-                if (!(Fonts[j].Attr & FAT_ATTR_DIR) &&
-                    StrEqIgnoreCase(Fonts[j].Name, Tab[i].File)) {
-                    OutFlags[i] = 1;
-                    break;
-                }
-            }
-        } else if (Kind == STORE_KIND_ASSET) {
-            if (Np < 0) {
-                Np = 0;
-                if (FileSystemListEntries(STORE_PACKS_DIR, Packs, FAT_LIST_MAX, &Np) !=
-                    FAT_OK) {
-                    Np = 0;
-                }
-                StoreIoBreath();
-            }
-            for (j = 0; j < Np; j++) {
-                if (!(Packs[j].Attr & FAT_ATTR_DIR) &&
-                    StrEqIgnoreCase(Packs[j].Name, Tab[i].File)) {
-                    OutFlags[i] = 1;
-                    break;
-                }
-            }
+            (void)DirListOnce(STORE_FONTS_DIR, Fonts, &Nf);
+            OutFlags[i] = DirListHasFile(Fonts, Nf, Tab[i].File) ? 1 : 0;
+        } else if (Kind == STORE_KIND_ASSET || Kind == STORE_KIND_LIB) {
+            (void)DirListOnce(STORE_PACKS_DIR, Packs, &Np);
+            OutFlags[i] = DirListHasFile(Packs, Np, Tab[i].File) ? 1 : 0;
         }
     }
 }

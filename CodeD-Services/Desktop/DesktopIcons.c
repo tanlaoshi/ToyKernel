@@ -10,6 +10,8 @@
 static int sDesktopIconsReady;
 /* Worker 加载完成后置位；Gui TickClock Consume 后 RequestRefresh */
 static int sDesktopIconsNeedRefresh;
+/* 切语言等：菜单需重建；仅 Worker / 点开始时扫盘 */
+static int sDesktopMenuRebuildWant;
 
 int PathHasVolPrefix(const char *Path) {
     int i;
@@ -146,6 +148,20 @@ int DesktopIconsConsumeNeedRefresh(void) {
     return 1;
 }
 
+void DesktopRequestMenuRebuild(void) {
+    sDesktopMenuRebuildWant = 1;
+}
+
+void DesktopEnsureMenuRebuilt(void) {
+    if (!sDesktopMenuRebuildWant || gDesktopBusy) {
+        return;
+    }
+    gDesktopBusy = 1;
+    RebuildStartMenu();
+    sDesktopMenuRebuildWant = 0;
+    gDesktopBusy = 0;
+}
+
 void DesktopEnsureIconsLoaded(void) {
     if (sDesktopIconsReady || gDesktopBusy) {
         return;
@@ -155,6 +171,7 @@ void DesktopEnsureIconsLoaded(void) {
     LoadIconLayout();
     LoadDesktopIcons();
     RebuildStartMenu();
+    sDesktopMenuRebuildWant = 0;
     sDesktopIconsReady = 1;
     sDesktopIconsNeedRefresh = 1;
     gDesktopBusy = 0;

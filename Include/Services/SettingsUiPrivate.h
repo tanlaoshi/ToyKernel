@@ -119,6 +119,7 @@ int CurrentItemIndex(void);
 
 /* SettingsUiApply.c */
 void FormatNowDisplay(char *Out, UINTN Max);
+void FormatNowScale(char *Out, UINTN Max);
 void FormatUxU(char *Out, UINTN Max, UINT32 A, UINT32 B);
 
 /* SettingsUi.c（核心） */

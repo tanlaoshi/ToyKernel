@@ -60,4 +60,15 @@ int UiListRowFromY(UINT32 ListTop, UINT32 LineH, int Visible, UINT32 ClickY);
 /* 点是否在矩形内（含左上、不含右下） */
 int UiHitRect(UINT32 X, UINT32 Y, UINT32 Width, UINT32 Height, UINT32 Px, UINT32 Py);
 
+/*
+ * UTF-8 按 MaxW 软换行绘制；遇 '\\n' 硬换行。
+ * MaxY=0 不限底；否则画到超出 MaxY 前停止。
+ * LineStep：行距（常用 FontAdvanceY()+2 或 UiLayoutRowH()）。
+ * 返回下一空行 Y。
+ */
+UINT32 UiDrawTextWrap(UINT32 X, UINT32 Y, UINT32 MaxW, UINT32 MaxY,
+                      UINT32 LineStep, const char *S, UINT32 Color);
+/* 就地截断 UTF-8，使 FontStringWidth(S) ≤ MaxW（单行列表用） */
+void UiFitTextUtf8(char *S, UINT32 MaxW);
+
 #endif

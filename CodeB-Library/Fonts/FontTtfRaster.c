@@ -119,13 +119,32 @@ int FontTtfRasterCp(UINT32 Cp, UINT8 *Pix18) {
     if (!HalFpuBegin()) {
         return -1;
     }
-    Scale = stbtt_ScaleForPixelHeight(&gInfo, (float)TTF_CELL);
+    /*
+     * CJK 字面常吃不满 em 框，ScaleForPixelHeight(18) 目测比 Terminus 小约 30%。
+     * 先放大再钳进 18 格，与点阵 gen 视觉量级对齐。
+     */
+    Scale = stbtt_ScaleForPixelHeight(&gInfo, (float)TTF_CELL) * 1.32f;
     stbtt_GetCodepointBitmapBox(&gInfo, (int)Cp, Scale, Scale, &X0, &Y0, &X1, &Y1);
     Gw = X1 - X0;
     Gh = Y1 - Y0;
-    if (Gw <= 0 || Gh <= 0 || Gw > TTF_CELL || Gh > TTF_CELL) {
+    if (Gw <= 0 || Gh <= 0) {
         HalFpuEnd();
         return -1;
+    }
+    if (Gw > TTF_CELL || Gh > TTF_CELL) {
+        float FitX = (float)TTF_CELL / (float)Gw;
+        float FitY = (float)TTF_CELL / (float)Gh;
+        float Fit = (FitX < FitY) ? FitX : FitY;
+
+        Scale *= Fit * 0.98f;
+        stbtt_GetCodepointBitmapBox(&gInfo, (int)Cp, Scale, Scale, &X0, &Y0, &X1,
+                                    &Y1);
+        Gw = X1 - X0;
+        Gh = Y1 - Y0;
+        if (Gw <= 0 || Gh <= 0 || Gw > TTF_CELL || Gh > TTF_CELL) {
+            HalFpuEnd();
+            return -1;
+        }
     }
     Ox = (TTF_CELL - Gw) / 2;
     Oy = (TTF_CELL - Gh) / 2;

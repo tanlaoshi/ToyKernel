@@ -53,12 +53,13 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     UINT32 LineH;
     UINT32 Ty;
     UINT32 MaxY;
+    UINT32 MaxW;
     STORE_ENTRY *E;
     int Inst;
     char Line[80];
     int MapIdx;
 
-    LineH = FontAdvanceY();
+    LineH = FontAdvanceY() + 2u;
     if (LineH < 14) {
         LineH = 14;
     }
@@ -68,51 +69,40 @@ static void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
     Ty = Y + 8;
     MaxY = Y + H - 4;
-    HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_DEV_DETAIL), ThemeText());
-    Ty += LineH + 4;
+    MaxW = W > 20u ? W - 20u : W;
+    Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, LocStr(MSG_DEV_DETAIL), ThemeText());
+    Ty += 4;
 
     E = SelectedEntry();
     MapIdx = (gSel >= 0 && gSel < gFiltCount) ? gMap[gSel] : -1;
     if (!E) {
-        HalVideoDrawStringAt(X + 10, Ty, LocStr(MSG_STORE_NO_SEL), ThemeTextMuted());
+        (void)UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, LocStr(MSG_STORE_NO_SEL),
+                             ThemeTextMuted());
         return;
     }
     Inst = CachedInstalled(MapIdx);
-    if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty, E->Title[0] ? E->Title : E->Id, ThemeText());
-        Ty += LineH + 2;
-    }
-    if (Ty + LineH < MaxY) {
-        PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_ID), E->Id);
-        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
-        Ty += LineH;
-    }
-    if (Ty + LineH < MaxY) {
-        PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_TYPE), E->Type);
-        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
-        Ty += LineH;
-    }
-    if (E->Arch[0] && Ty + LineH < MaxY) {
+    Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, E->Title[0] ? E->Title : E->Id,
+                        ThemeText());
+    PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_ID), E->Id);
+    Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, Line, ThemeTextMuted());
+    PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_TYPE), E->Type);
+    Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, Line, ThemeTextMuted());
+    if (E->Arch[0]) {
         PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_ARCH), E->Arch);
-        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
-        Ty += LineH;
+        Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, Line, ThemeTextMuted());
     }
-    if (E->File[0] && Ty + LineH < MaxY) {
+    if (E->File[0]) {
         PutPrefixed(Line, (int)sizeof(Line), LocStr(MSG_STORE_FILE), E->File);
-        HalVideoDrawStringAt(X + 10, Ty, Line, ThemeTextMuted());
-        Ty += LineH;
+        Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, Line, ThemeTextMuted());
     }
-    if (Ty + LineH < MaxY) {
+    {
         char Repo[40];
         StoreUiFormatRepo(Repo, (int)sizeof(Repo));
-        HalVideoDrawStringAt(X + 10, Ty, Repo, ThemeTextMuted());
-        Ty += LineH;
+        Ty = UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH, Repo, ThemeTextMuted());
     }
-    if (Ty + LineH < MaxY) {
-        HalVideoDrawStringAt(X + 10, Ty,
-                             Inst ? LocStr(MSG_STORE_INSTALLED) : LocStr(MSG_STORE_NOT_INST),
-                             Inst ? ThemeTextAccent() : ThemeTextMuted());
-    }
+    (void)UiDrawTextWrap(X + 10, Ty, MaxW, MaxY, LineH,
+                         Inst ? LocStr(MSG_STORE_INSTALLED) : LocStr(MSG_STORE_NOT_INST),
+                         Inst ? ThemeTextAccent() : ThemeTextMuted());
 }
 
 void StorePaintList(void) {
@@ -247,8 +237,16 @@ void StorePaintList(void) {
     StoreBtnGeom(ContentX, ListW);
     DrawButtons();
     if (gStoreUiStatus[0]) {
-        HalVideoDrawStringAt(ContentX + Pad, Cy + Ch - LineH - 2, gStoreUiStatus,
-                             ThemeTextMuted());
+        UINT32 StatusW = ListW > Pad * 2u ? ListW - Pad * 2u : ListW;
+        char Status[96];
+        int si;
+
+        for (si = 0; gStoreUiStatus[si] && si < (int)sizeof(Status) - 1; si++) {
+            Status[si] = gStoreUiStatus[si];
+        }
+        Status[si] = 0;
+        UiFitTextUtf8(Status, StatusW);
+        HalVideoDrawStringAt(ContentX + Pad, Cy + Ch - LineH - 2, Status, ThemeTextMuted());
     }
 
     if (gStoreUiPrevW > 0) {

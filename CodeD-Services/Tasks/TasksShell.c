@@ -64,12 +64,15 @@ void ShellTask(void) {
                     continue;
                 }
                 if (SettingsUiIsFocused()) {
+                    /* 仅截 ESC/数字；其余字母仍进串口壳（否则 CoolTerm 像死） */
                     if (C == 0x1B) {
                         SettingsUiOnEscape();
-                    } else if (C >= '0' && C <= '9') {
-                        SettingsUiOnDigit(C);
+                        continue;
                     }
-                    continue;
+                    if (C >= '0' && C <= '9') {
+                        SettingsUiOnDigit(C);
+                        continue;
+                    }
                 }
                 if (FilesUiIsFocused()) {
                     if (C == 0x1B) {

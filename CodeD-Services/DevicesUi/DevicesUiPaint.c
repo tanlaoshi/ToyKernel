@@ -26,14 +26,22 @@ static const char *FiltLabel(int Filt) {
     return LocStr(MSG_DEV_ALL);
 }
 
-static int DrawLine(UINT32 X, UINT32 *Ty, UINT32 MaxY, const char *S, UINT32 Fg) {
-    UINT32 H = FontCellH();
+static int DrawLine(UINT32 X, UINT32 *Ty, UINT32 MaxY, UINT32 MaxW, const char *S,
+                    UINT32 Fg) {
+    UINT32 Step = FontAdvanceY() + 2u;
+    UINT32 Ny;
 
-    if (!S || *Ty + H > MaxY) {
+    if (!S || *Ty + FontCellH() > MaxY) {
         return 0;
     }
-    HalVideoDrawStringAt(X, *Ty, S, Fg);
-    *Ty += H + 2;
+    if (Step < 14u) {
+        Step = 14u;
+    }
+    Ny = UiDrawTextWrap(X, *Ty, MaxW, MaxY, Step, S, Fg);
+    if (Ny <= *Ty) {
+        return 0;
+    }
+    *Ty = Ny;
     return 1;
 }
 
@@ -57,6 +65,7 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
     int b;
     UINT32 Ty;
     UINT32 MaxY;
+    UINT32 MaxW;
     const char *Bound;
     UINT32 V;
     char Tmp[4];
@@ -68,25 +77,26 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
     }
     Ty = Dy + 8;
     MaxY = Dy + Dh - 4;
+    MaxW = Dw > 20u ? Dw - 20u : Dw;
     if (gDevUiFiltCount <= 0) {
-        DrawLine(Dx + 10, &Ty, MaxY, LocStr(MSG_DEV_EMPTY), ThemeText());
+        DrawLine(Dx + 10, &Ty, MaxY, MaxW, LocStr(MSG_DEV_EMPTY), ThemeText());
         return;
     }
     Dev = DeviceGet(gDevUiSel);
     if (!Dev) {
         return;
     }
-    DrawLine(Dx + 10, &Ty, MaxY, LocStr(MSG_DEV_DETAIL), ThemeTextAccent());
+    DrawLine(Dx + 10, &Ty, MaxY, MaxW, LocStr(MSG_DEV_DETAIL), ThemeTextAccent());
     DevicesUiFormatPci(Dev, Line, sizeof(Line));
-    DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, MaxW, Line, ThemeText());
     DevicesUiFormatIds(Dev, Line, sizeof(Line));
-    DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
-    DrawLine(Dx + 10, &Ty, MaxY, DevTitle(Dev), ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, MaxW, Line, ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, MaxW, DevTitle(Dev), ThemeText());
     Bound = (Dev->Bound && Dev->Driver && Dev->Driver->Name) ? Dev->Driver->Name
                                                              : "-";
-    DrawLine(Dx + 10, &Ty, MaxY, Bound, ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, MaxW, Bound, ThemeText());
     if (Dev->Compatible[0]) {
-        DrawLine(Dx + 10, &Ty, MaxY, Dev->Compatible, ThemeTextMuted());
+        DrawLine(Dx + 10, &Ty, MaxY, MaxW, Dev->Compatible, ThemeTextMuted());
     }
     N = 0;
     Line[N++] = 'I';
@@ -107,7 +117,7 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
         Line[N++] = Tmp[--T];
     }
     Line[N] = 0;
-    DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText());
+    DrawLine(Dx + 10, &Ty, MaxY, MaxW, Line, ThemeText());
     for (b = 0; b < 6; b++) {
         if (Dev->Bar[b] == 0) {
             continue;
@@ -118,7 +128,7 @@ static void DrawDetail(UINT32 Dx, UINT32 Dy, UINT32 Dw, UINT32 Dh) {
         Line[N++] = '=';
         PutHex8(Line, &N, sizeof(Line), (UINT32)Dev->Bar[b]);
         Line[N] = 0;
-        if (!DrawLine(Dx + 10, &Ty, MaxY, Line, ThemeText())) {
+        if (!DrawLine(Dx + 10, &Ty, MaxY, MaxW, Line, ThemeText())) {
             break;
         }
     }

@@ -10,6 +10,8 @@
 #include "BootTypes.h"
 
 void StoreUiOpen(void);
+/* Worker：开窗后补 catalog/已装探测（勿在点击路径同步扫盘） */
+void StoreUiEnsureOpenLoad(void);
 void StoreUiPaintFocused(void);
 void StoreUiRepaint(void);
 void StoreUiOnClick(UINT32 X, UINT32 Y);

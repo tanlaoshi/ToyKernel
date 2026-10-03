@@ -148,6 +148,8 @@ void SettingsUiOpen(void) {
     gSetHoverIdx = -1;
     gSetPressKind = -1;
     gSetPressIdx = -1;
+    LocaleTtfPreheatUi(); /* 开窗前补栅，避免首帧点阵 */
+    (void)FontTtfWantDrain(64u);
     PaintMenu();
     DebugWrite("settings: three-pane open\n");
 }

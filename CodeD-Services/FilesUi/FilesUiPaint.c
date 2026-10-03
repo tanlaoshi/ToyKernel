@@ -41,12 +41,19 @@ void PaintOverlay(const char *Line1, const char *Line2, const char *Line3) {
     }
     HalVideoSetClipRegion(BoxX + 4, BoxY + 4, BoxW > 8 ? BoxW - 8 : BoxW, BoxH > 8 ? BoxH - 8 : BoxH,
                           ThemeDialogFace());
-    DrawLine(BoxX + 12, BoxY + 12, Line1 ? Line1 : "", ThemeText());
-    if (Line2) {
-        DrawLine(BoxX + 12, BoxY + 12 + LineH, Line2, ThemeText());
-    }
-    if (Line3) {
-        DrawLine(BoxX + 12, BoxY + 12 + LineH * 2, Line3, ThemeTextMuted());
+    {
+        UINT32 MaxW = BoxW > 24u ? BoxW - 24u : BoxW;
+        UINT32 MaxY = BoxY + BoxH - 8u;
+        UINT32 Ty = BoxY + 12;
+
+        Ty = UiDrawTextWrap(BoxX + 12, Ty, MaxW, MaxY, LineH, Line1 ? Line1 : "",
+                            ThemeText());
+        if (Line2) {
+            Ty = UiDrawTextWrap(BoxX + 12, Ty, MaxW, MaxY, LineH, Line2, ThemeText());
+        }
+        if (Line3) {
+            (void)UiDrawTextWrap(BoxX + 12, Ty, MaxW, MaxY, LineH, Line3, ThemeTextMuted());
+        }
     }
     HalVideoClearClip();
     GuiBackupFocusWindow();

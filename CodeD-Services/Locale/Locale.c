@@ -10,13 +10,21 @@
 #include "Gui.h"
 #include "Debug.h"
 
-LOC_LANG gLang = LOC_LANG_EN;
+LOC_LANG gLang = LOC_LANG_ZH; /* 默认汉语；切英文便宜 */
 char gEn[MSG_COUNT][LOCALE_STR_MAX];
 char gZh[MSG_COUNT][LOCALE_STR_MAX];
 
-/* PR-UI-ttf-3：Worker 分片预热；不挡 Gui/鼠标 */
+/* Worker 补预热（开机已同步扫过 gZh；此处用于 reload / 晚到 Want） */
 static UINT32 gTtfPreheatIdx;
 static int gTtfPreheatWant;
+
+void LocaleTtfPreheatUi(void) {
+    UINT32 i;
+
+    for (i = 0; i < (UINT32)MSG_COUNT; i++) {
+        FontTtfPreheatUtf8(gZh[i]);
+    }
+}
 
 static void LocaleTtfPreheatRequest(void) {
     gTtfPreheatIdx = 0;
@@ -44,27 +52,40 @@ void LocaleInitialize(void) {
     char Val[DB_VAL_MAX];
 
     LocaleLoadCatalogs();
-    gLang = LOC_LANG_EN;
+    /* 缺省 / 坏值 → 汉语；仅显式 lang=en 才英文 */
+    gLang = LOC_LANG_ZH;
     if (DbGet("lang", Val, sizeof(Val)) == DB_OK) {
-        if (Val[0] == 'z' && Val[1] == 'h') {
-            gLang = LOC_LANG_ZH;
-        } else if (Val[0] == 'e' && Val[1] == 'n') {
+        if (Val[0] == 'e' && Val[1] == 'n') {
             gLang = LOC_LANG_EN;
+        } else if (Val[0] == 'z' && Val[1] == 'h') {
+            gLang = LOC_LANG_ZH;
         }
     }
     DebugWrite("locale: ");
     DebugWrite(gLang == LOC_LANG_ZH ? "zh\n" : "en\n");
-    LocaleTtfPreheatRequest();
+    /* 开机同步预热中文目录（FontTtfInit 已完成）；求 UI 基本无点阵 */
+    LocaleTtfPreheatUi();
 }
 
 void LocaleReload(void) {
     LocaleLoadCatalogs();
-    LocaleTtfPreheatRequest();
+    LocaleTtfPreheatUi();
     LocaleApplyUi();
 }
 
 LOC_LANG LocaleGet(void) {
     return gLang;
+}
+
+static int gLangDbFlushWant;
+
+int LocaleDbFlushStep(void) {
+    if (!gLangDbFlushWant) {
+        return 0;
+    }
+    gLangDbFlushWant = 0;
+    (void)DbEndBatch();
+    return 0;
 }
 
 int LocaleSet(LOC_LANG Lang) {
@@ -74,9 +95,12 @@ int LocaleSet(LOC_LANG Lang) {
         return -1;
     }
     gLang = Lang;
+    /* 写盘丢 Worker：Settings 点击路径 DbSave 会卡死鼠标 */
+    DbBeginBatch();
     Rc = DbSet("lang", Lang == LOC_LANG_ZH ? "zh" : "en");
+    gLangDbFlushWant = 1;
     if (Lang == LOC_LANG_ZH) {
-        LocaleTtfPreheatRequest();
+        LocaleTtfPreheatRequest(); /* Worker 再扫一遍；点击路径不 sync 栅格 */
     }
     LocaleApplyUi();
     return Rc == DB_OK ? 0 : -1;

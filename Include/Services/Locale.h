@@ -1,7 +1,7 @@
 /*
  * Locale.h — UI 字符串与语言切换
  *
- * 持久化：TOYOS.DB 键 lang=en|zh（缺省 en）
+ * 持久化：TOYOS.DB 键 lang=en|zh（缺省 zh）
  * 文案：优先 Assets/Locale/{en,zh}.txt（可编辑）；缺省内建 fallback
  */
 #ifndef LOCALE_H
@@ -168,5 +168,9 @@ const char *LocStr(MSG_ID Id);
 void LocaleApplyUi(void);
 /* PR-UI-ttf-3：Worker 每圈最多 1 条 zh 文案；1=仍忙，0=空闲 */
 int LocaleTtfPreheatStep(void);
+/* 开机 / 开 Settings：同步预热全部中文目录（HIT 则跳过） */
+void LocaleTtfPreheatUi(void);
+/* Worker：刷落 LocaleSet 时 batch 的 lang= */
+int LocaleDbFlushStep(void);
 
 #endif

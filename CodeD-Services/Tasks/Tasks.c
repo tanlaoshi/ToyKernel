@@ -11,6 +11,7 @@
 #include "Gui.h"
 #include "Desktop.h"
 #include "Locale.h"
+#include "Font.h"
 #include "SettingsUi.h"
 #include "FilesUi.h"
 #include "EditUi.h"
@@ -22,6 +23,7 @@
 #include "ToySerialLog.h"
 #include "Scheduler.h"
 #include "StoreJob.h"
+#include "StoreUi.h"
 
 static volatile UINT32 gWorkerCount;
 
@@ -82,11 +84,20 @@ void WorkerTask(void) {
          * 真机曾见 #GP@IsrCommon iretq（rsp=0）。
          */
         DesktopEnsureIconsLoaded();
+        /* 切语言后扫盘重建菜单 / 落盘 lang=：必须在 Worker */
+        DesktopEnsureMenuRebuilt();
+        /* 商店开窗：catalog/已装探测勿堵 Gui 点击路径 */
+        StoreUiEnsureOpenLoad();
+        (void)LocaleDbFlushStep();
         /*
          * PR-UI-ttf-3：zh 目录分片预热（每圈 1 条）。不 continue：
          * 与 iwl/DHCP 同圈交替，勿挡 Gui/鼠标。
          */
         if (LocaleTtfPreheatStep()) {
+            SchedulerIoBreath();
+        }
+        /* 屏上缺字：每圈多抽几个，加快点阵→TTF */
+        if (FontTtfWantDrain(16u) != 0) {
             SchedulerIoBreath();
         }
         /*

@@ -237,6 +237,22 @@ void FilesUiOpen(void) {
     SyncSideSel();
     /* 目录在首次 Paint 前就绪；跳过文件内容预览 */
     (void)ReloadListEx(0, 0);
+    {
+        int j;
+
+        LocaleTtfPreheatUi();
+        for (j = 0; j < gPlaceCount; j++) {
+            if (gPlaceLabels[j][0]) {
+                FontTtfPreheatUtf8(gPlaceLabels[j]);
+            }
+        }
+        for (j = 0; j < gCount; j++) {
+            if (gEnts[j].Name[0]) {
+                FontTtfPreheatUtf8(gEnts[j].Name);
+            }
+        }
+        (void)FontTtfWantDrain(64u);
+    }
     Paint();
 }
 

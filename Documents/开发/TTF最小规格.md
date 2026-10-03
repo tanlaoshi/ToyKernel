@@ -100,8 +100,8 @@
 | 脚本 | `Tools/Scripts/gen-cjk-ttf-subset.py`（`fonttools`） |
 | 源字体 | **必须 TrueType `glyf`**。优先 `DroidSansFallbackFull.ttf` 或 `Tools/Fonts/src/NotoSansSC[wght].ttf` |
 | 禁源 | **`NotoSansCJK*.ttc`（CFF）**——`sfnt ok` 但 stb **栅不出字**，观感=点阵 |
-| 默认集 | `--set ui`：Locale zh ∪ 源码 UI 汉字 ∪ 课用词（约数百码点、≈70～100KB） |
-| 可选集 | `--set cjk32`（对齐 `gCjk32Cp`）；`--set gb2312`（更大，2～8MB 级） |
+| 默认集 | `--set cjk32`：对齐 `gCjk32Cp`（约 7k 码点、≈1MB glyf） |
+| 可选集 | `--set ui`（约数百码点、更小）；`--set gb2312`（更大，2～8MB 级） |
 | 种子路径 | `ToyKernel/Tools/Fonts/CJK.TTF`（脚本断言输出含 `glyf`、抽样有轮廓） |
 | 进镜像 | `prepare-rootfs`：**有种子则覆盖** `Assets/Fonts/CJK.TTF` → RootFs；无种子才回退 stub |
 | QEMU 探针 | `Boot: ttf sfnt ok bytes=` **≠** stub 的 `0x184`；且表内须有 `glyf` |
@@ -171,3 +171,5 @@ NUC 手测：`lang zh` 开始菜单 / Settings / Files 侧栏；对比现 4bpp �
 - **2026-10-04**：`PR-UI-ttf-3` ✅ TG — Worker 分片 + Lookup；当时仍 stub，观感未验收。
 - **2026-10-04**：补正式刀 **`PR-UI-ttf-subset`**（原「附 ttf-0」改为独立门闩）。
 - **2026-10-04**：`PR-UI-ttf-subset` ★ JX — 初版误用 Noto CFF TTC → 无观感；改 Droid glyf 源，种子 ≈74KB/455；待 NUC `lang zh`。
+- **2026-10-04**：默认 `lang=zh`；开机同步预热 Locale zh ∪ 开始菜单；子集默认 `--set cjk32`。
+- **2026-10-04**：`PR-UI-ttf-subset` ✅ TG TS — glyf 子集可见；字号/锐利/换行/商店开窗 defer 一并封入 **ToyOS 0.1.0**。

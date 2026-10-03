@@ -16,6 +16,11 @@ void StoreUiDoButton(int Btn) {
         StoreUiRepaint();
         return;
     }
+    if (StoreUiIsBusy() && !StoreJobIsBusy()) {
+        /* 开窗 catalog 尚未就绪 */
+        StoreSetStatus("...");
+        return;
+    }
     if (StoreJobIsBusy()) {
         if (Btn == 0) {
             if (StoreJobCancel() == 0) {

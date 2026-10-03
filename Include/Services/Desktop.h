@@ -30,6 +30,9 @@ void DesktopInitialize(void);
 void DesktopBootLogoShow(void);
 /* PR-BOOT-fast-1：Worker 补齐 BMP/菜单；Gui 只 Consume 后刷新（勿在 Gui 路径读盘） */
 void DesktopEnsureIconsLoaded(void);
+/* 切语言后 Worker 重建开始菜单；点开始时若仍脏则同步补建 */
+void DesktopRequestMenuRebuild(void);
+void DesktopEnsureMenuRebuilt(void);
 int DesktopIconsConsumeNeedRefresh(void);
 /* PR-G-hotres：分辨率热切后重建壁纸缓存/图标坐标，不重读 FAT（避免长循环重入） */
 void DesktopOnDisplayResize(void);

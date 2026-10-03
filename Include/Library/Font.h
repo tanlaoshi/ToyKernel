@@ -43,8 +43,12 @@ const UINT8 *FontTtfBlob(UINT32 *OutSize);
 int FontTtfInit(void);
 int FontTtfRasterCp(UINT32 Cp, UINT8 *Pix18);
 const UINT8 *FontTtfCacheGet(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
-/* PR-UI-ttf-3：仅 Worker 调用；绘制路径 FontTtfCacheGet 只 Lookup */
+/* PR-UI-ttf-3：仅 Worker / 开窗短 burst；绘制路径 FontTtfCacheGet 只 Lookup */
 void FontTtfPreheatUtf8(const char *S);
+/* Worker：泵绘制路径排队的缺字；1=仍有排队 */
+int FontTtfWantStep(void);
+/* 开窗前/Worker：一次抽干最多 Max 个 Want（0→32） */
+UINT32 FontTtfWantDrain(UINT32 Max);
 /*
  * PR-S-app-font：按路径加载 TOYF 到专用应用槽（覆盖上次私有字）。
  * 成功返回字体 id（≥0）；失败 -1。不改当前选中 id。

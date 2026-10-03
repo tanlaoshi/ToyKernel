@@ -91,7 +91,12 @@ void StoreUiRepaint(void) {
     GuiBackupFocusWindow();
 }
 
+/* 开窗扫盘丢 Worker，避免点击路径同步 FAT 卡一下 */
+static int gStoreOpenLoadWant;
+
 void StoreUiOpen(void) {
+    int i;
+
     gStoreUiCat = STORE_CAT_ALL;
     gSel = 0;
     gStoreUiScroll = 0;
@@ -99,16 +104,50 @@ void StoreUiOpen(void) {
     gHoverRow = -1;
     gHoverBtn = -1;
     gPressBtn = -1;
+    gCatalogN = 0;
+    gFiltCount = 0;
+    for (i = 0; i < STORE_ENTRIES_MAX; i++) {
+        gInstCache[i] = 0;
+    }
     StoreUiActInitialize();
+    StoreSetStatus("...");
+    StorePaintList();
+    gStoreOpenLoadWant = 1;
+    DebugWrite("store-ui: three-pane open (defer load)\n");
+}
+
+void StoreUiEnsureOpenLoad(void) {
+    STORE_ENTRY *Tab;
+    int j;
+
+    if (!gStoreOpenLoadWant) {
+        return;
+    }
+    if (StoreJobIsBusy()) {
+        return;
+    }
+    gStoreOpenLoadWant = 0;
     StoreUiApplyRepoFile();
     Reload();
+    /* 列表标题预热：Worker 上栅格，勿堵开窗 */
+    Tab = StoreScratchTab();
+    for (j = 0; j < gCatalogN; j++) {
+        if (Tab[j].Title[0]) {
+            FontTtfPreheatUtf8(Tab[j].Title);
+        }
+        if (Tab[j].Id[0]) {
+            FontTtfPreheatUtf8(Tab[j].Id);
+        }
+    }
     StoreSetStatus(gFiltCount > 0 ? "Install|Remove|Sync|Repo" : "no catalog");
-    StorePaintList();
-    DebugWrite("store-ui: three-pane open\n");
+    if (StoreUiIsFocused()) {
+        StoreUiRepaint();
+    }
+    DebugWrite("store-ui: deferred catalog ready\n");
 }
 
 int StoreUiIsBusy(void) {
-    return StoreJobIsBusy();
+    return StoreJobIsBusy() || gStoreOpenLoadWant;
 }
 
 void StoreUiOnEscape(void) {

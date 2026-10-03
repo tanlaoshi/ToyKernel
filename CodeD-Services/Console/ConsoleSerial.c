@@ -11,6 +11,14 @@ void ConsoleSerialFeedChar(char C, int *SkipLf) {
     int Skip;
 
     if (ConsoleStdinUserHold()) {
+        /* 仍回显：CoolTerm 常关 Local Echo；Hold 时静默像死机 */
+        if (C >= 32 && C <= 126) {
+            HalConsolePutChar(C);
+        } else if (C == '\r' || C == '\n') {
+            HalConsoleWriteSerial("\n");
+        } else if (C == '\b' || C == 127) {
+            HalConsoleBackspaceSerial();
+        }
         ConsoleStdinPut(C);
         return;
     }

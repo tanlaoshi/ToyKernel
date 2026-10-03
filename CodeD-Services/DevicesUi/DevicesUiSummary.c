@@ -159,8 +159,11 @@ void DevicesUiSummarySelfCheck(void) {
 
 /* ---- About 页绘制（PR-DEV-ui-summary-paint） ---- */
 
-static void SumDrawRow(UINT32 LblX, UINT32 ValX, UINT32 *Ty, UINT32 MaxY,
+static void SumDrawRow(UINT32 LblX, UINT32 ValX, UINT32 Right, UINT32 *Ty, UINT32 MaxY,
                        UINT32 LineH, const char *Lbl, const char *Val) {
+    UINT32 Ny;
+    UINT32 MaxW;
+
     if (*Ty + LineH > MaxY) {
         return;
     }
@@ -168,7 +171,15 @@ static void SumDrawRow(UINT32 LblX, UINT32 ValX, UINT32 *Ty, UINT32 MaxY,
         HalVideoDrawStringAt(LblX, *Ty, Lbl, ThemeTextMuted());
     }
     if (Val) {
-        HalVideoDrawStringAt(ValX, *Ty, Val, ThemeText());
+        MaxW = Right > ValX ? Right - ValX : 0;
+        if (MaxW < 8u) {
+            MaxW = 8u;
+        }
+        Ny = UiDrawTextWrap(ValX, *Ty, MaxW, MaxY, LineH + 2u, Val, ThemeText());
+        if (Ny > *Ty) {
+            *Ty = Ny;
+            return;
+        }
     }
     *Ty += LineH + 2;
 }
@@ -286,15 +297,16 @@ void DevicesUiPaintSummary(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
 
     SumComposeOs(Val, sizeof(Val), &S);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_OS), Val);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_OS), Val);
     SumComposeCpu(Val, sizeof(Val), &S);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_CPU), Val);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_CPU), Val);
     SumComposeMem(Val, sizeof(Val), &S);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_MEMORY), Val);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_DISKS), S.Disk);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_DISPLAY), S.Display);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_MEMORY), Val);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_DISKS), S.Disk);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_DISPLAY),
+               S.Display);
     SumComposeHyper(Val, sizeof(Val), &S);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_HYPERVISOR), Val);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_HYPERVISOR), Val);
     SumComposePci(Val, sizeof(Val), &S);
-    SumDrawRow(LblX, ValX, &Ty, MaxY, LineH, LocStr(MSG_DEV_PCI_COUNT), Val);
+    SumDrawRow(LblX, ValX, X + W - 8u, &Ty, MaxY, LineH, LocStr(MSG_DEV_PCI_COUNT), Val);
 }

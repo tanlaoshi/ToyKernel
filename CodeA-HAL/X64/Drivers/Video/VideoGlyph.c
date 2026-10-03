@@ -163,6 +163,17 @@ static void PaintGlyph4(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
     }
 }
 
+/* stb 8bpp：再软一档（接近初版 40/200） */
+static UINT8 GlyphCrispAlpha8(UINT8 N) {
+    if (N < 52u) {
+        return 0;
+    }
+    if (N >= 190u) {
+        return 255;
+    }
+    return (UINT8)(N);
+}
+
 /* PR-UI-ttf-2：stb 8bpp 灰图；淡边丢、深灰实心 */
 static void PaintGlyph8(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
                         UINT32 Height, UINT32 Bpr, UINT32 ScaleX, UINT32 ScaleY,
@@ -186,10 +197,10 @@ static void PaintGlyph8(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
             UINT32 Dx;
             UINT32 Dy;
 
-            if (N < 40u) {
+            Alpha = GlyphCrispAlpha8(N);
+            if (Alpha == 0) {
                 continue;
             }
-            Alpha = (N >= 200u) ? 255u : N;
             Dx = X + Col * ScaleX;
             Dy = Y + OffY + Row * ScaleY;
             PaintBlock(Dx, Dy, ScaleX, ScaleY, Color, Alpha);

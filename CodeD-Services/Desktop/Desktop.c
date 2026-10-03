@@ -226,8 +226,8 @@ void DesktopRefreshLabels(void) {
     gIcons[3].Label = LocStr(MSG_ICON_STORE);
     gIcons[4].Label = LocStr(MSG_ICON_DEVICES);
     /*
-     * 先前只在菜单已打开时 Rebuild：关着切 lang 会把 gMenuCount 清零，
-     * 第一次点开始才扫 Store/Apps → 中文首击明显卡。切语言即预建。
+     * 勿在 Gui/Settings 点击路径 Rebuild（扫 Store/Apps + 测宽会卡死鼠标）。
+     * 标脏交给 Worker；点开始时若仍脏再同步补一次。
      */
-    RebuildStartMenu();
+    DesktopRequestMenuRebuild();
 }
