@@ -76,6 +76,8 @@ int HalIwlAssociated(void);
 /* 刀 #114：后台关联泵；非 x86 空闲 */
 int HalIwlBgBusy(void);
 void HalIwlBgPump(void);
+/* 上次 iwl 黄字时刻（x86 rdtsc）；0=还没有。供 ready 避开 rx=mic 夹提示符 */
+UINT64 HalIwlLogTsc(void);
 /* PR-G-igpu-1：核显 BAR 指纹；非 x86 空操作 */
 void HalIgpuMmioInitialize(void);
 /* PR-G-audio-1：HDA BAR 指纹；非 x86 空操作 */

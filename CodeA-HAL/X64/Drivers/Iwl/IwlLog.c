@@ -5,6 +5,22 @@
 #include "HalSerial.h"
 #include "ToySerialLog.h"
 
+static UINT64 gIwlLogTsc;
+
+static void IwlLogStamp(void) {
+#if defined(__x86_64__)
+    UINT32 Lo;
+    UINT32 Hi;
+
+    __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+    gIwlLogTsc = ((UINT64)Hi << 32) | Lo;
+#endif
+}
+
+UINT64 IwlLogTsc(void) {
+    return gIwlLogTsc;
+}
+
 static void IwlAppend(char *Line, int *N, int Max, const char *S) {
     while (*S && *N < Max) {
         Line[(*N)++] = *S++;
@@ -49,6 +65,7 @@ void IwlLogBound(void) {
     }
     Line[n++] = '\n';
     Line[n] = 0;
+    IwlLogStamp();
     ToyLogBoot(Line);
 }
 
@@ -93,6 +110,7 @@ static void IwlLogEmit(const char *Tag) {
     IwlAppend(Line, &n, 70, Tag);
     Line[n++] = '\n';
     Line[n] = 0;
+    IwlLogStamp();
     ToyLogBoot(Line);
 }
 

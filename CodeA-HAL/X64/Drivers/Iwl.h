@@ -25,5 +25,6 @@ int IwlBgStep(void);
 /* NetIwl：Worker 泵（Step + 成功后 Attach） */
 int IwlNetBgBusy(void);
 void IwlNetBgPump(void);
+UINT64 IwlLogTsc(void); /* 上次黄字 rdtsc；0=还没有 */
 
 #endif

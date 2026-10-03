@@ -173,6 +173,10 @@ void HalIwlBgPump(void) {
     IwlNetBgPump();
 }
 
+UINT64 HalIwlLogTsc(void) {
+    return IwlLogTsc();
+}
+
 void HalIgpuMmioInitialize(void) {
     (void)IgpuMmioInit();
 }

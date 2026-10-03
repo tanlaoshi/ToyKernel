@@ -120,7 +120,37 @@ void WorkerTask(void) {
             SchedulerIoBreath();
             continue;
         }
-        /* iwl 后台 + 首轮 DHCP 打完再 ready，避免 toyos> 夹在 dhcp/iwl 黄字中间 */
+        /*
+         * DHCP 打完后 iwl 还可能再打一行 rx=mic（组播解密，不在 BgBusy 里）。
+         * 真机再泵网卡，等到黄字静默 ~0.5s（最多 2s）再 ready。
+         */
+#if defined(__x86_64__)
+        if (!HalCpuIsHypervisor()) {
+            static UINT64 QuietArm;
+            UINT32 Lo;
+            UINT32 Hi;
+            UINT64 Now;
+            UINT64 From;
+            UINT64 Last;
+
+            __asm__ volatile("rdtsc" : "=a"(Lo), "=d"(Hi));
+            Now = ((UINT64)Hi << 32) | Lo;
+            if (QuietArm == 0) {
+                QuietArm = Now;
+            }
+            HalNetPoll();
+            Last = HalIwlLogTsc();
+            From = QuietArm;
+            if (Last > QuietArm) {
+                From = Last;
+            }
+            /* 约 3GHz：0.5s=1.5e9，封顶 2s */
+            if (Now - From < 1500000000ULL && Now - QuietArm < 6000000000ULL) {
+                SchedulerIoBreath();
+                continue;
+            }
+        }
+#endif
         ConsoleAnnounceBootReady();
         HalCpuHalt();
         (void)SchedulerCondResched();

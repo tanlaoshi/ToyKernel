@@ -59,6 +59,19 @@ if [ -f "$ROOT/THEME.CFG" ] && [ ! -w "$ROOT/THEME.CFG" ]; then
     echo "warning: $ROOT/THEME.CFG not writable by $(id -un) — Settings resolution will not persist" >&2
 fi
 
+# PR-UI-ttf-0：种子缺 CJK.TTF 时从仓库 stub 拷入（或生成）
+SEED="$(toyos_resolve_root "$0")/ToyKernel/Tools/Fonts/CJK.TTF"
+GEN="$(toyos_resolve_root "$0")/ToyKernel/Tools/Scripts/gen-cjk-ttf-stub.py"
+mkdir -p Assets/Fonts
+if [ ! -f Assets/Fonts/CJK.TTF ]; then
+    if [ -f "$SEED" ]; then
+        cp -f "$SEED" Assets/Fonts/CJK.TTF
+    elif [ -f "$GEN" ]; then
+        python3 "$GEN" || echo "warning: gen-cjk-ttf-stub failed — Boot: ttf miss" >&2
+        [ -f "$SEED" ] && cp -f "$SEED" Assets/Fonts/CJK.TTF
+    fi
+fi
+
 # 运行时资源 — 公共 Assets/ 种子 → RootFs/X64/Assets/
 mkdir -p "$ROOT/Assets/Icons" "$ROOT/Assets/Images"
 if [ -d Assets ]; then

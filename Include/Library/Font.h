@@ -37,6 +37,8 @@ void FontInitialize(void);
  */
 int FontLoadAssets(void);
 int FontReloadAssets(void);
+/* PR-UI-ttf-0：读 CJK.TTF 校验 sfnt；不绘制。缺文件返回 -1 */
+int FontTtfLoad(void);
 /*
  * PR-S-app-font：按路径加载 TOYF 到专用应用槽（覆盖上次私有字）。
  * 成功返回字体 id（≥0）；失败 -1。不改当前选中 id。

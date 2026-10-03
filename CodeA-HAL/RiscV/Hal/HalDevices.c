@@ -136,6 +136,10 @@ int HalIwlBgBusy(void) {
 void HalIwlBgPump(void) {
 }
 
+UINT64 HalIwlLogTsc(void) {
+    return 0;
+}
+
 void HalIgpuMmioInitialize(void) {
 }
 
