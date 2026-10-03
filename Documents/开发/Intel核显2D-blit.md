@@ -276,10 +276,8 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 
 ## §13 后续优化空间
 
-柱已 **0→1**，**igpu-6 ✅**：屏外探针通过则 `PresentCopyOk`，热路径 GPU SRC_COPY。`IgpuScanoutInit` 仍无调用点（igpu-7）。分层与可拆 PR 见 [`igpu优化空间.md`](igpu优化空间.md)。
+柱已 **0→1**，**igpu-6/7 ✅**：CopyOk 后接通翻页。8–10 见 [`igpu优化空间.md`](igpu优化空间.md)。
 
-- **开课前**：不做 7–10；不改路线图 ★。
-- **下一刀若做**：`PR-G-igpu-7`（接通翻页）。勿重写 SRC_COPY/GTT。
-- **不做**：modeset、多代 i915、独显、无探针硬开 CopyOk。
+- **不做**：modeset、多代 i915、独显、无探针硬开 CopyOk、重写 SRC_COPY/GTT。
 
-> **进度**：2026-10-04 `PR-G-igpu-6` ✅ TG — NUC `Boot: igpu present copy ok`。
+> **进度**：2026-10-04 `PR-G-igpu-6` ✅ TG。`PR-G-igpu-7` ✅ TG — NUC `scanout flip ready`。

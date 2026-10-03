@@ -2,7 +2,7 @@
  * IgpuPresentPrep.c — 启动期映后缓冲 + 屏外 SRC_COPY 探针（igpu-4 / igpu-6）
  *
  * igpu-6：scratch 页 XY_SRC_COPY，CPU 读回成功才置 PresentCopyOk。
- * 不写 GOP / 不改 PLANE_SURF（igpu-7 才接 ScanoutInit）。
+ * igpu-7：CopyOk 后调 IgpuScanoutInit；失败仍脏矩形 SRC_COPY（不改 CopyOk）。
  */
 #include "Igpu.h"
 #include "Hal.h"
@@ -206,4 +206,6 @@ void IgpuPresentPrepare(void) {
     }
     gPresentCopyOk = 1;
     ToyLogBoot("Boot: igpu present copy ok\n");
+    /* 翻页失败保持 CopyOk：Present 仍走脏矩形 SRC_COPY → gtt0 */
+    (void)IgpuScanoutInit();
 }

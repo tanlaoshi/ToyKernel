@@ -168,3 +168,5 @@ CopyOk 稳定后再接通翻页。失败则仍脏矩形 SRC_COPY。
 
 - **2026-10-04**：`PR-G-igpu-6` JX — `IgpuPresentPrep.c` 屏外 SRC_COPY 探针（两页 scratch，不写 GOP）；成功 `gPresentCopyOk=1`。不接 `IgpuScanoutInit`。待 NUC 手测 TG。
 - **2026-10-04**：`PR-G-igpu-6` ✅ TG — NUC `present copy ok`；探针改独立 GTT `0x05800000`（勿复用 scratch 品红页）。`ScanoutInit` 仍不调用。
+- **2026-10-04**：`PR-G-igpu-7` ★ JX — `IgpuPresentPrepare` CopyOk 后 `IgpuScanoutInit`；失败软退脏矩形。待 NUC `scanout flip ready`。
+- **2026-10-04**：`PR-G-igpu-7` ✅ TG — NUC `present copy ok` + `scanout flip ready`。

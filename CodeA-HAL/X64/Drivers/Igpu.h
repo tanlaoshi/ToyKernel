@@ -52,7 +52,7 @@ UINT32 IgpuBlitMinPixels(void);
 void IgpuNotePresentSkipScale(void);
 void IgpuPresentInvalidate(void);
 void IgpuPresentPrepare(void);
-int IgpuPresentCopyOk(void); /* 1=屏外 SRC_COPY 探针通过（不改 scanout） */
+int IgpuPresentCopyOk(void); /* 1=屏外 SRC_COPY 探针通过 */
 void IgpuBackInvalidate(void);
 UINT64 IgpuBackGttOff(void);
 UINT64 IgpuFrontGttBase(void);
