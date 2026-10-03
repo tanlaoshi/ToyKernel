@@ -140,5 +140,4 @@ jobs:
       - name: Smoke boot (TOY_SMP=1)
         run: |
           export TOYOS_ROOT="$GITHUB_WORKSPACE"
-          cd ToyImage
-          TOY_SMP=1 SMOKE_TIMEOUT=120 ./Scripts/smoke-boot.sh
+          TOY_SMP=1 SMOKE_TIMEOUT=120 ./ToyKernel/OpenBox/Scripts/smoke-boot.sh
