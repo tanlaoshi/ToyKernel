@@ -160,7 +160,7 @@ if (Cp >= 128 && !FontGlyphCp(Cp, 0, 0)) {
 ### 5.3 观感（18×18 居中 · 4bpp 灰度）
 
 - **NUC**：32/24 偏大；现行 **18×18**（曾 16 略小 +2），相对 Terminus 行高**垂直居中**；已关 Stretch 拉高。  
-- **清晰度**：英文 = Terminus 手调 1bpp；汉字 = Noto **4bpp**（nibble→alpha=`n*17`）。灰度点阵 ≈ 宿主栅格一次 + 运行时 alpha；**TTF** 要进 FreeType/字体文件/字形缓存，体积与依赖差一个数量级，仍 D.9 默认不做。  
+- **清晰度**：英文 = Terminus 手调 1bpp；汉字 = Noto **4bpp**（nibble→alpha=`n*17`）。灰度点阵 ≈ 宿主栅格一次 + 运行时 alpha。运行时 TTF 评估见 [`TTF最小规格.md`](TTF最小规格.md)（内核无 FPU；D.9 默认仍不做）。  
 - 重跑：`python3 Tools/Scripts/gen-cjk32.py`（`--dim 18 --bpp 4`）。
 
 ### 5.4 缺字回退
@@ -218,7 +218,7 @@ Settings / Files / Store / Devices / Desktop **客户区可见字符串**一律 
 | -- | ---- |
 | 再做一套 tech / 赛博描边 | 已证不好看 |
 | 把 effects 默认调到 medium/high | 特效不如默认 |
-| TTF / 完整 Unicode | D.9；灰度点阵已开，矢量仍不做 |
+| TTF / 完整 Unicode | D.9；灰度点阵已开，矢量仍不做。锐利先走 **PR-UI-cjk-crisp**（绘制收边） |
 | 窗口圆角 chrome | 美化柱已取消 |
 | 用户文件名 / 任意作文全 Unicode | 默认到 **GB2312**；超集另开刀 |
 

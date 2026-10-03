@@ -6,6 +6,7 @@
 | [`开机流程与加速.md`](开机流程与加速.md) | 冷启动链路 / `worker` 泵什么 / 慢点；排期 → 路线图 **PR-BOOT-fast-*** |
 | [`Intel核显2D-blit.md`](Intel核显2D-blit.md) | NUC7 核显 2D blit（**✅ TG igpu-0…5**） |
 | [`igpu优化空间.md`](igpu优化空间.md) | igpu 1→1.5（对照现码）：PR igpu-6 开门 / 7 翻页；开课前不做 |
+| [`TTF最小规格.md`](TTF最小规格.md) | 运行时 TTF 最小柱（评估）：FPU 门闩 / 拆 PR；**不改 ★** |
 | [`声卡驱动-HDA.md`](声卡驱动-HDA.md) | Intel HDA 播放柱；**★ audio-3**（0…2 ✅ TG） |
 | [`用户态线程.md`](用户态线程.md) | 用户态**线程子集**；★ = thr-5 |
 | [`应用开发指南.md`](应用开发指南.md) | 用户态 5～30 分钟上手；商店 Job；FAQ |

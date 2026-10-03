@@ -118,7 +118,18 @@ static UINT8 GlyphNibble4(const UINT8 *Glyph, UINT32 Bpr, UINT32 Width,
     return (UINT8)(Byte & 0xFu);
 }
 
-/* PR-UI-cjk-gray：每像素 4bit（0..15）→ alpha = n*17 */
+/* PR-UI-cjk-crisp：淡灰当透明、深灰实心，去掉 18px AA 光晕 */
+static UINT8 GlyphCrispAlpha4(UINT8 N) {
+    if (N <= 4u) {
+        return 0;
+    }
+    if (N >= 10u) {
+        return 255;
+    }
+    return (UINT8)(N * 17u);
+}
+
+/* PR-UI-cjk-gray：每像素 4bit（0..15）；crisp 后再 blend */
 static void PaintGlyph4(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
                         UINT32 Height, UINT32 Bpr, UINT32 ScaleX, UINT32 ScaleY,
                         UINT32 OffY, UINT32 Color) {
@@ -141,10 +152,10 @@ static void PaintGlyph4(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
             UINT32 Dx;
             UINT32 Dy;
 
-            if (N == 0) {
+            Alpha = GlyphCrispAlpha4(N);
+            if (Alpha == 0) {
                 continue;
             }
-            Alpha = (UINT8)(N * 17u);
             Dx = X + Col * ScaleX;
             Dy = Y + OffY + Row * ScaleY;
             PaintBlock(Dx, Dy, ScaleX, ScaleY, Color, Alpha);

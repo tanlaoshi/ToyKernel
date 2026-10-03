@@ -126,7 +126,7 @@ ToyUiSetStyle(&Style);
 
 | 部分 | 为什么不照搬 |
 | ---- | ------------ |
-| stb_truetype 字体烘焙 | ToyOS 用点阵 + TOYF，不引入 TTF |
+| stb_truetype 字体烘焙 | ToyOS 用点阵 + TOYF；运行时 TTF 见 [`TTF最小规格.md`](TTF最小规格.md)（评估，默认不做） |
 | 多窗口管理 | ToyOS 由内核 Gui 管窗 |
 | 自带后端（GL/D3D/SDL） | ToyOS 后端是内核窗口协议 |
 | 完整 `nk_context` 状态机 | ToyUi 不需要这么重 |
