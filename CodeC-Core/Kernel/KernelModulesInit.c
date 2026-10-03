@@ -211,6 +211,7 @@ int InitializeGui(void) {
     (void)DbInitialize();
     (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
     (void)FontTtfLoad(); /* PR-UI-ttf-0：CJK.TTF sfnt 探针，不绘制 */
+    (void)FontTtfInit(); /* PR-UI-ttf-1：stb InitFont，不挂钩绘制 */
     if (!HalCpuIsHypervisor()) {
         HalInputPoll();
     }

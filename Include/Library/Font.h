@@ -39,6 +39,11 @@ int FontLoadAssets(void);
 int FontReloadAssets(void);
 /* PR-UI-ttf-0：读 CJK.TTF 校验 sfnt；不绘制。缺文件返回 -1 */
 int FontTtfLoad(void);
+const UINT8 *FontTtfBlob(UINT32 *OutSize);
+/* PR-UI-ttf-1：InitFont + 18px 栅格缓存；不挂钩 FontGlyphCp。失败软退 */
+int FontTtfInit(void);
+int FontTtfRasterCp(UINT32 Cp, UINT8 *Pix18);
+const UINT8 *FontTtfCacheGet(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
 /*
  * PR-S-app-font：按路径加载 TOYF 到专用应用槽（覆盖上次私有字）。
  * 成功返回字体 id（≥0）；失败 -1。不改当前选中 id。

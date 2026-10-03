@@ -125,6 +125,7 @@ INCLUDES_COMMON = -IInclude \
                   -IInclude/Services \
                   -ICodeB-Library \
                   -ICodeB-Library/Fonts \
+                  -IThirdParty/stb \
                   -ICodeA-HAL/$(HAL_ARCH) \
                   -ICodeA-HAL/$(HAL_ARCH)/Hal
 INCLUDES_HAL    = $(INCLUDES_COMMON) \
@@ -660,6 +661,13 @@ $(BUILDDIR)/CodeD-Services/%.o: CodeD-Services/%.c | $(BUILDDIR)
 
 $(BUILDDIR)/CodeB-Library/%.o: CodeB-Library/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
+
+$(BUILDDIR)/CodeB-Library/Fonts/FontTtfRaster.o: CodeB-Library/Fonts/FontTtfRaster.c | $(BUILDDIR)
+ifeq ($(ARCH),x86_64)
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_FPU) -Wno-unused-parameter -c $< -o $@
+else
+	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@
+endif
 
 $(BUILDDIR)/CodeB-Library/Fonts/%.o: CodeB-Library/Fonts/%.c | $(BUILDDIR)
 	@mkdir -p $(dir $@) && $(CC) $(CFLAGS_COMMON) -c $< -o $@

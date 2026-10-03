@@ -72,10 +72,37 @@ static void CommandTty(int Argc, char **Argv) {
 }
 
 static void CommandZh(int Argc, char **Argv) {
+    const char *S;
+    UINT32 Cp;
+    UINTN N;
+    UINT32 W;
+    UINT32 H;
+    const UINT8 *Pix;
+
     (void)Argc;
     (void)Argv;
-    /* PR-I18N1：UTF-8 + CJK16 子集冒烟 */
     ConsoleWrite("你好，世界！中文测试\n");
+    S = "一你好测";
+    while (*S) {
+        N = Utf8Decode(S, &Cp);
+        if (N == 0) {
+            break;
+        }
+        S += N;
+        if (Cp < 128u) {
+            continue;
+        }
+        Pix = FontTtfCacheGet(Cp, &W, &H);
+        ConsoleWrite("ttf U+");
+        ConsoleWriteHex32(Cp);
+        if (Pix) {
+            ConsoleWrite(" ok\n");
+        } else {
+            ConsoleWrite(" miss\n");
+        }
+        (void)W;
+        (void)H;
+    }
 }
 
 static void CommandFont(int Argc, char **Argv) {
