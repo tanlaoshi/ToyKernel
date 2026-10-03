@@ -45,3 +45,7 @@ Dist/
 
 # HostChat 宿主产物
 Tools/HostChat/chatd
+
+# xPack 工具链下载/解压（本地符号链接勿入库；CI 自取）
+Tools/Tarballs
+Tools/Extract

@@ -28,13 +28,13 @@ jobs:
         run: ./build.sh x86_64
 
       - name: Check Kernel.elf
-        run: test -f Build/HAL/X64/Kernel.elf && ls -lh Build/HAL/X64/Kernel.elf
+        run: test -f Build/CodeA-HAL/X64/Kernel.elf && ls -lh Build/CodeA-HAL/X64/Kernel.elf
 
       - name: Upload Kernel.elf
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-x86_64
-          path: Build/HAL/X64/Kernel.elf
+          path: Build/CodeA-HAL/X64/Kernel.elf
           retention-days: 7
 
   build-arm64:
@@ -60,13 +60,13 @@ jobs:
         run: ./build.sh arm64
 
       - name: Check Kernel.elf
-        run: test -f Build/HAL/Arm64/Kernel.elf && ls -lh Build/HAL/Arm64/Kernel.elf
+        run: test -f Build/CodeA-HAL/Arm64/Kernel.elf && ls -lh Build/CodeA-HAL/Arm64/Kernel.elf
 
       - name: Upload Kernel.elf
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-arm64
-          path: Build/HAL/Arm64/Kernel.elf
+          path: Build/CodeA-HAL/Arm64/Kernel.elf
           retention-days: 7
 
   build-riscv:
@@ -92,13 +92,13 @@ jobs:
         run: ./build.sh riscv
 
       - name: Check Kernel.elf
-        run: test -f Build/HAL/RiscV/Kernel.elf && ls -lh Build/HAL/RiscV/Kernel.elf
+        run: test -f Build/CodeA-HAL/RiscV/Kernel.elf && ls -lh Build/CodeA-HAL/RiscV/Kernel.elf
 
       - name: Upload Kernel.elf
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-riscv
-          path: Build/HAL/RiscV/Kernel.elf
+          path: Build/CodeA-HAL/RiscV/Kernel.elf
           retention-days: 7
 
   smoke:
