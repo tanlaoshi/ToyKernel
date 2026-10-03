@@ -16,6 +16,10 @@
 | [`ABI-API双轨制.md`](ABI-API双轨制.md) | POSIX vs Toy 双轨规格（已落地） |
 | [`如何写一个调度器.md`](如何写一个调度器.md) / [分配器](如何写一个分配器.md) / [文件系统](如何写一个文件系统.md) | 可替换模块学生向短文 |
 | **[`如何写一个任务管理器App.md`](如何写一个任务管理器App.md)** | **端到端 App 范例**：syscall → ToyUi → 构建 → Apps 菜单（`TASKMGR.ELF`） |
+| [`Nuklear学习与ToyUi深化.md`](Nuklear学习与ToyUi深化.md) | Nuklear 可借鉴点 → ToyUiIm / ToyGfxBatch / ToyUiStyle（**不**拷源码、**不**破 ABI） |
+| [`多页面分发.md`](多页面分发.md) | ToyUi 多页：单文件 / 页面表 / 逻辑 ID 段；薄分发；不破 ABI |
+| [`布局文件格式.md`](布局文件格式.md) | `.uitxt` → `uitxt2h` → 编译期头；运行时零解析 |
+| [`拖控件设计器.md`](拖控件设计器.md) | PC Tk 设计器 → `.uitxt`；Guest `ToyUiLoadWindow` |
 | [`网络API双轨化-执行前分析.md`](网络API双轨化-执行前分析.md) | **历史分析**（Net 现为 **2.0.1**；勿当现行号） |
 
 内核排期 [`../路线图.md`](../路线图.md)；白皮书 [`../技术手册.md`](../技术手册.md)；驱动 [`../驱动/`](../驱动/)；开课契约 [`../待做/开课前接口冻结与教学准备.md`](../待做/开课前接口冻结与教学准备.md)。

@@ -30,6 +30,10 @@ User/Pkg/Net/build/
 CodeE-User/Pkg/build/
 CodeE-User/Pkg/Gui/build/
 CodeE-User/Pkg/Net/build/
+CodeE-User/Pkg/UiText/build/
+CodeE-User/Pkg/UiDesigner/build/
+CodeE-User/Pkg/UiText/MyAppUi.h
+CodeE-User/Pkg/UiDesigner/MyAppUi.h
 
 # Build/ 已忽略；SDK 产物现为 Build/ToySDK/ + Build/ToySDK.tar.gz
 # 旧路径遗迹（若本地仍有可删）

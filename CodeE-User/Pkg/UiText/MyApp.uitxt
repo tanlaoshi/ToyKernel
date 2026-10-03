@@ -1,0 +1,7 @@
+# MyApp.uitxt
+window "MyApp" 1280 720
+label  id=hello   x=20  y=20  w=200 h=24 text="Hello"
+button id=ok      x=20  y=60  w=80  h=28 text="OK"
+button id=cancel  x=120 y=60  w=80  h=28 text="Cancel"
+checkbox id=chk   x=20  y=100 w=100 h=24 text="Enable"
+button id=go  x=120 y=160  w=80  h=28 text="Go"

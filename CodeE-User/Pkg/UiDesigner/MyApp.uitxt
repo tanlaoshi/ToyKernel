@@ -1,0 +1,5 @@
+window "MyApp" 1280 720
+button id=btn1 x=94 y=74 w=80 h=28 text="Button"
+label id=lbl1 x=408 y=338 w=80 h=28 text="Label"
+checkbox id=chk1 x=504 y=140 w=80 h=28 text="CheckBox"
+textbox id=txt1 x=306 y=162 w=80 h=28 text="TextBox"
