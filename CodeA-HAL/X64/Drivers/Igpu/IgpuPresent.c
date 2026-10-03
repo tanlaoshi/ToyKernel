@@ -7,6 +7,7 @@
 #include "Hal.h"
 #include "HalVideo.h"
 #include "ToySerialLog.h"
+#include "IgpuBlitPrivate.h"
 
 #define IGPU_BACK_GTT_OFF    0x04000000ull
 #define IGPU_XY_SRC_COPY     ((2u << 29) | (0x53u << 22))
@@ -116,6 +117,20 @@ int IgpuSrcCopyRect(UINT32 SrcX, UINT32 SrcY, UINT32 DstX, UINT32 DstY,
     return IgpuBlitEmit(Words, 10);
 }
 
+static void FlushBackRect(const UINT32 *Back, UINT32 PitchPx,
+                          UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1) {
+    UINT32 Y;
+    UINTN RowBytes;
+
+    if (!Back || PitchPx == 0 || X0 >= X1 || Y0 >= Y1) {
+        return;
+    }
+    RowBytes = (UINTN)(X1 - X0) * 4u;
+    for (Y = Y0; Y < Y1; Y++) {
+        FlushCpu(&Back[(UINTN)Y * (UINTN)PitchPx + X0], RowBytes);
+    }
+}
+
 int IgpuPresentRect(const UINT32 *Back, UINT32 BackPitchPx, UINT32 FrontPitchPx,
                     UINT32 BackH, UINT32 X0, UINT32 Y0, UINT32 X1, UINT32 Y1) {
     UINT32 W;
@@ -125,6 +140,9 @@ int IgpuPresentRect(const UINT32 *Back, UINT32 BackPitchPx, UINT32 FrontPitchPx,
     UINT64 Phys;
     UINTN Bytes;
     UINT64 DstGtt;
+    UINT32 ScrW;
+    UINT32 ScrH;
+    UINT64 Shown;
 
     if (!Back || BackPitchPx == 0 || FrontPitchPx == 0 || BackH == 0) {
         return 0;
@@ -145,8 +163,20 @@ int IgpuPresentRect(const UINT32 *Back, UINT32 BackPitchPx, UINT32 FrontPitchPx,
     DstGtt = IgpuFrontGttBase();
     PitchB = BackPitchPx * 4u;
     FrontPitchB = FrontPitchPx * 4u;
-    __asm__ volatile ("mfence" ::: "memory");
-    /* 双缓冲整屏翻页：无撕边；失败再脏矩形直写 gtt0 */
+    FlushBackRect(Back, BackPitchPx, X0, Y0, X1, Y1);
+    HalVideoGetSize(&ScrW, &ScrH);
+    /* 已翻页后：小脏区直写当前 scanout，避免 Settings 悬停整屏 flip 闪左右栏 */
+    if (IgpuScanoutLive()) {
+        Shown = IgpuScanoutShownGtt();
+        if (ScrW == 0 || ScrH == 0 ||
+            (UINT64)W * 2ull < (UINT64)ScrW ||
+            (UINT64)H * 2ull < (UINT64)ScrH) {
+            if (IgpuSrcCopyRect(X0, Y0, X0, Y0, W, H, PitchB, FrontPitchB,
+                                gBackGtt, Shown)) {
+                return 1;
+            }
+        }
+    }
     if (IgpuScanoutOk() && IgpuScanoutPresent(gBackGtt, BackPitchPx)) {
         return 1;
     }

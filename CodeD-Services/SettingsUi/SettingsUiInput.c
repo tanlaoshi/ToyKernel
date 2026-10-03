@@ -84,9 +84,15 @@ void SettingsUiOnPointer(UINT32 X, UINT32 Y, UINT8 Buttons) {
         }
     }
     if (Kind != gSetHoverKind || Idx != gSetHoverIdx) {
+        int OldKind = gSetHoverKind;
+        int OldIdx = gSetHoverIdx;
         gSetHoverKind = Kind;
         gSetHoverIdx = Idx;
         Need = 1;
+        if (!((Buttons & 1u) || (sPrevBtn & 1u))) {
+            PaintHoverDelta(OldKind, OldIdx, Kind, Idx);
+            Need = 0;
+        }
     }
     if ((Buttons & 1u) && !(sPrevBtn & 1u)) {
         if (Kind >= 0) {

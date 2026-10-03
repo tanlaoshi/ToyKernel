@@ -69,6 +69,7 @@ int IgpuCopyRectBack(const UINT32 *Back, UINT32 PitchPx, UINT32 BufH,
 
 /* igpu-5：双缓冲翻页 */
 int IgpuScanoutOk(void);
+int IgpuScanoutLive(void); /* 1=已改 PLANE_SURF 到翻页缓冲 */
 int IgpuScanoutInit(void);
 void IgpuScanoutInvalidate(void);
 int IgpuScanoutPresent(UINT64 BackGtt, UINT32 BackPitchPx);

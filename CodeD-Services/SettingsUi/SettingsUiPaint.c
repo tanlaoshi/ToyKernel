@@ -145,6 +145,93 @@ void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H) {
     }
 }
 
+static void FormatListRow(int Idx, char *Row, int RowMax) {
+    char Label[48];
+    int j;
+    int Mark;
+
+    if (!Row || RowMax < 4) {
+        return;
+    }
+    ItemLabel(Idx, Label, (int)sizeof(Label));
+    Mark = (Idx == CurrentItemIndex());
+    Row[0] = Mark ? '*' : ' ';
+    Row[1] = ' ';
+    for (j = 0; Label[j] && j < RowMax - 3; j++) {
+        Row[j + 2] = Label[j];
+    }
+    Row[j + 2] = 0;
+}
+
+static void PaintSideRow(int i, UINT32 Cx, UINT32 Pad, UINT32 RowW) {
+    UINT32 Y;
+
+    if (i < 0 || i >= SETTINGS_CAT_COUNT || gSetSideLineH == 0) {
+        return;
+    }
+    Y = gSetSideRow0 + (UINT32)i * gSetSideLineH;
+    HalVideoFillRect(Cx + Pad, Y, RowW, gSetSideLineH, ThemePanelSideBackground());
+    UiDrawListRow(Cx + Pad, Y, RowW, gSetSideLineH,
+                  CatLabel((SETTINGS_CAT)i),
+                  i == (int)gCat,
+                  gSetHoverKind == 0 && gSetHoverIdx == i);
+}
+
+static void PaintListRow(int Idx, UINT32 ListX, UINT32 Pad, UINT32 Bg) {
+    UINT32 RowY;
+    int Vis;
+    char Row[56];
+    int Sel;
+    int Hov;
+
+    if (Idx < 0 || gSetListLineH == 0) {
+        return;
+    }
+    Vis = Idx - gItemScroll;
+    if (Vis < 0 || Vis >= gSetListVisible) {
+        return;
+    }
+    RowY = gSetListTop + (UINT32)Vis * gSetListLineH;
+    HalVideoFillRect(ListX + Pad, RowY, gSetListRowW, gSetListLineH, Bg);
+    FormatListRow(Idx, Row, (int)sizeof(Row));
+    Sel = (Idx == gItemSel);
+    Hov = (gSetHoverKind == 1 && gSetHoverIdx == Idx);
+    UiDrawListRow(ListX + Pad, RowY, gSetListRowW, gSetListLineH, Row, Sel, Hov);
+}
+
+void PaintHoverDelta(int OldKind, int OldIdx, int NewKind, int NewIdx) {
+    UINT32 Cx, Cy, Cw, Ch, Bg;
+    UINT32 Pad;
+    UINT32 RowW;
+
+    if (GuiFocusKind() != GUI_WIN_SETTINGS) {
+        return;
+    }
+    if (!GuiFocusClient(&Cx, &Cy, &Cw, &Ch, &Bg)) {
+        return;
+    }
+    Pad = UI_LAYOUT_PAD;
+    RowW = gSetSideW > Pad * 2u ? gSetSideW - Pad * 2u : gSetSideW;
+
+    GuiFrameBufferBegin();
+    HalVideoSetClipRegion(Cx, Cy, Cw, Ch, Bg);
+    if (OldKind == 0 && OldIdx >= 0) {
+        PaintSideRow(OldIdx, Cx, Pad, RowW);
+    }
+    if (NewKind == 0 && NewIdx >= 0 && (NewKind != OldKind || NewIdx != OldIdx)) {
+        PaintSideRow(NewIdx, Cx, Pad, RowW);
+    }
+    if (OldKind == 1 && OldIdx >= 0) {
+        PaintListRow(OldIdx, gSetListX, Pad, Bg);
+    }
+    if (NewKind == 1 && NewIdx >= 0 && (NewKind != OldKind || NewIdx != OldIdx)) {
+        PaintListRow(NewIdx, gSetListX, Pad, Bg);
+    }
+    GuiBackupSyncRect(Cx, Cy, Cw, Ch);
+    HalVideoClearClip();
+    GuiFrameBufferEnd();
+}
+
 void PaintMenu(void) {
     UINT32 Cx, Cy, Cw, Ch, Bg;
     UINT32 LineH;
@@ -153,14 +240,11 @@ void PaintMenu(void) {
     UINT32 ListW;
     UINT32 DetailW;
     UINT32 ContentX;
+    int i;
+    int N;
     UINT32 RowY;
     UINT32 RowW;
     UINT32 TitleY;
-    int i;
-    int N;
-    int Applied;
-    char Label[48];
-    char Row[56];
 
     if (GuiFocusKind() != GUI_WIN_SETTINGS) {
         if (!FocusSettingsWindow()) {
@@ -236,22 +320,14 @@ void PaintMenu(void) {
 
     HalVideoDrawStringAt(ContentX + Pad, TitleY, CatLabel(gCat), ThemeText());
 
-    Applied = CurrentItemIndex();
     RowY = gSetListTop;
     for (i = 0; i < gSetListVisible && gItemScroll + i < N; i++) {
         int Idx = gItemScroll + i;
-        int Mark = (Idx == Applied);
         int Sel = (Idx == gItemSel);
         int Hov = (gSetHoverKind == 1 && gSetHoverIdx == Idx);
-        int j;
+        char Row[56];
 
-        ItemLabel(Idx, Label, (int)sizeof(Label));
-        Row[0] = Mark ? '*' : ' ';
-        Row[1] = ' ';
-        for (j = 0; Label[j] && j < (int)sizeof(Row) - 3; j++) {
-            Row[j + 2] = Label[j];
-        }
-        Row[j + 2] = 0;
+        FormatListRow(Idx, Row, (int)sizeof(Row));
         UiDrawListRow(ContentX + Pad, RowY, gSetListRowW, LineH, Row, Sel, Hov);
         HitAdd(ContentX + Pad, RowY, gSetListRowW, LineH, 1, Idx);
         RowY += LineH;

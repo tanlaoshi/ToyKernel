@@ -35,6 +35,10 @@ int IgpuScanoutOk(void) {
     return gScanOk;
 }
 
+int IgpuScanoutLive(void) {
+    return gScanLive;
+}
+
 UINT64 IgpuScanoutShownGtt(void) {
     if (gScanLive) {
         return gGtt[gShown];

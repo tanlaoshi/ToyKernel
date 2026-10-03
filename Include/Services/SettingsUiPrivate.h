@@ -141,5 +141,6 @@ void ApplyItem(int Idx);
 /* SettingsUiPaint.c */
 void DrawDetail(UINT32 X, UINT32 Y, UINT32 W, UINT32 H);
 void PaintMenu(void);
+void PaintHoverDelta(int OldKind, int OldIdx, int NewKind, int NewIdx);
 
 #endif

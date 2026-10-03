@@ -170,3 +170,4 @@ CopyOk 稳定后再接通翻页。失败则仍脏矩形 SRC_COPY。
 - **2026-10-04**：`PR-G-igpu-6` ✅ TG — NUC `present copy ok`；探针改独立 GTT `0x05800000`（勿复用 scratch 品红页）。`ScanoutInit` 仍不调用。
 - **2026-10-04**：`PR-G-igpu-7` ★ JX — `IgpuPresentPrepare` CopyOk 后 `IgpuScanoutInit`；失败软退脏矩形。待 NUC `scanout flip ready`。
 - **2026-10-04**：`PR-G-igpu-7` ✅ TG — NUC `present copy ok` + `scanout flip ready`。
+- **2026-10-04**：Settings 悬停左右栏频闪 ✅ — 悬停只重绘行；live 后小脏区直写当前 scanout。
