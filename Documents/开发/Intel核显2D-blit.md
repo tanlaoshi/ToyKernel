@@ -270,3 +270,16 @@ QEMU 无此卡 → 整柱软退；Virt/Arm/RiscV **不编**或空桩。
 | [`../技术手册.md`](../技术手册.md) | GPU 只许 HAL |
 | [`../../CodeA-HAL/X64/NOTES-UEFI-PC.md`](../../CodeA-HAL/X64/NOTES-UEFI-PC.md) | NUC 真机笔记 |
 | [`开机流程与加速.md`](开机流程与加速.md) | 亮屏仍走 GOP，本柱不改 Boot 选模 |
+| [`igpu优化空间.md`](igpu优化空间.md) | 从 1 到 1.5（对照现码）：igpu-6 开门 / 7 翻页 / 8–10；开课前不做 |
+
+---
+
+## §13 后续优化空间
+
+柱已 **0→1**，**igpu-6 ✅**：屏外探针通过则 `PresentCopyOk`，热路径 GPU SRC_COPY。`IgpuScanoutInit` 仍无调用点（igpu-7）。分层与可拆 PR 见 [`igpu优化空间.md`](igpu优化空间.md)。
+
+- **开课前**：不做 7–10；不改路线图 ★。
+- **下一刀若做**：`PR-G-igpu-7`（接通翻页）。勿重写 SRC_COPY/GTT。
+- **不做**：modeset、多代 i915、独显、无探针硬开 CopyOk。
+
+> **进度**：2026-10-04 `PR-G-igpu-6` ✅ TG — NUC `Boot: igpu present copy ok`。

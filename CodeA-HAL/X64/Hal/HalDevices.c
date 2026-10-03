@@ -231,7 +231,7 @@ void HalIgpuPresentInvalidate(void) {
 }
 
 int HalIgpuReady(void) {
-    /* 仅 SRC_COPY 探针通过才走 GPU Present；否则 CPU memcpy，避免黑屏只剩光标 */
+    /* igpu-6：屏外 SRC_COPY 探针通过才走 GPU Present；否则 CPU memcpy */
     return IgpuReady() && IgpuPresentCopyOk();
 }
 
