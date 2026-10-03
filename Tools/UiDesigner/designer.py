@@ -4,6 +4,7 @@
 # 依赖: Python3 + Tkinter（debian: python3-tk）
 from __future__ import print_function
 
+import copy
 import os
 import re
 import sys
@@ -64,6 +65,10 @@ class DesignerApp(object):
         self._prop_lock = False
         self.sx = float(CANVAS_DISP_W) / DESIGN_W
         self.sy = float(CANVAS_DISP_H) / DESIGN_H
+        self.history = []      # 撤销栈：snapshot = (widgets, selected, counters, title, path)
+        self.future = []       # 重做栈
+        self.HIST_MAX = 100
+        self._drag_dirty = False  # move/resize 是否已产生实际位移（用于延迟入栈）
 
         self.root = tk.Tk()
         self.root.title("ToyOS UI Designer")
@@ -87,6 +92,9 @@ class DesignerApp(object):
         mf.add_command(label="退出", command=self.root.quit)
         me = tk.Menu(m, tearoff=0)
         m.add_cascade(label="编辑", menu=me)
+        me.add_command(label="撤销", command=self.undo, accelerator="Ctrl+Z")
+        me.add_command(label="重做", command=self.redo, accelerator="Ctrl+Y")
+        me.add_separator()
         me.add_command(label="删除选中", command=self.delete_selected)
         me.add_command(label="清空", command=self.clear_all)
         mx = tk.Menu(m, tearoff=0)
@@ -132,6 +140,7 @@ class DesignerApp(object):
             e.pack(side=tk.LEFT, fill=tk.X, expand=True)
             e.bind("<KeyRelease>", self.on_prop)
             e.bind("<FocusOut>", self.on_prop)
+            e.bind("<FocusIn>", self.on_prop_focus_in)
             self.ents[key] = e
         self._set_props_enabled(False)
 
@@ -147,6 +156,9 @@ class DesignerApp(object):
         self.root.bind("<Right>", lambda e: self.nudge(1, 0, e))
         self.root.bind("<Up>", lambda e: self.nudge(0, -1, e))
         self.root.bind("<Down>", lambda e: self.nudge(0, 1, e))
+        self.root.bind("<Control-z>", lambda e: self.undo())
+        self.root.bind("<Control-y>", lambda e: self.redo())
+        self.root.bind("<Control-Z>", lambda e: self.redo())  # Ctrl+Shift+Z = 重做
 
     def set_place(self, kind):
         self.place_kind = kind
@@ -166,6 +178,48 @@ class DesignerApp(object):
             kind = {v: k for k, v in KIND_PREFIX.items()}[pref]
             if n > self._counters[kind]:
                 self._counters[kind] = n
+
+    # ---- 撤销 / 重做（快照式：每次突变前压栈当前完整状态） ----
+    def _snapshot(self):
+        return (
+            copy.deepcopy(self.widgets), self.selected,
+            dict(self._counters), self.title, self.path,
+        )
+
+    def _restore(self, snap):
+        ws, sel, cnt, title, path = snap
+        self.widgets = copy.deepcopy(ws)
+        self.selected = sel
+        self._counters = dict(cnt)
+        self.title = title
+        self.path = path
+
+    def _push_undo(self):
+        snap = self._snapshot()
+        if self.history and self.history[-1] == snap:
+            return  # 状态未变，跳过（去重：空点击 / 重复 FocusIn）
+        self.history.append(snap)
+        if len(self.history) > self.HIST_MAX:
+            self.history.pop(0)
+        self.future = []  # 新突变清空重做栈
+
+    def undo(self):
+        if not self.history:
+            return
+        self.future.append(self._snapshot())
+        self._restore(self.history.pop())
+        self.refresh()
+
+    def redo(self):
+        if not self.future:
+            return
+        self.history.append(self._snapshot())
+        self._restore(self.future.pop())
+        self.refresh()
+
+    def on_prop_focus_in(self, _ev=None):
+        # 进入属性编辑前压栈；若未改值则 _push_undo 自身去重
+        self._push_undo()
 
     def lx(self, cx):
         return int(cx / self.sx)
@@ -193,6 +247,7 @@ class DesignerApp(object):
     def on_down(self, ev):
         lx, ly = self.lx(ev.x), self.ly(ev.y)
         if self.place_kind:
+            self._push_undo()
             w = {
                 "kind": self.place_kind,
                 "id": self.next_id(self.place_kind),
@@ -216,11 +271,15 @@ class DesignerApp(object):
         w = self.widgets[idx]
         mode = "resize" if self.in_handle(w, lx, ly) else "move"
         self.drag = (mode, lx, ly, w["x"], w["y"], w["w"], w["h"])
+        self._drag_dirty = False
         self.refresh()
 
     def on_drag(self, ev):
         if self.drag is None or self.selected is None:
             return
+        if not self._drag_dirty:
+            self._push_undo()
+            self._drag_dirty = True
         mode, ox, oy, sx, sy, sw, sh = self.drag
         lx, ly = self.lx(ev.x), self.ly(ev.y)
         w = self.widgets[self.selected]
@@ -234,10 +293,12 @@ class DesignerApp(object):
 
     def on_up(self, _ev):
         self.drag = None
+        self._drag_dirty = False
 
     def nudge(self, dx, dy, ev):
         if self.selected is None:
             return
+        self._push_undo()
         step = 10 if (getattr(ev, "state", 0) & 0x0001) else 1
         w = self.widgets[self.selected]
         w["x"] = max(0, min(w["x"] + dx * step, DESIGN_W - w["w"]))
@@ -247,11 +308,13 @@ class DesignerApp(object):
     def delete_selected(self):
         if self.selected is None:
             return
+        self._push_undo()
         del self.widgets[self.selected]
         self.selected = None
         self.refresh()
 
     def clear_all(self):
+        self._push_undo()
         self.widgets = []
         self.selected = None
         self._counters = {k: 0 for k in KINDS}
@@ -331,6 +394,7 @@ class DesignerApp(object):
         self.status.config(text="已保存 %s（%d 个控件）" % (path, len(self.widgets)))
 
     def load_uitxt(self, path):
+        self._push_undo()
         widgets = []
         title = "MyApp"
         with open(path, "r") as f:
@@ -440,6 +504,7 @@ class DesignerApp(object):
             msg += " | 选中 %s" % self.widgets[self.selected]["id"]
         if self.place_kind:
             msg += " | 待放置 %s" % KIND_LABEL[self.place_kind]
+        msg += " | 撤销%d 重做%d" % (len(self.history), len(self.future))
         self.status.config(text=msg)
 
     def refresh(self):
