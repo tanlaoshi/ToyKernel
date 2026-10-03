@@ -111,15 +111,15 @@ class DesignerApp(object):
         body = tk.Frame(self.root)
         body.pack(fill=tk.BOTH, expand=True)
 
-        left = tk.Frame(body, width=100)
+        left = tk.Frame(body, width=180)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=4)
         left.pack_propagate(False)
-        tk.Label(left, text="控件面板").pack()
+        tk.Label(left, text="控件面板").pack(pady=(0, 4))
         for k in KINDS:
             tk.Button(
-                left, text=KIND_LABEL[k], width=10,
+                left, text=KIND_LABEL[k],
                 command=lambda kk=k: self.set_place(kk)
-            ).pack(pady=2, fill=tk.X)
+            ).pack(pady=2, fill=tk.X, padx=4)
 
         mid = tk.Frame(body)
         mid.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4, pady=4)
@@ -134,16 +134,16 @@ class DesignerApp(object):
         self.canvas.bind("<ButtonRelease-1>", self.on_up)
         self.canvas.bind("<Configure>", self.on_canvas_resize)
 
-        right = tk.Frame(body, width=180)
+        right = tk.Frame(body, width=260)
         right.pack(side=tk.RIGHT, fill=tk.Y, padx=4, pady=4)
         right.pack_propagate(False)
-        tk.Label(right, text="属性栏").pack()
+        tk.Label(right, text="属性栏").pack(pady=(0, 4))
         self.ents = {}
         for key in ("id", "text", "x", "y", "w", "h"):
             row = tk.Frame(right)
-            row.pack(fill=tk.X, pady=2)
-            tk.Label(row, text=key + ":", width=6, anchor="w").pack(side=tk.LEFT)
-            e = tk.Entry(row, width=18)
+            row.pack(fill=tk.X, pady=2, padx=4)
+            tk.Label(row, text=key + ":", width=5, anchor="w").pack(side=tk.LEFT)
+            e = tk.Entry(row, width=12)
             e.pack(side=tk.LEFT, fill=tk.X, expand=True)
             e.bind("<KeyRelease>", self.on_prop)
             e.bind("<FocusOut>", self.on_prop)
