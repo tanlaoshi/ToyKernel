@@ -12,6 +12,8 @@
 #define PL011_FR    (*(volatile UINT32 *)(PL011_BASE + 0x18))
 #define PL011_FR_TXFF  (1u << 5)
 
+static int gShellOwnUart;
+
 static int ChannelUartOn(int Channel) {
 #if !TOY_SERIAL
     (void)Channel;
@@ -108,10 +110,38 @@ const char *HalSerialLogText(void) {
 }
 
 void HalSerialWriteChannel(int Channel, const char *Text) {
+    if (gShellOwnUart) {
+        return;
+    }
     if (!ChannelUartOn(Channel)) {
         return;
     }
     UartWriteRaw(Text);
+}
+
+void HalSerialShellOwn(void) {
+    gShellOwnUart = 1;
+}
+
+int HalSerialShellOwned(void) {
+    return gShellOwnUart;
+}
+
+void HalSerialWriteShell(const char *Text) {
+    UartWriteRaw(Text);
+}
+
+int HalSerialRuntimeDirty(void) {
+    return 0;
+}
+
+void HalSerialRuntimeMarkSaved(void) {
+}
+
+UINTN HalSerialRuntimeSnapshot(char *Dst, UINTN Max) {
+    (void)Dst;
+    (void)Max;
+    return 0;
 }
 
 void HalSerialWrite(const char *Text) {

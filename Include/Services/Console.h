@@ -99,6 +99,10 @@ void ConsoleJobShiftRaise(int Idx, int Top);
 
 /* Worker：iwl 后台 + 首轮 DHCP 结束后打一次 ready + toyos>；可重入 */
 void ConsoleAnnounceBootReady(void);
+/* PR-K-uart-shell：运行时日志 → RUNTIME.LOG；Shell log / log save */
+int ConsoleRuntimeLogFlush(void);
+void ConsoleRuntimeLogShow(void);
+int ConsoleRuntimeLogSave(const char *Path);
 
 /* PR-A9：virt 串口 Shell（轮询 HalSerial + HalTimerPoll） */
 void ConsoleSerialRun(void);

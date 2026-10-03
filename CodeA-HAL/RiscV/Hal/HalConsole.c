@@ -21,7 +21,7 @@ static void SerialWriteCooked(const char *Text) {
     while (*Text) {
         if (N + 3 >= (int)sizeof(Buf)) {
             Buf[N] = 0;
-            HalSerialWrite(Buf);
+            HalSerialWriteShell(Buf);
             N = 0;
         }
         if (*Text == '\r' && Text[1] == '\n') {
@@ -40,7 +40,7 @@ static void SerialWriteCooked(const char *Text) {
     }
     if (N > 0) {
         Buf[N] = 0;
-        HalSerialWrite(Buf);
+        HalSerialWriteShell(Buf);
     }
 }
 
@@ -48,12 +48,12 @@ void HalConsolePutChar(char C) {
     char Buf[3];
 
     if (C == '\n') {
-        HalSerialWrite("\r\n");
+        HalSerialWriteShell("\r\n");
         return;
     }
     Buf[0] = C;
     Buf[1] = 0;
-    HalSerialWrite(Buf);
+    HalSerialWriteShell(Buf);
 }
 
 char HalConsoleGetChar(void) {
@@ -80,7 +80,7 @@ void HalConsoleWriteSerial(const char *Text) {
 }
 
 void HalConsoleBackspaceSerial(void) {
-    HalSerialWrite("\b \b");
+    HalSerialWriteShell("\b \b");
 }
 
 void HalConsoleDrawString(const char *Text, UINT32 Color) {

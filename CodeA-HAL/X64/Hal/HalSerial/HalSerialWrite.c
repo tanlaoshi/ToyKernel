@@ -17,6 +17,29 @@
  * 原子（关中断，避免持锁被定时器打断再抢同锁死锁）。RingAppend/GopWrite
  * 不会回调本函数，无重入风险。零初始化即解锁态。 */
 static SPIN_LOCK gSerialLock;
+static int gShellOwnUart;
+#define RT_LOG_MAX 16384u
+static char gRtLog[RT_LOG_MAX];
+static UINTN gRtLen;
+static int gRtDirty;
+
+static void RtAppend(const char *Text) {
+    if (!gShellOwnUart || !Text) {
+        return;
+    }
+    while (*Text) {
+        if (gRtLen + 1 >= RT_LOG_MAX) {
+            UINTN Keep = RT_LOG_MAX / 2u;
+            UINTN i;
+            for (i = 0; i < Keep; i++) {
+                gRtLog[i] = gRtLog[gRtLen - Keep + i];
+            }
+            gRtLen = Keep;
+        }
+        gRtLog[gRtLen++] = *Text++;
+        gRtDirty = 1;
+    }
+}
 
 static int ChannelGopOn(int Channel) {
 #if !TOY_SCREEN_LOG
@@ -90,7 +113,8 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
     SpinLockAcquire(&gSerialLock);
     /* ring 始终收（boot / Desktop） */
     RingAppend(Text);
-    if (SerialPresent() && ChannelUartOn(Channel)) {
+    RtAppend(Text);
+    if (!gShellOwnUart && SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
     }
     /* 屏：受 TOY_SCREEN_LOG_* + Mirror/Mute（有无 COM1 都可画） */
@@ -98,7 +122,58 @@ void HalSerialWriteChannel(int Channel, const char *Text) {
         GopMirrorLine(Text);
     }
     SpinLockRelease(&gSerialLock);
-    /* PR-H-usb-uart：有 FT232/CDC 则 tee（锁外，避免 Bulk 等事件重入） */
+    if (!gShellOwnUart) {
+        XhciFtdiWrite(Text);
+        EhciFtdiWrite(Text);
+        XhciCdcWrite(Text);
+    }
+}
+
+void HalSerialShellOwn(void) {
+    gShellOwnUart = 1;
+}
+
+int HalSerialShellOwned(void) {
+    return gShellOwnUart;
+}
+
+int HalSerialRuntimeDirty(void) {
+    return gRtDirty;
+}
+
+void HalSerialRuntimeMarkSaved(void) {
+    gRtDirty = 0;
+}
+
+UINTN HalSerialRuntimeSnapshot(char *Dst, UINTN Max) {
+    UINTN N;
+    UINTN i;
+
+    if (!Dst || Max == 0) {
+        return 0;
+    }
+    SpinLockAcquire(&gSerialLock);
+    N = gRtLen;
+    if (N > Max) {
+        N = Max;
+    }
+    for (i = 0; i < N; i++) {
+        Dst[i] = gRtLog[i];
+    }
+    SpinLockRelease(&gSerialLock);
+    return N;
+}
+
+void HalSerialWriteShell(const char *Text) {
+    if (!Text) {
+        return;
+    }
+    SpinLockAcquire(&gSerialLock);
+    RingAppend(Text);
+    if (SerialPresent()) {
+        SerialWrite(Text);
+    }
+    SpinLockRelease(&gSerialLock);
     XhciFtdiWrite(Text);
     EhciFtdiWrite(Text);
     XhciCdcWrite(Text);
@@ -133,7 +208,8 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
     /* 与 WriteChannel 同锁：多核 BootLog 否则字节交错成 BBoot: */
     SpinLockAcquire(&gSerialLock);
     RingAppend(Text);
-    if (SerialPresent() && ChannelUartOn(Channel)) {
+    RtAppend(Text);
+    if (!gShellOwnUart && SerialPresent() && ChannelUartOn(Channel)) {
         SerialWrite(Text);
     }
     if (ChannelGopOn(Channel) && gGopMirror && gVideoUp) {
@@ -141,10 +217,11 @@ void HalSerialBootMarkChannel(int Channel, const char *Text) {
         GopWrite(Text);
     }
     SpinLockRelease(&gSerialLock);
-    /* FTDI/CDC tee 锁外（同 WriteChannel） */
-    XhciFtdiWrite(Text);
-    EhciFtdiWrite(Text);
-    XhciCdcWrite(Text);
+    if (!gShellOwnUart) {
+        XhciFtdiWrite(Text);
+        EhciFtdiWrite(Text);
+        XhciCdcWrite(Text);
+    }
 }
 
 void HalSerialBootMark(const char *Text) {

@@ -176,12 +176,35 @@ static void CommandLsdev(int Argc, char **Argv) {
     }
 }
 
+/* PR-K-uart-shell：ready 后 ToyLog 不进 COM1；log / log save 拉 RUNTIME.LOG */
+static void CommandLog(int Argc, char **Argv) {
+    if (Argc >= 2 && Argv[1][0] == 's' && Argv[1][1] == 'a' && Argv[1][2] == 'v' &&
+        Argv[1][3] == 'e' && Argv[1][4] == 0) {
+        const char *Path = (Argc >= 3) ? Argv[2] : "RUNTIME.LOG";
+        if (ConsoleRuntimeLogSave(Path) != 0) {
+            ConsoleWrite("log: save failed\n");
+            return;
+        }
+        ConsoleWrite("log: saved ");
+        ConsoleWrite(Path);
+        ConsoleWrite("\n");
+        return;
+    }
+    if (Argc >= 2) {
+        ConsoleWrite("usage: log | log save [path]\n");
+        return;
+    }
+    (void)ConsoleRuntimeLogFlush();
+    ConsoleRuntimeLogShow();
+}
+
 void ShellCommandsSystemRegisterVirtMin(void) {
     ShellCommandsSystemProcRegisterVirtMin();
     ConsoleRegister2("show", "memory", "physical memory stats", CommandMemory);
     ConsoleRegisterAliasLine("mem", "show", "memory");
     ConsoleRegister2("list", "devices", "list devices + bound drivers", CommandLsdev);
     ConsoleRegisterAliasLine("lsdev", "list", "devices");
+    ConsoleRegister("log", "runtime log; log save [RUNTIME.LOG]", CommandLog);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegisterAlias("halt", "exit");
     ConsoleRegisterAlias("halt", "quit");
@@ -202,6 +225,7 @@ void ShellCommandsSystemRegister(void) {
     ConsoleRegister2("test", "memory", "alloc/verify/free one page", CommandMemtest);
     ConsoleRegisterAliasLine("memtest", "test", "memory");
 
+    ConsoleRegister("log", "runtime log; log save [RUNTIME.LOG]", CommandLog);
     ConsoleRegister("reboot", "reset CPU (QEMU display: quit+./run-split.sh)", CommandReboot);
     ConsoleRegister("halt", "stop CPU", CommandHalt);
     ConsoleRegisterAlias("halt", "exit");

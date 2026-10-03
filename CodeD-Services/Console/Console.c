@@ -81,6 +81,7 @@ void ConsoleAnnounceBootReady(void) {
     HalConsoleWriteSerial("\n");
     HalConsoleWriteSerial("hint: type commands in THIS terminal (not QEMU window)\n");
     Prompt();
+    HalSerialShellOwn();
 }
 
 void Prompt(void) {

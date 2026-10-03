@@ -23,6 +23,14 @@ void HalSerialBootFontApply(void);
 /* 未标通道：走 MISC（兼容旧调用） */
 void HalSerialWrite(const char *Text);
 void HalSerialWriteChannel(int Channel, const char *Text);
+/* ready 之后：日志通道不再 TX；Shell 用 WriteShell 独占 COM1/FTDI */
+void HalSerialShellOwn(void);
+int HalSerialShellOwned(void);
+void HalSerialWriteShell(const char *Text);
+/* 运行时日志（ShellOwn 后 ToyLog*）：缓冲 + Shell log / log save */
+int HalSerialRuntimeDirty(void);
+void HalSerialRuntimeMarkSaved(void);
+UINTN HalSerialRuntimeSnapshot(char *Dst, UINTN Max);
 void HalSerialWriteChannelHex32(int Channel, UINT32 Value);
 void HalSerialWriteChannelHex64(int Channel, UINT64 Value);
 /* 常驻 ring，供 Desktop 叠画 */
