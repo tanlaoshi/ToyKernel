@@ -163,6 +163,40 @@ static void PaintGlyph4(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
     }
 }
 
+/* PR-UI-ttf-2：stb 8bpp 灰图；淡边丢、深灰实心 */
+static void PaintGlyph8(UINT32 X, UINT32 Y, const UINT8 *Glyph, UINT32 Width,
+                        UINT32 Height, UINT32 Bpr, UINT32 ScaleX, UINT32 ScaleY,
+                        UINT32 OffY, UINT32 Color) {
+    UINT32 Row;
+    UINT32 Col;
+
+    if (!Glyph || Width == 0 || Height == 0 || Bpr == 0) {
+        return;
+    }
+    if (ScaleX < 1) {
+        ScaleX = 1;
+    }
+    if (ScaleY < 1) {
+        ScaleY = 1;
+    }
+    for (Row = 0; Row < Height; Row++) {
+        for (Col = 0; Col < Width; Col++) {
+            UINT8 N = Glyph[Row * Bpr + Col];
+            UINT8 Alpha;
+            UINT32 Dx;
+            UINT32 Dy;
+
+            if (N < 40u) {
+                continue;
+            }
+            Alpha = (N >= 200u) ? 255u : N;
+            Dx = X + Col * ScaleX;
+            Dy = Y + OffY + Row * ScaleY;
+            PaintBlock(Dx, Dy, ScaleX, ScaleY, Color, Alpha);
+        }
+    }
+}
+
 void VideoDrawCharAt(UINT32 X, UINT32 Y, char C, UINT32 Color) {
     const FONT_FACE *F;
     const UINT8 *Glyph;
@@ -212,6 +246,10 @@ static void VideoDrawBitmapAt(UINT32 X, UINT32 Y, const UINT8 *Glyph,
         }
         DrawnH = Height * ScaleY;
         OffY = 0;
+    }
+    if (Bpp == 8) {
+        PaintGlyph8(X, Y, Glyph, Width, Height, Width, ScaleX, ScaleY, OffY, Color);
+        return;
     }
     if (Bpp == 4) {
         Bpr = (Width + 1u) / 2u;
@@ -286,7 +324,7 @@ void VideoDrawCodepointAt(UINT32 X, UINT32 Y, UINT32 Cp, UINT32 Color) {
         VideoDrawMissingGlyphBox(X, Y, Color);
         return;
     }
-    VideoDrawBitmapAt(X, Y, G, W, H, Color, FontCjkBitsPerPixel());
+    VideoDrawBitmapAt(X, Y, G, W, H, Color, FontGlyphCpBpp());
 }
 
 void VideoDrawStringAt(UINT32 X, UINT32 Y, const char *Text, UINT32 Color) {

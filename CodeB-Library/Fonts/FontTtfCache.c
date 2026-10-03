@@ -1,5 +1,5 @@
 /*
- * FontTtfCache.c — PR-UI-ttf-1：18×18×8bpp 定长缓存（不挂钩 FontGlyphCp）
+ * FontTtfCache.c — PR-UI-ttf-1/2：18×18×8bpp 定长缓存
  */
 #include "Font.h"
 

@@ -39,6 +39,7 @@ static FONT_RUNTIME_SLOT gRuntime[FONT_RUNTIME_MAX];
 static const FONT_FACE *gFonts[FONT_TABLE_MAX];
 static UINT32 gFontCount;
 static UINT32 gCurrentId;
+static UINT32 gGlyphCpBpp;
 
 static UINT16 RdU16(const UINT8 *P) {
     return (UINT16)P[0] | ((UINT16)P[1] << 8);
@@ -566,9 +567,22 @@ const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH) {
         if (OutH) {
             *OutH = F->Height;
         }
+        gGlyphCpBpp = 1;
         return G;
     }
-    return FontCjk32Lookup(Cp, OutW, OutH);
+    /* PR-UI-ttf-2：TTF 缓存优先；失败仍走 cjk32 */
+    G = FontTtfCacheGet(Cp, OutW, OutH);
+    if (G) {
+        gGlyphCpBpp = 8;
+        return G;
+    }
+    G = FontCjk32Lookup(Cp, OutW, OutH);
+    gGlyphCpBpp = G ? FontCjkBitsPerPixel() : 0;
+    return G;
+}
+
+UINT32 FontGlyphCpBpp(void) {
+    return gGlyphCpBpp ? gGlyphCpBpp : FontCjkBitsPerPixel();
 }
 
 UINT32 FontGlyphStretch(UINT32 GlyphH) {

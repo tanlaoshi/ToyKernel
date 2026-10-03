@@ -40,7 +40,6 @@ int FontReloadAssets(void);
 /* PR-UI-ttf-0：读 CJK.TTF 校验 sfnt；不绘制。缺文件返回 -1 */
 int FontTtfLoad(void);
 const UINT8 *FontTtfBlob(UINT32 *OutSize);
-/* PR-UI-ttf-1：InitFont + 18px 栅格缓存；不挂钩 FontGlyphCp。失败软退 */
 int FontTtfInit(void);
 int FontTtfRasterCp(UINT32 Cp, UINT8 *Pix18);
 const UINT8 *FontTtfCacheGet(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
@@ -73,6 +72,8 @@ const UINT8 *FontGlyph(char C);
 UINTN Utf8Decode(const char *S, UINT32 *OutCp);
 /* ASCII→Terminus；汉字→CJK（默认 16×16×4bpp）；OutW/OutH 未乘 Scale */
 const UINT8 *FontGlyphCp(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
+/* 最近一次 FontGlyphCp 的位深（ASCII=1，TTF=8，cjk32=4） */
+UINT32 FontGlyphCpBpp(void);
 const UINT8 *FontCjk32Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
 const UINT8 *FontCjk16Lookup(UINT32 Cp, UINT32 *OutW, UINT32 *OutH);
 /* PR-UI-cjk-gray：CJK 点阵位深（1 或 4）；ASCII 仍 1bpp */
