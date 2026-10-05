@@ -8,7 +8,7 @@
  *         → KernelMainCommon（桌面常驻任务）。
  *
  * 别改：三路旗标必须 HalConsoleOnly →（HasFrameBuffer 且 Virt 形状）→ Full。
- *       各路径只调对应 KernelModulesRunVirt / RunVirtDesktop / RunFull。
+ *       shell/gui/worker 失败即停；input 仅 SMP≥3，失败不停机。
  *
  * 想照着做：Documents/开发/代码可读性规范.md §2.4 / §2.5
  */
@@ -28,14 +28,34 @@ static void KernelMainVirt(void);
 static void KernelMainVirtDesktop(void);
 static void KernelMainFull(void);
 static void KernelMainCommon(void);
+static void KernelParkForever(void);
 
-/* SchedulerCreate 成功返回槽号（≥0），失败 -1——勿用 !=0。 */
-static int KernelSpawn(const char *Name, void (*Entry)(void)) {
+static void KernelSpawnOrPark(const char *Name, void (*Entry)(void)) {
     if (SchedulerCreate(Name, Entry) < 0) {
         ToyLogBoot("kernel: SchedulerCreate failed\n");
-        return -1;
+        KernelParkForever();
     }
-    return 0;
+}
+
+/* SMP≥3 才起 InputTask 钉 CPU2；失败只打日志（与旧 (void)KernelSpawn 相同）。 */
+static void KernelTrySpawnInput(void) {
+    if (HalCpuCount() <= 2) {
+        return;
+    }
+    if (SchedulerCreate("input", InputTask) < 0) {
+        ToyLogBoot("kernel: SchedulerCreate failed\n");
+    }
+}
+
+/* 单核直跑串口壳；多核进调度让 AP idle。 */
+static void KernelMainVirtEnterShell(void) {
+    if (HalCpuCount() > 1) {
+        KernelSpawnOrPark("shell", ConsoleSerialRun);
+        SchedulerStart();
+        return;
+    }
+    HalTimerStart();
+    ConsoleSerialRun();
 }
 
 static void KernelParkForever(void) {
@@ -97,33 +117,21 @@ static void KernelRunOrPark(int (*RunModules)(void)) {
     }
 }
 
-/* 串口子集：单核直跑壳；多核 spawn 后 SchedulerStart 让 AP 进 idle。 */
+/* 串口子集。 */
 static void KernelMainVirt(void) {
     KernelAttachEarlyVideo();
     KernelRunOrPark(KernelModulesRunVirt);
     KernelAfterModules();
-    if (HalCpuCount() > 1) {
-        if (KernelSpawn("shell", ConsoleSerialRun) != 0) {
-            KernelParkForever();
-        }
-        SchedulerStart();
-        return;
-    }
-    HalTimerStart();
-    ConsoleSerialRun();
+    KernelMainVirtEnterShell();
 }
 
-/* 桌面常驻任务（virt 桌面与 x86 全量相同）。CPU>2 才起 input。 */
+/* 桌面常驻：只顺序 Create / 演示任务 / 可选 input / Start。 */
 static void KernelMainCommon(void) {
-    if (KernelSpawn("shell", ShellTask) != 0 ||
-        KernelSpawn("gui", GuiTask) != 0 ||
-        KernelSpawn("worker", WorkerTask) != 0) {
-        KernelParkForever();
-    }
+    KernelSpawnOrPark("shell", ShellTask);
+    KernelSpawnOrPark("gui", GuiTask);
+    KernelSpawnOrPark("worker", WorkerTask);
     KernelTaskDemoStart();
-    if (HalCpuCount() > 2) {
-        (void)KernelSpawn("input", InputTask);
-    }
+    KernelTrySpawnInput();
     SchedulerStart();
 }
 
