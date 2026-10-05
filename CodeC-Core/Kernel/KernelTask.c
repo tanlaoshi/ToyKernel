@@ -1,3 +1,13 @@
+/*
+ * 人话：开机后起一个教学用的「慢任务」槽，用来演示进度条（25%→100%），
+ *       不是商店卸载那种真后台活。任务管理器 / ps 里会看到它的名字。
+ *
+ * 从哪读：KernelTaskDemoStart → KernelTaskRegister → KernelTaskDemoRun。
+ *
+ * 别改：槽位最多 4 个；Name 最长 15 字符。Store 装卸不走这张表。
+ *
+ * 想照着做：暂无短文；对照 KernelMainCommon 里对 KernelTaskDemoStart 的调用。
+ */
 #include "KernelTask.h"
 #include "Scheduler.h"
 #include "Hal.h"
@@ -96,19 +106,20 @@ int KernelTaskProgress(int Slot) {
     return gSlots[Slot].Progress;
 }
 
-static void DemoFn(void *Ctx) {
-    KERNEL_TASK_SLOT *S = (KERNEL_TASK_SLOT *)Ctx;
-    int Slot = (int)(S - gSlots);
-    int Step;
+/* 教学：假装一段慢活，每 25% 让出 CPU，让调度器和进度显示能被看见。 */
+static void KernelTaskDemoRun(void *Ctx) {
+    KERNEL_TASK_SLOT *Slot = (KERNEL_TASK_SLOT *)Ctx;
+    int Index = (int)(Slot - gSlots);
+    int Percent;
 
-    for (Step = 25; Step <= 100; Step += 25) {
-        KernelTaskSetProgress(Slot, Step, "demo");
+    for (Percent = 25; Percent <= 100; Percent += 25) {
+        KernelTaskSetProgress(Index, Percent, "Progress");
         (void)SchedulerCondResched();
     }
-    S->State = KERNEL_TASK_DONE;
-    DebugWrite("kerneltask: demo done\n");
+    Slot->State = KERNEL_TASK_DONE;
+    DebugWrite("KernelTask: Demo Done\n");
 }
 
 void KernelTaskDemoStart(void) {
-    (void)KernelTaskRegister("ktdemo", DemoFn, 0);
+    (void)KernelTaskRegister("KernelTaskDemo", KernelTaskDemoRun, 0);
 }

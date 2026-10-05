@@ -9,8 +9,8 @@
 
 /*
  * 主版本号语义：0.x = 早期教学版。
- * 摘要页展示为「ToyOS 0.1.0」；可叠加 HalArchName() 显示架构。
+ * 摘要页展示为「ToyOS 0.1.1」；可叠加 HalArchName() 显示架构。
  */
-#define TOY_OS_VERSION_STRING "ToyOS 0.1.0"
+#define TOY_OS_VERSION_STRING "ToyOS 0.1.1"
 
 #endif
