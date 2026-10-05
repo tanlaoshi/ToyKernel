@@ -1,11 +1,15 @@
 /*
- * TaskMgr.c — 任务管理器（课堂范例 GUI App）
+ * 人话：这里是「任务管理器」窗口程序。列出内核里正在跑的任务。
+ *       打开：开始菜单 → Apps → Task Manager（也可桌面图标）。
+ *       或商店里安装 taskmgr 后再从 Apps 进。
  *
- * 读 SYS_TASK_SNAP（与 Shell `ps` 同源）。
- * 注意：libToyUi 的 List 只画色块、不绘文字 → 本 App 用 SetLabel 显示当前行，
- * Next 翻任务；Refresh / Kill 仍可用。
- * Shell：exec TASKMGR.ELF
- * 流程文档：Documents/开发/如何写一个任务管理器App.md
+ * 从哪读：main（文件末尾）→ Refresh 拉一张快照 → Paint 画当前这一行。
+ *
+ * 别改：toy_task_snap / TOY_TASK_SNAP 的字段含义（与 Shell 命令 ps 同一份）。
+ *       按钮编号 0/1/2 与 ToyUiAddButton 的添加顺序绑死。
+ *       Pid 是槽位+1，和 kill 命令用的号码一样，不是 getpid() 的裸任务 Id。
+ *
+ * 想照着做：Documents/开发/如何写一个任务管理器App.md
  */
 #include <stdio.h>
 #include <unistd.h>
@@ -53,7 +57,8 @@ static void Paint(void) {
         gIndex = 0;
     }
     E = &gSnap.Tasks[gIndex];
-    /* 两行：避免单行超出客户区宽度被裁掉（内核 ClientText 认 '\\n'） */
+    /* List 控件只画色块、不写字，所以用标签两行显示当前任务。
+     * 内核客户区认 '\\n' 换行；一行太长会被裁掉。 */
     snprintf(Line, sizeof(Line),
              "%d/%u pid=%d %s %s %s\nt=%u cpu=%d prio=%d free=%u t=%lums",
              gIndex + 1, (unsigned)gSnap.Count, (int)E->Pid, E->Name,
@@ -64,6 +69,7 @@ static void Paint(void) {
 }
 
 static int Refresh(void) {
+    /* 与 Shell `ps` 同一份快照；Magic/Version 对不上说明内核 ABI 对不上。 */
     if (toy_task_snap(&gSnap) != 0) {
         return -1;
     }
@@ -86,6 +92,7 @@ static void KillCurrent(void) {
         ToyUiSetLabel(gWid, "nothing to kill");
         return;
     }
+    /* 只杀用户态任务；内核任务和自己都不能杀。Pid 见文件头。 */
     E = &gSnap.Tasks[gIndex];
     if (!(E->Flags & TOY_TASK_F_USER)) {
         ToyUiSetLabel(gWid, "refuse: kernel task");
@@ -104,6 +111,8 @@ static void KillCurrent(void) {
 
 static void DrainClicks(void) {
     int Ev;
+
+    /* AddButton 时可能已经排队点击，先抽空，免得一开窗就误触发 Refresh/Next/Kill。 */
 
     for (;;) {
         Ev = ToyUiPoll(gWid);
@@ -124,6 +133,7 @@ int main(void) {
         printf("taskmgr: create fail\n");
         return 1;
     }
+    /* 0=Refresh 1=Next 2=Kill；ToyUi 按添加顺序编号，对调这里会点错按钮。 */
     if (ToyUiAddButton(gWid, 0, "Refresh") != 0 ||
         ToyUiAddButton(gWid, 1, "Next") != 0 ||
         ToyUiAddButton(gWid, 2, "Kill") != 0) {

@@ -60,12 +60,37 @@ static int ListInstalledCb(const char *Key, const char *Value, void *Ctx) {
     return 0;
 }
 
+/* 镜像预置 Apps/<id>/ELF 但 TOYOS.DB 漏了 si.* 时，菜单/桌面看不见。补登记。 */
+static void StoreAdoptDiskApps(void) {
+    STORE_ENTRY *Tab;
+    int Count = 0;
+    int i;
+
+    Tab = gStoreTab;
+    if (StoreLoadCatalog(Tab, STORE_ENTRIES_MAX, &Count) < 0 || Count <= 0) {
+        return;
+    }
+    for (i = 0; i < Count; i++) {
+        if (EntryKind(Tab[i].Type) != STORE_KIND_APP) {
+            continue;
+        }
+        if (StoreHasSi(Tab[i].Id)) {
+            continue;
+        }
+        if (!StoreAppElfExists(Tab[i].Id, Tab[i].File)) {
+            continue;
+        }
+        (void)StoreAdoptInstalled(Tab[i].Id);
+    }
+}
+
 int StoreListInstalled(STORE_INSTALLED *Out, int Max, int *OutCount) {
     STORE_LIST_CTX Ctx;
 
     if (!Out || Max <= 0 || !OutCount) {
         return FAT_ERR_INVAL;
     }
+    StoreAdoptDiskApps();
     Ctx.Out = Out;
     Ctx.Max = Max;
     Ctx.Count = 0;
