@@ -1,10 +1,17 @@
 /*
- * SchedulerPriority.c — 学生调度模板。
+ * 人话：课堂用的「谁先跑、跑在哪一核」调度模板。默认内核不链这个文件，
+ *       链的是 round-robin。作业时改这里两处政策即可。
  *
- * 改 Enqueue 决定谁排在前面，改 PickHome 决定新任务去哪一核。
- * 不要在这里加锁，不要碰 gRunQueue / gIdleSlot。队列由框架在调用前锁好。
- * 编进内核：make SCHEDULER=priority
- * 只跑断言：./Scripts/runtests.sh scheduler
+ * 从哪读：SchedulerPriorityOps（表）→ PriorityEnqueue（谁排前面）
+ *       → PriorityPickHome（去哪一核）。Init 只清自己的计数。
+ *
+ * 别改：不要加锁；不要碰 gRunQueue / gIdleSlot / gTasks。
+ *       Remove、PickNext 用框架的，不要在这张表里换成自己的。
+ *       Enqueue 被叫时这一核的队列锁已经拿着。
+ *
+ * 想照着做：Documents/开发/如何写一个调度器.md
+ *           编进内核 make SCHEDULER=priority
+ *           断言 ./Tools/Scripts/runtests.sh scheduler
  */
 #include "SchedulerOps.h"
 #include "SchedulerPrivate.h"
@@ -69,6 +76,7 @@ static UINT32 PriorityPickHome(const TASK *T)
 
 const SCHEDULER_OPS *SchedulerPriorityOps(void)
 {
+    /* Remove / PickNext 是框架排队与取下一个，不是学生政策。 */
     static const SCHEDULER_OPS Ops = {
         PriorityInit,
         PriorityEnqueue,
