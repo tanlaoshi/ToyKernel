@@ -1,10 +1,15 @@
 /*
- * Desktop.c — 桌面图标 + 任务栏/开始菜单 + BMP 壁纸/图标（PR-S3-desktop-1）
+ * 人话：你开机后看见的桌面——图标、底栏任务栏、「开始」菜单、壁纸。
+ *       开窗：双击图标，或点任务栏「开始」。
  *
- * 时钟节流见 DesktopClock.c。开窗：桌面双击图标，或任务栏「开始」菜单。
- * PR-G-desk-1：图标可拖放；松手写入 TOYOS.DB；启动时 LoadIconLayout。
- * PR-G-desk-2：开始菜单动态列出 Apps/ 下 .ELF + 缺文件 INST(app) 灰显。
- * 壁纸/图标：优先 TOYOS:Assets/…（BI_RGB BMP）；读不到则纯色块。
+ * 从哪读：DesktopInitialize（开机搭好）→ DesktopEnsureIconsLoaded（晚一点
+ *       才扫盘加载图标）→ DesktopDraw / DesktopDrawStartMenu（谁画什么）。
+ *
+ * 别改：图标坐标松手后写 TOYOS.DB，下次开机 LoadIconLayout 读回来。
+ *       开始菜单里 Apps 列表认已装清单 + 盘上 ELF，勿只扫半边。
+ *       DesktopInitialize 与 OnDisplayResize 勿重入（gDesktopBusy）。
+ *
+ * 想照着做：暂无短文；绘制细节在 DesktopPaint.c，点击在 GuiClickDesktop。
  */
 #include "DesktopPrivate.h"
 #include "Gui.h" /* GuiCursorHide/Show：时钟重绘任务栏勿穿光标 */
@@ -26,7 +31,7 @@ UINT64 gSelectClock;
 UINT32 gSelectX;
 UINT32 gSelectY;
 
-/* PR-G-desk-1：图标拖放状态 */
+/* 图标拖放：按下偏移与是否已挪动 */
 int gIconDragIdx = -1;
 INT32 gIconDragOffX;
 INT32 gIconDragOffY;
@@ -162,7 +167,7 @@ void DesktopInitialize(void) {
     }
     gDesktopBusy = 1;
 
-    /* PR-BOOT-fast-1：只占位+布局；BMP/动态图标/菜单扫盘见 DesktopEnsureIconsLoaded */
+    /* 先占位+布局，BMP/动态图标/菜单扫盘放后面 Ensure，开机别卡死 */
     DesktopIconsResetDeferred();
     PlaceDesktopIcons();
     LoadIconLayout();
@@ -182,8 +187,6 @@ void DesktopInitialize(void) {
     gIconDragMoved = 0;
     LoadWallpaper();
     ToyLogGui("Boot: Desktop Ready\n");
-    /* PR-G-igpu-corner：不再画右上角品红自测块（原 PR-G-igpu-3） */
-    /* PR-G-audio-4：桌面 Ready 后再短鸣，验收 HalAudio API */
     HalAudioBeep();
     DebugWrite("desktop: solid ready (icons deferred)\n");
 #if TOY_KERNEL_DEBUG
@@ -191,9 +194,8 @@ void DesktopInitialize(void) {
 #endif
     gDesktopBusy = 0;
     /*
-     * PR-BOOT-fast-1 本意 defer 给 Worker；但 UP（TOY_SMP=1）上 worker 与
-     * shell/gui 同核且 prio 更低，Halt 后仍优先交互任务 → Icons Loaded 永不出现。
-     * 在 Init 末同步加载：首帧 Compose 前就有 BMP；Worker 再 Ensure 即 no-op。
+     * 单核时 worker 优先级低于 shell/gui，图标若只丢给 Worker 可能永远不加载。
+     * 所以 Init 末同步 Ensure：首帧就有图；Worker 再 Ensure 等于空操作。
      */
     DesktopEnsureIconsLoaded();
 }
@@ -205,7 +207,7 @@ void DesktopOnDisplayResize(void) {
         return;
     }
     gDesktopBusy = 1;
-    /* 热切：钳已存坐标，勿重置为默认竖列（PR-G-desk-1） */
+    /* 热切：钳已存坐标，勿重置成默认竖列，否则拖过的布局丢了 */
     ClampAllIcons();
     gMenuOpen = 0;
     gMenuAppsOpen = 0;
