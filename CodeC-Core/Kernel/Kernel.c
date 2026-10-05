@@ -1,5 +1,16 @@
 /*
- * Kernel.c — 内核入口：早期 Video 设置、模块初始化、启动常驻任务
+ * Kernel.c — 内核入口编排（PR-K-seq-1）
+ *
+ * 人话：Startup 填好 BOOT_INFO 后走进这里。这里只决定走哪条开机路径，
+ *       再按顺序挂串口/屏、跑模块表、拉起 shell/gui/worker。
+ *
+ * 从哪读：KernelMain（文末，只分发）→ KernelMainVirt / VirtDesktop / Full
+ *         → KernelMainCommon（桌面常驻任务）。
+ *
+ * 别改：三路旗标必须 HalConsoleOnly →（HasFrameBuffer 且 Virt 形状）→ Full。
+ *       本刀仍调 KernelModulesRun()（表内 if 留给 PR-K-seq-2）。
+ *
+ * 想照着做：Documents/开发/代码可读性规范.md §2.4 / §2.5
  */
 #include "BootInfo.h"
 #include "ToySerialLog.h"
@@ -13,8 +24,12 @@
 #include "Font.h"
 #include "Theme.h"
 
-/* 启动常驻任务：失败则打日志，由调用方决定是否停机。
- * SchedulerCreate 成功返回槽号（≥0），失败 -1——勿用 !=0。 */
+static void KernelMainVirt(void);
+static void KernelMainVirtDesktop(void);
+static void KernelMainFull(void);
+static void KernelMainCommon(void);
+
+/* SchedulerCreate 成功返回槽号（≥0），失败 -1——勿用 !=0。 */
 static int KernelSpawn(const char *Name, void (*Entry)(void)) {
     if (SchedulerCreate(Name, Entry) < 0) {
         ToyLogBoot("kernel: SchedulerCreate failed\n");
@@ -29,93 +44,78 @@ static void KernelParkForever(void) {
     }
 }
 
-void KernelMain(void) {
+static void KernelAppendDecimal4(char *Line, int *N, UINT32 Value) {
+    Line[(*N)++] = (char)('0' + ((Value / 1000) % 10));
+    Line[(*N)++] = (char)('0' + ((Value / 100) % 10));
+    Line[(*N)++] = (char)('0' + ((Value / 10) % 10));
+    Line[(*N)++] = (char)('0' + (Value % 10));
+}
+
+static void KernelLogFrameBufferSize(const BOOT_INFO *Info) {
+    char Line[48];
+    int N = 0;
+    const char *Prefix = "Boot: FB ";
+
+    while (*Prefix && N < 16) {
+        Line[N++] = *Prefix++;
+    }
+    KernelAppendDecimal4(Line, &N, Info->HorizontalResolution);
+    Line[N++] = 'x';
+    KernelAppendDecimal4(Line, &N, Info->VerticalResolution);
+    Line[N++] = '\n';
+    Line[N] = 0;
+    ToyLogBoot(Line);
+}
+
+/*
+ * 尽早挂串口和帧缓冲：后面模块 ConsoleWrite 若 Width=0 会空转。
+ * 有 FB 则开 GOP 镜像（接 ToyBoot 黑底，禁止再全屏 Clear）。
+ */
+static void KernelAttachEarlyVideo(void) {
     const BOOT_INFO *Info = BootInfoGet();
-    VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
+    VIDEO_CONFIG Video = BootInfoToVideoConfig(Info);
 
-    /* 防御：非 UEFI 入口路径也保证串口已 Initialize（幂等） */
     HalSerialInitialize();
-
-    /* 尽早挂上帧缓冲，避免 mem 等模块 ConsoleWrite 时 Width=0 死循环 */
-    HalVideoSet(&V);
-    /*
-     * PR-K-log-cont：接 ToyBoot 已清的黑底，禁止再全屏 Clear（否则闪黑/日志断层）。
-     * 有 FB 则开 GOP 镜像：无 COM1 真机也能看见 [Mod]；有串口则 UART+屏同文。
-     */
+    HalVideoSet(&Video);
     if (Info && Info->FrameBufferSize != 0) {
-        FontInitialize(); /* GOP 日志/DrawString 依赖字体表；video 模块里会再 Init 一次 */
-        /*
-         * ThemeInitialize 记桌面默认 font=2；GopEnable 按分辨率套 boot 大字
-         *（PR-K-log-4kfont）。Video 再 Init 时 Theme/GopEnable 会保持同一套。
-         */
+        FontInitialize();
         ThemeInitialize();
         HalSerialGopEnable();
         ToyLogBoot("Boot: KernelMain Live\n");
-        {
-            char Line[48];
-            int n = 0;
-            const char *P = "Boot: FB ";
-            UINT32 W = Info->HorizontalResolution;
-            UINT32 H = Info->VerticalResolution;
-            while (*P && n < 16) {
-                Line[n++] = *P++;
-            }
-            Line[n++] = (char)('0' + ((W / 1000) % 10));
-            Line[n++] = (char)('0' + ((W / 100) % 10));
-            Line[n++] = (char)('0' + ((W / 10) % 10));
-            Line[n++] = (char)('0' + (W % 10));
-            Line[n++] = 'x';
-            Line[n++] = (char)('0' + ((H / 1000) % 10));
-            Line[n++] = (char)('0' + ((H / 100) % 10));
-            Line[n++] = (char)('0' + ((H / 10) % 10));
-            Line[n++] = (char)('0' + (H % 10));
-            Line[n++] = '\n';
-            Line[n] = 0;
-            ToyLogBoot(Line);
-        }
+        KernelLogFrameBufferSize(Info);
     }
+}
 
+static void KernelAfterModules(void) {
+    (void)FontSetById(ThemeFontId());
+    HalSerialGopMirror(0);
+}
+
+static int KernelRunModulesOrPark(void) {
     if (KernelModulesRun() != 0) {
         KernelParkForever();
     }
+    return 0;
+}
 
-    /*
-     * 进调度/桌面前：套用 ThemeLoad 选中的字面，再关掉 boot→GOP 镜像
-     * （桌面勿被串口字盖住；boot 上滚用 HalSerialBootFontApply，与桌面字面分离）。
-     */
-    (void)FontSetById(ThemeFontId());
-    HalSerialGopMirror(0);
-
-    /* PR-B1：ConsoleOnly → 串口壳；HasFrameBuffer + virt 形状 → 协作桌面 */
-    if (HalConsoleOnly()) {
-        /* PR-A14：多核时也走 SchedulerStart，让 AP 进 idle；单核仍直跑串口壳 */
-        if (HalCpuCount() > 1) {
-            if (KernelSpawn("shell", ConsoleSerialRun) != 0) {
-                KernelParkForever();
-            }
-            SchedulerStart();
-            return;
-        }
-        HalTimerStart();
-        ConsoleSerialRun();
-        return;
-    }
-
-    if (HalHasFrameBuffer() && HalPlatformIsVirtSerialConsole()) {
-        if (KernelSpawn("shell", ShellTask) != 0 ||
-            KernelSpawn("gui", GuiTask) != 0 ||
-            KernelSpawn("worker", WorkerTask) != 0) {
+/* 串口子集：单核直跑壳；多核 spawn 后 SchedulerStart 让 AP 进 idle。 */
+static void KernelMainVirt(void) {
+    KernelAttachEarlyVideo();
+    KernelRunModulesOrPark();
+    KernelAfterModules();
+    if (HalCpuCount() > 1) {
+        if (KernelSpawn("shell", ConsoleSerialRun) != 0) {
             KernelParkForever();
-        }
-        KernelTaskDemoStart();
-        /* PR-S-input-pin 序 2：SMP≥3 才起 InputTask 钉 CPU2；SMP=2 留序 1 等价 yield-path drain */
-        if (HalCpuCount() > 2) {
-            (void)KernelSpawn("input", InputTask);
         }
         SchedulerStart();
         return;
     }
+    HalTimerStart();
+    ConsoleSerialRun();
+}
 
+/* 桌面常驻任务（virt 桌面与 x86 全量相同）。CPU>2 才起 input。 */
+static void KernelMainCommon(void) {
     if (KernelSpawn("shell", ShellTask) != 0 ||
         KernelSpawn("gui", GuiTask) != 0 ||
         KernelSpawn("worker", WorkerTask) != 0) {
@@ -126,4 +126,30 @@ void KernelMain(void) {
         (void)KernelSpawn("input", InputTask);
     }
     SchedulerStart();
+}
+
+static void KernelMainVirtDesktop(void) {
+    KernelAttachEarlyVideo();
+    KernelRunModulesOrPark();
+    KernelAfterModules();
+    KernelMainCommon();
+}
+
+static void KernelMainFull(void) {
+    KernelAttachEarlyVideo();
+    KernelRunModulesOrPark();
+    KernelAfterModules();
+    KernelMainCommon();
+}
+
+void KernelMain(void) {
+    if (HalConsoleOnly()) {
+        KernelMainVirt();
+        return;
+    }
+    if (HalHasFrameBuffer() && HalPlatformIsVirtSerialConsole()) {
+        KernelMainVirtDesktop();
+        return;
+    }
+    KernelMainFull();
 }
