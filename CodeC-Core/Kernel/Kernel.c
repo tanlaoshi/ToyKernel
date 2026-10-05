@@ -8,7 +8,7 @@
  *         → KernelMainCommon（桌面常驻任务）。
  *
  * 别改：三路旗标必须 HalConsoleOnly →（HasFrameBuffer 且 Virt 形状）→ Full。
- *       本刀仍调 KernelModulesRun()（表内 if 留给 PR-K-seq-2）。
+ *       各路径只调对应 KernelModulesRunVirt / RunVirtDesktop / RunFull。
  *
  * 想照着做：Documents/开发/代码可读性规范.md §2.4 / §2.5
  */
@@ -91,17 +91,16 @@ static void KernelAfterModules(void) {
     HalSerialGopMirror(0);
 }
 
-static int KernelRunModulesOrPark(void) {
-    if (KernelModulesRun() != 0) {
+static void KernelRunOrPark(int (*RunModules)(void)) {
+    if (RunModules() != 0) {
         KernelParkForever();
     }
-    return 0;
 }
 
 /* 串口子集：单核直跑壳；多核 spawn 后 SchedulerStart 让 AP 进 idle。 */
 static void KernelMainVirt(void) {
     KernelAttachEarlyVideo();
-    KernelRunModulesOrPark();
+    KernelRunOrPark(KernelModulesRunVirt);
     KernelAfterModules();
     if (HalCpuCount() > 1) {
         if (KernelSpawn("shell", ConsoleSerialRun) != 0) {
@@ -130,14 +129,14 @@ static void KernelMainCommon(void) {
 
 static void KernelMainVirtDesktop(void) {
     KernelAttachEarlyVideo();
-    KernelRunModulesOrPark();
+    KernelRunOrPark(KernelModulesRunVirtDesktop);
     KernelAfterModules();
     KernelMainCommon();
 }
 
 static void KernelMainFull(void) {
     KernelAttachEarlyVideo();
-    KernelRunModulesOrPark();
+    KernelRunOrPark(KernelModulesRunFull);
     KernelAfterModules();
     KernelMainCommon();
 }
