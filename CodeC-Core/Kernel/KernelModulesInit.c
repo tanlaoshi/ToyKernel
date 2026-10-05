@@ -1,28 +1,21 @@
 /*
- * KernelModulesInit.c — 子系统 Initialize*（PR-S3-kernelmodules-1）
+ * KernelModulesInit.c — 其余 Initialize*（PR-K-seq-4）
  *
- * 从 KernelModules.c 原样搬家；不改语义。表与 Run 见 KernelModules.c。
+ * Video / USB / Gui 见同目录 KernelModulesInitVideo.c 等。表与 Run 见 KernelModules.c。
  */
 #include "KernelModulesPrivate.h"
 #include "BootInfo.h"
 #include "Hal.h"
-#include "UI.h"
 #include "Console.h"
 #include "FileSystem.h"
 #include "Scheduler.h"
 #include "PhysicalMemory.h"
 #include "VirtualMemory.h"
-#include "Gui.h"
 #include "Udp.h"
 #include "Tcp.h"
 #include "ShellCommands.h"
-#include "Font.h"
-#include "Theme.h"
-#include "Db.h"
 #include "Locale.h"
 #include "Driver.h"
-#include "DriverInput.h"
-#include "HalDevices.h"
 #include "Device.h"
 #include "ToySerialLog.h"
 
@@ -79,39 +72,6 @@ int InitializeVirtualMemory(void) {
     return 0;
 }
 
-int InitializeVideo(void) {
-    const BOOT_INFO *Info = BootInfoGet();
-    VIDEO_CONFIG V = BootInfoToVideoConfig(Info);
-
-    FontInitialize();
-    ThemeInitialize();
-    HalVideoSet(&V);
-    /* PR-G-fb-wc：PAT PA1=WC，仅 LFB 映成 PWT（xHCI 仍 PTE_MMIO/UC） */
-    HalVideoEnableFbWc();
-    HalVideoInitializeBackbuffer();
-    /*
-     * PR-K-log-cont：勿再 ClearScreen / 顶带 Fill——接 Boot+KernelMain 已滚的黑底。
-     * 桌面底色由 gui 进桌面时再画。GopEnable 幂等，不重置上滚位置。
-     */
-    HalSerialGopEnable();
-    /* PR-G-fb-pte：映后核验；期望 cache=WC */
-    HalVideoLogFbPte();
-    /* PR-G-igpu-1：VMM 已开；核显 BAR 只读指纹（无卡/失败软退） */
-    HalIgpuMmioInitialize();
-    /* PR-G-audio-1：HDA BAR 只读指纹（无卡/失败软退） */
-    HalHdaMmioInitialize();
-    /* PR-G-audio-2：CORB/RIRB + codec/pin 枚举（无卡/失败软退） */
-    HalHdaCodecInitialize();
-    /* PR-G-igpu-3：forcewake 须在显示侧 AUD / Stream 之前 */
-    HalIgpuForcewakeInitialize();
-    /* PR-G-audio-3：Stream 短 PCM（DP；须 igpu AUD 使能） */
-    HalHdaStreamInitialize();
-    HalIgpuGttInitialize();
-    HalIgpuBlitInitialize();
-    HalIgpuPresentPrepare();
-    return 0;
-}
-
 int InitializeCpu(void) {
     if (HalInitialize() != 0) {
         return -1;
@@ -152,87 +112,8 @@ int InitializeSmp(void) {
     return HalSmpStartApplicationProcessors();
 }
 
-int InitializeUsb(void) {
-    ToyLogBoot("Boot: Input Probe (USB Then PS/2)\n");
-    (void)HalUsbInitialize();
-    /* USB-UART 挪到 FS MSC 认盘后，避免 Force 扫口打坏 hub */
-    if (ToyDriverInputReady()) {
-        ToyLogBoot("Boot: Input Backend Ready\n");
-    } else {
-        ToyLogBoot("Boot: Input NONE (Continue)\n");
-    }
-    /*
-     * 真机：Arm 试 irq=msi (dual)，不通则 irq=poll；Drain 始终盲排空。
-     * 进 gui 前：对齐鼠坐标并抽空队列/残留键，避免钉死光标或吞首键。
-     */
-    if (!HalCpuIsHypervisor()) {
-        HalInputArmIrq();
-        /* FB-PTE 已在 Video 模块打过，此处勿再 Log（串口/屏会重复一行） */
-        {
-            UINT32 Cx = 512;
-            UINT32 Cy = 384;
-            UINT32 Sw = 0;
-            UINT32 Sh = 0;
-
-            HalVideoGetSize(&Sw, &Sh);
-            if (Sw > 0) {
-                Cx = Sw / 2;
-            }
-            if (Sh > 0) {
-                Cy = Sh / 2;
-            }
-            HalInputMouseHandoffDesktop(Cx, Cy);
-        }
-        {
-            int n;
-            HAL_KEYBOARD_REPORT Dump;
-            HAL_MOUSE_REPORT Mdump;
-
-            for (n = 0; n < 8; n++) {
-                HalInputPoll();
-            }
-            while (HalKeyboardDequeue(&Dump)) {
-            }
-            while (HalMouseDequeue(&Mdump)) {
-            }
-        }
-    }
-    return 0; /* 无键盘也必须进 gui / 桌面 */
-}
-
 int InitializeFileSystem(void) {
     return FileSystemInitialize();
-}
-
-int InitializeGui(void) {
-    if (!HalCpuIsHypervisor()) {
-        HalInputPoll();
-    }
-    (void)DbInitialize();
-    (void)FontLoadAssets(); /* PR-T3：须在 ThemeLoad 前，便于 font= 选中运行时 id */
-    (void)FontTtfLoad(); /* PR-UI-ttf-0：CJK.TTF sfnt 探针，不绘制 */
-    (void)FontTtfInit(); /* PR-UI-ttf-1：stb InitFont，不挂钩绘制 */
-    if (!HalCpuIsHypervisor()) {
-        HalInputPoll();
-    }
-    (void)ThemeLoad();
-    LocaleInitialize();
-    if (!HalCpuIsHypervisor()) {
-        HalInputPoll();
-    }
-    /* ThemeLoad 后的 scale=：重配逻辑分辨率后再 GuiInitialize */
-    if (ThemeUiScale() != 100) {
-        (void)HalVideoSetUiScale(ThemeUiScale());
-    }
-    GuiInitialize(); /* 内已 Deferred 补鼠 + Handoff；此处只抽空残留 */
-    if (!HalCpuIsHypervisor()) {
-        HAL_MOUSE_REPORT Mdump;
-
-        HalInputPoll();
-        while (HalMouseDequeue(&Mdump)) {
-        }
-    }
-    return 0;
 }
 
 int InitializeNetwork(void) {

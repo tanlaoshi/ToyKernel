@@ -269,7 +269,10 @@ ToyKernel/
 | `Core/Kernel/CoreOps.c` | PR-R4：WindowOps / VfsServiceOps 注册与薄分发 |
 | `Core/Kernel/Kernel.c` | 内核入口：早期 Video 设置、模块初始化、启动常驻任务 |
 | `Core/Kernel/KernelModules.c` | 子系统模块表与 Run（PR-S3-kernelmodules-1） |
-| `Core/Kernel/KernelModulesInit.c` | 子系统 Initialize*（PR-S3-kernelmodules-1） |
+| `Core/Kernel/KernelModulesInit.c` | 其余 Initialize* |
+| `Core/Kernel/KernelModulesInitVideo.c` | InitializeVideo（seq-4） |
+| `Core/Kernel/KernelModulesInitUsb.c` | InitializeUsb（seq-4） |
+| `Core/Kernel/KernelModulesInitGui.c` | InitializeGui（seq-4） |
 | `Core/Kernel/KernelTask.c` | 常驻内核任务（桌面 / Shell 等） |
 | `Core/Kernel/Module.c` | 内核模块启动器 |
 
