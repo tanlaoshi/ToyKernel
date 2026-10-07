@@ -1,198 +1,173 @@
-# ToyOS 大目录结构（ToyOSNew · 新思路）
+# OpenBox 大目录结构（原 ToyOSNew 思路 · 已拍板）
 
-> **状态**：草案。只写结构与迁移规矩；**确认前不动旧仓、不往新树搬源码**。  
-> **工作区**：迁移目标 `~/ToyOSNew`；现网 `~/ToyOS` 只读对照。  
-> **与旧草案关系**：[`目录树与可读性方案.md`](目录树与可读性方案.md) 里「根级 `10-Boot`/`30-Build`」等顶层设想**被本文取代**。分层可读、四层驱动（Class→Protocol→Family→Chip）、人话头等**细部仍可沿用**，待大树钉死后再接。
+> **状态**：M1 已确认（2026-10-07）。工作区 **`~/OpenBox`**（**不用** `ToyOSNew`）。  
+> **现网** `~/ToyOS` 只读对照，确认前不改旧仓源码/构建。  
+> **git**：GitHub 单仓 **`OpenBox`** — `git@github.com:tanlaoshi/OpenBox.git`（`~/OpenBox` 已跟踪 `origin/main`）。  
+> **文档**：**一个都不从旧仓搬**；结构钉死后迁代码，文档在新树**从新写**。  
+> **与旧草案**：[`目录树与可读性方案.md`](目录树与可读性方案.md) 顶层设想仍被本文取代；四层驱动等细部迁代码后再接。
 
 ---
 
-## 0. 你定下的硬规矩（本轮）
+## 0. 硬规矩（已确认）
 
 | # | 规矩 |
 | - | ---- |
-| 1 | 根仍叫逻辑名 **ToyOS**；下面**三个**子目录：**Boot**、**Kernel**、**Runtime**（相对旧名要改名） |
-| 2 | **取消**顶层 `Build/`；构建产物分别回到 **Boot/Build**、**Kernel/Build** |
-| 3 | **Documents 拆开**：ToyOS 根**只有** `README.md`；文档大部分进 **Kernel**，少部分进 **Boot** |
-| 4 | **现仓结构先不动**；在 `~/ToyOSNew` 建新树，**逐步迁移**；先文档、确认后再动手 |
+| 1 | 逻辑根名仍是 ToyOS 故事；物理工作区 / 仓名 **`OpenBox`**。下三夹：**Boot**、**Kernel**、**Runtime** |
+| 2 | **无**顶层 `Build/`；产物在 **`Boot/Build/`**、**`Kernel/Build/`** |
+| 3 | 根**只有** `README.md`（无根 `Documents/`、无根 `Scripts/`、无根 `Config.txt`） |
+| 4 | **Boot 按三架构分夹**：`X64` / `Arm64` / `RiscV` |
+| 5 | **EDK2** 放在 **`Boot/X64/EDK2/`**，与原 ToyBoot 源码**平级**，作 **X64 工具包**；**剥掉其独立 `.git`**，只作 OpenBox 单仓里的普通目录 |
+| 6 | **删 Config.txt**；默认 arch/target 写进各侧 **`*.sh`** |
+| 7 | **Scripts 全拆**进 Boot / Kernel（及日后 Runtime 跑盘脚本），根不留 Scripts 院 |
+| 8 | **文档零迁移**；先确认树 → **搬代码** → 文档新写 |
+| 9 | 每次迁任何东西前：拟清单 → **你确认** → 再动手（本轮文档侧：清单恒为空，只迁代码时仍要确认） |
+| 10 | **代码逐步迁移**；每刀可审（你做 code review）；不搞整树一次性搬家 |
 
 ---
 
-## 1. 目标顶层（人话）
-
-打开 `ToyOS`（迁移完成后可由 `ToyOSNew` 改名/替换）应只看到：
+## 1. 目标顶层
 
 ```text
-ToyOS/
-  README.md          # 唯一总入口说明（地图 + 怎么编/跑的一页）
-  Boot/              # 引导：源码 + Boot/Build/
-  Kernel/            # 内核/用户态：源码 + 文档大部 + Kernel/Build/
-  Runtime/           # 运行镜像：RootFs、ESP、种子…（无顶层 Build）
+OpenBox/                 # ~/OpenBox ；GitHub: OpenBox
+  README.md              # 唯一总入口（地图 + 怎么编/跑；从新写）
+  Boot/
+    X64/                 # 原 ToyBoot 源码平铺于此
+      EDK2/              # 工具包（裁剪 EDK2，与 Boot 源码平级）
+      …                  # Boot.c / build.sh 等
+    Arm64/
+    RiscV/
+    Build/               # 引导产物（可按 arch 分子目录）
+  Kernel/                # 原 ToyKernel；Build/ 自产自消
+    Build/
+  Runtime/               # 原 ToyImage：RootFs / ESP / 种子…（无 Build）
 ```
 
-| 目录 | 阶段 | 人话 |
-| ---- | ---- | ---- |
-| Boot | 开发 · 引导 | 机器怎么把 Kernel 拉起来 |
-| Kernel | 开发 · 系统 | OS 本身怎么写、怎么编 |
-| Runtime | 运行 | 编出来的东西怎么摆盘、怎么跑 |
+| 目录 | 人话 |
+| ---- | ---- |
+| Boot | 机器怎么把 Kernel 拉起来（分架构） |
+| Kernel | OS 怎么写、怎么编 |
+| Runtime | 编出来的怎么摆盘、怎么跑 |
 
-字母序：`Boot` → `Kernel` → `Runtime` →（若根上只有这三夹 + README，浏览顺序即故事线）。  
-**不再**出现顶层 `Build` 抢在 Boot 前面。
+浏览序：`Boot` → `Kernel` → `Runtime`（故事线）。
 
 ---
 
-## 2. 与旧仓对照（改名表）
+## 2. 与旧仓对照
 
-| 旧路径（`~/ToyOS`） | 新路径（`~/ToyOSNew` → 将来的 ToyOS） | 备注 |
-| ------------------- | ------------------------------------- | ---- |
-| `ToyBoot/` | `Boot/` | 去 Toy 前缀 |
+| 旧（`~/ToyOS`） | 新（`~/OpenBox`） | 备注 |
+| --------------- | ----------------- | ---- |
+| `ToyBoot/` | `Boot/X64/`（主体） | Arm/RiscV 引导进对应夹 |
+| （EDK2 / 裁剪树） | `Boot/X64/EDK2/` | 工具包；**拷入时删除其中 `.git` / 子模块元数据**，不保留独立仓史 |
 | `ToyKernel/` | `Kernel/` | 去 Toy 前缀 |
-| `ToyImage/` | `Runtime/` | 「镜像/运行料」比 Image 更贴人话；若你更想叫 `Image` 可再拍板 |
-| `Build/`（顶层） | **删除（逻辑上）** | 拆进 `Boot/Build/`、`Kernel/Build/` |
-| `ToyKernel/Documents/` | `Kernel/Documents/` | 大部分文档 |
-| （引导相关少量文档） | `Boot/Documents/` 或 `Boot/README` + 短文 | 见 §4 |
-| 根 `README`（若无） | `README.md` | 根唯一长说明入口 |
-| `Config.txt` | **待决**：根 / `Kernel/` / 各侧一份 | 见 §7 |
-| `Scripts/` | **待决**：根不要 Scripts 大院时 → 拆进 Boot/Kernel | 见 §7 |
-| `EDK2/` | **待决**：常跟 Boot 走 → `Boot/EDK2` 或 `Boot/ThirdParty/EDK2` | 见 §7 |
-| `.cursor/` | 随工作区；可不进 Runtime | 工具配置 |
+| `ToyImage/` | `Runtime/` | 名已定 |
+| 顶层 `Build/` | **删（逻辑）** | → `Boot/Build`、`Kernel/Build` |
+| 顶层 `Scripts/` | **拆尽** | 编 Boot→Boot 侧；编/跑 Kernel→Kernel 侧；刷盘/QEMU→Runtime 或 Kernel 约定脚本 |
+| 顶层 `Config.txt` | **删除** | 默认进 `build.sh` / `env` 类脚本 |
+| `ToyKernel/Documents/**` | **不搬** | 新树文档从零写；旧仓文档仍权威到你宣布切换 |
+| `ToyKernel/OpenBox/`（旧开箱脚本树） | **参考源**，不整树拷 | 拆脚本时按需挑文件（仍先确认清单） |
 
-多仓 git（ToyBoot / ToyKernel / ToyImage）是否合成一个 `ToyOS` 仓：**另议**；物理上可仍三仓，逻辑上按上表对齐路径。
+此后 **只认单仓 OpenBox**。旧三仓（ToyBoot / ToyKernel / ToyImage）只读对照，不再往新树里嵌套第二套 `.git`。
 
 ---
 
-## 3. Build 回归两侧
-
-### 3.1 规则
+## 3. Build
 
 | 规则 | 说明 |
 | ---- | ---- |
-| 无顶层 Build | `ToyOS/Build` 不再作为共享大院 |
-| Boot 自产自消 | `Boot/Build/`：EFI、引导中间文件等 |
-| Kernel 自产自消 | `Kernel/Build/`：`Kernel.elf`、各 arch 目标、测试宿主二进制等 |
-| Runtime 不编译内核 | Runtime **接收**拷贝/同步结果（ELF、资源），不设「第三套编译树」；若需临时打包目录，用 `Runtime/Staging/` 一类名，**不叫 Build** |
+| 无顶层 Build | — |
+| Boot | `Boot/Build/`（建议 `Boot/Build/X64` 等） |
+| Kernel | `Kernel/Build/` |
+| Runtime | 只收同步结果；临时打包用 `Runtime/Staging/`，**不叫 Build** |
 
-### 3.2 旧路径迁移示意
-
-| 今日 | 明日 |
-| ---- | ---- |
-| `ToyOS/Build/ToyKernel/...` | `Kernel/Build/...` |
-| （若有）Boot 产物混在顶层 Build | `Boot/Build/...` |
-| `ToyImage/RootFs/.../Kernel.elf`（同步目标） | 仍在 `Runtime/...`；来源改为从 `Kernel/Build` 拷 |
-
-`build.sh` / Makefile 里的 `BUILDDIR`、同步到 Image 的脚本：迁移刀里改路径；**本阶段只记债，不改旧仓**。
+旧 `BUILDDIR` / sync 脚本：迁代码刀里改；旧仓暂不动。
 
 ---
 
-## 4. Documents 怎么拆
-
-### 4.1 根
-
-- **仅** `README.md`：三目录地图、一键「去哪读文档 / 怎么编 Boot / 怎么编 Kernel / 怎么跑 Runtime」。  
-- **不**放路线图、不放驱动长文、不放进展日记。
-
-### 4.2 进 Kernel（默认：绝大部分）
-
-凡与内核、用户态、驱动框架、桌面、商店、开课 ABI、可读性、路线图、待做进展相关：
-
-```text
-Kernel/Documents/
-  开发/
-  驱动/
-  待做/
-  已完/
-  路线图.md
-  技术手册.md
-  …
-```
-
-即今日 `ToyKernel/Documents/**` 的主体原样迁入（路径去 `Toy` 前缀即可）。
-
-### 4.3 进 Boot（少量）
-
-只放**引导专用、Kernel 读者不必先读**的短文，例如：
-
-| 宜进 Boot | 例子（名义） |
-| --------- | ------------ |
-| 如何编 Boot / 如何打 EFI | `Boot/Documents/如何构建Boot.md` |
-| 与 EDK2/OVMF 交接 | 引导 Handoff、固件变量 |
-| 板级 / 架构引导差异 | `Boot/Documents/Arch-X64.md` 等 |
-
-宜留在 Kernel 的：开机**内核侧**流程（`开机流程与加速.md`）、HAL 进内核之后的故事——即使提到 Boot，也以 Kernel 视角写，Boot 侧用链接指过去。
-
-### 4.4 原则
+## 4. 文档策略（已确认：零迁移）
 
 | 原则 | 说明 |
 | ---- | ---- |
-| 一份权威 | 同一主题不在 Boot/Kernel 各写一篇长文；一侧权威、一侧链接 |
-| 根不藏书 | 根 README 只做索引 |
-| 迁移时带链接债 | 旧文互相引用路径批量替换：`ToyKernel/Documents` → `Kernel/Documents` 等 |
+| 旧仓文档 | 仍在 `~/ToyOS/ToyKernel/Documents`，对照用 |
+| 新树文档 | **从新写**；先有根 README（短），其余随代码柱补 |
+| 不搬 | 路线图、技术手册、待做、已完… **一律不拷进 OpenBox** |
+| Boot 长文 | 需要时在 `Boot/` 下新写短 README，不从旧 Documents 抽迁 |
 
 ---
 
-## 5. 三目录内部（本轮只定边界，细部后接）
+## 5. 三目录内部（边界；细部后接）
 
-确认大树后，再把旧「目录树与可读性方案」里的下列块接进来（可另文或本文续节）：
+| 柱 | 本轮钉死 | 后接 |
+| -- | -------- | ---- |
+| Boot | `X64` / `Arm64` / `RiscV`；EDK2∈X64 | 驱动/固件细节 |
+| Kernel | 源码树整体迁入后再谈 Hal/… 改名 | 四层驱动、可读性 |
+| Runtime | 沿今日 Image 大意（RootFs/Store/…） | 同步脚本落点 |
 
-- Boot：按 **X64 / Arm64 / RiscV** 分架构夹  
-- Kernel：`Hal` / `Library` / `Core` / `Services` / `User` + 数字前缀排序；驱动四层 Class→Protocol→Family→Chip  
-- Runtime：`Esp` / `RootFs` / `Store` / …（大致沿今日 ToyImage）
-
-**本轮不展开改名 CodeA、不搬驱动。**
+**本轮不改名 CodeA、不搬驱动层。**
 
 ---
 
-## 6. 迁移策略（ToyOSNew）
+## 6. 迁移阶段（修订）
 
-### 6.1 阶段
-
-| 阶段 | 做什么 | 何时 |
+| 阶段 | 做什么 | 状态 |
 | ---- | ------ | ---- |
-| **M0** | 本文 + `ToyOSNew/{Boot,Kernel,Runtime}` 空骨架 + 根 README | **现在（已做）** |
-| **M1** | 你确认本文 §0～§4、§7 待决 | 确认前 **停** |
-| **M2** | 迁文档：Kernel/Documents 主体；Boot 少量；改根 README 索引 | 确认后第一刀 |
-| **M3** | 迁 Kernel 源码与 `Kernel/Build` 约定；脚本改 `BUILDDIR` | 分多刀 |
-| **M4** | 迁 Boot 源码与 `Boot/Build`；安置 EDK2 | 分多刀 |
-| **M5** | 迁 Runtime（原 ToyImage）；同步脚本改源路径 | 分多刀 |
-| **M6** | 旧 `~/ToyOS` 标只读/归档或切换默认工作区 | 全新树可编可跑之后 |
+| **M0** | 空骨架 + 本文 | ✅ 改落 `~/OpenBox` |
+| **M1** | 拍板 §0 / §7 | ✅ 2026-10-07 |
+| **M2** | ~~迁文档~~ **取消** | 文档新写，不单开迁文档刀 |
+| **M3** | 迁 **Kernel** 源码 + `Kernel/Build` + 相关脚本（清单确认后） | 下一代码刀候选 |
+| **M4a** | 迁 **Boot/X64**（原 ToyBoot）+ 裁剪 **EDK2** + `build.sh` 可编 | ✅ 待你 review（OpenBox） |
+| **M4b** | Arm64 / RiscV 引导 | 分刀 |
+| **M5** | 迁 **Runtime**（原 ToyImage）；跑盘/同步脚本 | 分刀 |
+| **M6** | 旧 `~/ToyOS` 归档或切默认工作区 | 新树可编可跑后 |
 
-### 6.2 铁律
+### 铁律
 
-1. **确认前**：不向 `ToyOSNew` 拷 ELF/源码大树；旧仓零改名。  
-2. **一刀一事**：文档刀与代码刀分开；代码刀按 Boot / Kernel / Runtime 分柱。  
-3. **可回退**：旧 `~/ToyOS` 保留到新树 smoke 通过。  
-4. **双树并存期**：文档写明「权威在旧仓还是新仓」——迁文档刀完成前，**权威仍在旧仓**。
+1. **确认前**：不向 `~/OpenBox` 拷大树源码/ELF；旧仓零改名。  
+2. **一刀一事**：按 Boot / Kernel / Runtime 分柱；每刀拟清单找你确认。  
+3. **可回退**：旧 `~/ToyOS` 留到 smoke 过。  
+4. **权威**：代码迁完前，**可运行权威仍在旧仓**；新树文档从薄到厚。  
+5. **逐步 + review**：每刀迁完你 code review；未点头不开下一刀；禁止「一口气搬完再审」。
 
-### 6.3 当前磁盘状态（M0）
+### 当前磁盘（M0′）
 
 ```text
-~/ToyOSNew/
+~/OpenBox/
   README.md
   Boot/README.md
-  Kernel/Documents/开发/目录结构-ToyOSNew.md   ← 本文
+  Boot/X64/README.md
+  Boot/X64/EDK2/README.md    # 占位：工具包位置
+  Boot/Arm64/README.md
+  Boot/RiscV/README.md
+  Kernel/README.md
   Runtime/README.md
 ```
 
----
-
-## 7. 待你拍板
-
-1. **Runtime** 这个名字是否最终采用，还是改回 `Image` / 改用 `Run`？  
-2. **EDK2**：`Boot/EDK2` 还是 `Boot/ThirdParty/EDK2`？  
-3. **根 Config.txt**：留根 / 进 Kernel / Boot·Kernel 各一份？  
-4. **Scripts**：全部拆进 Boot/Kernel，还是允许根上暂时保留 `Scripts/`（与「根只有 README」略冲突）？  
-5. **git**：三仓继续，路径逻辑对齐；还是新树单仓？  
-6. **Boot 文档最小集**：列 3～5 个文件名你点头后，其余一律进 Kernel。  
-7. 确认后是否同意：**下一刀只做 M2（文档迁移）**，仍不搬 `.c`？
+（旧设想 `~/ToyOSNew` **废弃**，不再使用。）
 
 ---
 
-## 8. 原文（本轮需求）
+## 7. 拍板结果（原待决 → 已定）
 
-> 现在我想换一套思路，先整理大的文件结构，你重新写一个文档，  
-> 1. ToyOS 还是作为根目录，下面三个子目录 Boot，Kernel，Runtime，这要改名字；  
-> 2. 原来的 Build 还是回归到 Boot 和 Kernel 下，Build 目录就没了；  
-> 3. Documents 拆开，ToyOS 下只有一个 README.MD，其余大部分文件进 Kernel，少部分进 Boot；  
-> 4. 当前目录的结构先不动，你在 home 下建一个 ToyOSNew，逐步迁移过去，先写文档，确认好后再动手。
+| # | 议题 | 决定 |
+| - | ---- | ---- |
+| 1 | Runtime 名 | **采用 Runtime** |
+| 2 | EDK2 | **`Boot/X64/EDK2/`**，与 ToyBoot 源码平级，工具包；**不保留独立 `.git`** |
+| 3 | Config.txt | **删**；默认进 sh |
+| 4 | Scripts | **全拆**，根不留 |
+| 5 | git | **GitHub 新仓 `OpenBox`（此后唯一仓）**；旧 ToyBoot/ToyKernel/ToyImage 三仓仅对照，不再作为新树权威 |
+| 6 | 文档 | **零搬**；结构确认后搬代码，文档新写 |
+| 7 | 下一刀 | **不先迁文档**；目录确认后开始**搬代码**（仍每刀确认清单） |
+| 8 | 工作区路径 | **`~/OpenBox`**，不用 ToyOSNew |
+
+---
+
+## 8. 原文（结构需求）
+
+> 1. ToyOS 还是作为根目录，下面三个子目录 Boot，Kernel，Runtime；  
+> 2. Build 回归 Boot 和 Kernel，顶层 Build 没了；  
+> 3. Documents 拆开，根只有 README；  
+> 4. 当前结构先不动，home 下新建再逐步迁移。
+
+本轮补充：仓名/目录 **OpenBox**；Boot 三架构；EDK2∈X64；无 Config；Scripts 全拆；文档不搬。
 
 ---
 
@@ -200,4 +175,7 @@ Kernel/Documents/
 
 | 日期 | 说明 |
 | ---- | ---- |
-| 2026-10-06 | M0：ToyOSNew 骨架 + 本文；旧仓不碰 |
+| 2026-10-06 | M0：ToyOSNew 骨架 + 本文初稿 |
+| 2026-10-07 | M1 拍板：改 `~/OpenBox`；Runtime/EDK2/无 Config/Scripts 全拆/单仓/文档零迁；取消 M2 迁文档 |
+| 2026-10-07 | 单仓钉死：EDK2 拷入剥 `.git`，不嵌套第二仓 |
+| 2026-10-07 | 代码逐步迁；每刀你 code review 后再开下一刀 |
