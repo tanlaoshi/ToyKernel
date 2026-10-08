@@ -1,8 +1,11 @@
-# （已废弃）ToyOSNew 骨架镜像
+# OpenBox 结构备忘（Documents 侧）
 
-> **2026-10-07**：工作区改为 **`~/OpenBox`**，GitHub 单仓 **OpenBox**。  
-> 本目录仅作历史对照；**勿再往 ToyOSNew 迁东西。**
+> 真树在 **`~/OpenBox`**。柱内长说明写在真树 README，不在本目录堆副本。
 
-权威结构说明：[`目录结构-ToyOSNew.md`](../../开发/目录结构-ToyOSNew.md)（文内已改称 OpenBox 方案）。
+| 柱 | 权威 README |
+| -- | ----------- |
+| **Boot** | `~/OpenBox/Boot/README.md` |
+| Kernel | `~/OpenBox/Kernel/README.md`（待补细） |
+| Runtime | `~/OpenBox/Runtime/README.md` |
 
-真树：`~/OpenBox/{Boot,Kernel,Runtime}`。
+拍板长文：[`../../开发/目录结构-ToyOSNew.md`](../../开发/目录结构-ToyOSNew.md)

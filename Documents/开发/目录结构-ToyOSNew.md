@@ -13,7 +13,7 @@
 | # | 规矩 |
 | - | ---- |
 | 1 | 逻辑根名仍是 ToyOS 故事；物理工作区 / 仓名 **`OpenBox`**。下三夹：**Boot**、**Kernel**、**Runtime** |
-| 2 | **无**顶层 `Build/`；产物在 **`Boot/Build/`**、**`Kernel/Build/`** |
+| 2 | **无**顶层 `Build/`；Boot 产物在各架构 **`Boot/<Arch>/Build/`**（格式不同，不混放）；Kernel 在 **`Kernel/Build/`** |
 | 3 | 根**只有** `README.md`（无根 `Documents/`、无根 `Scripts/`、无根 `Config.txt`） |
 | 4 | **Boot 按三架构分夹**：`X64` / `Arm64` / `RiscV` |
 | 5 | **EDK2** 放在 **`Boot/X64/EDK2/`**，与原 ToyBoot 源码**平级**，作 **X64 工具包**；**剥掉其独立 `.git`**，只作 OpenBox 单仓里的普通目录 |
@@ -34,9 +34,8 @@ OpenBox/                 # ~/OpenBox ；GitHub: OpenBox
     X64/                 # 原 ToyBoot 源码平铺于此
       EDK2/              # 工具包（裁剪 EDK2，与 Boot 源码平级）
       …                  # Boot.c / build.sh 等
-    Arm64/
-    RiscV/
-    Build/               # 引导产物（可按 arch 分子目录）
+    Arm64/               # 含本侧 Build/（.o）
+    RiscV/               # 含本侧 Build/（.o）
   Kernel/                # 原 ToyKernel；Build/ 自产自消
     Build/
   Runtime/               # 原 ToyImage：RootFs / ESP / 种子…（无 Build）
@@ -60,7 +59,7 @@ OpenBox/                 # ~/OpenBox ；GitHub: OpenBox
 | （EDK2 / 裁剪树） | `Boot/X64/EDK2/` | 工具包；**拷入时删除其中 `.git` / 子模块元数据**，不保留独立仓史 |
 | `ToyKernel/` | `Kernel/` | 去 Toy 前缀 |
 | `ToyImage/` | `Runtime/` | 名已定 |
-| 顶层 `Build/` | **删（逻辑）** | → `Boot/Build`、`Kernel/Build` |
+| 顶层 `Build/` | **删（逻辑）** | → `Boot/<Arch>/Build/`、`Kernel/Build/` |
 | 顶层 `Scripts/` | **拆尽** | 编 Boot→Boot 侧；编/跑 Kernel→Kernel 侧；刷盘/QEMU→Runtime 或 Kernel 约定脚本 |
 | 顶层 `Config.txt` | **删除** | 默认进 `build.sh` / `env` 类脚本 |
 | `ToyKernel/Documents/**` | **不搬** | 新树文档从零写；旧仓文档仍权威到你宣布切换 |
@@ -75,7 +74,7 @@ OpenBox/                 # ~/OpenBox ；GitHub: OpenBox
 | 规则 | 说明 |
 | ---- | ---- |
 | 无顶层 Build | — |
-| Boot | `Boot/Build/`（建议 `Boot/Build/X64` 等） |
+| Boot | **`Boot/X64/Build/`**、**`Boot/Arm64/Build/`**、**`Boot/RiscV/Build/`**（按下沉；无统一 `Boot/Build/`） |
 | Kernel | `Kernel/Build/` |
 | Runtime | 只收同步结果；临时打包用 `Runtime/Staging/`，**不叫 Build** |
 
@@ -127,21 +126,17 @@ OpenBox/                 # ~/OpenBox ；GitHub: OpenBox
 4. **权威**：代码迁完前，**可运行权威仍在旧仓**；新树文档从薄到厚。  
 5. **逐步 + review**：每刀迁完你 code review；未点头不开下一刀；禁止「一口气搬完再审」。
 
-### 当前磁盘（M0′）
+### 当前磁盘（节选）
 
 ```text
-~/OpenBox/
-  README.md
-  Boot/README.md
-  Boot/X64/README.md
-  Boot/X64/EDK2/README.md    # 占位：工具包位置
-  Boot/Arm64/README.md
-  Boot/RiscV/README.md
-  Kernel/README.md
-  Runtime/README.md
+~/OpenBox/Boot/
+  Include/BootInfo.h
+  X64/{…, EDK2/, Build/BOOTX64.EFI}
+  Arm64/{Boot.S, Boot.c, Build/*.o}
+  RiscV/{…, Build/*.o}
 ```
 
-（旧设想 `~/ToyOSNew` **废弃**，不再使用。）
+Boot 说明写在真树 **`~/OpenBox/Boot/README.md`**（分架构同目录下）。（旧设想目录名 `ToyOSNew` 废弃。）
 
 ---
 
@@ -179,3 +174,4 @@ OpenBox/                 # ~/OpenBox ；GitHub: OpenBox
 | 2026-10-07 | M1 拍板：改 `~/OpenBox`；Runtime/EDK2/无 Config/Scripts 全拆/单仓/文档零迁；取消 M2 迁文档 |
 | 2026-10-07 | 单仓钉死：EDK2 拷入剥 `.git`，不嵌套第二仓 |
 | 2026-10-07 | 代码逐步迁；每刀你 code review 后再开下一刀 |
+| 2026-10-07 | Boot 产物按下沉：`Boot/<Arch>/Build/`；细则在 `~/OpenBox/Boot/README.md` |

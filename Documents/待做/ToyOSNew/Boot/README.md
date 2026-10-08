@@ -1,9 +1,13 @@
-# Boot
+# Boot（备忘已迁走）
 
-引导与固件相关源码、脚本与**本侧**构建产物。
+Boot 柱说明的**权威位置**是真树：
 
-- 方案见：[../Kernel/Documents/开发/目录结构-ToyOSNew.md](../Kernel/Documents/开发/目录结构-ToyOSNew.md)  
-- 迁移源（旧仓）：`~/ToyOS/ToyBoot`  
-- 构建输出预定：`Boot/Build/`（不再使用顶层 `ToyOS/Build`）
+**`~/OpenBox/Boot/README.md`**
 
-**当前为空骨架。确认方案前不迁入代码。**
+分架构：
+
+- `~/OpenBox/Boot/X64/README.md`
+- `~/OpenBox/Boot/Arm64/README.md`
+- `~/OpenBox/Boot/RiscV/README.md`
+
+本目录不再维护副本。
